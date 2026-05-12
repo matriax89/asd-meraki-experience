@@ -46,6 +46,20 @@ export function SettingsClient({ initialData }: { initialData: any }) {
     favicon_url: ""
   });
 
+  const [media, setMedia] = useState(initialData?.media || {
+    hero_bg_url: "",
+    chi_siamo_bg_url: "",
+    documenti_bg_url: "",
+    masterclass_bg_url: ""
+  });
+
+  const [documenti, setDocumenti] = useState(initialData?.documenti || {
+    regolamento_url: "",
+    codice_etico_url: "",
+    safeguarding_url: "",
+    modulo_iscrizione_url: ""
+  });
+
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -67,7 +81,9 @@ export function SettingsClient({ initialData }: { initialData: any }) {
       youtube_videos: youtubeVideos,
       theme_colors: themeColors,
       popup: popup,
-      branding: branding
+      branding: branding,
+      media: media,
+      documenti: documenti
     };
 
     // Creiamo un nuovo FormData solo con il payload stringato
@@ -118,6 +134,14 @@ export function SettingsClient({ initialData }: { initialData: any }) {
           setBranding({ ...branding, logo_white_url: res.url });
         } else if (index === 'branding_favicon') {
           setBranding({ ...branding, favicon_url: res.url });
+        } else if (index === 'media_hero') {
+          setMedia({ ...media, hero_bg_url: res.url });
+        } else if (index === 'media_chi_siamo') {
+          setMedia({ ...media, chi_siamo_bg_url: res.url });
+        } else if (index === 'media_documenti') {
+          setMedia({ ...media, documenti_bg_url: res.url });
+        } else if (index === 'media_masterclass') {
+          setMedia({ ...media, masterclass_bg_url: res.url });
         }
       } else {
         alert("Errore caricamento: " + res.error);
@@ -630,6 +654,96 @@ export function SettingsClient({ initialData }: { initialData: any }) {
                   </label>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Media Backgrounds */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
+            <Upload className="w-5 h-5 text-indigo-500" /> Sfondi e Immagini Sezioni
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 block">Sfondo Hero (Iniziale)</label>
+              {media.hero_bg_url && <img src={media.hero_bg_url} alt="Preview" className="w-full h-32 object-cover rounded-xl border border-slate-200 mb-2" />}
+              <label className={`flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 w-full py-3 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'media_hero' ? 'opacity-50 pointer-events-none' : ''}`}>
+                {uploadingImageIndex === 'media_hero' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                <span className="ml-2 font-medium">{uploadingImageIndex === 'media_hero' ? 'Caricamento...' : 'Carica Sfondo'}</span>
+                <input type="file" accept="image/*" onChange={(e) => handleImageUpload('media_hero', e)} className="hidden" />
+              </label>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 block">Immagine "Chi Siamo"</label>
+              {media.chi_siamo_bg_url && <img src={media.chi_siamo_bg_url} alt="Preview" className="w-full h-32 object-cover rounded-xl border border-slate-200 mb-2" />}
+              <label className={`flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 w-full py-3 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'media_chi_siamo' ? 'opacity-50 pointer-events-none' : ''}`}>
+                {uploadingImageIndex === 'media_chi_siamo' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                <span className="ml-2 font-medium">{uploadingImageIndex === 'media_chi_siamo' ? 'Caricamento...' : 'Carica Immagine'}</span>
+                <input type="file" accept="image/*" onChange={(e) => handleImageUpload('media_chi_siamo', e)} className="hidden" />
+              </label>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 block">Immagine Banner "Documenti"</label>
+              {media.documenti_bg_url && <img src={media.documenti_bg_url} alt="Preview" className="w-full h-32 object-cover rounded-xl border border-slate-200 mb-2" />}
+              <label className={`flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 w-full py-3 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'media_documenti' ? 'opacity-50 pointer-events-none' : ''}`}>
+                {uploadingImageIndex === 'media_documenti' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                <span className="ml-2 font-medium">{uploadingImageIndex === 'media_documenti' ? 'Caricamento...' : 'Carica Banner'}</span>
+                <input type="file" accept="image/*" onChange={(e) => handleImageUpload('media_documenti', e)} className="hidden" />
+              </label>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 block">Immagine "Masterclass / Eventi"</label>
+              {media.masterclass_bg_url && <img src={media.masterclass_bg_url} alt="Preview" className="w-full h-32 object-cover rounded-xl border border-slate-200 mb-2" />}
+              <label className={`flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 w-full py-3 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'media_masterclass' ? 'opacity-50 pointer-events-none' : ''}`}>
+                {uploadingImageIndex === 'media_masterclass' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                <span className="ml-2 font-medium">{uploadingImageIndex === 'media_masterclass' ? 'Caricamento...' : 'Carica Immagine Masterclass'}</span>
+                <input type="file" accept="image/*" onChange={(e) => handleImageUpload('media_masterclass', e)} className="hidden" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Documenti e Modulistica */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
+            <Save className="w-5 h-5 text-indigo-500" /> Link Documenti (PDF / Pagine)
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Regolamento URL</label>
+              <input 
+                value={documenti.regolamento_url} 
+                onChange={e => setDocumenti({...documenti, regolamento_url: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500" 
+                placeholder="https://..." 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Codice Etico URL</label>
+              <input 
+                value={documenti.codice_etico_url} 
+                onChange={e => setDocumenti({...documenti, codice_etico_url: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500" 
+                placeholder="https://..." 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Safeguarding URL</label>
+              <input 
+                value={documenti.safeguarding_url} 
+                onChange={e => setDocumenti({...documenti, safeguarding_url: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500" 
+                placeholder="https://..." 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Modulo Iscrizione URL</label>
+              <input 
+                value={documenti.modulo_iscrizione_url} 
+                onChange={e => setDocumenti({...documenti, modulo_iscrizione_url: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500" 
+                placeholder="https://..." 
+              />
             </div>
           </div>
         </div>

@@ -78,6 +78,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
     .single()) as any;
     
   const content = contentData?.value || {};
+  const media = content.media || {};
+  const documenti = content.documenti || {};
 
   return (
     <main className="flex flex-col min-h-[100dvh]">
@@ -87,7 +89,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         {/* Full Image background */}
         <div className="absolute inset-0 z-0">
           <Image 
-            src="/images/hero-bg.png" 
+            src={media.hero_bg_url || "/images/hero-bg.png"} 
             alt="Meraki Experience" 
             fill 
             className="object-cover opacity-100"
@@ -148,7 +150,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             
             {/* Big Image Card (2 cols) */}
             <StaggerItem className="md:col-span-2 rounded-[2rem] relative overflow-hidden min-h-[400px] shadow-apple group">
-              <Image src="/images/v2/yoga_moody.png" alt="Meraki Experience" fill className="object-cover group-hover:scale-105 transition-transform duration-700" />
+              <Image src={media.chi_siamo_bg_url || "/images/v2/yoga_moody.png"} alt="Meraki Experience" fill className="object-cover group-hover:scale-105 transition-transform duration-700" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
               <div className="absolute bottom-0 left-0 p-8 md:p-12">
                 <div className="flex items-center gap-3 mb-3">
@@ -424,7 +426,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               <Link href="/eventi" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-50">
                 {/* Background Image that sits behind the white card */}
                 <div className="absolute top-0 left-0 w-full h-[65%]">
-                  <Image src={homepageSettings.masterclass_image || "/images/v2/aerial_glow.png"} alt="Workshop" fill className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+                  <Image src={media.masterclass_bg_url || "/images/v2/aerial_glow.png"} alt="Workshop" fill className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
                 </div>
                 
                 {/* Top Spacer */}
@@ -564,7 +566,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           <div className="flex flex-col md:flex-row gap-12 items-center">
             {/* Image Banner */}
             <div className="w-full md:w-1/2 rounded-[2rem] overflow-hidden relative h-[300px] md:h-[400px] shadow-apple">
-              <Image src="/images/v2/yoga_moody.png" alt="Allenamento" fill className="object-cover" />
+              <Image src={media.documenti_bg_url || "/images/v2/yoga_moody.png"} alt="Allenamento" fill className="object-cover" />
               <div className="absolute inset-0 bg-black/40 flex items-center p-8 md:p-12">
                 <h3 className="text-3xl md:text-4xl font-extrabold text-white tracking-tighter max-w-sm">
                   TRASFORMA IL TUO FITNESS IN ALLENAMENTO.
@@ -582,10 +584,10 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {[
-                  { title: "Regolamento", icon: <FileText className="w-8 h-8" />, href: "/legal/terms" },
-                  { title: "Codice Etico", icon: <Scale className="w-8 h-8" />, href: "/legal/terms" },
-                  { title: "Safeguarding", icon: <ShieldCheck className="w-8 h-8" />, href: "/legal/terms" },
-                  { title: "Modulo Iscrizione", icon: <FileSignature className="w-8 h-8" />, href: "/contatti" },
+                  { title: "Regolamento", icon: <FileText className="w-8 h-8" />, href: documenti.regolamento_url || "/legal/terms" },
+                  { title: "Codice Etico", icon: <Scale className="w-8 h-8" />, href: documenti.codice_etico_url || "/legal/terms" },
+                  { title: "Safeguarding", icon: <ShieldCheck className="w-8 h-8" />, href: documenti.safeguarding_url || "/legal/terms" },
+                  { title: "Modulo Iscrizione", icon: <FileSignature className="w-8 h-8" />, href: documenti.modulo_iscrizione_url || "/contatti" },
                   { title: "Privacy Policy", icon: <Lock className="w-8 h-8" />, href: "/legal/privacy" },
                   { title: "Cookie Policy", icon: <Cookie className="w-8 h-8" />, href: "/legal/cookie" }
                 ].map((doc, i) => (
