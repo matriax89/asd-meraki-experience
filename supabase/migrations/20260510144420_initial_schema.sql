@@ -28,7 +28,7 @@ create table profiles (
 -- DIRETTIVO + ISTRUTTORI
 -- =========================================================
 create table team_members (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   slug text unique not null,
   nome text not null,
   cognome text not null,
@@ -47,7 +47,7 @@ create table team_members (
 -- CORSI
 -- =========================================================
 create table courses (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   slug text unique not null,
   nome text not null,
   disciplina text not null,
@@ -73,7 +73,7 @@ create table courses (
 -- CALENDARIO SETTIMANALE
 -- =========================================================
 create table schedule_slots (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   course_id uuid references courses(id) on delete cascade,
   giorno weekday_enum not null,
   ora_inizio time not null,
@@ -95,7 +95,7 @@ create index idx_schedule_slots_sede on schedule_slots(sede) where attivo = true
 -- EVENTI + WORKSHOP (stessa tabella, tipo discriminator)
 -- =========================================================
 create table events (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   slug text unique not null,
   tipo event_tipo_enum not null default 'evento',
   titolo text not null,
@@ -128,7 +128,7 @@ create index idx_events_tipo on events(tipo) where attivo = true;
 -- TICKETS (eventi + workshop)
 -- =========================================================
 create table tickets (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   event_id uuid references events(id) on delete restrict,
   buyer_email text not null,
   buyer_nome text,
@@ -151,7 +151,7 @@ create index idx_tickets_status on tickets(status);
 -- SHOP — PRODOTTI
 -- =========================================================
 create table products (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   slug text unique not null,
   nome text not null,
   categoria product_categoria_enum not null,
@@ -176,7 +176,7 @@ create index idx_products_evidenza on products(in_evidenza) where in_vendita = t
 
 -- Varianti (taglia + colore + stock)
 create table product_variants (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   product_id uuid references products(id) on delete cascade,
   sku text unique not null,
   taglia text,                             -- 'XS','S','M','L','XL','XXL' o null per accessori
@@ -199,7 +199,7 @@ create index idx_variants_stock_low on product_variants(stock) where stock <= st
 -- ORDINI SHOP
 -- =========================================================
 create table orders (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   numero_ordine text unique not null,      -- es. "ME-2026-00001"
   buyer_email text not null,
   buyer_nome text not null,
@@ -246,7 +246,7 @@ $$ language sql;
 
 -- Righe ordine
 create table order_items (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   order_id uuid references orders(id) on delete cascade,
   variant_id uuid references product_variants(id),
   -- Snapshot al momento dell'ordine (anche se prodotto cambia)
@@ -265,7 +265,7 @@ create index idx_order_items_order on order_items(order_id);
 -- METODI DI SPEDIZIONE
 -- =========================================================
 create table shipping_methods (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   slug text unique not null,
   nome text not null,                      -- "Standard Italia", "Express", "Ritiro in sede"
   descrizione text,
@@ -281,7 +281,7 @@ create table shipping_methods (
 -- PIANI TESSERAMENTO (display)
 -- =========================================================
 create table pricing_plans (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   slug text unique not null,
   titolo text not null,
   prezzo_cents int not null,
@@ -301,7 +301,7 @@ create table pricing_plans (
 -- DOCUMENTI ISTITUZIONALI
 -- =========================================================
 create table documents (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   slug text unique not null,
   titolo text not null,
   descrizione text,
@@ -318,7 +318,7 @@ create table documents (
 -- BLOG
 -- =========================================================
 create table posts (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   slug text unique not null,
   titolo text not null,
   sommario text,
@@ -340,7 +340,7 @@ create index idx_posts_pubblicato on posts(pubblicato_at desc) where pubblicato 
 -- SPONSOR
 -- =========================================================
 create table sponsors (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   slug text unique not null,
   nome text not null,
   logo_url text not null,
@@ -356,7 +356,7 @@ create table sponsors (
 -- LEAD (isolata, niente sync esterno)
 -- =========================================================
 create table leads (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   source text not null default 'meraki-website',
   nome text,
   cognome text,
