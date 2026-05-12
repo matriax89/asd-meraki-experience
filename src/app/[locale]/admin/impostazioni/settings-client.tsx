@@ -38,6 +38,13 @@ export function SettingsClient({ initialData }: { initialData: any }) {
     ritardo_secondi: 3
   });
 
+  const [branding, setBranding] = useState(initialData?.branding || {
+    meta_title: "ASD Meraki Experience",
+    meta_description: "Benessere, fitness e cambiamento",
+    logo_url: "",
+    favicon_url: ""
+  });
+
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -58,7 +65,8 @@ export function SettingsClient({ initialData }: { initialData: any }) {
       direttivo: direttivo,
       youtube_videos: youtubeVideos,
       theme_colors: themeColors,
-      popup: popup
+      popup: popup,
+      branding: branding
     };
 
     // Creiamo un nuovo FormData solo con il payload stringato
@@ -103,6 +111,10 @@ export function SettingsClient({ initialData }: { initialData: any }) {
           updateDirettivo(index, "foto_url", res.url);
         } else if (index === 'popup') {
           setPopup({ ...popup, foto_url: res.url });
+        } else if (index === 'branding_logo') {
+          setBranding({ ...branding, logo_url: res.url });
+        } else if (index === 'branding_favicon') {
+          setBranding({ ...branding, favicon_url: res.url });
         }
       } else {
         alert("Errore caricamento: " + res.error);
@@ -518,6 +530,83 @@ export function SettingsClient({ initialData }: { initialData: any }) {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Branding e SEO */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b pb-2 mt-8">
+            <h3 className="text-lg font-semibold text-slate-800">7. Branding e SEO</h3>
+          </div>
+          
+          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Titolo Globale (Meta Title)</label>
+                <input 
+                  value={branding.meta_title}
+                  onChange={(e) => setBranding({...branding, meta_title: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                  placeholder="Es. ASD Meraki Experience"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Descrizione SEO (Meta Description)</label>
+                <input 
+                  value={branding.meta_description}
+                  onChange={(e) => setBranding({...branding, meta_description: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                  placeholder="Descrizione del sito per Google..."
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 block">Logo Personalizzato</label>
+                <div className="flex gap-2 items-center">
+                  <input 
+                    value={branding.logo_url}
+                    onChange={(e) => setBranding({...branding, logo_url: e.target.value})}
+                    className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                    placeholder="URL del Logo o lascia vuoto per predefinito"
+                  />
+                  <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-3 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'branding_logo' ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {uploadingImageIndex === 'branding_logo' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                    <span className="ml-2 font-medium">{uploadingImageIndex === 'branding_logo' ? '...' : 'Sfoglia'}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleImageUpload('branding_logo', e)} 
+                      className="hidden" 
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 block">Favicon (Icona della Scheda)</label>
+                <div className="flex gap-2 items-center">
+                  <input 
+                    value={branding.favicon_url}
+                    onChange={(e) => setBranding({...branding, favicon_url: e.target.value})}
+                    className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                    placeholder="URL della Favicon"
+                  />
+                  <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-3 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'branding_favicon' ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {uploadingImageIndex === 'branding_favicon' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                    <span className="ml-2 font-medium">{uploadingImageIndex === 'branding_favicon' ? '...' : 'Sfoglia'}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleImageUpload('branding_favicon', e)} 
+                      className="hidden" 
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="pt-6 border-t border-slate-200">

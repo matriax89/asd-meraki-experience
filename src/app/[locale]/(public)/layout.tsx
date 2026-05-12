@@ -23,12 +23,13 @@ export default async function PublicLayout({
     .single();
     
   const popupData = (settings?.value as any)?.popup || null;
+  const brandingData = (settings?.value as any)?.branding || null;
 
   return (
     <>
-      <Header initialCartCount={initialCartCount} />
+      <Header initialCartCount={initialCartCount} logoUrl={brandingData?.logo_url} />
       {children}
-      <Footer />
+      <Footer logoUrl={brandingData?.logo_url} />
       <CookieBanner />
       <GlobalPopup data={popupData} />
     </>

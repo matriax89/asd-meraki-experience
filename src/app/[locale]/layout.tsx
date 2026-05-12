@@ -11,10 +11,41 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "ASD Meraki Experience",
-  description: "Benessere, fitness e cambiamento",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const supabase = await createClient();
+  const { data: settings } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "homepage_content")
+    .single();
+
+  const branding = (settings?.value as any)?.branding;
+
+  const title = branding?.meta_title || "ASD Meraki Experience";
+  const description = branding?.meta_description || "Benessere, fitness e cambiamento";
+  const favicon = branding?.favicon_url || "/favicon.ico";
+
+  return {
+    title,
+    description,
+    icons: {
+      icon: favicon,
+    },
+    openGraph: {
+      title,
+      description,
+      siteName: title,
+      images: [
+        {
+          url: branding?.logo_url || "https://www.merakiexperience.org/images/logo.png",
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+  };
+}
 
 import { createClient } from "@/lib/supabase/server";
 import { JsonLd } from "@/components/seo/json-ld";
