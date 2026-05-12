@@ -1,0 +1,179 @@
+{
+  "Index": {
+    "title": "ASD Meraki Experience",
+    "description": "Ein Fitnessstudio für Körper und Seele.",
+    "hero": {
+      "badge": "Wohlbefinden, Fitness und Veränderung",
+      "headline": "Mehr als nur Bewegung.",
+      "subheadline": "Akrobatische Disziplinen, Yoga und ganzheitliches Wohlbefinden in Bozen und Eppan.",
+      "cta_primary": "Jetzt starten",
+      "cta_secondary": "Kurse entdecken"
+    },
+    "philosophy": {
+      "badge": "Unsere Philosophie",
+      "title": "Es ist nicht nur Sport. Es ist ein Lebensstil.",
+      "mission_title": "Unsere Mission",
+      "mission_desc": "Einen aktiven und gesunden Lebensstil fördern, Teilnehmer motivieren, ihre Grenzen zu überwinden und die Liebe zum Sport zu teilen.",
+      "vision_title": "Unsere Vision",
+      "vision_desc": "Jede Disziplin auch aus emotionaler Sicht wachsen lassen. Das Sporterlebnis muss eine fesselnde Reise sein, bei der jeder Inspiration und persönliche Erfüllung findet."
+    },
+    "values": {
+      "passion": "Leidenschaft",
+      "passion_desc": "Der Motor, der jede unserer Aktivitäten antreibt und inspiriert.",
+      "dedication": "Hingabe",
+      "dedication_desc": "Personalisierte Wege für Sportler aller Niveaus.",
+      "community": "Gemeinschaft",
+      "community_desc": "Werte von tiefem Respekt und Teamgeist.",
+      "excellence": "Exzellenz",
+      "excellence_desc": "Einzigartige akrobatische Disziplinen in ganz Südtirol."
+    },
+    "courses": {
+      "badge": "Unsere Wege",
+      "title": "Kurse & Disziplinen",
+      "subtitle": "Jede Disziplin hat eine eigene Seite mit Zeiten, Niveaus und Trainern. Finde den passenden Kurs für dich.",
+      "view_all": "Alle Kurse ansehen"
+    },
+    "schedule": {
+      "badge": "Plane dein Training",
+      "title": "Wochenplan",
+      "subtitle": "Entdecke unsere Zeiten und buche deinen Kurs.",
+      "view_full": "Vollständigen Kalender ansehen",
+      "days": {
+        "lun": "MO",
+        "mar": "DI",
+        "mer": "MI",
+        "gio": "DO",
+        "ven": "FR",
+        "sab": "SA",
+        "dom": "SO"
+      }
+    },
+    "shop": {
+      "badge": "Veranstaltungen & Merchandising",
+      "title": "Neuigkeiten & Shop",
+      "view_all": "Alles ansehen",
+      "workshop_badge": "Neuer Workshop",
+      "workshop_title": "Masterclass",
+      "workshop_desc": "Buche deinen Platz für das nächste exklusive Event.",
+      "workshop_cta": "Ticket kaufen",
+      "merch_badge": "Bekleidung",
+      "merch_title": "Meraki Official Merch",
+      "merch_desc": "Entdecke die neue Kollektion von Sportbekleidung und Meraki-Accessoires.",
+      "merch_cta": "Shop erkunden",
+      "donate_badge": "Unterstütze uns",
+      "donate_title": "Meraki unterstützen",
+      "donate_desc": "Hilf uns, unsere Community zu vergrößern. Jede Spende ermöglicht es uns, neue Veranstaltungen zu organisieren und die Ausrüstung zu verbessern.",
+      "donate_cta": "Spende machen"
+    }
+  },
+  "Navigation": {
+    "chi_siamo": "Über uns",
+    "corsi": "Kurse",
+    "orario": "Stundenplan",
+    "shop": "Shop",
+    "eventi": "Veranstaltungen",
+    "contatti": "Kontakt",
+    "sponsor": "Sponsor Werden"
+  },
+  "Contact": {
+    "title": "Kontakt",
+    "badge": "Wir sind für Sie da",
+    "headline": "Lassen Sie uns in Kontakt treten",
+    "subheadline": "Haben Sie Fragen zu Kursen? Benötigen Sie Informationen zu Mitgliedschaften oder Kooperationen? Schreiben Sie uns und wir antworten so schnell wie möglich.",
+    "details_title": "Kontaktdaten",
+    "hq": "Hauptsitz",
+    "email": "E-Mail",
+    "phone": "Telefon",
+    "office_hours_title": "Bürozeiten",
+    "office_hours_desc": "Montag - Freitag: 15:00 - 19:00",
+    "form_title": "Senden Sie uns eine Nachricht",
+    "form_desc": "Füllen Sie das untenstehende Formular aus und unser Team wird Sie in Kürze kontaktieren.",
+    "form_name": "Vollständiger Name",
+    "form_name_placeholder": "Z.B. Max Mustermann",
+    "form_email": "E-Mail Adresse",
+    "form_email_placeholder": "Z.B. max@example.com",
+    "form_message": "Wie können wir Ihnen helfen?",
+    "form_message_placeholder": "Schreiben Sie Ihre Nachricht hier...",
+    "form_submit": "Nachricht Senden",
+    "form_submitting": "Wird gesendet...",
+    "success_title": "Nachricht Gesendet!",
+    "success_desc": "Vielen Dank für Ihre Nachricht. Wir werden so schnell wie möglich antworten."
+  },
+  "Common": {
+    "buy_now": "Jetzt Kaufen",
+    "read_more": "Weiterlesen",
+    "free_trial": "Kostenloses Probetraining",
+    "submit": "Einreichen",
+    "loading": "Wird geladen...",
+    "error": "Ein Fehler ist aufgetreten."
+  },
+  "Footer": {
+    "about_us": "Amateursportverein zur Förderung von Wohlbefinden, Fitness und Veränderung. Akrobatische Disziplinen, Yoga, Lufttanz und ganzheitliches Wohlbefinden in Bozen und Eppan.",
+    "nav_title": "Navigation",
+    "locations_title": "Standorte",
+    "legal_title": "Rechtliches",
+    "contact_title": "Kontakte",
+    "privacy_policy": "Datenschutzerklärung",
+    "terms_conditions": "Allgemeine Geschäftsbedingungen",
+    "statute": "Vereinsstatut",
+    "code_conduct": "Verhaltenskodex",
+    "rights_reserved": "Alle Rechte vorbehalten.",
+    "area_admin": "Admin-Bereich",
+    "location_bz": "Bozen (BZ)",
+    "location_ap": "Eppan (BZ)"
+  },
+  "Legal": {
+    "privacy": {
+      "title": "Datenschutzrichtlinie",
+      "updated": "11. Mai 2026",
+      "lead": "Informationen zur Verarbeitung personenbezogener Daten (EU-Verordnung 2016/679 - DSGVO)",
+      "sec1_title": "1. Verantwortlicher für die Datenverarbeitung",
+      "sec1_desc": "Der Datenverantwortliche ist <strong>ASD Meraki Experience</strong> mit Sitz in Bozen, USt-IdNr./Steuernummer IT03224340210. Für datenschutzrelevante Kommunikation können Sie sich an folgende E-Mail-Adresse wenden: <a href=\"mailto:info@merakiexperience.org\">info@merakiexperience.org</a>",
+      "sec2_title": "2. Art der erhobenen Daten",
+      "sec2_desc": "Die Website sammelt personenbezogene Daten, die vom Benutzer freiwillig eingegeben werden, wie Name, Vorname, E-Mail-Adresse und Telefonnummer. Navigationsdaten werden auch anonym für statistische Zwecke gesammelt.",
+      "sec3_title": "3. Zwecke der Verarbeitung",
+      "sec3_desc": "Die gesammelten Daten werden für folgende Zwecke verarbeitet:",
+      "sec3_li1": "Verwaltung von Kontakt- oder Informationsanfragen.",
+      "sec3_li2": "Durchführung der Vereinsmitgliedschaft und des Versicherungsschutzes.",
+      "sec3_li3": "Erfüllung von E-Commerce-Bestellungen (Versand, Rechnungsstellung).",
+      "sec3_li4": "Verwaltung des elektronischen Ticketings und der Zugangskontrolle für Veranstaltungen.",
+      "sec3_li5": "Versand von Servicemitteilungen oder Newslettern (vorbehaltlich ausdrücklicher Opt-in-Zustimmung).",
+      "sec4_title": "4. Speicherung und Sicherheit",
+      "sec4_desc": "Die Daten werden auf sicheren Servern in Europa gespeichert. Zahlungsdaten durchlaufen unsere Server nicht und werden dort nicht gespeichert; sie werden direkt von der verschlüsselten Stripe-Plattform verwaltet.",
+      "sec5_title": "5. Rechte des Benutzers",
+      "sec5_desc": "Der Benutzer hat das Recht, Zugang, Berichtigung oder Löschung seiner personenbezogenen Daten zu verlangen (Recht auf Vergessenwerden). Diese Rechte können durch ein Schreiben an die E-Mail-Adresse des Datenverantwortlichen ausgeübt werden."
+    },
+    "cookie": {
+      "title": "Cookie-Richtlinie",
+      "updated": "11. Mai 2026",
+      "lead": "Informationen zur Verwendung von Cookies.",
+      "sec1_title": "1. Was sind Cookies?",
+      "sec1_desc": "Cookies sind kleine Textdateien, die von den vom Benutzer besuchten Websites an sein Endgerät gesendet werden, wo sie gespeichert und bei jedem weiteren Besuch an dieselben Websites zurückgesendet werden.",
+      "sec2_title": "2. Von dieser Website verwendete Cookies",
+      "sec2_desc": "Diese Website verwendet folgende Arten von Cookies:",
+      "sec2_li1": "<strong>Unbedingt erforderliche Cookies:</strong> Unerlässlich für das ordnungsgemäße Funktionieren der Website, die Navigation, die Warenkorbverwaltung und die Sicherheit. Sie können nicht deaktiviert werden.",
+      "sec2_li2": "<strong>Statistische Cookies (Analytics):</strong> Helfen uns zu verstehen, wie Besucher mit der Website interagieren, indem Informationen anonym und in aggregierter Form gesammelt werden.",
+      "sec2_li3": "<strong>Marketing-Cookies:</strong> Werden verwendet, um Besucher über Websites hinweg zu verfolgen, mit der Absicht, dem einzelnen Benutzer relevante und ansprechende Anzeigen zu präsentieren.",
+      "sec3_title": "3. Verwaltung der Einstellungen",
+      "sec3_desc": "Sie können Ihre Einwilligung jederzeit ändern oder widerrufen, indem Sie auf die Schaltfläche unten klicken.",
+      "update_btn": "Cookie-Einstellungen aktualisieren",
+      "sec4_title": "4. Cookies von Drittanbietern",
+      "sec4_desc": "Einige Drittanbieter-Dienste (wie Stripe für Zahlungen oder Google für Schriftarten) können eigene Cookies auf Ihrem Gerät installieren. Weitere Informationen finden Sie in deren jeweiligen Datenschutzrichtlinien."
+    },
+    "terms": {
+      "title": "Allgemeine Geschäftsbedingungen",
+      "updated": "11. Mai 2026",
+      "lead": "Allgemeine Nutzungsbedingungen für die Plattform und Dienste.",
+      "sec1_title": "1. Einführung",
+      "sec1_desc": "Diese Allgemeinen Geschäftsbedingungen regeln die Nutzung der Webplattform \"Meraki Experience\" und der von der Amateursportvereinigung Meraki Experience angebotenen Dienste. Der Zugriff auf und die Nutzung der Website setzt die vollständige Akzeptanz der folgenden Bedingungen voraus.",
+      "sec2_title": "2. Mitgliedschaft und Anmeldung",
+      "sec2_desc": "Die Teilnahme an den von ASD Meraki Experience organisierten Aktivitäten ist den ordnungsgemäß angemeldeten Mitgliedern mit gültiger Jahresmitgliedschaft vorbehalten. Der Kauf von Paketen oder Kursen über die Website ersetzt nicht die Verpflichtung zur Vorlage der erforderlichen medizinischen Unterlagen (ärztliches Attest für Nicht-Leistungssport).",
+      "sec3_title": "3. E-Commerce-Käufe",
+      "sec3_desc": "Produkte, die im Online-Shop verkauft werden, unterliegen der Verfügbarkeit. Die angegebenen Preise enthalten die gesetzliche Mehrwertsteuer. Die Zahlung erfolgt sicher über die Stripe-Plattform. Im Falle eines defekten Produkts oder einer falschen Größe hat der Benutzer das Recht, dieses innerhalb von 14 Werktagen nach Erhalt zurückzugeben, sofern der Artikel nicht benutzt wurde.",
+      "sec4_title": "4. Rückerstattungen und Stornierungen von Veranstaltungen",
+      "sec4_desc": "Tickets für Workshops oder Sonderveranstaltungen sind nicht erstattungsfähig, es sei denn, die Veranstaltung wird von der Organisation abgesagt. In einem solchen Fall wird eine vollständige Rückerstattung oder ein Gutschein in gleichem Wert ausgestellt.",
+      "sec5_title": "5. Änderungen der Bedingungen",
+      "sec5_desc": "ASD Meraki Experience behält sich das Recht vor, diese Allgemeinen Geschäftsbedingungen jederzeit zu ändern. Änderungen treten sofort nach Veröffentlichung auf der Website in Kraft."
+    }
+  }
+}

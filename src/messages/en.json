@@ -1,0 +1,179 @@
+{
+  "Index": {
+    "title": "ASD Meraki Experience",
+    "description": "A gym for your body and soul.",
+    "hero": {
+      "badge": "Wellness, fitness and change",
+      "headline": "Beyond movement.",
+      "subheadline": "Acrobatic disciplines, yoga and holistic wellness in Bolzano and Appiano.",
+      "cta_primary": "Start now",
+      "cta_secondary": "Explore courses"
+    },
+    "philosophy": {
+      "badge": "Our Philosophy",
+      "title": "It's not just sports. It's a lifestyle.",
+      "mission_title": "Our Mission",
+      "mission_desc": "Promote an active and healthy lifestyle, motivating participants to overcome their limits and share the love for sports.",
+      "vision_title": "Our Vision",
+      "vision_desc": "Help every discipline grow from an emotional point of view. The sports experience must be an engaging journey where everyone finds inspiration and personal fulfillment."
+    },
+    "values": {
+      "passion": "Passion",
+      "passion_desc": "The engine that drives and inspires every single activity of ours.",
+      "dedication": "Dedication",
+      "dedication_desc": "Personalized paths for athletes of all levels.",
+      "community": "Community",
+      "community_desc": "Values of deep respect and team spirit.",
+      "excellence": "Excellence",
+      "excellence_desc": "Unique acrobatic disciplines throughout South Tyrol."
+    },
+    "courses": {
+      "badge": "Our paths",
+      "title": "Courses & Disciplines",
+      "subtitle": "Each discipline has a dedicated page with schedules, levels, and instructors. Discover the right path for you.",
+      "view_all": "View all courses"
+    },
+    "schedule": {
+      "badge": "Plan your workout",
+      "title": "Weekly Schedule",
+      "subtitle": "Discover our schedules and book your class.",
+      "view_full": "View full calendar",
+      "days": {
+        "lun": "MON",
+        "mar": "TUE",
+        "mer": "WED",
+        "gio": "THU",
+        "ven": "FRI",
+        "sab": "SAT",
+        "dom": "SUN"
+      }
+    },
+    "shop": {
+      "badge": "Events & Merchandising",
+      "title": "News & Shop",
+      "view_all": "View all",
+      "workshop_badge": "New Workshop",
+      "workshop_title": "Masterclass",
+      "workshop_desc": "Book your spot for the next exclusive event.",
+      "workshop_cta": "Buy ticket",
+      "merch_badge": "Apparel",
+      "merch_title": "Meraki Official Merch",
+      "merch_desc": "Discover the new collection of sports apparel and Meraki branded accessories.",
+      "merch_cta": "Explore the shop",
+      "donate_badge": "Support us",
+      "donate_title": "Support Meraki",
+      "donate_desc": "Help us grow our community. Every donation allows us to organize new events and improve equipment.",
+      "donate_cta": "Make a donation"
+    }
+  },
+  "Navigation": {
+    "chi_siamo": "About Us",
+    "corsi": "Courses",
+    "orario": "Schedule",
+    "shop": "Shop",
+    "eventi": "Events",
+    "contatti": "Contact",
+    "sponsor": "Become a Sponsor"
+  },
+  "Contact": {
+    "title": "Contact",
+    "badge": "We Are Here For You",
+    "headline": "Let's get in touch",
+    "subheadline": "Have questions about courses? Need info on memberships or collaborations? Write to us and we'll reply as soon as possible.",
+    "details_title": "Contact Details",
+    "hq": "Headquarters",
+    "email": "Email",
+    "phone": "Phone",
+    "office_hours_title": "Office Hours",
+    "office_hours_desc": "Monday - Friday: 3:00 PM - 7:00 PM",
+    "form_title": "Send us a message",
+    "form_desc": "Fill out the form below and our team will contact you shortly.",
+    "form_name": "Full Name",
+    "form_name_placeholder": "E.g. John Doe",
+    "form_email": "Email Address",
+    "form_email_placeholder": "E.g. john@example.com",
+    "form_message": "How can we help you?",
+    "form_message_placeholder": "Write your message here...",
+    "form_submit": "Send Message",
+    "form_submitting": "Sending...",
+    "success_title": "Message Sent!",
+    "success_desc": "Thank you for writing to us. We will reply as soon as possible."
+  },
+  "Common": {
+    "buy_now": "Buy Now",
+    "read_more": "Read More",
+    "free_trial": "Free Trial",
+    "submit": "Submit",
+    "loading": "Loading...",
+    "error": "An error occurred."
+  },
+  "Footer": {
+    "about_us": "Amateur sports association dedicated to well-being, fitness, and change. Acrobatic disciplines, yoga, aerial dance, and holistic well-being in Bolzano and Appiano.",
+    "nav_title": "Navigation",
+    "locations_title": "Locations",
+    "legal_title": "Legal",
+    "contact_title": "Contact",
+    "privacy_policy": "Privacy Policy",
+    "terms_conditions": "Terms and Conditions",
+    "statute": "Association Statute",
+    "code_conduct": "Code of Conduct",
+    "rights_reserved": "All rights reserved.",
+    "area_admin": "Admin Area",
+    "location_bz": "Bolzano (BZ)",
+    "location_ap": "Appiano (BZ)"
+  },
+  "Legal": {
+    "privacy": {
+      "title": "Privacy Policy",
+      "updated": "May 11, 2026",
+      "lead": "Information on the processing of personal data (EU Regulation 2016/679 - GDPR)",
+      "sec1_title": "1. Data Controller",
+      "sec1_desc": "The Data Controller is <strong>ASD Meraki Experience</strong>, headquartered in Bolzano, VAT/Tax ID IT03224340210. For any privacy-related communication, you can contact the email address: <a href=\"mailto:info@merakiexperience.org\">info@merakiexperience.org</a>",
+      "sec2_title": "2. Type of Data Collected",
+      "sec2_desc": "The website collects personal data voluntarily entered by the user, such as name, surname, email address, and phone number. Navigation data is also collected anonymously for statistical purposes.",
+      "sec3_title": "3. Purposes of Processing",
+      "sec3_desc": "The collected data is processed for the following purposes:",
+      "sec3_li1": "Management of contact or information requests.",
+      "sec3_li2": "Execution of association membership and insurance coverage.",
+      "sec3_li3": "Fulfillment of e-commerce orders (shipping, billing).",
+      "sec3_li4": "Management of electronic ticketing and access control for events.",
+      "sec3_li5": "Sending service communications or newsletters (subject to explicit opt-in consent).",
+      "sec4_title": "4. Storage and Security",
+      "sec4_desc": "Data is stored on secure servers located in Europe. Payment data does not pass through nor is it saved on our servers; it is directly managed by the encrypted Stripe platform.",
+      "sec5_title": "5. User Rights",
+      "sec5_desc": "The user has the right to request access, rectification, or deletion of their personal data (right to be forgotten). These rights can be exercised by writing to the Data Controller's email address."
+    },
+    "cookie": {
+      "title": "Cookie Policy",
+      "updated": "May 11, 2026",
+      "lead": "Information on the use of Cookies.",
+      "sec1_title": "1. What are Cookies?",
+      "sec1_desc": "Cookies are small text files that websites visited by the user send to their terminal, where they are stored and then transmitted back to the same sites on the next visit.",
+      "sec2_title": "2. Cookies Used by this Website",
+      "sec2_desc": "This website uses the following types of cookies:",
+      "sec2_li1": "<strong>Strictly Necessary Cookies:</strong> Essential for the proper functioning of the site, navigation, cart management, and security. They cannot be disabled.",
+      "sec2_li2": "<strong>Statistical Cookies (Analytics):</strong> Help us understand how visitors interact with the site by collecting information anonymously and in aggregate form.",
+      "sec2_li3": "<strong>Marketing Cookies:</strong> Used to track visitors across websites with the intention of displaying relevant and engaging ads for the individual user.",
+      "sec3_title": "3. Preference Management",
+      "sec3_desc": "You can change or revoke your consent at any time by clicking the button below.",
+      "update_btn": "Update Cookie Preferences",
+      "sec4_title": "4. Third-Party Cookies",
+      "sec4_desc": "Some third-party services (such as Stripe for payments or Google for fonts) may install their own cookies on your device. Please refer to their respective privacy policies for more information."
+    },
+    "terms": {
+      "title": "Terms and Conditions",
+      "updated": "May 11, 2026",
+      "lead": "General conditions of use of the platform and services.",
+      "sec1_title": "1. Introduction",
+      "sec1_desc": "These Terms and Conditions govern the use of the \"Meraki Experience\" web platform and the services offered by the amateur sports association Meraki Experience. Access to and use of the site implies full acceptance of the following terms.",
+      "sec2_title": "2. Membership and Enrollment",
+      "sec2_desc": "Participation in the activities organized by ASD Meraki Experience is reserved for regularly enrolled members in good standing with the annual membership. The purchase of packages or courses through the site does not replace the obligation to present the required medical documentation (non-competitive medical certificate).",
+      "sec3_title": "3. E-Commerce Purchases",
+      "sec3_desc": "Products on sale in the online shop are subject to availability. The prices indicated include VAT. Payment is made securely through the Stripe platform. In case of a defective product or wrong size, the user has the right to return it within 14 working days of receipt, provided the item has not been used.",
+      "sec4_title": "4. Event Refunds and Cancellations",
+      "sec4_desc": "Tickets for workshops or special events are non-refundable unless the event is canceled by the organization. In such a case, a full refund or a voucher of equal value will be issued.",
+      "sec5_title": "5. Changes to the Terms",
+      "sec5_desc": "ASD Meraki Experience reserves the right to modify these Terms and Conditions at any time. Changes will take effect immediately upon publication on the site."
+    }
+  }
+}
