@@ -45,16 +45,18 @@ export function Footer({ logoUrl }: { logoUrl?: string }) {
           <div className="max-w-sm">
             <div className="flex items-center gap-2.5 mb-4">
               {logoUrl ? (
-                <div className="relative w-7 h-7 flex-shrink-0">
-                  <Image src={logoUrl} alt="Meraki Logo" fill className="object-contain" sizes="28px" />
+                <div className="relative h-10 w-32 md:h-12 md:w-40 flex-shrink-0">
+                  <Image src={logoUrl} alt="Meraki Logo" fill className="object-contain object-left" sizes="(max-width: 768px) 128px, 160px" />
                 </div>
               ) : (
-                <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-                  <rect width="28" height="28" rx="7" fill="currentColor" className="text-slate-900" />
-                  <text x="14" y="19" textAnchor="middle" fill="white" fontSize="14" fontWeight="700" fontFamily="Inter, sans-serif">M</text>
-                </svg>
+                <>
+                  <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+                    <rect width="28" height="28" rx="7" fill="currentColor" className="text-slate-900" />
+                    <text x="14" y="19" textAnchor="middle" fill="white" fontSize="14" fontWeight="700" fontFamily="Inter, sans-serif">M</text>
+                  </svg>
+                  <span className="text-[15px] font-bold text-slate-900 tracking-tight">Meraki Experience</span>
+                </>
               )}
-              <span className="text-[15px] font-bold text-slate-900 tracking-tight">Meraki Experience</span>
             </div>
             <p className="text-[14px] text-slate-500 leading-relaxed">
               {t("about_us")}

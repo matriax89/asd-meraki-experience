@@ -59,22 +59,25 @@ export function Header({ initialCartCount = 0, logoUrl, logoWhiteUrl }: { initia
             {/* Logo */}
             <Link href="/" className={`flex items-center gap-2.5 transition-colors duration-300 ${textColorClass}`}>
               {(logoUrl || logoWhiteUrl) ? (
-                <div className="relative w-8 h-8 flex-shrink-0">
+                <div className="relative h-10 w-32 md:h-12 md:w-40 flex-shrink-0">
                   <Image 
                     src={(isTransparentAndHome && logoWhiteUrl) ? logoWhiteUrl : (logoUrl || logoWhiteUrl || "")} 
                     alt="Meraki Logo" 
                     fill 
-                    className="object-contain" 
-                    sizes="32px" 
+                    className="object-contain object-left" 
+                    sizes="(max-width: 768px) 128px, 160px" 
+                    priority
                   />
                 </div>
               ) : (
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                  <rect width="28" height="28" rx="7" className={isTransparentAndHome ? "fill-white" : "fill-foreground"} />
-                  <text x="14" y="19" textAnchor="middle" fontSize="14" fontWeight="700" fontFamily="Inter, sans-serif" className={isTransparentAndHome ? "fill-black" : "fill-background"}>M</text>
-                </svg>
+                <>
+                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                    <rect width="28" height="28" rx="7" className={isTransparentAndHome ? "fill-white" : "fill-foreground"} />
+                    <text x="14" y="19" textAnchor="middle" fontSize="14" fontWeight="700" fontFamily="Inter, sans-serif" className={isTransparentAndHome ? "fill-black" : "fill-background"}>M</text>
+                  </svg>
+                  <span className="text-[15px] font-semibold tracking-tight">Meraki</span>
+                </>
               )}
-              <span className="text-[15px] font-semibold tracking-tight">Meraki</span>
             </Link>
 
             {/* Desktop nav */}
