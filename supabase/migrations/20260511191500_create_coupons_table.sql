@@ -30,4 +30,4 @@ CREATE POLICY "Admins can manage coupons"
 
 -- Aggiungo un trigger per updated_at
 CREATE TRIGGER handle_updated_at BEFORE UPDATE ON public.coupons
-  FOR EACH ROW EXECUTE PROCEDURE moddatetime (updated_at);
+  FOR EACH ROW EXECUTE PROCEDURE extensions.moddatetime (updated_at);
