@@ -42,6 +42,7 @@ export function SettingsClient({ initialData }: { initialData: any }) {
     meta_title: "ASD Meraki Experience",
     meta_description: "Benessere, fitness e cambiamento",
     logo_url: "",
+    logo_white_url: "",
     favicon_url: ""
   });
 
@@ -113,6 +114,8 @@ export function SettingsClient({ initialData }: { initialData: any }) {
           setPopup({ ...popup, foto_url: res.url });
         } else if (index === 'branding_logo') {
           setBranding({ ...branding, logo_url: res.url });
+        } else if (index === 'branding_logo_white') {
+          setBranding({ ...branding, logo_white_url: res.url });
         } else if (index === 'branding_favicon') {
           setBranding({ ...branding, favicon_url: res.url });
         }
@@ -563,13 +566,13 @@ export function SettingsClient({ initialData }: { initialData: any }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 block">Logo Personalizzato</label>
+                <label className="text-sm font-medium text-slate-700 block">Logo Principale (Header Scuro/Bianco)</label>
                 <div className="flex gap-2 items-center">
                   <input 
                     value={branding.logo_url}
                     onChange={(e) => setBranding({...branding, logo_url: e.target.value})}
                     className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
-                    placeholder="URL del Logo o lascia vuoto per predefinito"
+                    placeholder="Logo Scuro (es. nero)"
                   />
                   <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-3 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'branding_logo' ? 'opacity-50 pointer-events-none' : ''}`}>
                     {uploadingImageIndex === 'branding_logo' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
@@ -578,6 +581,28 @@ export function SettingsClient({ initialData }: { initialData: any }) {
                       type="file" 
                       accept="image/*" 
                       onChange={(e) => handleImageUpload('branding_logo', e)} 
+                      className="hidden" 
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 block">Logo Bianco (Header Trasparente)</label>
+                <div className="flex gap-2 items-center">
+                  <input 
+                    value={branding.logo_white_url || ""}
+                    onChange={(e) => setBranding({...branding, logo_white_url: e.target.value})}
+                    className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                    placeholder="Logo Chiaro (es. bianco)"
+                  />
+                  <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-3 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'branding_logo_white' ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {uploadingImageIndex === 'branding_logo_white' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                    <span className="ml-2 font-medium">{uploadingImageIndex === 'branding_logo_white' ? '...' : 'Sfoglia'}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleImageUpload('branding_logo_white', e)} 
                       className="hidden" 
                     />
                   </label>

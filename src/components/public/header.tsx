@@ -12,7 +12,7 @@ import { usePathname } from "next/navigation";
 import { CartDropdown } from "./cart-dropdown";
 import Image from "next/image";
 
-export function Header({ initialCartCount = 0, logoUrl }: { initialCartCount?: number, logoUrl?: string }) {
+export function Header({ initialCartCount = 0, logoUrl, logoWhiteUrl }: { initialCartCount?: number, logoUrl?: string, logoWhiteUrl?: string }) {
   const t = useTranslations("Navigation");
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -58,9 +58,15 @@ export function Header({ initialCartCount = 0, logoUrl }: { initialCartCount?: n
           <div className="px-5 md:px-6 flex h-16 md:h-18 items-center justify-between">
             {/* Logo */}
             <Link href="/" className={`flex items-center gap-2.5 transition-colors duration-300 ${textColorClass}`}>
-              {logoUrl ? (
+              {(logoUrl || logoWhiteUrl) ? (
                 <div className="relative w-8 h-8 flex-shrink-0">
-                  <Image src={logoUrl} alt="Meraki Logo" fill className="object-contain" sizes="32px" />
+                  <Image 
+                    src={(isTransparentAndHome && logoWhiteUrl) ? logoWhiteUrl : (logoUrl || logoWhiteUrl || "")} 
+                    alt="Meraki Logo" 
+                    fill 
+                    className="object-contain" 
+                    sizes="32px" 
+                  />
                 </div>
               ) : (
                 <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">

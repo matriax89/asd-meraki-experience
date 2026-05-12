@@ -27,7 +27,7 @@ export default async function PublicLayout({
 
   return (
     <>
-      <Header initialCartCount={initialCartCount} logoUrl={brandingData?.logo_url} />
+      <Header initialCartCount={initialCartCount} logoUrl={brandingData?.logo_url} logoWhiteUrl={brandingData?.logo_white_url} />
       {children}
       <Footer logoUrl={brandingData?.logo_url} />
       <CookieBanner />
