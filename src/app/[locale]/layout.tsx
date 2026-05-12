@@ -44,7 +44,7 @@ export default async function LocaleLayout({
     .eq("key", "homepage_content")
     .single();
     
-  const themeColors = settings?.value?.theme_colors || null;
+  const themeColors = (settings?.value as any)?.theme_colors || null;
 
   // Default LocalBusiness Schema
   const localBusinessSchema = {

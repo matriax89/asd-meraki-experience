@@ -22,7 +22,7 @@ export default async function PublicLayout({
     .eq("key", "homepage_content")
     .single();
     
-  const popupData = settings?.value?.popup || null;
+  const popupData = (settings?.value as any)?.popup || null;
 
   return (
     <>
