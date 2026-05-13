@@ -6,7 +6,7 @@ import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
 import { useModal } from "@/components/ui/modal-provider";
-import { Save, Loader2, Plus, Trash2, Upload, Palette } from "lucide-react";
+import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail } from "lucide-react";
 
 export function SettingsClient({ initialData, initialIstruttori }: { initialData: any, initialIstruttori?: any[] }) {
   const [loading, setLoading] = useState(false);
@@ -66,6 +66,15 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     modulo_iscrizione_url: ""
   });
 
+  const [contacts, setContacts] = useState(initialData?.contacts || {
+    email: "info@merakiexperience.org",
+    pec: "merakiexperience@pec.it",
+    phone: "+39 333 1234567",
+    vat: "IT03224340210",
+    address: "Via delle Palestre 12, 39100 Bolzano (BZ)",
+    address_short: "Bolzano, Alto Adige, Italia"
+  });
+
   const [locations, setLocations] = useState<string[]>(initialData?.locations || ["Bolzano", "Appiano", "Postal", "Altro"]);
   const [newLocation, setNewLocation] = useState("");
 
@@ -91,6 +100,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       theme_colors: themeColors,
       popup: popup,
       branding: branding,
+      contacts: contacts,
       media: media,
       documenti: documenti,
       locations: locations
@@ -857,6 +867,110 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                     />
                   </label>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Contatti & Social */}
+        <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm mt-8">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+              <Mail className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-800">8. Contatti & Social</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Email Principale</label>
+                <input 
+                  type="email" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  value={contacts.email}
+                  onChange={(e) => setContacts({...contacts, email: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Indirizzo PEC</label>
+                <input 
+                  type="email" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  value={contacts.pec}
+                  onChange={(e) => setContacts({...contacts, pec: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Numero di Telefono</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  value={contacts.phone}
+                  onChange={(e) => setContacts({...contacts, phone: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Partita IVA / C.F.</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  value={contacts.vat}
+                  onChange={(e) => setContacts({...contacts, vat: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Indirizzo Completo (Pagina Contatti)</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  value={contacts.address}
+                  onChange={(e) => setContacts({...contacts, address: e.target.value})}
+                  placeholder="Via delle Palestre 12, 39100 Bolzano (BZ)"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Indirizzo Breve (Footer)</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  value={contacts.address_short}
+                  onChange={(e) => setContacts({...contacts, address_short: e.target.value})}
+                  placeholder="Bolzano, Alto Adige, Italia"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-slate-700 mb-2 border-b border-slate-100 pb-2">Link Social Network</h4>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Instagram URL</label>
+                <input 
+                  type="url" 
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                  value={branding.instagram_url || ""}
+                  onChange={(e) => setBranding({...branding, instagram_url: e.target.value})}
+                  placeholder="https://www.instagram.com/merakiexperience_official"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Facebook URL</label>
+                <input 
+                  type="url" 
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                  value={branding.facebook_url || ""}
+                  onChange={(e) => setBranding({...branding, facebook_url: e.target.value})}
+                  placeholder="https://www.facebook.com/asdmerakiexperience"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">YouTube Channel URL</label>
+                <input 
+                  type="url" 
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                  value={branding.youtube_url || ""}
+                  onChange={(e) => setBranding({...branding, youtube_url: e.target.value})}
+                  placeholder="https://www.youtube.com/@merakiexperience"
+                />
               </div>
             </div>
           </div>

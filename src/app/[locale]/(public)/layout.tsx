@@ -24,13 +24,14 @@ export default async function PublicLayout({
     
   const popupData = (settings?.value as any)?.popup || null;
   const brandingData = (settings?.value as any)?.branding || null;
+  const contactsData = (settings?.value as any)?.contacts || null;
   const locations = (settings?.value as any)?.locations || ["Bolzano", "Appiano", "Altro"];
 
   return (
     <>
       <Header initialCartCount={initialCartCount} logoUrl={brandingData?.logo_url} logoWhiteUrl={brandingData?.logo_white_url} />
       {children}
-      <Footer logoUrl={brandingData?.logo_url} locations={locations} branding={brandingData} />
+      <Footer logoUrl={brandingData?.logo_url} locations={locations} branding={brandingData} contacts={contactsData} />
       <CookieBanner />
       <GlobalPopup data={popupData} />
     </>

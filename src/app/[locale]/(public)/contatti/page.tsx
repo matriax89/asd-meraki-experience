@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { ContactForm } from "@/components/public/contact-form";
 import { Mail, MapPin, Phone } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -11,6 +12,15 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function ContattiPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Contact" });
+
+  const supabase = await createClient();
+  const { data: settings } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "homepage_content")
+    .single();
+
+  const contactsData = (settings?.value as any)?.contacts || null;
 
   return (
     <div className="pt-24 pb-24 md:pt-32 md:pb-32 bg-background min-h-screen">
@@ -36,9 +46,9 @@ export default async function ContattiPage({ params }: { params: Promise<{ local
                 <h3 className="text-2xl font-bold mb-8">{t("details_title")}</h3>
                 <div className="space-y-8">
                   {[
-                    { icon: MapPin, title: t("hq"), content: "Via delle Palestre 12, 39100 Bolzano (BZ)" },
-                    { icon: Mail, title: t("email"), content: "info@merakiexperience.org", href: "mailto:info@merakiexperience.org" },
-                    { icon: Phone, title: t("phone"), content: "+39 333 1234567", href: "tel:+393331234567" },
+                    { icon: MapPin, title: t("hq"), content: contactsData?.address || "Via delle Palestre 12, 39100 Bolzano (BZ)" },
+                    { icon: Mail, title: t("email"), content: contactsData?.email || "info@merakiexperience.org", href: `mailto:${contactsData?.email || "info@merakiexperience.org"}` },
+                    { icon: Phone, title: t("phone"), content: contactsData?.phone || "+39 333 1234567", href: `tel:${(contactsData?.phone || "+39 333 1234567").replace(/\\s/g, '')}` },
                   ].map((item) => (
                     <div key={item.title} className="flex items-start gap-5 group">
                       <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 group-hover:bg-white/20 group-hover:scale-110 transition-all duration-300">

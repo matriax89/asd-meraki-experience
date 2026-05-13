@@ -31,7 +31,7 @@ function YouTubeIcon({ className }: { className?: string }) {
   );
 }
 
-export function Footer({ logoUrl, locations = [], branding }: { logoUrl?: string, locations?: string[], branding?: any }) {
+export function Footer({ logoUrl, locations = [], branding, contacts }: { logoUrl?: string, locations?: string[], branding?: any, contacts?: any }) {
   const t = useTranslations("Footer");
   const tNav = useTranslations("Navigation");
   const currentYear = new Date().getFullYear();
@@ -129,13 +129,13 @@ export function Footer({ logoUrl, locations = [], branding }: { logoUrl?: string
           <div className="space-y-5">
             <h4 className="text-[11px] font-extrabold text-slate-900 uppercase tracking-widest">{t("contact_title")}</h4>
             <ul className="space-y-3 text-[14px] text-slate-500 font-medium">
-              <li>
-                <a href="mailto:info@merakiexperience.org" className="hover:text-slate-900 hover:translate-x-1 inline-flex items-center gap-1.5 transition-transform duration-300">
-                  info@merakiexperience.org
-                  <ArrowUpRight className="w-3.5 h-3.5" />
+              <li className="break-all">
+                <a href={`mailto:${contacts?.email || "info@merakiexperience.org"}`} className="hover:text-slate-900 hover:translate-x-1 inline-flex items-center gap-1.5 transition-transform duration-300">
+                  {contacts?.email || "info@merakiexperience.org"}
+                  <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
                 </a>
               </li>
-              <li>PEC: merakiexperience@pec.it</li>
+              <li className="break-all">PEC: {contacts?.pec || "merakiexperience@pec.it"}</li>
             </ul>
           </div>
         </div>
@@ -143,9 +143,9 @@ export function Footer({ logoUrl, locations = [], branding }: { logoUrl?: string
         {/* Bottom bar */}
         <div className="pt-8 border-t border-slate-200/60 flex flex-col sm:flex-row justify-between items-center gap-4 text-[12px] font-medium text-slate-400 relative z-10">
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 text-center sm:text-left">
-            <p>&copy; {currentYear} ASD Meraki Experience. P.IVA / C.F.: IT03224340210. {t("rights_reserved")}</p>
-            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-slate-300" />
-            <p>Bolzano, Alto Adige, Italia</p>
+            <p>&copy; {currentYear} ASD Meraki Experience. P.IVA / C.F.: {contacts?.vat || "IT03224340210"}. {t("rights_reserved")}</p>
+            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-slate-300 shrink-0" />
+            <p>{contacts?.address_short || "Bolzano, Alto Adige, Italia"}</p>
           </div>
           
           <Link href="/admin" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 font-semibold transition-all duration-300">
