@@ -337,71 +337,12 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           </FadeIn>
 
           <FadeIn delay={0.2}>
-            <div className="bg-background rounded-[2rem] border border-border/40 shadow-apple overflow-hidden">
-              <div className="overflow-x-auto">
-                <div className="min-w-[720px]">
-                  {/* Header Days */}
-                  <div className="grid grid-cols-7 border-b border-border/40 bg-secondary/50">
-                    {[t("schedule.days.lun"), t("schedule.days.mar"), t("schedule.days.mer"), t("schedule.days.gio"), t("schedule.days.ven"), t("schedule.days.sab"), t("schedule.days.dom")].map((day, i) => (
-                      <div key={i} className={`p-4 text-center ${i < 6 ? 'border-r border-border/40' : ''}`}>
-                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">{day}</span>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Timeline Grid (Mock) */}
-                  <div className="grid grid-cols-7 divide-x divide-border/40">
-                    {/* Monday - Example full column */}
-                    <div className="p-3 min-h-[400px] flex flex-col gap-3">
-                      <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 hover:shadow-md transition-shadow cursor-pointer group">
-                        <p className="text-[11px] font-bold text-blue-700 dark:text-blue-400 mb-1">18:00 - 19:15</p>
-                        <p className="text-[14px] font-bold text-foreground group-hover:text-blue-600 transition-colors">Yoga Flow</p>
-                        <p className="text-[12px] text-muted-foreground">Elena</p>
-                      </div>
-                    </div>
-                    
-                    {/* Tuesday */}
-                    <div className="p-3 min-h-[400px] flex flex-col gap-3">
-                      <div className="mt-20 rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 hover:shadow-md transition-shadow cursor-pointer group">
-                        <p className="text-[11px] font-bold text-rose-700 dark:text-rose-400 mb-1">19:00 - 20:00</p>
-                        <p className="text-[14px] font-bold text-foreground group-hover:text-rose-600 transition-colors">Salsation</p>
-                        <p className="text-[12px] text-muted-foreground">Marco</p>
-                      </div>
-                    </div>
-
-                    {/* Wednesday */}
-                    <div className="p-3 min-h-[400px] flex flex-col gap-3">
-                      <div className="mt-40 rounded-xl border border-purple-500/30 bg-purple-500/5 p-3 hover:shadow-md transition-shadow cursor-pointer group">
-                        <p className="text-[11px] font-bold text-purple-700 dark:text-purple-400 mb-1">20:00 - 21:30</p>
-                        <p className="text-[14px] font-bold text-foreground group-hover:text-purple-600 transition-colors">Danza Aerea</p>
-                        <p className="text-[12px] text-muted-foreground">Giulia</p>
-                      </div>
-                    </div>
-
-                    {/* Thursday */}
-                    <div className="p-3 min-h-[400px]"></div>
-                    
-                    {/* Friday */}
-                    <div className="p-3 min-h-[400px] flex flex-col gap-3">
-                      <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 hover:shadow-md transition-shadow cursor-pointer group">
-                        <p className="text-[11px] font-bold text-blue-700 dark:text-blue-400 mb-1">18:00 - 19:15</p>
-                        <p className="text-[14px] font-bold text-foreground group-hover:text-blue-600 transition-colors">Yoga Flow</p>
-                        <p className="text-[12px] text-muted-foreground">Elena</p>
-                      </div>
-                      <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 hover:shadow-md transition-shadow cursor-pointer group">
-                        <p className="text-[11px] font-bold text-rose-700 dark:text-rose-400 mb-1">19:30 - 20:30</p>
-                        <p className="text-[14px] font-bold text-foreground group-hover:text-rose-600 transition-colors">Salsation</p>
-                        <p className="text-[12px] text-muted-foreground">Marco</p>
-                      </div>
-                    </div>
-
-                    {/* Saturday & Sunday */}
-                    <div className="p-3 min-h-[400px]"></div>
-                    <div className="p-3 min-h-[400px] bg-secondary/20"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ScheduleClient 
+              slotsByDay={slotsByDay} 
+              fasce={fasce} 
+              giorniSettimana={giorni.map(g => ({ ...g, short: g.label.substring(0, 3).toUpperCase() }))} 
+              locations={locations} 
+            />
             <div className="mt-8 text-center">
               <Link href="/orario" className="text-[14px] font-semibold text-foreground hover:underline">
                 {t("schedule.view_full")}
