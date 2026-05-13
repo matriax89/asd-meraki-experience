@@ -69,7 +69,10 @@ export async function upsertCourse(data: CourseFormData) {
 
   if (error) {
     console.error("Upsert course error:", error);
-    return { error: error.message };
+    if (error.code === "23505" && error.message.includes("courses_slug_key")) {
+      return { error: "Esiste già un corso con questo URL (Slug). Modifica il campo Slug per continuare (es: " + data.slug + "-2)." };
+    }
+    return { error: "Si è verificato un errore durante il salvataggio: " + error.message };
   }
 
   // Sincronizzazione degli orari (schedule_slots)
