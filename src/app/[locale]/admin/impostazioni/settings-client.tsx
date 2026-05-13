@@ -3,12 +3,16 @@
 import { useState } from "react";
 import { saveHomepageContent } from "@/app/api/admin/impostazioni/actions";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
+import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
 import { Save, Loader2, Plus, Trash2, Upload, Palette } from "lucide-react";
 
-export function SettingsClient({ initialData }: { initialData: any }) {
+export function SettingsClient({ initialData, initialIstruttori }: { initialData: any, initialIstruttori?: any[] }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const [istruttori, setIstruttori] = useState<any[]>(initialIstruttori || []);
+  const [isSavingIstruttore, setIsSavingIstruttore] = useState(false);
 
   // Array states
   const [direttivo, setDirettivo] = useState<any[]>(initialData?.direttivo || [
@@ -179,6 +183,96 @@ export function SettingsClient({ initialData }: { initialData: any }) {
 
   const addYoutube = () => {
     setYoutubeVideos([...youtubeVideos, ""]);
+  };
+
+  const handleSaveIstruttore = async (index: number) => {
+    const istruttore = istruttori[index];
+    if (!istruttore.nome || !istruttore.cognome) {
+      alert("Nome e Cognome sono obbligatori");
+      return;
+    }
+    
+    setIsSavingIstruttore(true);
+    try {
+      const res = await upsertTeamMember({
+        id: istruttore.id,
+        nome: istruttore.nome,
+        cognome: istruttore.cognome,
+        ruolo: istruttore.ruolo || "Istruttore",
+        is_istruttore: true,
+        foto_url: istruttore.foto_url
+      });
+      
+      if (res.success && res.id) {
+        const newIstruttori = [...istruttori];
+        newIstruttori[index].id = res.id;
+        setIstruttori(newIstruttori);
+        alert("Istruttore salvato con successo nel database!");
+      } else {
+        alert("Errore durante il salvataggio dell'istruttore: " + res.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Errore di rete durante il salvataggio.");
+    } finally {
+      setIsSavingIstruttore(false);
+    }
+  };
+
+  const handleDeleteIstruttore = async (index: number) => {
+    const istruttore = istruttori[index];
+    if (istruttore.id && istruttore.id !== 'nuovo') {
+      if (!confirm("Sei sicuro di voler eliminare questo istruttore dal database? Se è associato a dei corsi, l'operazione potrebbe fallire.")) return;
+      
+      setIsSavingIstruttore(true);
+      try {
+        const res = await deleteTeamMember(istruttore.id);
+        if (res.success) {
+          setIstruttori(istruttori.filter((_, i) => i !== index));
+        } else {
+          alert("Impossibile eliminare l'istruttore (potrebbe essere associato a dei corsi).");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Errore di rete durante l'eliminazione.");
+      } finally {
+        setIsSavingIstruttore(false);
+      }
+    } else {
+      setIstruttori(istruttori.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateIstruttore = (index: number, field: string, value: string) => {
+    const newIstruttori = [...istruttori];
+    newIstruttori[index] = { ...newIstruttori[index], [field]: value };
+    setIstruttori(newIstruttori);
+  };
+
+  const handleIstruttoreImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImageIndex(`istruttore_${index}`);
+    try {
+      const compressedFile = await compressImageToWebp(file);
+      const uploadData = new FormData();
+      uploadData.append("file", compressedFile);
+      
+      const res = await uploadImageAction(uploadData);
+      
+      if (res.success && res.url) {
+        updateIstruttore(index, "foto_url", res.url);
+      } else {
+        alert("Errore caricamento: " + res.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Errore durante l'elaborazione dell'immagine. Riprova.");
+    } finally {
+      setUploadingImageIndex(null);
+      e.target.value = '';
+    }
   };
 
   return (
@@ -418,6 +512,105 @@ export function SettingsClient({ initialData }: { initialData: any }) {
               </div>
             ))}
             {direttivo.length === 0 && <p className="text-sm text-slate-500 italic">Nessun membro del direttivo aggiunto.</p>}
+          </div>
+        </div>
+
+        {/* Istruttori */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b pb-2 mt-8">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">Istruttori</h3>
+              <p className="text-sm text-slate-500">Gestisci gli istruttori del database per poterli assegnare ai corsi.</p>
+            </div>
+            <button 
+              type="button" 
+              onClick={() => setIstruttori([...istruttori, { id: 'nuovo', nome: "", cognome: "", ruolo: "Istruttore", foto_url: "" }])} 
+              className="flex items-center gap-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Aggiungi Istruttore
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {istruttori.map((istruttore, i) => (
+              <div key={i} className="flex gap-4 items-start bg-indigo-50/30 p-4 rounded-xl border border-indigo-100 relative group">
+                <div className="flex-1 space-y-3">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Nome *</label>
+                      <input 
+                        value={istruttore.nome || ""}
+                        onChange={(e) => updateIstruttore(i, "nome", e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="Nome"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Cognome *</label>
+                      <input 
+                        value={istruttore.cognome || ""}
+                        onChange={(e) => updateIstruttore(i, "cognome", e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="Cognome"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Ruolo</label>
+                      <input 
+                        value={istruttore.ruolo || ""}
+                        onChange={(e) => updateIstruttore(i, "ruolo", e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="Es. Istruttore Yoga"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Foto Profilo (URL o Upload)</label>
+                    <div className="flex gap-2 items-center">
+                      <input 
+                        value={istruttore.foto_url || ""}
+                        onChange={(e) => updateIstruttore(i, "foto_url", e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="es. /images/profile.jpg oppure URL"
+                      />
+                      <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === `istruttore_${i}` ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {uploadingImageIndex === `istruttore_${i}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                        <span className="ml-2 text-sm font-medium">{uploadingImageIndex === `istruttore_${i}` ? 'Compressione...' : 'Carica Immagine'}</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => handleIstruttoreImageUpload(i, e)} 
+                          className="hidden" 
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end mt-2">
+                    <button 
+                      type="button"
+                      onClick={() => handleSaveIstruttore(i)}
+                      disabled={isSavingIstruttore}
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isSavingIstruttore ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      Salva Istruttore nel DB
+                    </button>
+                  </div>
+                </div>
+                
+                <button 
+                  type="button" 
+                  onClick={() => handleDeleteIstruttore(i)}
+                  disabled={isSavingIstruttore}
+                  className="text-slate-400 hover:text-red-500 transition-colors p-2 mt-4 disabled:opacity-50"
+                  title="Elimina dal database"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            ))}
+            {istruttori.length === 0 && <p className="text-sm text-slate-500 italic">Nessun istruttore nel database.</p>}
           </div>
         </div>
 

@@ -11,7 +11,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
   const { data: instructors } = await supabase
     .from('team_members')
     .select('id, nome, cognome')
-    .in('ruolo_primario', ['istruttore', 'direttivo']) // Assumendo che il direttivo possa insegnare
+    .or('is_istruttore.eq.true,is_direttivo.eq.true')
     .order('nome');
 
   let initialData = null;

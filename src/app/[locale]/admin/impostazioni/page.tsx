@@ -12,6 +12,12 @@ export default async function ImpostazioniPage() {
 
   const initialData = settingsData?.value || {};
 
+  const { data: istruttori } = await adminSupabase
+    .from("team_members")
+    .select("*")
+    .eq("is_istruttore", true)
+    .order("nome");
+
   return (
     <div className="max-w-4xl mx-auto py-8">
       <div className="mb-8">
@@ -19,7 +25,7 @@ export default async function ImpostazioniPage() {
         <p className="text-slate-500 mt-2">Personalizza i testi e i contenuti pubblici mostrati ai visitatori.</p>
       </div>
 
-      <SettingsClient initialData={initialData} />
+      <SettingsClient initialData={initialData} initialIstruttori={istruttori || []} />
     </div>
   );
 }
