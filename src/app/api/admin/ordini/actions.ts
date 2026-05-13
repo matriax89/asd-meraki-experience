@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 export async function updateOrderStatus(id: string, status: string, trackingNumber?: string, trackingUrl?: string) {
@@ -10,7 +10,8 @@ export async function updateOrderStatus(id: string, status: string, trackingNumb
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return { error: "Unauthorized" };
   
-  const { data: profile } = await supabase
+  const adminSupabase = createAdminClient();
+  const { data: profile } = await adminSupabase
     .from("profiles")
     .select("role")
     .eq("id", session.user.id)
