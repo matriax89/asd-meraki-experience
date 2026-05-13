@@ -19,7 +19,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
   if (id !== "nuovo") {
     const { data: course, error } = await supabase
       .from('courses')
-      .select('*')
+      .select('*, schedule_slots(*)')
       .eq('id', id)
       .single();
 

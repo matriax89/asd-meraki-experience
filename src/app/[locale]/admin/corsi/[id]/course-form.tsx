@@ -4,6 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Textarea, Select, Checkbox } from "@/components/admin/form-elements";
 import { upsertCourse } from "@/app/api/admin/corsi/actions";
+import { compressImageToWebp } from "@/lib/image-utils";
+import { uploadImageAction } from "@/app/api/admin/upload/actions";
+import { Loader2, Upload, Trash2, Plus } from "lucide-react";
 
 interface CourseFormProps {
   initialData: any;
@@ -14,6 +17,11 @@ export function CourseForm({ initialData, instructors }: CourseFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const [scheduleSlots, setScheduleSlots] = useState<any[]>(
+    initialData?.schedule_slots || []
+  );
 
   const [formData, setFormData] = useState({
     id: initialData?.id || "nuovo",
@@ -55,7 +63,8 @@ export function CourseForm({ initialData, instructors }: CourseFormProps) {
 
     const payload = {
       ...formData,
-      benefici: beneficiArray
+      benefici: beneficiArray,
+      scheduleSlots: scheduleSlots
     };
 
     startTransition(async () => {
@@ -75,6 +84,43 @@ export function CourseForm({ initialData, instructors }: CourseFormProps) {
     { value: "", label: "Nessun istruttore" },
     ...instructors.map(i => ({ value: i.id, label: `${i.nome} ${i.cognome}` }))
   ];
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const compressedFile = await compressImageToWebp(file);
+      const uploadData = new FormData();
+      uploadData.append("file", compressedFile);
+      
+      const res = await uploadImageAction(uploadData);
+      if (res.success && res.url) {
+        setFormData(prev => ({ ...prev, copertina_url: res.url }));
+      } else {
+        alert("Errore caricamento immagine: " + res.error);
+      }
+    } catch (error: any) {
+      alert("Errore compressione: " + error.message);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const addScheduleSlot = () => {
+    setScheduleSlots([...scheduleSlots, { giorno: "lun", ora_inizio: "18:00", ora_fine: "19:00", sede: "bolzano", attivo: true }]);
+  };
+
+  const updateScheduleSlot = (index: number, field: string, value: any) => {
+    const newSlots = [...scheduleSlots];
+    newSlots[index] = { ...newSlots[index], [field]: value };
+    setScheduleSlots(newSlots);
+  };
+
+  const removeScheduleSlot = (index: number) => {
+    setScheduleSlots(scheduleSlots.filter((_, i) => i !== index));
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl">
@@ -172,18 +218,22 @@ export function CourseForm({ initialData, instructors }: CourseFormProps) {
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
         <h2 className="text-xl font-bold border-b border-border pb-2">Media e Visibilità</h2>
         
-        <Input 
-          label="URL Copertina" 
-          placeholder="https://..."
-          value={formData.copertina_url} 
-          onChange={e => setFormData({...formData, copertina_url: e.target.value})} 
-        />
-        {formData.copertina_url && (
-          <div className="mt-2 w-full max-w-sm rounded-lg overflow-hidden border border-border">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={formData.copertina_url} alt="Anteprima copertina" className="w-full h-auto object-cover aspect-video" />
-          </div>
-        )}
+        <div className="space-y-4">
+          <label className="text-sm font-medium text-foreground block">Immagine Copertina</label>
+          
+          {formData.copertina_url && (
+            <div className="mt-2 w-full max-w-sm rounded-xl overflow-hidden border border-border relative group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={formData.copertina_url} alt="Anteprima copertina" className="w-full h-auto object-cover aspect-video" />
+            </div>
+          )}
+
+          <label className={`flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground w-full py-4 rounded-xl transition-colors cursor-pointer border border-border border-dashed ${uploadingImage ? 'opacity-50 pointer-events-none' : ''}`}>
+            {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+            <span className="ml-2 font-medium">{uploadingImage ? 'Caricamento in corso...' : (formData.copertina_url ? 'Sostituisci Immagine' : 'Carica Immagine')}</span>
+            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+          </label>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
           <Input 
@@ -202,6 +252,80 @@ export function CourseForm({ initialData, instructors }: CourseFormProps) {
             />
           </div>
         </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
+        <div className="flex items-center justify-between border-b border-border pb-2">
+          <h2 className="text-xl font-bold">Orari e Sedi (Palinsesto)</h2>
+          <button type="button" onClick={addScheduleSlot} className="flex items-center gap-2 bg-slate-900 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-slate-800 transition-colors">
+            <Plus className="w-4 h-4" /> Aggiungi Orario
+          </button>
+        </div>
+        
+        {scheduleSlots.length === 0 ? (
+          <p className="text-muted-foreground text-sm py-4">Nessun orario configurato per questo corso. Clicca su "Aggiungi Orario" per inserire le lezioni nel palinsesto.</p>
+        ) : (
+          <div className="space-y-4">
+            {scheduleSlots.map((slot, idx) => (
+              <div key={idx} className="flex flex-col sm:flex-row items-end gap-4 bg-muted/30 p-4 rounded-xl border border-border">
+                <div className="flex-1 min-w-[120px]">
+                  <Select 
+                    label="Giorno"
+                    value={slot.giorno}
+                    onChange={(e) => updateScheduleSlot(idx, "giorno", e.target.value)}
+                    options={[
+                      { value: "lun", label: "Lunedì" },
+                      { value: "mar", label: "Martedì" },
+                      { value: "mer", label: "Mercoledì" },
+                      { value: "gio", label: "Giovedì" },
+                      { value: "ven", label: "Venerdì" },
+                      { value: "sab", label: "Sabato" },
+                      { value: "dom", label: "Domenica" },
+                    ]}
+                  />
+                </div>
+                <div className="w-full sm:w-24">
+                  <Input 
+                    label="Inizio"
+                    type="time"
+                    required
+                    value={slot.ora_inizio ? slot.ora_inizio.substring(0, 5) : ""}
+                    onChange={(e) => updateScheduleSlot(idx, "ora_inizio", e.target.value)}
+                  />
+                </div>
+                <div className="w-full sm:w-24">
+                  <Input 
+                    label="Fine"
+                    type="time"
+                    required
+                    value={slot.ora_fine ? slot.ora_fine.substring(0, 5) : ""}
+                    onChange={(e) => updateScheduleSlot(idx, "ora_fine", e.target.value)}
+                  />
+                </div>
+                <div className="flex-1 min-w-[120px]">
+                  <Select 
+                    label="Sede"
+                    value={slot.sede}
+                    onChange={(e) => updateScheduleSlot(idx, "sede", e.target.value)}
+                    options={[
+                      { value: "bolzano", label: "Bolzano" },
+                      { value: "appiano", label: "Appiano" },
+                      { value: "altro", label: "Altro" },
+                    ]}
+                  />
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => removeScheduleSlot(idx)}
+                  className="p-3 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors shrink-0 mb-[2px]"
+                  title="Rimuovi orario"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end pt-4">
