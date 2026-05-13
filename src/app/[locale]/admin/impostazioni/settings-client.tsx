@@ -60,6 +60,9 @@ export function SettingsClient({ initialData }: { initialData: any }) {
     modulo_iscrizione_url: ""
   });
 
+  const [locations, setLocations] = useState<string[]>(initialData?.locations || ["Bolzano", "Appiano", "Postal", "Altro"]);
+  const [newLocation, setNewLocation] = useState("");
+
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -83,7 +86,8 @@ export function SettingsClient({ initialData }: { initialData: any }) {
       popup: popup,
       branding: branding,
       media: media,
-      documenti: documenti
+      documenti: documenti,
+      locations: locations
     };
 
     // Creiamo un nuovo FormData solo con il payload stringato
@@ -744,6 +748,67 @@ export function SettingsClient({ initialData }: { initialData: any }) {
                 className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500" 
                 placeholder="https://..." 
               />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-8 shadow-sm">
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+            <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
+              <Plus className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-foreground">Gestione Sedi</h2>
+              <p className="text-sm text-muted-foreground">Aggiungi o rimuovi le sedi in cui si tengono i corsi. Queste appariranno nel Palinsesto.</p>
+            </div>
+          </div>
+          <div className="space-y-4 max-w-2xl">
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={newLocation} 
+                onChange={(e) => setNewLocation(e.target.value)}
+                placeholder="es. Merano" 
+                className="flex-1 px-4 py-3 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (newLocation.trim()) {
+                      setLocations([...locations, newLocation.trim()]);
+                      setNewLocation("");
+                    }
+                  }
+                }}
+              />
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (newLocation.trim()) {
+                    setLocations([...locations, newLocation.trim()]);
+                    setNewLocation("");
+                  }
+                }}
+                className="bg-slate-900 text-white px-6 py-3 rounded-xl font-medium hover:bg-slate-800 transition-colors"
+              >
+                Aggiungi
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-3 mt-4">
+              {locations.map((loc, i) => (
+                <div key={i} className="flex items-center gap-2 bg-muted px-4 py-2 rounded-full border border-border">
+                  <span className="font-medium text-sm text-foreground">{loc}</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setLocations(locations.filter((_, idx) => idx !== i))}
+                    className="text-muted-foreground hover:text-red-500 transition-colors ml-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              {locations.length === 0 && (
+                <p className="text-sm text-muted-foreground italic">Nessuna sede configurata. Aggiungine una.</p>
+              )}
             </div>
           </div>
         </div>

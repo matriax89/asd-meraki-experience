@@ -29,6 +29,15 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
     initialData = course;
   }
 
+  // Fetch locations from site_settings
+  const { data: settingsData } = await supabase
+    .from('site_settings')
+    .select('value')
+    .eq('key', 'homepage_content')
+    .single();
+    
+  const locations = (settingsData?.value as any)?.locations || ["Bolzano", "Appiano", "Altro"];
+
   return (
     <div className="space-y-6 pb-12">
       <div className="flex items-center space-x-4">
@@ -43,6 +52,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
       <CourseForm 
         initialData={initialData} 
         instructors={instructors || []} 
+        locations={locations}
       />
     </div>
   );

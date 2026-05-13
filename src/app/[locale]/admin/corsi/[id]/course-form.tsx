@@ -11,9 +11,10 @@ import { Loader2, Upload, Trash2, Plus } from "lucide-react";
 interface CourseFormProps {
   initialData: any;
   instructors: { id: string; nome: string; cognome: string }[];
+  locations: string[];
 }
 
-export function CourseForm({ initialData, instructors }: CourseFormProps) {
+export function CourseForm({ initialData, instructors, locations }: CourseFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -109,7 +110,7 @@ export function CourseForm({ initialData, instructors }: CourseFormProps) {
   };
 
   const addScheduleSlot = () => {
-    setScheduleSlots([...scheduleSlots, { giorno: "lun", ora_inizio: "18:00", ora_fine: "19:00", sede: "bolzano", attivo: true }]);
+    setScheduleSlots([...scheduleSlots, { giorno: "lun", ora_inizio: "18:00", ora_fine: "19:00", sede: locations[0]?.toLowerCase() || "bolzano", attivo: true }]);
   };
 
   const updateScheduleSlot = (index: number, field: string, value: any) => {
@@ -307,11 +308,7 @@ export function CourseForm({ initialData, instructors }: CourseFormProps) {
                     label="Sede"
                     value={slot.sede}
                     onChange={(e) => updateScheduleSlot(idx, "sede", e.target.value)}
-                    options={[
-                      { value: "bolzano", label: "Bolzano" },
-                      { value: "appiano", label: "Appiano" },
-                      { value: "altro", label: "Altro" },
-                    ]}
+                    options={locations.map(loc => ({ value: loc.toLowerCase(), label: loc }))}
                   />
                 </div>
                 <button 
