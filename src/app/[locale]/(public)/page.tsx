@@ -5,6 +5,7 @@ import { ArrowRight, ChevronRight, FileText, Scale, ShieldCheck, FileSignature, 
 import { FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/fade-in";
 import { CourseCard } from "@/components/public/course-card";
 import { getTranslations } from "next-intl/server";
+import { YoutubeCarousel } from "@/components/public/youtube-carousel";
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -632,47 +633,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             </a>
           </FadeIn>
 
-          {/* Youtube Scrolling Carousel */}
-          <div className="w-full relative flex overflow-x-hidden group mt-10">
-            {/* Gradient masks for smooth fading on edges */}
-            <div className="absolute left-0 top-0 bottom-0 w-16 md:w-48 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-            <div className="absolute right-0 top-0 bottom-0 w-16 md:w-48 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
-            
-            <div className="flex animate-marquee gap-6 px-3 hover:[animation-play-state:paused] py-4">
-              {/* Duplicate array 6 times to ensure it fills any screen and loops smoothly */}
-              {[...Array(6)].flatMap(() => content.youtube_videos || ["https://www.youtube.com/watch?v=dQw4w9WgXcQ"]).map((url: string, i: number) => {
-                if (!url) return null;
-                // Extract YouTube ID
-                const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-                const videoId = match ? match[1] : null;
-                if (!videoId) return null;
-                
-                const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
-                
-                return (
-                  <a 
-                    key={i} 
-                    href={url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="relative flex-none w-[320px] h-[180px] md:w-[400px] md:h-[225px] rounded-[1.5rem] overflow-hidden group/card shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.2)] transition-all duration-300 hover:-translate-y-2 bg-slate-100"
-                  >
-                    <Image 
-                      src={thumbnailUrl} 
-                      alt="YouTube Video" 
-                      fill 
-                      className="object-cover group-hover/card:scale-105 transition-transform duration-700 ease-out" 
-                    />
-                    <div className="absolute inset-0 bg-black/20 group-hover/card:bg-black/40 transition-colors duration-300 flex items-center justify-center">
-                      <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-red-600/90 text-white flex items-center justify-center backdrop-blur-md scale-90 group-hover/card:scale-110 transition-transform duration-300 shadow-xl">
-                        <svg className="w-6 h-6 md:w-8 md:h-8 ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                      </div>
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-          </div>
+          {/* Youtube Carousel Interattivo */}
+          <YoutubeCarousel videoUrls={content.youtube_videos || ["https://www.youtube.com/watch?v=dQw4w9WgXcQ"]} />
         </div>
       </section>
 
