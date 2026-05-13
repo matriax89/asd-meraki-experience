@@ -6,6 +6,7 @@ import { FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/fade-in";
 import { CourseCard } from "@/components/public/course-card";
 import { getTranslations } from "next-intl/server";
 import { YoutubeCarousel } from "@/components/public/youtube-carousel";
+import { ScheduleClient } from "./orario/schedule-client";
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -81,6 +82,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const content = contentData?.value || {};
   const media = content.media || {};
   const documenti = content.documenti || {};
+  const locations = content.locations || ["Bolzano", "Appiano", "Altro"];
 
   return (
     <main className="flex flex-col min-h-[100dvh]">
