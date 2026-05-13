@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useModal } from "@/components/ui/modal-provider";
 
 export function CheckoutButton({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { showAlert, showPrompt } = useModal();
 
   const handleCheckout = async () => {
     try {
@@ -13,7 +15,11 @@ export function CheckoutButton({ eventId }: { eventId: string }) {
       
       // In a real scenario, you'd want to get the user's email from an input or their auth state.
       // For this demo, we'll prompt for it.
-      const email = window.prompt("Inserisci la tua email per ricevere il biglietto:");
+      const email = await showPrompt({
+        title: "Biglietto Elettronico",
+        message: "Inserisci la tua email per ricevere il biglietto:",
+        placeholder: "tua@email.com"
+      });
       
       if (!email) {
         setLoading(false);
@@ -36,12 +42,12 @@ export function CheckoutButton({ eventId }: { eventId: string }) {
       if (data.url) {
         router.push(data.url);
       } else {
-        alert(data.error || "Errore durante il pagamento");
+        showAlert({ title: "Errore", message: data.error || "Errore durante il pagamento", type: "error" });
         setLoading(false);
       }
     } catch (error) {
       console.error(error);
-      alert("Si è verificato un errore.");
+      showAlert({ title: "Errore", message: "Si è verificato un errore.", type: "error" });
       setLoading(false);
     }
   };

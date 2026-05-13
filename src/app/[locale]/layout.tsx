@@ -49,6 +49,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 import { createClient } from "@/lib/supabase/server";
 import { JsonLd } from "@/components/seo/json-ld";
+import { ModalProvider } from "@/components/ui/modal-provider";
 
 export default async function LocaleLayout({
   children,
@@ -123,7 +124,9 @@ export default async function LocaleLayout({
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <NextIntlClientProvider messages={messages}>
-          {children}
+          <ModalProvider>
+            {children}
+          </ModalProvider>
         </NextIntlClientProvider>
       </body>
     </html>

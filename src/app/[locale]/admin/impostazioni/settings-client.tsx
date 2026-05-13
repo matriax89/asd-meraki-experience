@@ -5,11 +5,13 @@ import { saveHomepageContent } from "@/app/api/admin/impostazioni/actions";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
+import { useModal } from "@/components/ui/modal-provider";
 import { Save, Loader2, Plus, Trash2, Upload, Palette } from "lucide-react";
 
 export function SettingsClient({ initialData, initialIstruttori }: { initialData: any, initialIstruttori?: any[] }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const { showAlert, showConfirm } = useModal();
 
   const [istruttori, setIstruttori] = useState<any[]>(initialIstruttori || []);
   const [isSavingIstruttore, setIsSavingIstruttore] = useState(false);
@@ -152,11 +154,11 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           setMedia({ ...media, masterclass_bg_url: res.url });
         }
       } else {
-        alert("Errore caricamento: " + res.error);
+        showAlert({ title: "Errore", message: "Errore caricamento: " + res.error, type: "error" });
       }
     } catch (err) {
       console.error(err);
-      alert("Errore durante l'elaborazione dell'immagine. Riprova.");
+      showAlert({ title: "Errore", message: "Errore durante l'elaborazione dell'immagine. Riprova.", type: "error" });
     } finally {
       setUploadingImageIndex(null);
       e.target.value = '';
@@ -188,7 +190,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
   const handleSaveIstruttore = async (index: number) => {
     const istruttore = istruttori[index];
     if (!istruttore.nome || !istruttore.cognome) {
-      alert("Nome e Cognome sono obbligatori");
+      showAlert({ title: "Campi obbligatori", message: "Nome e Cognome sono obbligatori", type: "error" });
       return;
     }
     
@@ -207,13 +209,13 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         const newIstruttori = [...istruttori];
         newIstruttori[index].id = res.id;
         setIstruttori(newIstruttori);
-        alert("Istruttore salvato con successo nel database!");
+        showAlert({ title: "Successo", message: "Istruttore salvato con successo nel database!", type: "success" });
       } else {
-        alert("Errore durante il salvataggio dell'istruttore: " + res.error);
+        showAlert({ title: "Errore", message: "Errore durante il salvataggio dell'istruttore: " + res.error, type: "error" });
       }
     } catch (err) {
       console.error(err);
-      alert("Errore di rete durante il salvataggio.");
+      showAlert({ title: "Errore", message: "Errore di rete durante il salvataggio.", type: "error" });
     } finally {
       setIsSavingIstruttore(false);
     }
@@ -222,19 +224,24 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
   const handleDeleteIstruttore = async (index: number) => {
     const istruttore = istruttori[index];
     if (istruttore.id && istruttore.id !== 'nuovo') {
-      if (!confirm("Sei sicuro di voler eliminare questo istruttore dal database? Se è associato a dei corsi, l'operazione potrebbe fallire.")) return;
+      const isConfirmed = await showConfirm({
+        title: "Elimina Istruttore",
+        message: "Sei sicuro di voler eliminare questo istruttore dal database? Se è associato a dei corsi, l'operazione potrebbe fallire."
+      });
+      if (!isConfirmed) return;
       
       setIsSavingIstruttore(true);
       try {
         const res = await deleteTeamMember(istruttore.id);
         if (res.success) {
           setIstruttori(istruttori.filter((_, i) => i !== index));
+          showAlert({ title: "Eliminato", message: "Istruttore eliminato dal database.", type: "success" });
         } else {
-          alert("Impossibile eliminare l'istruttore (potrebbe essere associato a dei corsi).");
+          showAlert({ title: "Attenzione", message: "Impossibile eliminare l'istruttore (potrebbe essere associato a dei corsi).", type: "error" });
         }
       } catch (err) {
         console.error(err);
-        alert("Errore di rete durante l'eliminazione.");
+        showAlert({ title: "Errore", message: "Errore di rete durante l'eliminazione.", type: "error" });
       } finally {
         setIsSavingIstruttore(false);
       }
@@ -264,11 +271,11 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       if (res.success && res.url) {
         updateIstruttore(index, "foto_url", res.url);
       } else {
-        alert("Errore caricamento: " + res.error);
+        showAlert({ title: "Errore", message: "Errore caricamento: " + res.error, type: "error" });
       }
     } catch (err) {
       console.error(err);
-      alert("Errore durante l'elaborazione dell'immagine. Riprova.");
+      showAlert({ title: "Errore", message: "Errore durante l'elaborazione dell'immagine. Riprova.", type: "error" });
     } finally {
       setUploadingImageIndex(null);
       e.target.value = '';

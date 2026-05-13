@@ -7,6 +7,7 @@ import { upsertCourse } from "@/app/api/admin/corsi/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { Loader2, Upload, Trash2, Plus } from "lucide-react";
+import { useModal } from "@/components/ui/modal-provider";
 
 interface CourseFormProps {
   initialData: any;
@@ -16,6 +17,7 @@ interface CourseFormProps {
 
 export function CourseForm({ initialData, instructors, locations }: CourseFormProps) {
   const router = useRouter();
+  const { showAlert } = useModal();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -100,10 +102,10 @@ export function CourseForm({ initialData, instructors, locations }: CourseFormPr
       if (res.success && res.url) {
         setFormData(prev => ({ ...prev, copertina_url: res.url }));
       } else {
-        alert("Errore caricamento immagine: " + res.error);
+        showAlert({ title: "Errore", message: "Errore caricamento immagine: " + res.error, type: "error" });
       }
     } catch (error: any) {
-      alert("Errore compressione: " + error.message);
+      showAlert({ title: "Errore", message: "Errore compressione: " + error.message, type: "error" });
     } finally {
       setUploadingImage(false);
     }
