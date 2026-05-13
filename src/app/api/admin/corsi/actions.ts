@@ -39,23 +39,31 @@ export async function upsertCourse(data: CourseFormData) {
     return { error: "Forbidden" };
   }
 
-  // Prepara il payload. Se l'ID è vuoto ("nuovo") o undefined, creiamo un nuovo record omettendo id (che sarà generato dal DB se non fornito, oppure gestito dall'insert)
-  const payload: any = { ...data };
-  const scheduleSlots = payload.scheduleSlots;
-  delete payload.scheduleSlots; // Rimuoviamo questo dal payload del corso
+  // Prepara il payload.
+  const scheduleSlots = data.scheduleSlots || [];
 
-  if (!payload.id || payload.id === 'nuovo') {
-    delete payload.id;
-  }
+  const dbPayload: any = {
+    nome: data.nome,
+    slug: data.slug,
+    disciplina: data.disciplina,
+    descrizione_breve: data.descrizione_breve || null,
+    descrizione_lunga: data.descrizione_completa || null, // Map from completta to lunga
+    livello: data.livello || null,
+    durata_minuti: data.durata_minuti || null,
+    benefici: data.benefici || null,
+    copertina_url: data.copertina_url || null,
+    attivo: data.attivo,
+    ordine_display: data.ordine_display || 0,
+    instructor_id: data.instructor_id || null,
+  };
 
-  // Assicuriamoci che campi vuoti diventino null per i foreign key
-  if (payload.instructor_id === "") {
-    payload.instructor_id = null;
+  if (data.id && data.id !== 'nuovo') {
+    dbPayload.id = data.id;
   }
 
   const { error, data: savedCourse } = await supabase
     .from("courses")
-    .upsert(payload)
+    .upsert(dbPayload)
     .select()
     .single();
 
@@ -78,7 +86,7 @@ export async function upsertCourse(data: CourseFormData) {
         ora_fine: slot.ora_fine,
         sede: slot.sede,
         attivo: slot.attivo !== undefined ? slot.attivo : true,
-        istruttore_id: payload.instructor_id // ereditiamo l'istruttore del corso se necessario
+        istruttore_id: data.instructor_id // ereditiamo l'istruttore del corso se necessario
       }));
 
       const { error: slotsError } = await supabase
