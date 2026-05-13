@@ -31,7 +31,7 @@ function YouTubeIcon({ className }: { className?: string }) {
   );
 }
 
-export function Footer({ logoUrl }: { logoUrl?: string }) {
+export function Footer({ logoUrl, locations = [], branding }: { logoUrl?: string, locations?: string[], branding?: any }) {
   const t = useTranslations("Footer");
   const tNav = useTranslations("Navigation");
   const currentYear = new Date().getFullYear();
@@ -66,9 +66,9 @@ export function Footer({ logoUrl }: { logoUrl?: string }) {
           {/* Social icons */}
           <div className="flex items-center gap-3">
             {[
-              { icon: InstagramIcon, href: "https://www.instagram.com/merakiexperience_official", label: "Instagram" },
-              { icon: FacebookIcon, href: "https://www.facebook.com/asdmerakiexperience", label: "Facebook" },
-              { icon: YouTubeIcon, href: "https://www.youtube.com/@merakiexperience", label: "YouTube" },
+              { icon: InstagramIcon, href: branding?.instagram_url || "https://www.instagram.com/merakiexperience_official", label: "Instagram" },
+              { icon: FacebookIcon, href: branding?.facebook_url || "https://www.facebook.com/asdmerakiexperience", label: "Facebook" },
+              { icon: YouTubeIcon, href: branding?.youtube_url || "https://www.youtube.com/@merakiexperience", label: "YouTube" },
             ].map((social) => (
               <a
                 key={social.label}
@@ -100,8 +100,19 @@ export function Footer({ logoUrl }: { logoUrl?: string }) {
           <div className="space-y-5">
             <h4 className="text-[11px] font-extrabold text-slate-900 uppercase tracking-widest">{t("locations_title")}</h4>
             <ul className="space-y-3 text-[14px] text-slate-500 font-medium">
-              <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300" />{t("location_bz")}</li>
-              <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300" />{t("location_ap")}</li>
+              {locations.length > 0 ? (
+                locations.map((loc, idx) => (
+                  <li key={idx} className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                    {loc}
+                  </li>
+                ))
+              ) : (
+                <>
+                  <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300" />{t("location_bz")}</li>
+                  <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300" />{t("location_ap")}</li>
+                </>
+              )}
             </ul>
           </div>
 
