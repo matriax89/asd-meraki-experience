@@ -8,8 +8,8 @@
  */
 export async function compressImageToWebp(
   file: File,
-  maxWidth: number = 1200,
-  quality: number = 0.8
+  maxWidth: number = 2560,
+  quality: number = 0.9
 ): Promise<File> {
   return new Promise((resolve, reject) => {
     if (!file || !file.type.startsWith('image/')) {
