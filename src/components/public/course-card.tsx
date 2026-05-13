@@ -20,28 +20,26 @@ export function CourseCard({
   return (
     <div className="group relative flex flex-col h-full rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-50">
       
-      {/* Background Image that sits behind the white card */}
-      <div className="absolute top-0 left-0 w-full h-[60%]">
-        {copertina_url ? (
-          <img 
-            src={copertina_url} 
-            alt={nome} 
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" 
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-tr from-slate-200 to-slate-100" />
-        )}
-      </div>
-
-      {/* Top Spacer for the Image Area */}
-      <Link href={`/corsi/${slug}`} className="block h-56 md:h-64 shrink-0 relative z-10">
+      {/* Image Area */}
+      <Link href={`/corsi/${slug}`} className="relative block w-full pt-[90%] sm:pt-[80%] overflow-hidden shrink-0 bg-slate-100">
+        <div className="absolute inset-0">
+          {copertina_url ? (
+            <img 
+              src={copertina_url} 
+              alt={nome} 
+              className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700 ease-out" 
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-tr from-slate-200 to-slate-100" />
+          )}
+        </div>
         <div className="absolute top-4 left-4 z-20 bg-white/90 backdrop-blur-md text-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
           {disciplina}
         </div>
       </Link>
       
       {/* Content Section overlapping with rounded top corners */}
-      <div className="relative z-20 flex flex-col flex-1 p-6 md:p-7 bg-white rounded-t-[24px] mt-auto">
+      <div className="relative z-20 flex flex-col flex-1 p-6 md:p-7 bg-white rounded-[24px] -mt-8 shadow-[0_-8px_20px_rgba(0,0,0,0.04)]">
         {/* Title */}
         <Link href={`/corsi/${slug}`}>
           <h3 className="font-bold text-[22px] text-slate-800 mb-3 leading-tight group-hover:text-slate-600 transition-colors">
