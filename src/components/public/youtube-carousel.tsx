@@ -27,11 +27,11 @@ export function YoutubeCarousel({ videoUrls }: { videoUrls: string[] }) {
     
     const step = (time: number) => {
       if (scrollContainer) {
-        // Velocità costante indipendente dal numero di video (es. 30 pixel al secondo)
+        // Velocità costante indipendente dal numero di video (es. 20 pixel al secondo)
         const deltaTime = time - lastTime;
         lastTime = time;
         
-        accumulate += (30 * deltaTime) / 1000;
+        accumulate += (20 * deltaTime) / 1000;
         
         if (accumulate >= 1) {
           const pixelsToMove = Math.floor(accumulate);
@@ -103,7 +103,7 @@ export function YoutubeCarousel({ videoUrls }: { videoUrls: string[] }) {
       {/* Contenitore scorrevole */}
       <div 
         ref={scrollRef}
-        className={`flex gap-6 px-8 md:px-16 overflow-x-auto hide-scrollbar py-4 ${isPaused ? 'scroll-smooth snap-x snap-mandatory' : ''}`}
+        className="flex gap-6 px-8 md:px-16 overflow-x-auto hide-scrollbar py-4"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {duplicatedVideos.map((video, i) => (
@@ -112,7 +112,7 @@ export function YoutubeCarousel({ videoUrls }: { videoUrls: string[] }) {
             href={video?.url} 
             target="_blank" 
             rel="noopener noreferrer"
-            className="relative flex-none w-[80vw] sm:w-[320px] md:w-[400px] aspect-video rounded-[1.5rem] overflow-hidden group/card shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.2)] transition-all duration-300 hover:-translate-y-2 bg-slate-100 snap-center shrink-0"
+            className="relative flex-none w-[80vw] sm:w-[320px] md:w-[400px] aspect-video rounded-[1.5rem] overflow-hidden group/card shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.2)] transition-all duration-300 hover:-translate-y-2 bg-slate-100 shrink-0"
           >
             <Image 
               src={`https://img.youtube.com/vi/${video?.id}/maxresdefault.jpg`} 
