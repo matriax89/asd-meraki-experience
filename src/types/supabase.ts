@@ -742,7 +742,7 @@ export type Database = {
           note: string | null
           ora_fine: string
           ora_inizio: string
-          sede: Database["public"]["Enums"]["sede_enum"]
+          sede: string
           valido_da: string | null
           valido_fino: string | null
         }
@@ -757,7 +757,7 @@ export type Database = {
           note?: string | null
           ora_fine: string
           ora_inizio: string
-          sede?: Database["public"]["Enums"]["sede_enum"]
+          sede?: string
           valido_da?: string | null
           valido_fino?: string | null
         }
@@ -772,7 +772,7 @@ export type Database = {
           note?: string | null
           ora_fine?: string
           ora_inizio?: string
-          sede?: Database["public"]["Enums"]["sede_enum"]
+          sede?: string
           valido_da?: string | null
           valido_fino?: string | null
         }
@@ -834,18 +834,21 @@ export type Database = {
       }
       site_settings: {
         Row: {
+          created_at: string | null
           key: string
-          updated_at: string
+          updated_at: string | null
           value: Json
         }
         Insert: {
+          created_at?: string | null
           key: string
-          updated_at?: string
-          value: Json
+          updated_at?: string | null
+          value?: Json
         }
         Update: {
+          created_at?: string | null
           key?: string
-          updated_at?: string
+          updated_at?: string | null
           value?: Json
         }
         Relationships: []
@@ -1025,7 +1028,6 @@ export type Database = {
         | "refunded"
       product_categoria_enum: "abbigliamento" | "accessori" | "altro"
       role_enum: "admin" | "editor" | "viewer"
-      sede_enum: "bolzano" | "appiano" | "altro"
       ticket_status_enum: "pending" | "paid" | "used" | "refunded"
       weekday_enum: "lun" | "mar" | "mer" | "gio" | "ven" | "sab" | "dom"
     }
@@ -1178,7 +1180,6 @@ export const Constants = {
       ],
       product_categoria_enum: ["abbigliamento", "accessori", "altro"],
       role_enum: ["admin", "editor", "viewer"],
-      sede_enum: ["bolzano", "appiano", "altro"],
       ticket_status_enum: ["pending", "paid", "used", "refunded"],
       weekday_enum: ["lun", "mar", "mer", "gio", "ven", "sab", "dom"],
     },

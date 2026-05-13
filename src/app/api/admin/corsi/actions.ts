@@ -86,7 +86,7 @@ export async function upsertCourse(data: CourseFormData) {
         ora_fine: slot.ora_fine,
         sede: slot.sede,
         attivo: slot.attivo !== undefined ? slot.attivo : true,
-        istruttore_id: data.instructor_id // ereditiamo l'istruttore del corso se necessario
+        istruttore_id: data.instructor_id || null // ereditiamo l'istruttore del corso se necessario
       }));
 
       const { error: slotsError } = await supabase
