@@ -21,16 +21,16 @@ export function CourseCard({
     <div className="group relative flex flex-col h-full rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-50">
       
       {/* Image Area */}
-      <Link href={`/corsi/${slug}`} className="relative block w-full overflow-hidden shrink-0 bg-white">
-        <div className="w-full pb-6">
+      <Link href={`/corsi/${slug}`} className="relative block w-full aspect-[4/5] overflow-hidden shrink-0 bg-slate-100">
+        <div className="absolute inset-0">
           {copertina_url ? (
             <img 
               src={copertina_url} 
               alt={nome} 
-              className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700 ease-out" 
+              className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700 ease-out" 
             />
           ) : (
-            <div className="w-full aspect-[4/5] bg-gradient-to-tr from-slate-100 to-slate-50" />
+            <div className="w-full h-full bg-gradient-to-tr from-slate-200 to-slate-100" />
           )}
         </div>
         <div className="absolute top-4 left-4 z-20 bg-white/90 backdrop-blur-md text-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
