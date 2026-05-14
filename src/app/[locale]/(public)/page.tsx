@@ -84,14 +84,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const media = content.media || {};
   const documenti = content.documenti || {};
   const locations = content.locations || ["Bolzano", "Appiano", "Altro"];
-
-  // Fetch Branding
-  const { data: brandingData } = (await supabase
-    .from("site_settings" as any)
-    .select("value")
-    .eq("key", "branding")
-    .single()) as any;
-  const branding = brandingData?.value || {};
+  const branding = content.branding || {};
 
   return (
     <main className="flex flex-col min-h-[100dvh]">
