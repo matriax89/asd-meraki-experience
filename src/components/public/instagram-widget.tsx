@@ -12,8 +12,8 @@ export function InstagramWidget({ beholdUrl, profileUrl }: { beholdUrl?: string,
         
         /* Distruzione Totale del Watermark Elfsight tramite Taglio Fisico (Clip-Path) */
         .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 {
-          /* Tagliamo fisicamente i 50 pixel inferiori dove si annida il logo */
-          clip-path: inset(0px 0px 50px 0px) !important;
+          /* Tagliamo fisicamente i 50 pixel inferiori ma MANTENIAMO i bordi arrotondati su tutti i lati! */
+          clip-path: inset(0px 0px 50px 0px round 24px) !important;
           /* Tiriamo su il margine per compensare lo spazio vuoto lasciato dal taglio */
           margin-bottom: -50px !important;
           padding-bottom: 0 !important;
