@@ -22,10 +22,20 @@ export async function InstagramWidget({ beholdUrl, profileUrl }: { beholdUrl?: s
       
       // Behold di solito restituisce un array di oggetti o un oggetto con un array
       // Dipende dalla configurazione, di solito è un array
+      let rawPosts: any[] = [];
       if (Array.isArray(data)) {
-        posts = data.slice(0, 4);
+        rawPosts = data;
       } else if (data.posts && Array.isArray(data.posts)) {
-        posts = data.posts.slice(0, 4);
+        rawPosts = data.posts;
+      }
+
+      // Ordina cronologicamente (dal più recente al più vecchio) usando il timestamp di Instagram
+      if (rawPosts.length > 0) {
+        rawPosts.sort((a, b) => {
+          if (!a.timestamp || !b.timestamp) return 0;
+          return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+        });
+        posts = rawPosts.slice(0, 4);
       }
     } catch (err) {
       console.error("Error fetching Instagram posts via Behold:", err);
