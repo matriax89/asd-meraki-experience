@@ -14,8 +14,12 @@ export async function InstagramWidget({ beholdUrl, profileUrl }: { beholdUrl?: s
 
   if (beholdUrl) {
     try {
-      // Usiamo Next.js cache per scaricare le foto solo una volta all'ora (3600 secondi)
-      const res = await fetch(beholdUrl, { next: { revalidate: 3600 } });
+      // Aggiungiamo un parametro per invalidare la vecchia cache incastrata su Vercel
+      const cleanUrl = new URL(beholdUrl);
+      cleanUrl.searchParams.set("v", "2"); 
+      
+      // Cache di 1 ora (3600 secondi) per restare nel piano gratuito
+      const res = await fetch(cleanUrl.toString(), { next: { revalidate: 3600 } });
       if (!res.ok) throw new Error("Failed to fetch Behold API");
       
       const data = await res.json();
