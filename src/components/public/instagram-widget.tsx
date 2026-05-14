@@ -10,33 +10,12 @@ export function InstagramWidget({ beholdUrl, profileUrl }: { beholdUrl?: string,
           display: none !important;
         }
         
-        /* Distruzione Totale del Watermark Elfsight */
-        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 a[href*="elfsight"],
-        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 a[href*="apps.elfsight.com"],
-        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 [class*="Badge__BadgeTemplate"],
-        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 [class*="badge"],
-        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 [class*="eapps-link"],
-        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 > div > a,
-        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 > div > div:last-child > a,
-        a[href*="elfsight.com"],
-        a[title*="Free Instagram Feed"],
-        a[title*="Elfsight"] {
-          display: none !important;
-          opacity: 0 !important;
-          visibility: hidden !important;
-          pointer-events: none !important;
-          height: 0 !important;
-          width: 0 !important;
-          position: absolute !important;
-          z-index: -9999 !important;
-          font-size: 0 !important;
-          color: transparent !important;
-          transform: scale(0) !important;
-          overflow: hidden !important;
-        }
-
-        /* Se il watermark è un elemento a blocco in fondo, lo nascondiamo brutalmente tagliando l'overflow */
+        /* Distruzione Totale del Watermark Elfsight tramite Taglio Fisico (Clip-Path) */
         .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 {
+          /* Tagliamo fisicamente i 50 pixel inferiori dove si annida il logo */
+          clip-path: inset(0px 0px 50px 0px) !important;
+          /* Tiriamo su il margine per compensare lo spazio vuoto lasciato dal taglio */
+          margin-bottom: -50px !important;
           padding-bottom: 0 !important;
         }
 
