@@ -1,17 +1,30 @@
 import { Resend } from "resend";
+import { createAdminClient } from "@/lib/supabase/server";
 
-const resendApiKey = process.env.RESEND_API_KEY;
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-
-// La mail a cui verranno mandate le notifiche
-const ADMIN_EMAIL = "info@merakiexperience.org";
+const defaultResendApiKey = process.env.RESEND_API_KEY;
 const FROM_EMAIL = "noreply@merakiexperience.org";
+const DEFAULT_ADMIN_EMAIL = "info@merakiexperience.org";
 
 export async function sendLeadNotification(lead: any) {
-  if (!resend) {
-    console.warn("RESEND_API_KEY not configured. Skipping email notification.");
-    return { success: false, error: "API Key not configured" };
+  // Fetch dynamic settings from database
+  const supabase = createAdminClient();
+  const { data: settings } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "homepage_content")
+    .single();
+
+  const integrations = (settings?.value as any)?.integrations;
+  
+  const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
+  const adminEmail = integrations?.admin_email || DEFAULT_ADMIN_EMAIL;
+
+  if (!activeApiKey) {
+    console.warn("RESEND_API_KEY non configurata. Salto invio email.");
+    return { success: false, error: "API Key non configurata" };
   }
+
+  const resend = new Resend(activeApiKey);
 
   const subject = lead.source === "contact_form" 
     ? `Nuovo Messaggio da ${lead.nome} ${lead.cognome}`
@@ -20,7 +33,7 @@ export async function sendLeadNotification(lead: any) {
   try {
     const { data, error } = await resend.emails.send({
       from: `Meraki Experience <${FROM_EMAIL}>`,
-      to: ADMIN_EMAIL,
+      to: adminEmail,
       subject,
       html: `
         <h2>Hai ricevuto una nuova richiesta!</h2>

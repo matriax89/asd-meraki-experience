@@ -78,6 +78,12 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
   const [locations, setLocations] = useState<string[]>(initialData?.locations || ["Bolzano", "Appiano", "Postal", "Altro"]);
   const [newLocation, setNewLocation] = useState("");
 
+  const [integrations, setIntegrations] = useState(initialData?.integrations || {
+    facebook_pixel_id: "",
+    resend_api_key: "",
+    admin_email: "info@merakiexperience.org"
+  });
+
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -103,7 +109,8 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       contacts: contacts,
       media: media,
       documenti: documenti,
-      locations: locations
+      locations: locations,
+      integrations: integrations
     };
 
     // Creiamo un nuovo FormData solo con il payload stringato
@@ -1134,6 +1141,57 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
               {locations.length === 0 && (
                 <p className="text-sm text-muted-foreground italic">Nessuna sede configurata. Aggiungine una.</p>
               )}
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-8 mt-8 border-t border-slate-200">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-slate-800">Integrazioni & Marketing</h2>
+            <p className="text-sm text-slate-500">Configura Facebook Pixel, Email e altri servizi esterni.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Facebook Pixel ID</label>
+              <input
+                type="text"
+                value={integrations.facebook_pixel_id}
+                onChange={(e) => setIntegrations({...integrations, facebook_pixel_id: e.target.value})}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                placeholder="es. 123456789012345"
+              />
+              <p className="text-xs text-slate-500 mt-2">
+                Se impostato, il codice di tracciamento di Meta verrà iniettato in tutte le pagine.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Resend API Key</label>
+              <input
+                type="password"
+                value={integrations.resend_api_key}
+                onChange={(e) => setIntegrations({...integrations, resend_api_key: e.target.value})}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                placeholder="re_..."
+              />
+              <p className="text-xs text-slate-500 mt-2">
+                Usata per inviare email. Se vuoto, usa la variabile di sistema.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Email Admin (Notifiche)</label>
+              <input
+                type="email"
+                value={integrations.admin_email}
+                onChange={(e) => setIntegrations({...integrations, admin_email: e.target.value})}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                placeholder="info@tuosito.com"
+              />
+              <p className="text-xs text-slate-500 mt-2">
+                Dove vuoi ricevere le notifiche per nuovi Lead e Ordini.
+              </p>
             </div>
           </div>
         </div>
