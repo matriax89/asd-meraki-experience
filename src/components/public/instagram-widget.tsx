@@ -10,13 +10,22 @@ export function InstagramWidget({ beholdUrl, profileUrl }: { beholdUrl?: string,
           display: none !important;
         }
         
-        /* Nascondiamo il watermark/logo di Elfsight */
-        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 a[href*="elfsight.com"],
+        /* Nascondiamo il watermark/logo di Elfsight (Siamo super aggressivi) */
+        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 a[href*="elfsight"],
         .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 [class*="Badge__BadgeTemplate"],
-        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 [class*="badge"] {
+        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 [class*="badge"],
+        .elfsight-app-8f79b975-b8cc-4009-99dc-a6ae1ae0fc63 [class*="eapps-link"],
+        a[href*="elfsight.com"],
+        a[title*="Free Instagram Feed"],
+        a[title*="Elfsight"] {
           display: none !important;
           opacity: 0 !important;
+          visibility: hidden !important;
           pointer-events: none !important;
+          height: 0 !important;
+          width: 0 !important;
+          position: absolute !important;
+          z-index: -999 !important;
         }
 
         /* Arrotondiamo e diamo un tocco Apple-style al contenitore della griglia */
