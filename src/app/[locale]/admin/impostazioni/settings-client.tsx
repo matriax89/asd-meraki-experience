@@ -81,7 +81,12 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
   const [integrations, setIntegrations] = useState(initialData?.integrations || {
     facebook_pixel_id: "",
     resend_api_key: "",
-    admin_email: "info@merakiexperience.org"
+    admin_email: "info@merakiexperience.org",
+    email_provider: "resend",
+    smtp_host: "",
+    smtp_port: "587",
+    smtp_user: "",
+    smtp_pass: ""
   });
 
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | string | null>(null);
@@ -1167,17 +1172,92 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
             </div>
 
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Resend API Key</label>
-              <input
-                type="password"
-                value={integrations.resend_api_key}
-                onChange={(e) => setIntegrations({...integrations, resend_api_key: e.target.value})}
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                placeholder="re_..."
-              />
-              <p className="text-xs text-slate-500 mt-2">
-                Usata per inviare email. Se vuoto, usa la variabile di sistema.
-              </p>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Provider Email</label>
+              <div className="flex gap-4 mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="email_provider"
+                    value="resend"
+                    checked={integrations.email_provider === "resend"}
+                    onChange={(e) => setIntegrations({...integrations, email_provider: e.target.value})}
+                    className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                  />
+                  <span className="text-sm text-slate-700 font-medium">Resend (Consigliato)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="email_provider"
+                    value="smtp"
+                    checked={integrations.email_provider === "smtp"}
+                    onChange={(e) => setIntegrations({...integrations, email_provider: e.target.value})}
+                    className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                  />
+                  <span className="text-sm text-slate-700 font-medium">SMTP Classico</span>
+                </label>
+              </div>
+
+              {integrations.email_provider === "resend" ? (
+                <>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2 mt-4">Resend API Key</label>
+                  <input
+                    type="password"
+                    value={integrations.resend_api_key}
+                    onChange={(e) => setIntegrations({...integrations, resend_api_key: e.target.value})}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="re_..."
+                  />
+                  <p className="text-xs text-slate-500 mt-2">
+                    Usata per inviare email. Se vuoto, usa la variabile di sistema.
+                  </p>
+                </>
+              ) : (
+                <div className="space-y-4 mt-4 border-t border-slate-200 pt-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">SMTP Host</label>
+                    <input
+                      type="text"
+                      value={integrations.smtp_host}
+                      onChange={(e) => setIntegrations({...integrations, smtp_host: e.target.value})}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                      placeholder="es. smtp.gmail.com"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Porta</label>
+                      <input
+                        type="text"
+                        value={integrations.smtp_port}
+                        onChange={(e) => setIntegrations({...integrations, smtp_port: e.target.value})}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                        placeholder="587 o 465"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Utente</label>
+                      <input
+                        type="text"
+                        value={integrations.smtp_user}
+                        onChange={(e) => setIntegrations({...integrations, smtp_user: e.target.value})}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                        placeholder="tua@email.com"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Password (App Password)</label>
+                    <input
+                      type="password"
+                      value={integrations.smtp_pass}
+                      onChange={(e) => setIntegrations({...integrations, smtp_pass: e.target.value})}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                      placeholder="••••••••••••"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
