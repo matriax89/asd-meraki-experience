@@ -16,7 +16,7 @@ export async function InstagramWidget({ beholdUrl, profileUrl }: { beholdUrl?: s
     try {
       // Aggiungiamo un parametro per invalidare la vecchia cache incastrata su Vercel
       const cleanUrl = new URL(beholdUrl);
-      cleanUrl.searchParams.set("v", "2"); 
+      cleanUrl.searchParams.set("v", "3"); 
       
       // Cache di 1 ora (3600 secondi) per restare nel piano gratuito
       const res = await fetch(cleanUrl.toString(), { next: { revalidate: 3600 } });
