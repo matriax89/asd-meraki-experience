@@ -953,6 +953,17 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Behold.so Feed URL (API)</label>
+                <input 
+                  type="url" 
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                  value={branding.behold_url || ""}
+                  onChange={(e) => setBranding({...branding, behold_url: e.target.value})}
+                  placeholder="https://behold.so/api/get/xxxxxxxxxxxx"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">L'URL API fornito da Behold.so per il caricamento automatico delle foto di Instagram.</p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Facebook URL</label>
                 <input 
                   type="url" 

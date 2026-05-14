@@ -618,7 +618,10 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           </FadeIn>
 
           <FadeIn direction="up" delay={0.2} className="max-w-5xl mx-auto">
-            <InstagramWidget />
+            <InstagramWidget 
+              beholdUrl={branding?.behold_url} 
+              profileUrl={branding?.instagram_url || "https://www.instagram.com/merakiexperience_official"} 
+            />
           </FadeIn>
         </div>
       </section>
