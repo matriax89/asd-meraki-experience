@@ -55,9 +55,14 @@ export async function InstagramWidget({ beholdUrl, profileUrl }: { beholdUrl?: s
     <div className="w-full relative pb-6 md:pb-12">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
         {displayPosts.map((post: any, idx: number) => {
-          // La struttura di Behold usa thumbnailUrl per video, mediaUrl per immagini
-          const imageUrl = isMock ? post.image : (post.thumbnailUrl || post.mediaUrl || post.sizes?.large?.mediaUrl);
-          const postLink = isMock ? profileUrl : (post.permalink || profileUrl);
+          // Behold usa thumbnailUrl/mediaUrl, Curator usa image/thumbnail, etc.
+          const imageUrl = isMock 
+            ? post.image 
+            : (post.thumbnailUrl || post.mediaUrl || post.image || post.thumbnail || post.sizes?.large?.mediaUrl);
+            
+          const postLink = isMock 
+            ? profileUrl 
+            : (post.permalink || post.url || profileUrl);
 
           return (
             <a 
