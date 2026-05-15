@@ -348,7 +348,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       </section>
 
       {/* ═══════ ORARIO (Apple Calendar Aesthetic) ═══════ */}
-      <section id="orario" className="py-24 md:py-32 bg-secondary/30 scroll-mt-24">
+      <section id="orario" className="py-24 md:py-32 bg-background scroll-mt-24">
         <div className="container">
           <FadeIn className="text-center max-w-2xl mx-auto mb-16">
             <p className="text-[13px] font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-3">{t("schedule.badge")}</p>
@@ -363,11 +363,6 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               giorniSettimana={giorni.map(g => ({ ...g, short: g.label.substring(0, 3).toUpperCase() }))} 
               locations={locations} 
             />
-            <div className="mt-8 text-center">
-              <Link href="/orario" className="text-[14px] font-semibold text-foreground hover:underline">
-                {t("schedule.view_full")}
-              </Link>
-            </div>
           </FadeIn>
         </div>
       </section>
