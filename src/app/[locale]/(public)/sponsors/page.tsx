@@ -1,6 +1,8 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/routing";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
+import { createClient } from "@/lib/supabase/server";
 
 export async function generateMetadata({ params: { locale } }: { params: { locale: string } }) {
   return {
@@ -10,11 +12,18 @@ export async function generateMetadata({ params: { locale } }: { params: { local
 }
 
 export default async function SponsorsPage() {
-  const sponsors = [
-    { name: "Brand One", tier: "Main Sponsor", desc: "Supporto ufficiale attrezzature." },
-    { name: "Apex Sport", tier: "Gold Partner", desc: "Fornitura nutrizione sportiva." },
-    { name: "Global Fit", tier: "Silver Partner", desc: "Abbigliamento tecnico." },
-    { name: "Studio Plus", tier: "Bronze Partner", desc: "Consulenza e servizi." },
+  const supabase = await createClient();
+  const { data: settings } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "homepage_content")
+    .single();
+
+  const sponsorsList = (settings?.value as any)?.sponsors_list || [
+    { name: "Brand One", tier: "Main Sponsor", desc: "Supporto ufficiale attrezzature.", logo_url: "" },
+    { name: "Apex Sport", tier: "Gold Partner", desc: "Fornitura nutrizione sportiva.", logo_url: "" },
+    { name: "Global Fit", tier: "Silver Partner", desc: "Abbigliamento tecnico.", logo_url: "" },
+    { name: "Studio Plus", tier: "Bronze Partner", desc: "Consulenza e servizi.", logo_url: "" },
   ];
 
   const benefits = [
@@ -90,14 +99,18 @@ export default async function SponsorsPage() {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {sponsors.map((s) => (
+            {sponsorsList.map((s: any) => (
               <Link 
                 key={s.name} 
-                href={`/sponsors/${s.name.toLowerCase().replace(" ", "-")}`} 
+                href={`/sponsors/${s.name.toLowerCase().replace(/\s+/g, "-")}`} 
                 className="group p-8 bg-background border border-border/40 rounded-[2rem] flex flex-col items-center text-center shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300"
               >
-                <div className="w-20 h-20 bg-secondary rounded-2xl mb-6 flex items-center justify-center font-bold text-muted-foreground group-hover:bg-foreground group-hover:text-background transition-colors">
-                  LOGO
+                <div className="w-20 h-20 bg-secondary rounded-2xl mb-6 flex items-center justify-center font-bold text-muted-foreground group-hover:bg-foreground group-hover:text-background transition-colors relative overflow-hidden">
+                  {s.logo_url ? (
+                    <Image src={s.logo_url} alt={s.name} fill className="object-cover" />
+                  ) : (
+                    "LOGO"
+                  )}
                 </div>
                 <h3 className="text-[17px] font-bold tracking-tight mb-1">{s.name}</h3>
                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">{s.tier}</p>

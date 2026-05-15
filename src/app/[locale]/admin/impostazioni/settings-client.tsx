@@ -23,6 +23,13 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     { nome: "Dajana Sessa", ruolo: "Tesoriere", foto_url: "/images/v2/salsation_glow.png" }
   ]);
   
+  const [sponsorsList, setSponsorsList] = useState<any[]>(initialData?.sponsors_list || [
+    { name: "Brand One", tier: "Main Sponsor", desc: "Supporto ufficiale attrezzature.", logo_url: "" },
+    { name: "Apex Sport", tier: "Gold Partner", desc: "Fornitura nutrizione sportiva.", logo_url: "" },
+    { name: "Global Fit", tier: "Silver Partner", desc: "Abbigliamento tecnico.", logo_url: "" },
+    { name: "Studio Plus", tier: "Bronze Partner", desc: "Consulenza e servizi.", logo_url: "" }
+  ]);
+  
   const [youtubeVideos, setYoutubeVideos] = useState<string[]>(initialData?.youtube_videos || [
     "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
   ]);
@@ -147,6 +154,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       banner2_text: formData.get("banner2_text"),
       youtube_channel_url: formData.get("youtube_channel_url"),
       direttivo: direttivo,
+      sponsors_list: sponsorsList,
       values: values,
       footer_text: footerText,
       shop_text: shopText,
@@ -201,6 +209,9 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       if (res.success && res.url) {
         if (typeof index === 'number') {
           updateDirettivo(index, "foto_url", res.url);
+        } else if (typeof index === 'string' && index.startsWith('sponsor_')) {
+          const idx = parseInt(index.split('_')[1], 10);
+          updateSponsor(idx, "logo_url", res.url);
         } else if (index === 'popup') {
           setPopup({ ...popup, foto_url: res.url });
         } else if (index === 'branding_logo') {
@@ -242,6 +253,20 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
 
   const addDirettivo = () => {
     setDirettivo([...direttivo, { nome: "", ruolo: "", foto_url: "" }]);
+  };
+
+  const updateSponsor = (index: number, field: string, value: string) => {
+    const newList = [...sponsorsList];
+    newList[index] = { ...newList[index], [field]: value };
+    setSponsorsList(newList);
+  };
+
+  const removeSponsor = (index: number) => {
+    setSponsorsList(sponsorsList.filter((_, i) => i !== index));
+  };
+
+  const addSponsor = () => {
+    setSponsorsList([...sponsorsList, { name: "", tier: "", desc: "", logo_url: "" }]);
   };
 
   const updateYoutube = (index: number, value: string) => {
@@ -601,6 +626,84 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
               </div>
             ))}
             {direttivo.length === 0 && <p className="text-sm text-slate-500 italic">Nessun membro del direttivo aggiunto.</p>}
+          </div>
+        </div>
+
+        {/* Sponsors (Chi ci sostiene già) */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b pb-2 mt-8">
+            <h3 className="text-lg font-semibold text-slate-800">5. Chi ci sostiene già (Pagina Diventa Sponsor)</h3>
+            <button type="button" onClick={addSponsor} className="flex items-center gap-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
+              <Plus className="w-4 h-4" /> Aggiungi Sponsor
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {sponsorsList.map((sponsor, i) => (
+              <div key={i} className="flex gap-4 items-start bg-slate-50 p-4 rounded-xl border border-slate-200 relative group">
+                <div className="flex-1 space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Nome Sponsor</label>
+                      <input 
+                        value={sponsor.name || ""}
+                        onChange={(e) => updateSponsor(i, "name", e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="Es. Apex Sport"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Livello (Tier)</label>
+                      <input 
+                        value={sponsor.tier || ""}
+                        onChange={(e) => updateSponsor(i, "tier", e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="Es. Gold Partner"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Descrizione</label>
+                    <textarea 
+                      value={sponsor.desc || ""}
+                      onChange={(e) => updateSponsor(i, "desc", e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm resize-y"
+                      placeholder="Breve descrizione..."
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Logo (URL o Upload)</label>
+                    <div className="flex gap-2 items-center">
+                      <input 
+                        value={sponsor.logo_url || ""}
+                        onChange={(e) => updateSponsor(i, "logo_url", e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="es. /images/logo_sponsor.png oppure URL"
+                      />
+                      <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === `sponsor_${i}` ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {uploadingImageIndex === `sponsor_${i}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                        <span className="ml-2 text-sm font-medium">{uploadingImageIndex === `sponsor_${i}` ? 'Caricamento...' : 'Carica Logo'}</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => handleImageUpload(`sponsor_${i}`, e)} 
+                          className="hidden" 
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => removeSponsor(i)}
+                  className="text-slate-400 hover:text-red-500 transition-colors p-2 mt-4"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            ))}
+            {sponsorsList.length === 0 && <p className="text-sm text-slate-500 italic">Nessun sponsor aggiunto.</p>}
           </div>
         </div>
 
