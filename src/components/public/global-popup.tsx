@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
-import Image from "next/image";
+
 import Link from "next/link";
 
 interface PopupData {
@@ -62,50 +62,51 @@ export function GlobalPopup({ data }: { data?: PopupData | null }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
           />
 
           {/* Popup Content */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="relative w-full max-w-md bg-white overflow-hidden rounded-[32px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] z-10 flex flex-col"
+            className="relative w-full max-w-md bg-white/95 backdrop-blur-2xl overflow-hidden rounded-[32px] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] border border-white/20 z-10 flex flex-col"
           >
             {/* Close Button */}
             <button
               onClick={handleClose}
-              className={`absolute top-4 right-4 z-20 p-2 backdrop-blur-md rounded-full transition-colors ${
+              className={`absolute top-4 right-4 z-30 p-2.5 rounded-full transition-all duration-300 active:scale-95 ${
                 data.foto_url 
-                  ? "bg-black/20 hover:bg-black/40 text-white" 
+                  ? "bg-black/20 hover:bg-black/40 backdrop-blur-xl border border-white/20 text-white shadow-lg" 
                   : "bg-slate-100 hover:bg-slate-200 text-slate-500"
               }`}
               aria-label="Chiudi popup"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" strokeWidth={2.5} />
             </button>
 
             {/* Image Section */}
             {data.foto_url && (
-              <div className="relative w-full h-56 sm:h-64 bg-slate-100">
-                <Image
+              <div className="relative w-full bg-white overflow-hidden flex justify-center items-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={data.foto_url}
                   alt={data.titolo || "Promozione"}
-                  fill
-                  className="object-cover"
-                  priority
+                  className="w-full h-auto max-h-[55vh] object-contain"
                 />
+                {/* Gradient fade to blend image into the white content area */}
+                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white via-white/80 to-transparent z-10 pointer-events-none" />
               </div>
             )}
 
             {/* Content Section */}
-            <div className={`flex flex-col text-center ${data.foto_url ? 'p-8 pt-6' : 'p-10'}`}>
-              <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-3 tracking-tight">
+            <div className={`relative flex flex-col text-center z-20 ${data.foto_url ? 'p-8 pt-0 -mt-6' : 'p-10'}`}>
+              <h3 className="text-2xl sm:text-[28px] font-extrabold text-slate-900 mb-3 tracking-tight leading-tight">
                 {data.titolo}
               </h3>
               
-              <p className="text-slate-600 text-[15px] leading-relaxed mb-8">
+              <p className="text-slate-600 text-[15px] leading-relaxed mb-8 font-medium">
                 {data.descrizione}
               </p>
 
@@ -113,7 +114,7 @@ export function GlobalPopup({ data }: { data?: PopupData | null }) {
                 <Link
                   href={data.link_bottone}
                   onClick={handleClose}
-                  className="w-full inline-flex justify-center items-center px-6 py-4 bg-slate-900 text-white text-sm font-semibold rounded-2xl hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20 active:scale-[0.98]"
+                  className="w-full inline-flex justify-center items-center px-6 py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[15px] font-bold rounded-[20px] hover:shadow-xl hover:shadow-slate-900/20 hover:-translate-y-0.5 transition-all duration-300 active:scale-[0.98]"
                 >
                   {data.testo_bottone}
                 </Link>
