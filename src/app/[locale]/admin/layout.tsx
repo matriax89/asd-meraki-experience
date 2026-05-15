@@ -3,7 +3,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { Link } from "@/i18n/routing";
 import { 
   LayoutDashboard, Users, ShoppingBag, Package, 
-  Dumbbell, CalendarDays, Ticket, Settings, LogOut, Handshake 
+  Dumbbell, CalendarDays, Ticket, Settings, LogOut, Handshake, Sparkles
 } from "lucide-react";
 
 export default async function AdminLayout({
@@ -39,6 +39,7 @@ export default async function AdminLayout({
     { name: "Eventi", href: "/admin/eventi", icon: CalendarDays },
     { name: "Biglietti", href: "/admin/biglietti", icon: Ticket },
     { name: "Impostazioni", href: "/admin/impostazioni", icon: Settings },
+    { name: "Prova Gratuita", href: "/admin/prova-gratuita", icon: Sparkles },
     { name: "Partner / Sponsor", href: "/admin/sponsors", icon: Handshake },
   ];
 
