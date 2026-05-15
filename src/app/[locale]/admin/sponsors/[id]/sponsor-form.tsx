@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Input, Textarea, Select, Checkbox } from "@/components/admin/form-elements";
 import { upsertSponsor, deleteSponsor } from "@/app/api/admin/sponsors/actions";
 import { useModal } from "@/components/ui/modal-provider";
+import { uploadImageAction } from "@/app/api/admin/upload/actions";
+import { compressImageToWebp } from "@/lib/image-utils";
+import { Loader2, Upload } from "lucide-react";
 
 interface SponsorFormProps {
   initialData: any;
@@ -14,7 +17,8 @@ export function SponsorForm({ initialData }: SponsorFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const { showConfirm } = useModal();
+  const { showConfirm, showAlert } = useModal();
+  const [isUploading, setIsUploading] = useState(false);
 
   const [formData, setFormData] = useState({
     id: initialData?.id || "nuovo",
@@ -26,6 +30,31 @@ export function SponsorForm({ initialData }: SponsorFormProps) {
     ordine_display: initialData?.ordine_display || 0,
     attivo: initialData?.attivo ?? true,
   });
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const compressedFile = await compressImageToWebp(file);
+      const uploadData = new FormData();
+      uploadData.append("file", compressedFile);
+      
+      const res = await uploadImageAction(uploadData);
+      
+      if (res.success && res.url) {
+        setFormData(prev => ({ ...prev, logo_url: res.url }));
+      } else {
+        showAlert({ title: "Errore", message: "Errore durante il caricamento: " + res.error, type: "error" });
+      }
+    } catch (error: any) {
+      console.error(error);
+      showAlert({ title: "Errore", message: "Si è verificato un errore inaspettato.", type: "error" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,14 +171,14 @@ export function SponsorForm({ initialData }: SponsorFormProps) {
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
         <h2 className="text-xl font-bold border-b border-border pb-2">Logo e Visibilità</h2>
         
-          <Input 
-            label="URL Logo *" 
-            required
-            placeholder="https://..."
-            value={formData.logo_url} 
-            onChange={e => setFormData({...formData, logo_url: e.target.value})} 
-          />
-          <p className="text-xs text-slate-500 mt-1">Consigliato logo in formato PNG con sfondo trasparente.</p>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700 block">Carica Logo (PNG Trasparente consigliato) *</label>
+          <label className={`flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 w-full py-4 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+            {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+            <span className="ml-2 font-medium">{isUploading ? 'Caricamento in corso...' : 'Seleziona dal dispositivo'}</span>
+            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+          </label>
+        </div>
         {formData.logo_url && (
           <div className="mt-2 w-full max-w-sm rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-4 flex items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
