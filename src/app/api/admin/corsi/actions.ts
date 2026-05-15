@@ -50,7 +50,9 @@ export async function upsertCourse(data: CourseFormData) {
     descrizione_lunga: data.descrizione_completa || null, // Map from completta to lunga
     livello: data.livello || null,
     durata_minuti: data.durata_minuti || null,
+    frequenza: data.frequenza || null,
     benefici: data.benefici || null,
+    attrezzatura_richiesta: data.attrezzatura_richiesta || null,
     copertina_url: data.copertina_url || null,
     attivo: data.attivo,
     ordine_display: data.ordine_display || 0,

@@ -32,7 +32,7 @@ export function CourseForm({ initialData, instructors, locations }: CourseFormPr
     slug: initialData?.slug || "",
     disciplina: initialData?.disciplina || "",
     descrizione_breve: initialData?.descrizione_breve || "",
-    descrizione_completa: initialData?.descrizione_completa || "",
+    descrizione_completa: initialData?.descrizione_lunga || "",
     livello: initialData?.livello || "",
     durata_minuti: initialData?.durata_minuti || 60,
     frequenza: initialData?.frequenza || "",

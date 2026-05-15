@@ -97,6 +97,8 @@ export type Database = {
           ordine_display: number | null
           prezzo_indicativo_cents: number | null
           slug: string
+          frequenza: string | null
+          attrezzatura_richiesta: string | null
           updated_at: string | null
         }
         Insert: {
@@ -119,6 +121,8 @@ export type Database = {
           ordine_display?: number | null
           prezzo_indicativo_cents?: number | null
           slug: string
+          frequenza?: string | null
+          attrezzatura_richiesta?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -141,6 +145,8 @@ export type Database = {
           ordine_display?: number | null
           prezzo_indicativo_cents?: number | null
           slug?: string
+          frequenza?: string | null
+          attrezzatura_richiesta?: string | null
           updated_at?: string | null
         }
         Relationships: [
