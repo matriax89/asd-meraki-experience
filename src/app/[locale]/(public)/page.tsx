@@ -22,6 +22,12 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
     .order("ordine_display", { ascending: true })
     .limit(9);
 
+  const { data: sponsors } = await supabase
+    .from("sponsors")
+    .select("*")
+    .eq("attivo", true)
+    .order("ordine_display", { ascending: true });
+
   const { data: scheduleSlots } = await supabase
     .from("schedule_slots")
     .select("*, course:courses(*), istruttore:team_members(*)")
@@ -482,34 +488,61 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           </FadeIn>
 
           <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            {/* Sponsor 1 */}
-            <StaggerItem className="group rounded-[2rem] bg-background border border-border/50 p-6 md:p-8 flex items-center justify-center aspect-square shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-              <div className="text-muted-foreground group-hover:text-foreground transition-colors flex flex-col items-center gap-4">
-                 <div className="w-12 h-12 bg-current rounded-full"></div>
-                 <span className="font-bold text-base md:text-lg tracking-tight">Brand One</span>
-              </div>
-            </StaggerItem>
-            {/* Sponsor 2 */}
-            <StaggerItem className="group rounded-[2rem] bg-background border border-border/50 p-6 md:p-8 flex items-center justify-center aspect-square shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-              <div className="text-muted-foreground group-hover:text-foreground transition-colors flex flex-col items-center gap-4">
-                 <svg className="w-14 h-14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2z"/></svg>
-                 <span className="font-bold text-base md:text-lg tracking-tight">Apex Sport</span>
-              </div>
-            </StaggerItem>
-            {/* Sponsor 3 */}
-            <StaggerItem className="group rounded-[2rem] bg-background border border-border/50 p-6 md:p-8 flex items-center justify-center aspect-square shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-              <div className="text-muted-foreground group-hover:text-foreground transition-colors flex flex-col items-center gap-4">
-                 <svg className="w-12 h-12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
-                 <span className="font-bold text-base md:text-lg tracking-tight">Global Fit</span>
-              </div>
-            </StaggerItem>
-            {/* Sponsor 4 */}
-            <StaggerItem className="group rounded-[2rem] bg-background border border-border/50 p-6 md:p-8 flex items-center justify-center aspect-square shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-              <div className="text-muted-foreground group-hover:text-foreground transition-colors flex flex-col items-center gap-4">
-                 <div className="w-12 h-12 bg-current rotate-45 rounded-xl"></div>
-                 <span className="font-bold text-base md:text-lg tracking-tight">Studio Plus</span>
-              </div>
-            </StaggerItem>
+            {sponsors && sponsors.length > 0 ? (
+              sponsors.map((sponsor) => (
+                <StaggerItem key={sponsor.id} className="group rounded-[2rem] bg-background border border-border/50 p-6 md:p-8 flex items-center justify-center aspect-square shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden">
+                  <a href={sponsor.link || "#"} target={sponsor.link ? "_blank" : undefined} rel={sponsor.link ? "noopener noreferrer" : undefined} className="absolute inset-0 z-10" aria-label={sponsor.nome} />
+                  <div className="flex flex-col items-center justify-center w-full h-full p-2">
+                    {sponsor.logo_url ? (
+                      <div className="relative w-full h-24 mb-4">
+                        <Image src={sponsor.logo_url} alt={sponsor.nome} fill className="object-contain group-hover:scale-105 transition-transform duration-300" />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 bg-slate-100 rounded-full mb-4 flex items-center justify-center text-slate-400">
+                        <span className="text-xl font-bold">{sponsor.nome[0]}</span>
+                      </div>
+                    )}
+                    <span className="font-bold text-base md:text-lg tracking-tight text-center text-slate-800 group-hover:text-slate-900 transition-colors">{sponsor.nome}</span>
+                    {sponsor.tier && (
+                      <span className="mt-2 px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider rounded-full border border-amber-100">
+                        {sponsor.tier}
+                      </span>
+                    )}
+                  </div>
+                </StaggerItem>
+              ))
+            ) : (
+              <>
+                {/* Sponsor 1 */}
+                <StaggerItem className="group rounded-[2rem] bg-background border border-border/50 p-6 md:p-8 flex items-center justify-center aspect-square shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="text-muted-foreground group-hover:text-foreground transition-colors flex flex-col items-center gap-4">
+                     <div className="w-12 h-12 bg-current rounded-full"></div>
+                     <span className="font-bold text-base md:text-lg tracking-tight">Brand One</span>
+                  </div>
+                </StaggerItem>
+                {/* Sponsor 2 */}
+                <StaggerItem className="group rounded-[2rem] bg-background border border-border/50 p-6 md:p-8 flex items-center justify-center aspect-square shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="text-muted-foreground group-hover:text-foreground transition-colors flex flex-col items-center gap-4">
+                     <svg className="w-14 h-14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2z"/></svg>
+                     <span className="font-bold text-base md:text-lg tracking-tight">Apex Sport</span>
+                  </div>
+                </StaggerItem>
+                {/* Sponsor 3 */}
+                <StaggerItem className="group rounded-[2rem] bg-background border border-border/50 p-6 md:p-8 flex items-center justify-center aspect-square shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="text-muted-foreground group-hover:text-foreground transition-colors flex flex-col items-center gap-4">
+                     <svg className="w-12 h-12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                     <span className="font-bold text-base md:text-lg tracking-tight">Global Fit</span>
+                  </div>
+                </StaggerItem>
+                {/* Sponsor 4 */}
+                <StaggerItem className="group rounded-[2rem] bg-background border border-border/50 p-6 md:p-8 flex items-center justify-center aspect-square shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="text-muted-foreground group-hover:text-foreground transition-colors flex flex-col items-center gap-4">
+                     <div className="w-12 h-12 bg-current rotate-45 rounded-xl"></div>
+                     <span className="font-bold text-base md:text-lg tracking-tight">Studio Plus</span>
+                  </div>
+                </StaggerItem>
+              </>
+            )}
           </StaggerContainer>
         </div>
       </section>
