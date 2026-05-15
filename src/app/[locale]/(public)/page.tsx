@@ -387,26 +387,27 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 
           <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <StaggerItem className="h-full">
-              <Link href="/eventi" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-50">
+              <Link href="/eventi" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-900 text-white">
                 {/* Background Image that sits behind the white card */}
-                <div className="absolute top-0 left-0 w-full h-[65%]">
-                  <Image src={content.shop_text?.workshop_image_url || media.masterclass_bg_url || "/images/v2/aerial_glow.png"} alt="Workshop" fill className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+                <div className="absolute top-0 left-0 w-full h-[65%] flex items-center justify-center overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-transparent to-slate-800 z-10 pointer-events-none" />
+                  <Image src={content.shop_text?.workshop_image_url || media.masterclass_bg_url || "/images/v2/aerial_glow.png"} alt="Workshop" fill className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out z-0" />
                 </div>
                 
                 {/* Top Spacer */}
                 <div className="h-56 shrink-0 relative z-10">
-                  <div className="absolute top-6 left-6 z-20 bg-white/90 backdrop-blur-md text-slate-800 text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
+                  <div className="absolute top-6 left-6 z-20 bg-white/10 backdrop-blur-md text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
                     {content.shop_text?.workshop_badge || t("shop.workshop_badge")}
                   </div>
                 </div>
 
                 {/* Content Section overlapping with rounded top corners */}
-                <div className="relative z-20 flex flex-col flex-1 p-8 bg-white rounded-t-[32px] mt-auto">
-                  <h3 className="text-2xl font-bold tracking-tight text-slate-900 mb-3 group-hover:text-slate-700 transition-colors">{content.shop_text?.workshop_title || t("shop.workshop_title")}</h3>
-                  <p className="text-[15px] text-slate-500 mb-6 leading-relaxed flex-1 whitespace-pre-line">{content.shop_text?.workshop_desc || t("shop.workshop_desc")}</p>
+                <div className="relative z-20 flex flex-col flex-1 p-8 bg-slate-800 rounded-t-[32px] mt-auto border-t border-slate-700/50">
+                  <h3 className="text-2xl font-bold tracking-tight text-white mb-3 group-hover:text-slate-200 transition-colors">{content.shop_text?.workshop_title || t("shop.workshop_title")}</h3>
+                  <p className="text-[15px] text-slate-300 mb-6 leading-relaxed flex-1 whitespace-pre-line">{content.shop_text?.workshop_desc || t("shop.workshop_desc")}</p>
                   
                   <div className="mt-auto">
-                    <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-slate-900 text-white px-5 text-[13px] font-bold tracking-wide transition-all group-hover:bg-slate-800">
+                    <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white text-slate-900 px-5 text-[13px] font-bold tracking-wide transition-all group-hover:bg-slate-100">
                       {content.shop_text?.workshop_cta || t("shop.workshop_cta")} <ArrowRight className="w-4 h-4" />
                     </span>
                   </div>
@@ -418,9 +419,9 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               <Link href="/shop" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-900 text-white">
                 {/* Background Pattern / Icon / Image */}
                 <div className="absolute top-0 left-0 w-full h-[65%] flex items-center justify-center overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-b from-slate-800/50 to-slate-900 z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-transparent to-slate-800 z-10 pointer-events-none" />
                   {content.shop_text?.merch_image_url ? (
-                    <Image src={content.shop_text.merch_image_url} alt="Merchandising" fill className="object-cover opacity-80 group-hover:scale-105 group-hover:rotate-1 transition-all duration-700 ease-out z-0" />
+                    <Image src={content.shop_text.merch_image_url} alt="Merchandising" fill className="object-cover group-hover:scale-105 group-hover:rotate-1 transition-all duration-700 ease-out z-0" />
                   ) : (
                     <svg className="absolute w-56 h-56 text-white/20 group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 ease-out z-0" viewBox="0 0 24 24" fill="currentColor"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" /></svg>
                   )}
