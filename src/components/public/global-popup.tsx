@@ -71,7 +71,7 @@ export function GlobalPopup({ data }: { data?: PopupData | null }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="relative w-full max-w-md bg-white/95 backdrop-blur-2xl overflow-hidden rounded-[32px] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] border border-white/20 z-10 flex flex-col"
+            className="relative w-full max-w-md bg-slate-50/95 backdrop-blur-2xl overflow-hidden rounded-[32px] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] border border-white/20 z-10 flex flex-col"
           >
             {/* Close Button */}
             <button
@@ -79,7 +79,7 @@ export function GlobalPopup({ data }: { data?: PopupData | null }) {
               className={`absolute top-4 right-4 z-30 p-2.5 rounded-full transition-all duration-300 active:scale-95 ${
                 data.foto_url 
                   ? "bg-black/20 hover:bg-black/40 backdrop-blur-xl border border-white/20 text-white shadow-lg" 
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-500"
+                  : "bg-slate-200 hover:bg-slate-300 text-slate-500"
               }`}
               aria-label="Chiudi popup"
             >
@@ -88,20 +88,22 @@ export function GlobalPopup({ data }: { data?: PopupData | null }) {
 
             {/* Image Section */}
             {data.foto_url && (
-              <div className="relative w-full bg-white overflow-hidden flex justify-center items-center">
+              <div className="relative w-full bg-slate-100/50 overflow-hidden flex justify-center items-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={data.foto_url}
                   alt={data.titolo || "Promozione"}
                   className="w-full h-auto max-h-[55vh] object-contain"
                 />
-                {/* Gradient fade to blend image into the white content area */}
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white via-white/80 to-transparent z-10 pointer-events-none" />
               </div>
             )}
 
             {/* Content Section */}
-            <div className={`relative flex flex-col text-center z-20 ${data.foto_url ? 'p-8 pt-0 -mt-6' : 'p-10'}`}>
+            <div className={`relative flex flex-col text-center z-20 ${
+              data.foto_url 
+                ? 'bg-white rounded-t-[32px] -mt-8 shadow-[0_-12px_30px_rgba(0,0,0,0.06)] p-8 pt-10' 
+                : 'bg-white p-10'
+            }`}>
               <h3 className="text-2xl sm:text-[28px] font-extrabold text-slate-900 mb-3 tracking-tight leading-tight">
                 {data.titolo}
               </h3>
