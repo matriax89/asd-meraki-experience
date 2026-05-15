@@ -89,7 +89,10 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     donate_badge: "Sostieni",
     donate_title: "Supporta l'Associazione",
     donate_desc: "Aiutaci a promuovere il benessere e a migliorare costantemente i nostri servizi e la nostra struttura per tutti gli associati.",
-    donate_cta: "Fai una donazione"
+    donate_cta: "Fai una donazione",
+    workshop_image_url: "",
+    merch_image_url: "",
+    donate_image_url: ""
   });
 
   const [documenti, setDocumenti] = useState(initialData?.documenti || {
@@ -210,6 +213,12 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           setMedia({ ...media, documenti_bg_url: res.url });
         } else if (index === 'media_masterclass') {
           setMedia({ ...media, masterclass_bg_url: res.url });
+        } else if (index === 'shop_workshop_img') {
+          setShopText({ ...shopText, workshop_image_url: res.url });
+        } else if (index === 'shop_merch_img') {
+          setShopText({ ...shopText, merch_image_url: res.url });
+        } else if (index === 'shop_donate_img') {
+          setShopText({ ...shopText, donate_image_url: res.url });
         }
       } else {
         showAlert({ title: "Errore", message: "Errore caricamento: " + res.error, type: "error" });
@@ -810,6 +819,17 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
                   <input value={shopText.workshop_cta} onChange={(e) => setShopText({...shopText, workshop_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                 </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Sfondo Card (URL o Upload)</label>
+                  <div className="flex gap-2 items-center">
+                    <input value={shopText.workshop_image_url || ""} onChange={(e) => setShopText({...shopText, workshop_image_url: e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="URL immagine" />
+                    <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'shop_workshop_img' ? 'opacity-50 pointer-events-none' : ''}`}>
+                      {uploadingImageIndex === 'shop_workshop_img' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      <span className="ml-2 text-sm font-medium hidden sm:inline">Upload</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('shop_workshop_img', e)} className="hidden" />
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -833,6 +853,17 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
                   <input value={shopText.merch_cta} onChange={(e) => setShopText({...shopText, merch_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                 </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Sfondo Card (URL o Upload)</label>
+                  <div className="flex gap-2 items-center">
+                    <input value={shopText.merch_image_url || ""} onChange={(e) => setShopText({...shopText, merch_image_url: e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="URL immagine (opzionale)" />
+                    <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'shop_merch_img' ? 'opacity-50 pointer-events-none' : ''}`}>
+                      {uploadingImageIndex === 'shop_merch_img' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      <span className="ml-2 text-sm font-medium hidden sm:inline">Upload</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('shop_merch_img', e)} className="hidden" />
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -855,6 +886,17 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
                   <input value={shopText.donate_cta} onChange={(e) => setShopText({...shopText, donate_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Sfondo Card (URL o Upload)</label>
+                  <div className="flex gap-2 items-center">
+                    <input value={shopText.donate_image_url || ""} onChange={(e) => setShopText({...shopText, donate_image_url: e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="URL immagine (opzionale)" />
+                    <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'shop_donate_img' ? 'opacity-50 pointer-events-none' : ''}`}>
+                      {uploadingImageIndex === 'shop_donate_img' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      <span className="ml-2 text-sm font-medium hidden sm:inline">Upload</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('shop_donate_img', e)} className="hidden" />
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>

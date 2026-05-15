@@ -390,7 +390,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               <Link href="/eventi" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-50">
                 {/* Background Image that sits behind the white card */}
                 <div className="absolute top-0 left-0 w-full h-[65%]">
-                  <Image src={media.masterclass_bg_url || "/images/v2/aerial_glow.png"} alt="Workshop" fill className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+                  <Image src={content.shop_text?.workshop_image_url || media.masterclass_bg_url || "/images/v2/aerial_glow.png"} alt="Workshop" fill className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
                 </div>
                 
                 {/* Top Spacer */}
@@ -416,10 +416,14 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 
             <StaggerItem className="h-full">
               <Link href="/shop" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-900 text-white">
-                {/* Background Pattern / Icon */}
+                {/* Background Pattern / Icon / Image */}
                 <div className="absolute top-0 left-0 w-full h-[65%] flex items-center justify-center overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-b from-slate-800/50 to-slate-900 z-10" />
-                  <svg className="absolute w-56 h-56 text-white/20 group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 ease-out z-0" viewBox="0 0 24 24" fill="currentColor"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" /></svg>
+                  {content.shop_text?.merch_image_url ? (
+                    <Image src={content.shop_text.merch_image_url} alt="Merchandising" fill className="object-cover opacity-80 group-hover:scale-105 group-hover:rotate-1 transition-all duration-700 ease-out z-0" />
+                  ) : (
+                    <svg className="absolute w-56 h-56 text-white/20 group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 ease-out z-0" viewBox="0 0 24 24" fill="currentColor"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" /></svg>
+                  )}
                 </div>
 
                 {/* Top Spacer */}
@@ -446,12 +450,16 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             {/* Nuova Card Donazioni */}
             <StaggerItem className="h-full">
               <Link href="/sponsors" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-gradient-to-br from-amber-50 to-orange-50">
-                {/* Background Pattern / Icon */}
+                {/* Background Pattern / Icon / Image */}
                 <div className="absolute top-0 left-0 w-full h-[65%] flex items-center justify-center overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-b from-amber-100/50 to-amber-50/10 z-10" />
-                  <svg className="absolute w-56 h-56 text-amber-500/30 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-700 ease-out z-0" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                  </svg>
+                  {content.shop_text?.donate_image_url ? (
+                    <Image src={content.shop_text.donate_image_url} alt="Donazione" fill className="object-cover opacity-70 group-hover:scale-105 transition-all duration-700 ease-out z-0" />
+                  ) : (
+                    <svg className="absolute w-56 h-56 text-amber-500/30 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-700 ease-out z-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>
+                  )}
                 </div>
 
                 {/* Top Spacer */}
