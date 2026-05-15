@@ -376,15 +376,15 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       <section className="pb-16 pt-0">
         <div className="container">
           <FadeIn>
-            <div className="bg-gradient-to-r from-[#E50012] to-[#CC0010] rounded-[28px] p-6 md:p-8 lg:p-10 text-white relative overflow-hidden shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="bg-white border-2 border-[#E50012] rounded-[28px] p-6 md:p-8 lg:p-10 text-slate-900 relative overflow-hidden shadow-[0_0_40px_-15px_rgba(229,0,18,0.3)] flex flex-col md:flex-row items-center justify-between gap-6">
               {/* Sfondo decorativo */}
-              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-red-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
               
               <div className="relative z-10 max-w-2xl flex-1">
                 <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-3 leading-tight">
                   {content.sportclubby_banner?.titolo || "Prenota le tue lezioni in un click."}
                 </h2>
-                <p className="text-[15px] md:text-lg text-white/90 mb-6 max-w-xl leading-relaxed whitespace-pre-line">
+                <p className="text-[15px] md:text-lg text-slate-600 mb-6 max-w-xl leading-relaxed whitespace-pre-line">
                   {content.sportclubby_banner?.descrizione || "Scarica l'app Sportclubby per avere sempre il nostro orario aggiornato a portata di mano e gestire le tue prenotazioni facilmente."}
                 </p>
                 
@@ -420,11 +420,11 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               {/* Visual Decor: Logo */}
               <div className="relative z-10 hidden md:flex items-center justify-center shrink-0 lg:mr-8">
                 {content.sportclubby_banner?.logo_url ? (
-                  <div className="relative w-40 h-40 md:w-64 md:h-64 hover:rotate-2 transition-transform duration-500 drop-shadow-xl">
+                  <div className="relative w-40 h-40 md:w-64 md:h-64 hover:rotate-2 transition-transform duration-500">
                     <Image src={content.sportclubby_banner.logo_url} alt="Sportclubby" fill unoptimized className="object-contain" />
                   </div>
                 ) : (
-                  <div className="w-24 h-24 md:w-32 md:h-32 bg-white rounded-3xl flex items-center justify-center shadow-lg hover:rotate-2 transition-transform duration-500 relative">
+                  <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-50 border border-slate-100 rounded-3xl flex items-center justify-center shadow-sm hover:rotate-2 transition-transform duration-500 relative">
                     <span className="text-4xl md:text-5xl font-black text-[#E50012] select-none tracking-tighter">
                       Sc
                     </span>
