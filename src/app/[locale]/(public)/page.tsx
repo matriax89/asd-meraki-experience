@@ -538,18 +538,18 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {[
-                  { title: "Regolamento", icon: <FileText className="w-8 h-8" />, href: documenti.regolamento_url || "/legal/terms" },
-                  { title: "Codice Etico", icon: <Scale className="w-8 h-8" />, href: documenti.codice_etico_url || "/legal/terms" },
-                  { title: "Safeguarding", icon: <ShieldCheck className="w-8 h-8" />, href: documenti.safeguarding_url || "/legal/terms" },
-                  { title: "Modulo Iscrizione", icon: <FileSignature className="w-8 h-8" />, href: documenti.modulo_iscrizione_url || "/contatti" },
-                  { title: "Privacy Policy", icon: <Lock className="w-8 h-8" />, href: "/legal/privacy" },
-                  { title: "Cookie Policy", icon: <Cookie className="w-8 h-8" />, href: "/legal/cookie" }
+                  { title: "Regolamento", icon: <FileText className="w-6 h-6" />, color: "text-blue-600", bg: "bg-blue-50", href: documenti.regolamento_url || "/legal/terms" },
+                  { title: "Codice Etico", icon: <Scale className="w-6 h-6" />, color: "text-rose-600", bg: "bg-rose-50", href: documenti.codice_etico_url || "/legal/terms" },
+                  { title: "Safeguarding", icon: <ShieldCheck className="w-6 h-6" />, color: "text-emerald-600", bg: "bg-emerald-50", href: documenti.safeguarding_url || "/legal/terms" },
+                  { title: "Modulo Iscrizione", icon: <FileSignature className="w-6 h-6" />, color: "text-amber-600", bg: "bg-amber-50", href: documenti.modulo_iscrizione_url || "/contatti" },
+                  { title: "Privacy Policy", icon: <Lock className="w-6 h-6" />, color: "text-indigo-600", bg: "bg-indigo-50", href: "/legal/privacy" },
+                  { title: "Cookie Policy", icon: <Cookie className="w-6 h-6" />, color: "text-purple-600", bg: "bg-purple-50", href: "/legal/cookie" }
                 ].map((doc, i) => (
-                  <Link href={doc.href} key={i} className="flex flex-col items-center justify-center p-6 bg-secondary rounded-[1.5rem] hover:-translate-y-1 hover:bg-secondary/80 transition-all text-center gap-3 group">
-                    <div className="text-muted-foreground group-hover:text-foreground transition-colors">
+                  <Link href={doc.href} key={i} className="group flex flex-col items-center justify-center p-6 bg-white border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] rounded-[1.5rem] hover:-translate-y-1.5 hover:shadow-[0_15px_30px_rgb(0,0,0,0.08)] transition-all duration-300 text-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl ${doc.bg} ${doc.color} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
                       {doc.icon}
                     </div>
-                    <span className="text-[13px] font-bold tracking-tight">{doc.title}</span>
+                    <span className="text-[14px] font-bold text-slate-900 tracking-tight">{doc.title}</span>
                   </Link>
                 ))}
               </div>
