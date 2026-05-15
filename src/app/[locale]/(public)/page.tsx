@@ -377,8 +377,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         <div className="container">
           <FadeIn className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-14">
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-3">{t("shop.badge")}</p>
-              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">{t("shop.title")}</h2>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-3">{content.shop_text?.badge || t("shop.badge")}</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">{content.shop_text?.title || t("shop.title")}</h2>
             </div>
             <Link href="/shop" className="text-sm font-semibold text-foreground hover:underline inline-flex items-center gap-1">
               {t("shop.view_all")} <ArrowRight className="w-4 h-4" />
@@ -396,18 +396,18 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                 {/* Top Spacer */}
                 <div className="h-56 shrink-0 relative z-10">
                   <div className="absolute top-6 left-6 z-20 bg-white/90 backdrop-blur-md text-slate-800 text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                    {t("shop.workshop_badge")}
+                    {content.shop_text?.workshop_badge || t("shop.workshop_badge")}
                   </div>
                 </div>
 
                 {/* Content Section overlapping with rounded top corners */}
                 <div className="relative z-20 flex flex-col flex-1 p-8 bg-white rounded-t-[32px] mt-auto">
-                  <h3 className="text-2xl font-bold tracking-tight text-slate-900 mb-3 group-hover:text-slate-700 transition-colors">{t("shop.workshop_title")}</h3>
-                  <p className="text-[15px] text-slate-500 mb-6 leading-relaxed flex-1">{t("shop.workshop_desc")}</p>
+                  <h3 className="text-2xl font-bold tracking-tight text-slate-900 mb-3 group-hover:text-slate-700 transition-colors">{content.shop_text?.workshop_title || t("shop.workshop_title")}</h3>
+                  <p className="text-[15px] text-slate-500 mb-6 leading-relaxed flex-1 whitespace-pre-line">{content.shop_text?.workshop_desc || t("shop.workshop_desc")}</p>
                   
                   <div className="mt-auto">
                     <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-slate-900 text-white px-5 text-[13px] font-bold tracking-wide transition-all group-hover:bg-slate-800">
-                      {t("shop.workshop_cta")} <ArrowRight className="w-4 h-4" />
+                      {content.shop_text?.workshop_cta || t("shop.workshop_cta")} <ArrowRight className="w-4 h-4" />
                     </span>
                   </div>
                 </div>
@@ -425,18 +425,18 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                 {/* Top Spacer */}
                 <div className="h-56 shrink-0 relative z-10">
                   <div className="absolute top-6 left-6 z-20 bg-white/10 backdrop-blur-md text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                    {t("shop.merch_badge")}
+                    {content.shop_text?.merch_badge || t("shop.merch_badge")}
                   </div>
                 </div>
 
                 {/* Content Section overlapping with rounded top corners */}
                 <div className="relative z-20 flex flex-col flex-1 p-8 bg-slate-800 rounded-t-[32px] mt-auto border-t border-slate-700/50">
-                  <h3 className="text-2xl font-bold tracking-tight text-white mb-3 group-hover:text-slate-200 transition-colors">{t("shop.merch_title")}</h3>
-                  <p className="text-[15px] text-slate-300 mb-6 leading-relaxed flex-1">{t("shop.merch_desc")}</p>
+                  <h3 className="text-2xl font-bold tracking-tight text-white mb-3 group-hover:text-slate-200 transition-colors">{content.shop_text?.merch_title || t("shop.merch_title")}</h3>
+                  <p className="text-[15px] text-slate-300 mb-6 leading-relaxed flex-1 whitespace-pre-line">{content.shop_text?.merch_desc || t("shop.merch_desc")}</p>
                   
                   <div className="mt-auto">
                     <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white text-slate-900 px-5 text-[13px] font-bold tracking-wide transition-all group-hover:bg-slate-100">
-                      {t("shop.merch_cta")} <ArrowRight className="w-4 h-4" />
+                      {content.shop_text?.merch_cta || t("shop.merch_cta")} <ArrowRight className="w-4 h-4" />
                     </span>
                   </div>
                 </div>
@@ -457,18 +457,18 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                 {/* Top Spacer */}
                 <div className="h-56 shrink-0 relative z-10">
                   <div className="absolute top-6 left-6 z-20 bg-amber-500/10 backdrop-blur-md text-amber-700 text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                    {t("shop.donate_badge")}
+                    {content.shop_text?.donate_badge || t("shop.donate_badge")}
                   </div>
                 </div>
 
                 {/* Content Section overlapping with rounded top corners */}
                 <div className="relative z-20 flex flex-col flex-1 p-8 bg-white/80 backdrop-blur-sm rounded-t-[32px] mt-auto border-t border-amber-100">
-                  <h3 className="text-2xl font-bold tracking-tight text-slate-900 mb-3 group-hover:text-amber-700 transition-colors">{t("shop.donate_title")}</h3>
-                  <p className="text-[15px] text-slate-500 mb-6 leading-relaxed flex-1">{t("shop.donate_desc")}</p>
+                  <h3 className="text-2xl font-bold tracking-tight text-slate-900 mb-3 group-hover:text-amber-700 transition-colors">{content.shop_text?.donate_title || t("shop.donate_title")}</h3>
+                  <p className="text-[15px] text-slate-500 mb-6 leading-relaxed flex-1 whitespace-pre-line">{content.shop_text?.donate_desc || t("shop.donate_desc")}</p>
                   
                   <div className="mt-auto">
                     <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-amber-500 text-white px-5 text-[13px] font-bold tracking-wide transition-all group-hover:bg-amber-600">
-                      {t("shop.donate_cta")} <ArrowRight className="w-4 h-4" />
+                      {content.shop_text?.donate_cta || t("shop.donate_cta")} <ArrowRight className="w-4 h-4" />
                     </span>
                   </div>
                 </div>

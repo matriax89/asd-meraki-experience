@@ -75,6 +75,23 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     copyright: "Tutti i diritti riservati."
   });
 
+  const [shopText, setShopText] = useState(initialData?.shop_text || {
+    badge: "Novità & Shop",
+    title: "Esplora le nostre collezioni",
+    workshop_badge: "Workshop",
+    workshop_title: "Masterclass & Eventi",
+    workshop_desc: "Partecipa a sessioni speciali, approfondimenti tematici ed eventi esclusivi organizzati dalla nostra associazione per arricchire la tua pratica.",
+    workshop_cta: "Scopri i prossimi eventi",
+    merch_badge: "Merchandising",
+    merch_title: "Abbigliamento & Accessori",
+    merch_desc: "Indossa i valori di Meraki. Scopri la nostra linea esclusiva di abbigliamento sportivo e accessori pensati per il tuo benessere.",
+    merch_cta: "Vai allo shop online",
+    donate_badge: "Sostieni",
+    donate_title: "Supporta l'Associazione",
+    donate_desc: "Aiutaci a promuovere il benessere e a migliorare costantemente i nostri servizi e la nostra struttura per tutti gli associati.",
+    donate_cta: "Fai una donazione"
+  });
+
   const [documenti, setDocumenti] = useState(initialData?.documenti || {
     regolamento_url: "",
     codice_etico_url: "",
@@ -125,6 +142,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       direttivo: direttivo,
       values: values,
       footer_text: footerText,
+      shop_text: shopText,
       youtube_videos: youtubeVideos,
       theme_colors: themeColors,
       popup: popup,
@@ -751,6 +769,94 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                 onChange={(e) => setFooterText({...footerText, copyright: e.target.value})}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Shop Texts */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b pb-2 mt-8">
+            <h3 className="text-lg font-semibold text-slate-800">7. Testi Sezione Novità & Shop</h3>
+          </div>
+          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Badge (Sopratitolo)</label>
+                <input value={shopText.badge} onChange={(e) => setShopText({...shopText, badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo Principale</label>
+                <input value={shopText.title} onChange={(e) => setShopText({...shopText, title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+            </div>
+            
+            {/* Card Masterclass */}
+            <div className="pt-4 border-t border-slate-200">
+              <h4 className="font-semibold text-slate-700 mb-3">Card 1: Masterclass</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Badge</label>
+                  <input value={shopText.workshop_badge} onChange={(e) => setShopText({...shopText, workshop_badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
+                  <input value={shopText.workshop_title} onChange={(e) => setShopText({...shopText, workshop_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
+                  <textarea value={shopText.workshop_desc} onChange={(e) => setShopText({...shopText, workshop_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
+                  <input value={shopText.workshop_cta} onChange={(e) => setShopText({...shopText, workshop_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+              </div>
+            </div>
+
+            {/* Card Merchandising */}
+            <div className="pt-4 border-t border-slate-200">
+              <h4 className="font-semibold text-slate-700 mb-3">Card 2: Merchandising</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Badge</label>
+                  <input value={shopText.merch_badge} onChange={(e) => setShopText({...shopText, merch_badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
+                  <input value={shopText.merch_title} onChange={(e) => setShopText({...shopText, merch_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
+                  <textarea value={shopText.merch_desc} onChange={(e) => setShopText({...shopText, merch_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
+                  <input value={shopText.merch_cta} onChange={(e) => setShopText({...shopText, merch_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+              </div>
+            </div>
+
+            {/* Card Donazione */}
+            <div className="pt-4 border-t border-slate-200">
+              <h4 className="font-semibold text-slate-700 mb-3">Card 3: Donazione</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Badge</label>
+                  <input value={shopText.donate_badge} onChange={(e) => setShopText({...shopText, donate_badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
+                  <input value={shopText.donate_title} onChange={(e) => setShopText({...shopText, donate_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
+                  <textarea value={shopText.donate_desc} onChange={(e) => setShopText({...shopText, donate_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
+                  <input value={shopText.donate_cta} onChange={(e) => setShopText({...shopText, donate_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
