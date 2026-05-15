@@ -122,6 +122,41 @@
     "location_bz": "Bolzano (BZ)",
     "location_ap": "Appiano (BZ)"
   },
+  "ShopPage": {
+    "title": "Shop",
+    "badge": "Meraki Shop",
+    "headline": "Official Shop",
+    "subheadline": "Discover our collection of technical apparel, accessories, and exclusive merchandise signed by Meraki Experience."
+  },
+  "EventsPage": {
+    "title": "Events",
+    "badge": "Calendar",
+    "headline": "Our Special Events",
+    "subheadline": "Workshops, stages, and masterclasses to deepen your technique and explore new disciplines with exceptional guest teachers.",
+    "empty_title": "No events scheduled at the moment.",
+    "empty_desc": "We are preparing new experiences for you."
+  },
+  "AboutPage": {
+    "title": "About us",
+    "badge": "About us",
+    "headline": "Our history",
+    "desc1": "<span className=\"font-bold text-foreground\">Meraki</span> (from Greek μεράκι) means doing something with soul, creativity, or love — when you put \"something of yourself\" into what you do.",
+    "desc2": "We are an amateur sports association dedicated to wellness and fitness, with the goal of accompanying our members on a journey of physical and mental change.",
+    "values": {
+      "passion": "Passion",
+      "passion_desc": "Every class is an experience, not a mechanical workout.",
+      "targets": "Goals",
+      "targets_desc": "Personalized paths for every level, from beginner to advanced.",
+      "community": "Community",
+      "community_desc": "A family where everyone feels welcomed and motivated to give their best."
+    },
+    "board_title": "The Board",
+    "board_desc": "The people who guide our association.",
+    "instructors_title": "Our Instructors",
+    "instructors_desc": "Professionals dedicated to your growth path.",
+    "cta_title": "Want to be part of the family?",
+    "cta_desc": "Book your first free trial class and find out if Meraki is the right place for you."
+  },
   "Legal": {
     "privacy": {
       "title": "Privacy Policy",

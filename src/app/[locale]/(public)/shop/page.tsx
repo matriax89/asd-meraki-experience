@@ -8,11 +8,13 @@ import { routing } from "@/i18n/routing";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   let { locale } = await params;
   if (!routing.locales.includes(locale as any)) locale = routing.defaultLocale;
-  const t = await getTranslations({ locale, namespace: "Index" });
-  return { title: `Shop · ${t("title")}` };
+  const t = await getTranslations({ locale, namespace: "ShopPage" });
+  return { title: `${t("title")} · Meraki Experience` };
 }
 
-export default async function ShopPage() {
+export default async function ShopPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "ShopPage" });
   const supabase = await createClient();
   const { data: prodotti } = await supabase
     .from("products")
@@ -43,10 +45,10 @@ export default async function ShopPage() {
     <div className="pt-32 pb-24 md:pt-40 md:pb-32 bg-background min-h-screen">
       <div className="container max-w-7xl mx-auto px-4 md:px-6">
         <FadeIn className="mb-8 md:mb-12 text-center max-w-2xl mx-auto">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">Meraki Shop</p>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium tracking-tight mb-6">Shop Ufficiale</h1>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">{t("badge")}</p>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium tracking-tight mb-6">{t("headline")}</h1>
           <p className="text-[17px] text-muted-foreground/90">
-            Scopri la nostra collezione di abbigliamento tecnico, accessori e merchandising esclusivo firmato Meraki Experience.
+            {t("subheadline")}
           </p>
         </FadeIn>
 

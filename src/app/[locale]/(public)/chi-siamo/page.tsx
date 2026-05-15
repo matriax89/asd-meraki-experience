@@ -6,11 +6,13 @@ import { ArrowRight, Heart, Target, Users } from "lucide-react";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "Index" });
-  return { title: `Chi siamo · ${t("title")}` };
+  const t = await getTranslations({ locale, namespace: "AboutPage" });
+  return { title: `${t("title")} · Meraki Experience` };
 }
 
-export default async function ChiSiamoPage() {
+export default async function ChiSiamoPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "AboutPage" });
   const supabase = await createClient();
   const { data: teamMembers } = await supabase
     .from("team_members")
@@ -26,26 +28,22 @@ export default async function ChiSiamoPage() {
       <div className="container">
         {/* Hero */}
         <div className="max-w-3xl mb-20">
-          <p className="text-[13px] font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-4">Chi siamo</p>
+          <p className="text-[13px] font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-4">{t("badge")}</p>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tighter mb-6 text-foreground leading-[1.1]">
-            La nostra storia
+            {t("headline")}
           </h1>
           <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
-            <p>
-              <span className="font-bold text-foreground">Meraki</span> (dal greco μεράκι) significa fare qualcosa con anima, creatività o amore — quando metti "qualcosa di te" in quello che fai.
-            </p>
-            <p>
-              Siamo un'associazione sportiva dilettantistica dedicata al benessere e al fitness, con l'obiettivo di accompagnare i nostri soci in un percorso di cambiamento fisico e mentale.
-            </p>
+            <p dangerouslySetInnerHTML={{ __html: t.raw("desc1") }} />
+            <p>{t("desc2")}</p>
           </div>
         </div>
 
         {/* Values */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-24">
           {[
-            { icon: Heart, title: "Passione", desc: "Ogni lezione è un'esperienza, non un allenamento meccanico." },
-            { icon: Target, title: "Obiettivi", desc: "Percorsi personalizzati per ogni livello, dal principiante all'avanzato." },
-            { icon: Users, title: "Community", desc: "Una famiglia dove ognuno si sente accolto e motivato a dare il meglio." },
+            { icon: Heart, title: t("values.passion"), desc: t("values.passion_desc") },
+            { icon: Target, title: t("values.targets"), desc: t("values.targets_desc") },
+            { icon: Users, title: t("values.community"), desc: t("values.community_desc") },
           ].map((v) => (
             <div key={v.title} className="bg-background rounded-[2rem] border border-border/40 shadow-sm hover:shadow-apple transition-shadow p-8">
               <div className="w-12 h-12 rounded-[14px] bg-secondary flex items-center justify-center mb-5 text-foreground">
@@ -60,25 +58,25 @@ export default async function ChiSiamoPage() {
         {/* Team */}
         {direttivo.length > 0 && (
           <section className="mb-16">
-            <h2 className="text-3xl font-bold tracking-tight mb-2">Il Direttivo</h2>
-            <p className="text-muted-foreground mb-8">Le persone che guidano la nostra associazione.</p>
+            <h2 className="text-3xl font-bold tracking-tight mb-2">{t("board_title")}</h2>
+            <p className="text-muted-foreground mb-8">{t("board_desc")}</p>
             <TeamGrid members={direttivo} />
           </section>
         )}
 
         {istruttori.length > 0 && (
           <section className="mb-16">
-            <h2 className="text-3xl font-bold tracking-tight mb-2">I Nostri Istruttori</h2>
-            <p className="text-muted-foreground mb-8">Professionisti dedicati al tuo percorso di crescita.</p>
+            <h2 className="text-3xl font-bold tracking-tight mb-2">{t("instructors_title")}</h2>
+            <p className="text-muted-foreground mb-8">{t("instructors_desc")}</p>
             <TeamGrid members={istruttori} />
           </section>
         )}
 
         {/* CTA */}
         <div className="bg-secondary/30 rounded-[2rem] border border-border/40 p-12 md:p-16 text-center">
-          <h2 className="text-3xl font-bold tracking-tight mb-4">Vuoi fare parte della famiglia?</h2>
+          <h2 className="text-3xl font-bold tracking-tight mb-4">{t("cta_title")}</h2>
           <p className="text-[15px] text-muted-foreground mb-8 max-w-md mx-auto leading-relaxed">
-            Prenota la tua prima lezione di prova gratuita e scopri se Meraki è il posto giusto per te.
+            {t("cta_desc")}
           </p>
           <Link
             href="/prova-gratuita"

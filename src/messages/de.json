@@ -122,6 +122,41 @@
     "location_bz": "Bozen (BZ)",
     "location_ap": "Eppan (BZ)"
   },
+  "ShopPage": {
+    "title": "Shop",
+    "badge": "Meraki Shop",
+    "headline": "Offizieller Shop",
+    "subheadline": "Entdecke unsere Kollektion an technischer Bekleidung, Accessoires und exklusivem Merchandising von Meraki Experience."
+  },
+  "EventsPage": {
+    "title": "Events",
+    "badge": "Kalender",
+    "headline": "Unsere besonderen Events",
+    "subheadline": "Workshops, Stages und Masterclasses, um deine Technik zu vertiefen und neue Disziplinen mit außergewöhnlichen Gastlehrern zu entdecken.",
+    "empty_title": "Derzeit keine Events geplant.",
+    "empty_desc": "Wir bereiten neue Erlebnisse für dich vor."
+  },
+  "AboutPage": {
+    "title": "Über uns",
+    "badge": "Über uns",
+    "headline": "Unsere Geschichte",
+    "desc1": "<span className=\"font-bold text-foreground\">Meraki</span> (aus dem Griechischen μεράκι) bedeutet, etwas mit Seele, Kreativität oder Liebe zu tun — wenn man \"etwas von sich selbst\" in das einbringt, was man tut.",
+    "desc2": "Wir sind ein Amateursportverein, der sich dem Wohlbefinden und der Fitness widmet, mit dem Ziel, unsere Mitglieder auf einer Reise der körperlichen und geistigen Veränderung zu begleiten.",
+    "values": {
+      "passion": "Leidenschaft",
+      "passion_desc": "Jede Stunde ist ein Erlebnis, kein mechanisches Training.",
+      "targets": "Ziele",
+      "targets_desc": "Personalisierte Wege für jedes Niveau, vom Anfänger bis zum Fortgeschrittenen.",
+      "community": "Gemeinschaft",
+      "community_desc": "Eine Familie, in der sich jeder willkommen fühlt und motiviert ist, sein Bestes zu geben."
+    },
+    "board_title": "Der Vorstand",
+    "board_desc": "Die Personen, die unseren Verein leiten.",
+    "instructors_title": "Unsere Trainer",
+    "instructors_desc": "Profis, die sich deinem Wachstumspfad widmen.",
+    "cta_title": "Möchtest du Teil der Familie werden?",
+    "cta_desc": "Buche deine erste kostenlose Probestunde und finde heraus, ob Meraki der richtige Ort für dich ist."
+  },
   "Legal": {
     "privacy": {
       "title": "Datenschutzrichtlinie",

@@ -122,6 +122,41 @@
     "location_bz": "Bolzano (BZ)",
     "location_ap": "Appiano (BZ)"
   },
+  "ShopPage": {
+    "title": "Shop",
+    "badge": "Meraki Shop",
+    "headline": "Shop Ufficiale",
+    "subheadline": "Scopri la nostra collezione di abbigliamento tecnico, accessori e merchandising esclusivo firmato Meraki Experience."
+  },
+  "EventsPage": {
+    "title": "Eventi",
+    "badge": "Calendario",
+    "headline": "I Nostri Eventi Speciali",
+    "subheadline": "Workshop, stage e masterclass per approfondire la tua tecnica ed esplorare nuove discipline con insegnanti ospiti d'eccezione.",
+    "empty_title": "Nessun evento in programma al momento.",
+    "empty_desc": "Stiamo preparando nuove esperienze per te."
+  },
+  "AboutPage": {
+    "title": "Chi siamo",
+    "badge": "Chi siamo",
+    "headline": "La nostra storia",
+    "desc1": "<span className=\"font-bold text-foreground\">Meraki</span> (dal greco μεράκι) significa fare qualcosa con anima, creatività o amore — quando metti \"qualcosa di te\" in quello che fai.",
+    "desc2": "Siamo un'associazione sportiva dilettantistica dedicata al benessere e al fitness, con l'obiettivo di accompagnare i nostri soci in un percorso di cambiamento fisico e mentale.",
+    "values": {
+      "passion": "Passione",
+      "passion_desc": "Ogni lezione è un'esperienza, non un allenamento meccanico.",
+      "targets": "Obiettivi",
+      "targets_desc": "Percorsi personalizzati per ogni livello, dal principiante all'avanzato.",
+      "community": "Community",
+      "community_desc": "Una famiglia dove ognuno si sente accolto e motivato a dare il meglio."
+    },
+    "board_title": "Il Direttivo",
+    "board_desc": "Le persone che guidano la nostra associazione.",
+    "instructors_title": "I Nostri Istruttori",
+    "instructors_desc": "Professionisti dedicati al tuo percorso di crescita.",
+    "cta_title": "Vuoi fare parte della famiglia?",
+    "cta_desc": "Prenota la tua prima lezione di prova gratuita e scopri se Meraki è il posto giusto per te."
+  },
   "Legal": {
     "privacy": {
       "title": "Privacy Policy",
