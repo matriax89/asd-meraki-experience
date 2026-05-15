@@ -372,6 +372,64 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         </div>
       </section>
 
+      {/* ═══════ APP BANNER (Sportclubby) ═══════ */}
+      <section className="pb-24 pt-0">
+        <div className="container">
+          <FadeIn>
+            <div className="bg-gradient-to-br from-red-600 to-rose-600 rounded-[32px] p-8 md:p-12 lg:p-16 text-white relative overflow-hidden shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8">
+              {/* Sfondo decorativo */}
+              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+              
+              <div className="relative z-10 max-w-2xl">
+                <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
+                  Prenota le tue lezioni in un click.
+                </h2>
+                <p className="text-lg md:text-xl text-white/90 mb-8 max-w-xl leading-relaxed">
+                  Scarica l'app <strong className="font-extrabold text-white">Sportclubby</strong> per avere sempre il nostro orario aggiornato a portata di mano e gestire le tue prenotazioni facilmente.
+                </p>
+                
+                <div className="flex flex-wrap gap-4">
+                  <a 
+                    href="https://apps.apple.com/it/app/sportclubby/id1250917631" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 bg-black hover:bg-black/80 text-white px-6 py-3 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-lg"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-8 h-8 fill-current"><path d="M16.48 11.51c.06-2.58 2.05-3.8 2.14-3.85-1.18-1.74-3.03-1.98-3.68-2.02-1.57-.16-3.08.92-3.88.92s-2.05-.89-3.35-.87c-1.71.02-3.29.99-4.17 2.53-1.79 3.09-.46 7.68 1.28 10.19.86 1.23 1.86 2.62 3.19 2.57 1.27-.05 1.76-.81 3.3-.81 1.54 0 1.99.81 3.32.79 1.35-.03 2.23-1.28 3.08-2.52 1.01-1.45 1.42-2.86 1.44-2.93-.03-.02-2.73-1.04-2.67-4.0zM14.52 6.55c.7-0.85 1.17-2.03 1.04-3.21-1.01.04-2.25.68-2.96 1.53-.63.76-1.19 1.96-1.04 3.12 1.13.09 2.26-.59 2.96-1.44z"/></svg>
+                    <div className="flex flex-col items-start">
+                      <span className="text-[10px] uppercase tracking-wider text-white/70 font-semibold leading-none">Scarica su</span>
+                      <span className="text-base font-bold leading-tight mt-0.5">App Store</span>
+                    </div>
+                  </a>
+                  
+                  <a 
+                    href="https://play.google.com/store/apps/details?id=com.sportclubby.app" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 bg-black hover:bg-black/80 text-white px-6 py-3 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-lg"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-7 h-7 fill-current"><path d="M3.19 2.5C3.07 2.62 3 2.81 3 3.08v17.84c0 .27.07.46.19.58l.05.05L12.5 12.3v-.6L3.24 2.45l-.05.05zm10.22 10.82l-1.9-1.9 1.9-1.9 6.01 3.42c.68.39.68 1.02 0 1.41l-6.01 3.42-2.8-2.8 2.8-2.8zM4.16 2.05l9.25 5.26-1.9 1.9L4.16 2.05zm0 19.9l7.35-7.16 1.9 1.9-9.25 5.26z"/></svg>
+                    <div className="flex flex-col items-start">
+                      <span className="text-[10px] uppercase tracking-wider text-white/70 font-semibold leading-none">Disponibile su</span>
+                      <span className="text-base font-bold leading-tight mt-0.5">Google Play</span>
+                    </div>
+                  </a>
+                </div>
+              </div>
+              
+              {/* Visual Decor: Logo */}
+              <div className="relative z-10 hidden md:flex items-center justify-center shrink-0 lg:mr-12">
+                <div className="w-32 h-32 md:w-48 md:h-48 bg-white rounded-[2rem] flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.3)] rotate-12 hover:rotate-0 transition-transform duration-500">
+                  <span className="text-5xl md:text-7xl font-black text-red-600 -rotate-12 select-none tracking-tighter">
+                    Sc
+                  </span>
+                </div>
+              </div>
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* ═══════ NOVITÀ & SHOP ═══════ */}
       <section className="py-24 md:py-32">
         <div className="container">
