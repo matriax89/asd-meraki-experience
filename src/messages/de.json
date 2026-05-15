@@ -30,7 +30,7 @@
     "courses": {
       "badge": "Unsere Wege",
       "title": "Kurse & Disziplinen",
-      "subtitle": "Jede Disziplin hat eine eigene Seite mit Zeiten, Niveaus und Trainern. Finde den passenden Kurs für dich.",
+      "subtitle": "Jede Disziplin hat eine eigene Seite mit Beschreibung, Zeiten und Trainer.",
       "view_all": "Alle Kurse ansehen"
     },
     "schedule": {

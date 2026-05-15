@@ -30,7 +30,7 @@
     "courses": {
       "badge": "I nostri percorsi",
       "title": "I NOSTRI CORSI",
-      "subtitle": "Ogni disciplina ha una pagina dedicata con orari, livelli e istruttori. Scopri il percorso adatto a te.",
+      "subtitle": "Ogni disciplina ha una pagina dedicata con descrizione, orari e istruttore.",
       "view_all": "Vedi tutti i corsi"
     },
     "schedule": {

@@ -30,7 +30,7 @@
     "courses": {
       "badge": "Our paths",
       "title": "Courses & Disciplines",
-      "subtitle": "Each discipline has a dedicated page with schedules, levels, and instructors. Discover the right path for you.",
+      "subtitle": "Each discipline has a dedicated page with description, schedules, and instructor.",
       "view_all": "View all courses"
     },
     "schedule": {
