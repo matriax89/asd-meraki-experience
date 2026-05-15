@@ -186,32 +186,32 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                 <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <svg className="w-6 h-6 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
                 </div>
-                <h3 className="text-[17px] font-bold mb-2 tracking-tight text-slate-900">{t("values.passion")}</h3>
-                <p className="text-[14px] text-slate-500 leading-relaxed">{t("values.passion_desc")}</p>
+                <h3 className="text-[17px] font-bold mb-2 tracking-tight text-slate-900">{content.values?.passion_title || t("values.passion")}</h3>
+                <p className="text-[14px] text-slate-500 leading-relaxed whitespace-pre-line">{content.values?.passion_desc || t("values.passion_desc")}</p>
               </StaggerItem>
               
               <StaggerItem className="rounded-[2rem] bg-white border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] p-8 hover:shadow-[0_15px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1.5 transition-all duration-300 group">
                 <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <svg className="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>
                 </div>
-                <h3 className="text-[17px] font-bold mb-2 tracking-tight text-slate-900">{t("values.dedication")}</h3>
-                <p className="text-[14px] text-slate-500 leading-relaxed">{t("values.dedication_desc")}</p>
+                <h3 className="text-[17px] font-bold mb-2 tracking-tight text-slate-900">{content.values?.dedication_title || t("values.dedication")}</h3>
+                <p className="text-[14px] text-slate-500 leading-relaxed whitespace-pre-line">{content.values?.dedication_desc || t("values.dedication_desc")}</p>
               </StaggerItem>
               
               <StaggerItem className="rounded-[2rem] bg-white border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] p-8 hover:shadow-[0_15px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1.5 transition-all duration-300 group">
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <svg className="w-6 h-6 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
                 </div>
-                <h3 className="text-[17px] font-bold mb-2 tracking-tight text-slate-900">{t("values.community")}</h3>
-                <p className="text-[14px] text-slate-500 leading-relaxed">{t("values.community_desc")}</p>
+                <h3 className="text-[17px] font-bold mb-2 tracking-tight text-slate-900">{content.values?.community_title || t("values.community")}</h3>
+                <p className="text-[14px] text-slate-500 leading-relaxed whitespace-pre-line">{content.values?.community_desc || t("values.community_desc")}</p>
               </StaggerItem>
               
               <StaggerItem className="rounded-[2rem] bg-white border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] p-8 hover:shadow-[0_15px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1.5 transition-all duration-300 group">
                 <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <svg className="w-6 h-6 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                 </div>
-                <h3 className="text-[17px] font-bold mb-2 tracking-tight text-slate-900">{t("values.excellence")}</h3>
-                <p className="text-[14px] text-slate-500 leading-relaxed">{t("values.excellence_desc")}</p>
+                <h3 className="text-[17px] font-bold mb-2 tracking-tight text-slate-900">{content.values?.excellence_title || t("values.excellence")}</h3>
+                <p className="text-[14px] text-slate-500 leading-relaxed whitespace-pre-line">{content.values?.excellence_desc || t("values.excellence_desc")}</p>
               </StaggerItem>
             </div>
           </StaggerContainer>
@@ -266,7 +266,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                   {/* Content Section overlapping with rounded top corners */}
                   <div className="relative z-20 flex flex-col flex-1 p-8 bg-slate-900 rounded-t-[32px] mt-auto border-t border-white/5">
                     <h3 className="text-2xl font-bold tracking-tight text-white mb-2">{membro.nome}</h3>
-                    <p className="text-[14px] text-slate-400 leading-relaxed">Membro del direttivo Meraki Experience, impegnato nella crescita e nello sviluppo dell'associazione.</p>
+                    <p className="text-[14px] text-slate-400 leading-relaxed whitespace-pre-line">{membro.bio || "Membro del direttivo Meraki Experience, impegnato nella crescita e nello sviluppo dell'associazione."}</p>
                   </div>
                 </div>
               </StaggerItem>

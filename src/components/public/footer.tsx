@@ -31,7 +31,7 @@ function YouTubeIcon({ className }: { className?: string }) {
   );
 }
 
-export function Footer({ logoUrl, locations = [], branding, contacts }: { logoUrl?: string, locations?: string[], branding?: any, contacts?: any }) {
+export function Footer({ logoUrl, locations = [], branding, contacts, footerData }: { logoUrl?: string, locations?: string[], branding?: any, contacts?: any, footerData?: any }) {
   const t = useTranslations("Footer");
   const tNav = useTranslations("Navigation");
   const currentYear = new Date().getFullYear();
@@ -58,8 +58,8 @@ export function Footer({ logoUrl, locations = [], branding, contacts }: { logoUr
                 </>
               )}
             </div>
-            <p className="text-[14px] text-slate-500 leading-relaxed">
-              {t("about_us")}
+            <p className="text-[14px] text-slate-500 leading-relaxed whitespace-pre-line">
+              {footerData?.about_us || t("about_us")}
             </p>
           </div>
 
@@ -143,7 +143,7 @@ export function Footer({ logoUrl, locations = [], branding, contacts }: { logoUr
         {/* Bottom bar */}
         <div className="pt-8 border-t border-slate-200/60 flex flex-col sm:flex-row justify-between items-center gap-4 text-[12px] font-medium text-slate-400 relative z-10">
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 text-center sm:text-left">
-            <p>&copy; {currentYear} ASD Meraki Experience. P.IVA / C.F.: {contacts?.vat || "IT03224340210"}. {t("rights_reserved")}</p>
+            <p>&copy; {currentYear} ASD Meraki Experience. P.IVA / C.F.: {contacts?.vat || "IT03224340210"}. {footerData?.copyright || t("rights_reserved")}</p>
             <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-slate-300 shrink-0" />
             <p>{contacts?.address_short || "Bolzano, Alto Adige, Italia"}</p>
           </div>

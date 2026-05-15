@@ -59,6 +59,22 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     masterclass_bg_url: ""
   });
 
+  const [values, setValues] = useState(initialData?.values || {
+    passion_title: "Passione",
+    passion_desc: "Ogni lezione è un'esperienza, non un allenamento meccanico.",
+    dedication_title: "Dedizione",
+    dedication_desc: "Siamo sempre al tuo fianco per motivarti a superare i tuoi limiti.",
+    community_title: "Community",
+    community_desc: "Una famiglia in cui ognuno si sente accolto e spronato a dare il meglio.",
+    excellence_title: "Eccellenza",
+    excellence_desc: "Puntiamo al massimo in ogni dettaglio, per offrirti sempre il meglio."
+  });
+
+  const [footerText, setFooterText] = useState(initialData?.footer_text || {
+    about_us: "Siamo un'associazione sportiva dilettantistica dedicata al benessere, con l'obiettivo di accompagnare i nostri soci in un percorso di cambiamento fisico e mentale attraverso allenamenti di altissima qualità in un ambiente accogliente ed esclusivo.",
+    copyright: "Tutti i diritti riservati."
+  });
+
   const [documenti, setDocumenti] = useState(initialData?.documenti || {
     regolamento_url: "",
     codice_etico_url: "",
@@ -107,6 +123,8 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       banner2_text: formData.get("banner2_text"),
       youtube_channel_url: formData.get("youtube_channel_url"),
       direttivo: direttivo,
+      values: values,
+      footer_text: footerText,
       youtube_videos: youtubeVideos,
       theme_colors: themeColors,
       popup: popup,
@@ -511,6 +529,16 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                     </div>
                   </div>
                   <div className="space-y-2">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Bio (Descrizione Card)</label>
+                    <textarea 
+                      value={membro.bio || ""}
+                      onChange={(e) => updateDirettivo(i, "bio", e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm resize-y"
+                      placeholder="Membro del direttivo Meraki Experience..."
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Foto Profilo (URL o Upload)</label>
                     <div className="flex gap-2 items-center">
                       <input 
@@ -644,10 +672,93 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
+        {/* Card Valori */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b pb-2 mt-8">
+            <h3 className="text-lg font-semibold text-slate-800">5. Card Valori (Homepage)</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Passione */}
+            <div className="bg-rose-50/50 p-5 rounded-xl border border-rose-100 space-y-3">
+              <h4 className="font-semibold text-rose-800">Card 1</h4>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
+                <input value={values.passion_title} onChange={(e) => setValues({...values, passion_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
+                <textarea value={values.passion_desc} onChange={(e) => setValues({...values, passion_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
+              </div>
+            </div>
+            {/* Dedizione */}
+            <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100 space-y-3">
+              <h4 className="font-semibold text-blue-800">Card 2</h4>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
+                <input value={values.dedication_title} onChange={(e) => setValues({...values, dedication_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
+                <textarea value={values.dedication_desc} onChange={(e) => setValues({...values, dedication_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
+              </div>
+            </div>
+            {/* Community */}
+            <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 space-y-3">
+              <h4 className="font-semibold text-emerald-800">Card 3</h4>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
+                <input value={values.community_title} onChange={(e) => setValues({...values, community_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
+                <textarea value={values.community_desc} onChange={(e) => setValues({...values, community_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
+              </div>
+            </div>
+            {/* Eccellenza */}
+            <div className="bg-amber-50/50 p-5 rounded-xl border border-amber-100 space-y-3">
+              <h4 className="font-semibold text-amber-800">Card 4</h4>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
+                <input value={values.excellence_title} onChange={(e) => setValues({...values, excellence_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
+                <textarea value={values.excellence_desc} onChange={(e) => setValues({...values, excellence_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b pb-2 mt-8">
+            <h3 className="text-lg font-semibold text-slate-800">6. Testi Footer</h3>
+          </div>
+          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
+            <div>
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Chi Siamo (Testo Footer)</label>
+              <textarea 
+                value={footerText.about_us}
+                onChange={(e) => setFooterText({...footerText, about_us: e.target.value})}
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm resize-y"
+                rows={3}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Copyright</label>
+              <input 
+                value={footerText.copyright}
+                onChange={(e) => setFooterText({...footerText, copyright: e.target.value})}
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* YouTube */}
         <div className="space-y-4">
           <div className="flex justify-between items-center border-b pb-2 mt-8">
-            <h3 className="text-lg font-semibold text-slate-800">5. Video YouTube</h3>
+            <h3 className="text-lg font-semibold text-slate-800">7. Video YouTube</h3>
             <button type="button" onClick={addYoutube} className="flex items-center gap-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
               <Plus className="w-4 h-4" /> Aggiungi Video
             </button>
