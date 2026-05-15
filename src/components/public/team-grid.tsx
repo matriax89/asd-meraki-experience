@@ -34,9 +34,13 @@ export function TeamGrid({ members }: { members: TeamMember[] }) {
           <h3 className="text-xl md:text-2xl font-bold tracking-tight text-foreground mb-1 group-hover:text-slate-600 transition-colors">
             {member.nome} {member.cognome}
           </h3>
-          <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">
-            {member.ruolo}
-          </p>
+          <div className="flex flex-col items-center gap-0.5 mb-4">
+            {member.ruolo?.split('\n').map((r, i) => r.trim() && (
+              <p key={i} className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+                {r.trim()}
+              </p>
+            ))}
+          </div>
           
           {member.bio && (
             <p className="text-slate-500 text-[14px] leading-relaxed line-clamp-3 max-w-xs">

@@ -500,12 +500,13 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Ruolo</label>
-                      <input 
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Ruoli / Qualifiche (uno per riga)</label>
+                      <textarea 
                         value={membro.ruolo}
                         onChange={(e) => updateDirettivo(i, "ruolo", e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
-                        placeholder="Es. Presidente"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm resize-y"
+                        placeholder="Es. Presidente&#10;Insegnante di Yoga"
+                        rows={2}
                       />
                     </div>
                   </div>

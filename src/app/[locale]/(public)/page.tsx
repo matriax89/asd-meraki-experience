@@ -254,8 +254,12 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                   
                   {/* Top Spacer & Badge */}
                   <div className="h-56 shrink-0 relative z-10">
-                    <div className="absolute top-6 left-6 z-20 bg-white/10 backdrop-blur-md text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                      {membro.ruolo}
+                    <div className="absolute top-6 left-6 z-20 flex flex-col items-start gap-2">
+                      {membro.ruolo.split('\n').map((r: string, idx: number) => r.trim() && (
+                        <div key={idx} className="bg-white/10 backdrop-blur-md text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
+                          {r.trim()}
+                        </div>
+                      ))}
                     </div>
                   </div>
 
