@@ -562,18 +562,18 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               <Image src={media.documenti_bg_url || "/images/v2/yoga_moody.png"} alt="Allenamento" fill className="object-cover" />
               <div className="absolute inset-0 bg-black/40 flex items-center p-8 md:p-12">
                 <h3 className="text-3xl md:text-4xl font-extrabold text-white tracking-tighter max-w-sm">
-                  TRASFORMA IL TUO FITNESS IN ALLENAMENTO.
+                  {documenti.image_text || "TRASFORMA IL TUO FITNESS IN ALLENAMENTO."}
                 </h3>
               </div>
             </div>
             {/* Downloads */}
             <div className="w-full md:w-1/2">
-              <p className="text-[13px] font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-4">I Nostri Documenti</p>
+              <p className="text-[13px] font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-4">{documenti.badge || "I Nostri Documenti"}</p>
               <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4 text-foreground">
-                PRENDI VISIONE E SCARICA I NOSTRI DOCUMENTI.
+                {documenti.title || "PRENDI VISIONE E SCARICA I NOSTRI DOCUMENTI."}
               </h2>
               <p className="text-[15px] text-muted-foreground leading-relaxed mb-8">
-                Rimani informato e consulta tutti i documenti scaricabili in PDF per essere sempre aggiornato sulle nostre policy e regolamenti.
+                {documenti.desc || "Rimani informato e consulta tutti i documenti scaricabili in PDF per essere sempre aggiornato sulle nostre policy e regolamenti."}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {[

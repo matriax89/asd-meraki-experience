@@ -99,7 +99,11 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     regolamento_url: "",
     codice_etico_url: "",
     safeguarding_url: "",
-    modulo_iscrizione_url: ""
+    modulo_iscrizione_url: "",
+    badge: "I Nostri Documenti",
+    title: "PRENDI VISIONE E SCARICA I NOSTRI DOCUMENTI.",
+    desc: "Rimani informato e consulta tutti i documenti scaricabili in PDF per essere sempre aggiornato sulle nostre policy e regolamenti.",
+    image_text: "TRASFORMA IL TUO FITNESS IN ALLENAMENTO."
   });
 
   const [contacts, setContacts] = useState(initialData?.contacts || {
@@ -1307,8 +1311,52 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         {/* Documenti e Modulistica */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
-            <Save className="w-5 h-5 text-indigo-500" /> Link Documenti (PDF / Pagine)
+            <Save className="w-5 h-5 text-indigo-500" /> Testi e Link Documenti (PDF / Pagine)
           </h3>
+          
+          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4 mb-6">
+            <h4 className="font-semibold text-slate-700 mb-3">Testi Sezione</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-slate-700">Testo su Immagine Banner</label>
+                <input 
+                  value={documenti.image_text || ""} 
+                  onChange={e => setDocumenti({...documenti, image_text: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500" 
+                  placeholder="TRASFORMA IL TUO FITNESS IN ALLENAMENTO." 
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Badge (Sopratitolo)</label>
+                <input 
+                  value={documenti.badge || ""} 
+                  onChange={e => setDocumenti({...documenti, badge: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500" 
+                  placeholder="I Nostri Documenti" 
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Titolo</label>
+                <input 
+                  value={documenti.title || ""} 
+                  onChange={e => setDocumenti({...documenti, title: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500" 
+                  placeholder="PRENDI VISIONE E SCARICA I NOSTRI DOCUMENTI." 
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-slate-700">Descrizione</label>
+                <textarea 
+                  value={documenti.desc || ""} 
+                  onChange={e => setDocumenti({...documenti, desc: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500" 
+                  rows={2}
+                  placeholder="Rimani informato e consulta tutti i documenti..." 
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Regolamento URL</label>
