@@ -37,9 +37,12 @@ export async function upsertTeamMember(data: TeamMemberData) {
   }
 
   const payload: any = { ...data };
+  
+  // Always regenerate the slug in case the name/surname changed
+  payload.slug = generateSlug(payload.nome, payload.cognome);
+  
   if (!payload.id || payload.id === 'nuovo') {
     delete payload.id;
-    payload.slug = generateSlug(payload.nome, payload.cognome);
   }
 
   const { error, data: savedMember } = await supabase
