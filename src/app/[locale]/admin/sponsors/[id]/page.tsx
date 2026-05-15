@@ -5,9 +5,10 @@ import { SponsorForm } from "./sponsor-form";
 export default async function AdminSponsorFormPage({
   params
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const isNew = params.id === "nuovo";
+  const { id } = await params;
+  const isNew = id === "nuovo";
   let sponsor = null;
 
   if (!isNew) {
@@ -15,7 +16,7 @@ export default async function AdminSponsorFormPage({
     const { data, error } = await supabase
       .from("sponsors")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
 
     if (error || !data) {
