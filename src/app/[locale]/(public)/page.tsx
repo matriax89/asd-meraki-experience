@@ -615,7 +615,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               Il Nostro Canale <span className="text-red-600">YouTube</span>
             </h2>
             <a 
-              href={content.youtube_channel_url || "https://youtube.com/"}
+              href={content.branding?.youtube_url || content.youtube_channel_url || "https://youtube.com/"}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"

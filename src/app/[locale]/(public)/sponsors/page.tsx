@@ -56,6 +56,29 @@ export default async function SponsorsPage() {
               </Link>
             </div>
           </div>
+
+          {/* Erogazione Liberale */}
+          <div className="mt-8 bg-amber-50/50 border border-amber-100 p-8 md:p-12 rounded-[2rem] text-left">
+            <h3 className="text-2xl font-bold mb-4 tracking-tight text-amber-900">Supportaci con un'Erogazione Liberale</h3>
+            <div className="space-y-4 text-[15px] text-amber-800/80 leading-relaxed">
+              <p>
+                Oltre alla sponsorizzazione commerciale, puoi sostenere ASD Meraki Experience attraverso un'<strong>Erogazione Liberale</strong> (donazione volontaria). 
+              </p>
+              <p>
+                Le erogazioni liberali a favore delle Associazioni Sportive Dilettantistiche (ASD) godono di importanti <strong>agevolazioni fiscali</strong> previste dalla normativa italiana (art. 15, comma 1, lett. i-ter del TUIR per le persone fisiche e art. 100, comma 2, lett. m del TUIR per i soggetti IRES). 
+              </p>
+              <p>
+                Privati cittadini e aziende possono così contribuire attivamente alla crescita dello sport e del benessere sul territorio, deducendo o detraendo l'importo donato nella propria dichiarazione dei redditi.
+              </p>
+            </div>
+            
+            <div className="mt-8 pt-6 border-t border-amber-200/50">
+              <Link href="/contatti" className="inline-flex h-12 items-center gap-2 rounded-full bg-amber-600 text-white px-8 text-sm font-bold transition-all hover:bg-amber-700 active:scale-[0.97]">
+                Richiedi informazioni per donare
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
