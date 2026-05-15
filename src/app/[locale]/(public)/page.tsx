@@ -395,7 +395,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                     rel="noopener noreferrer"
                     className="flex items-center gap-2.5 bg-black hover:bg-black/80 text-white px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-md"
                   >
-                    <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current"><path d="M16.48 11.51c.06-2.58 2.05-3.8 2.14-3.85-1.18-1.74-3.03-1.98-3.68-2.02-1.57-.16-3.08.92-3.88.92s-2.05-.89-3.35-.87c-1.71.02-3.29.99-4.17 2.53-1.79 3.09-.46 7.68 1.28 10.19.86 1.23 1.86 2.62 3.19 2.57 1.27-.05 1.76-.81 3.3-.81 1.54 0 1.99.81 3.32.79 1.35-.03 2.23-1.28 3.08-2.52 1.01-1.45 1.42-2.86 1.44-2.93-.03-.02-2.73-1.04-2.67-4.0zM14.52 6.55c.7-0.85 1.17-2.03 1.04-3.21-1.01.04-2.25.68-2.96 1.53-.63.76-1.19 1.96-1.04 3.12 1.13.09 2.26-.59 2.96-1.44z"/></svg>
+                    <svg viewBox="0 0 384 512" className="w-5 h-5 fill-current"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.1-44.6-35.9-2.8-74.3 22.7-93.1 22.7-18.9 0-50.5-22.3-78-22.3-43.2 0-85.1 25.2-107.5 65.6-45.7 82.5-12.5 204.6 32.2 268.4 22 31.4 48.3 65.4 82.6 64.2 32.8-1.2 45.4-21.2 84.7-21.2 39 0 50.6 21.2 85 20.6 35.3-.6 58.7-31.5 80.3-63.1 25.5-37.4 36-73.6 36.6-75.5-.9-.4-69.8-26.3-70.3-90.8zM248.8 91.5c18.5-22.5 31-53.8 27.6-84.8-26.7 1.1-59.5 17.8-78.6 40.5-16.7 19.8-31.2 52.1-27 82.2 29.8 2.3 60.1-15.5 78-37.9z"/></svg>
                     <div className="flex flex-col items-start">
                       <span className="text-[9px] uppercase tracking-wider text-white/70 font-semibold leading-none">Scarica su</span>
                       <span className="text-[14px] font-bold leading-tight mt-0.5">App Store</span>
@@ -408,7 +408,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                     rel="noopener noreferrer"
                     className="flex items-center gap-2.5 bg-black hover:bg-black/80 text-white px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-md"
                   >
-                    <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current"><path d="M3.19 2.5C3.07 2.62 3 2.81 3 3.08v17.84c0 .27.07.46.19.58l.05.05L12.5 12.3v-.6L3.24 2.45l-.05.05zm10.22 10.82l-1.9-1.9 1.9-1.9 6.01 3.42c.68.39.68 1.02 0 1.41l-6.01 3.42-2.8-2.8 2.8-2.8zM4.16 2.05l9.25 5.26-1.9 1.9L4.16 2.05zm0 19.9l7.35-7.16 1.9 1.9-9.25 5.26z"/></svg>
+                    <svg viewBox="0 0 512 512" className="w-5 h-5 fill-current"><path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z"/></svg>
                     <div className="flex flex-col items-start">
                       <span className="text-[9px] uppercase tracking-wider text-white/70 font-semibold leading-none">Disponibile su</span>
                       <span className="text-[14px] font-bold leading-tight mt-0.5">Google Play</span>
@@ -419,15 +419,17 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               
               {/* Visual Decor: Logo */}
               <div className="relative z-10 hidden md:flex items-center justify-center shrink-0 lg:mr-8">
-                <div className="w-24 h-24 md:w-32 md:h-32 bg-white rounded-3xl flex items-center justify-center shadow-lg hover:rotate-2 transition-transform duration-500 overflow-hidden relative">
-                  {content.sportclubby_banner?.logo_url ? (
-                    <Image src={content.sportclubby_banner.logo_url} alt="Sportclubby" fill className="object-contain p-2" />
-                  ) : (
+                {content.sportclubby_banner?.logo_url ? (
+                  <div className="relative w-32 h-32 md:w-48 md:h-48 hover:rotate-2 transition-transform duration-500 drop-shadow-xl">
+                    <Image src={content.sportclubby_banner.logo_url} alt="Sportclubby" fill className="object-contain" />
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 md:w-32 md:h-32 bg-white rounded-3xl flex items-center justify-center shadow-lg hover:rotate-2 transition-transform duration-500 relative">
                     <span className="text-4xl md:text-5xl font-black text-[#E50012] select-none tracking-tighter">
                       Sc
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </FadeIn>
