@@ -390,7 +390,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                 
                 <div className="flex flex-wrap gap-3">
                   <a 
-                    href="https://apps.apple.com/it/app/sportclubby/id1250917631" 
+                    href={content.sportclubby_banner?.apple_link || "https://apps.apple.com/it/app/sportclubby/id1250917631"} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2.5 bg-black hover:bg-black/80 text-white px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-md"
@@ -403,7 +403,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                   </a>
                   
                   <a 
-                    href="https://play.google.com/store/apps/details?id=com.sportclubby.app" 
+                    href={content.sportclubby_banner?.google_link || "https://play.google.com/store/apps/details?id=com.sportclubby.app"} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2.5 bg-black hover:bg-black/80 text-white px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-md"
@@ -420,8 +420,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               {/* Visual Decor: Logo */}
               <div className="relative z-10 hidden md:flex items-center justify-center shrink-0 lg:mr-8">
                 {content.sportclubby_banner?.logo_url ? (
-                  <div className="relative w-32 h-32 md:w-48 md:h-48 hover:rotate-2 transition-transform duration-500 drop-shadow-xl">
-                    <Image src={content.sportclubby_banner.logo_url} alt="Sportclubby" fill className="object-contain" />
+                  <div className="relative w-40 h-40 md:w-64 md:h-64 hover:rotate-2 transition-transform duration-500 drop-shadow-xl">
+                    <Image src={content.sportclubby_banner.logo_url} alt="Sportclubby" fill unoptimized className="object-contain" />
                   </div>
                 ) : (
                   <div className="w-24 h-24 md:w-32 md:h-32 bg-white rounded-3xl flex items-center justify-center shadow-lg hover:rotate-2 transition-transform duration-500 relative">

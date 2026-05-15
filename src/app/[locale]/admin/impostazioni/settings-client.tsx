@@ -54,7 +54,9 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
   const [sportclubbyBanner, setSportclubbyBanner] = useState(initialData?.sportclubby_banner || {
     titolo: "Prenota le tue lezioni in un click.",
     descrizione: "Scarica l'app Sportclubby per avere sempre il nostro orario aggiornato a portata di mano e gestire le tue prenotazioni facilmente.",
-    logo_url: ""
+    logo_url: "",
+    apple_link: "https://apps.apple.com/it/app/sportclubby/id1250917631",
+    google_link: "https://play.google.com/store/apps/details?id=com.sportclubby.app"
   });
 
   const [branding, setBranding] = useState(initialData?.branding || {
@@ -1087,6 +1089,28 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                 placeholder="Scarica l'app Sportclubby per..."
                 rows={3}
               />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Link App Store (Apple)</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                  value={sportclubbyBanner.apple_link || ""}
+                  onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, apple_link: e.target.value})}
+                  placeholder="https://apps.apple.com/..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Link Google Play</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                  value={sportclubbyBanner.google_link || ""}
+                  onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, google_link: e.target.value})}
+                  placeholder="https://play.google.com/..."
+                />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">Immagine Custom (Logo o Mockup)</label>
