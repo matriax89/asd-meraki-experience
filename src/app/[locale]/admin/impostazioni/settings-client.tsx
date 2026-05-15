@@ -51,6 +51,12 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     ritardo_secondi: 3
   });
 
+  const [sportclubbyBanner, setSportclubbyBanner] = useState(initialData?.sportclubby_banner || {
+    titolo: "Prenota le tue lezioni in un click.",
+    descrizione: "Scarica l'app Sportclubby per avere sempre il nostro orario aggiornato a portata di mano e gestire le tue prenotazioni facilmente.",
+    logo_url: ""
+  });
+
   const [branding, setBranding] = useState(initialData?.branding || {
     meta_title: "ASD Meraki Experience",
     meta_description: "Benessere, fitness e cambiamento",
@@ -161,6 +167,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       youtube_videos: youtubeVideos,
       theme_colors: themeColors,
       popup: popup,
+      sportclubby_banner: sportclubbyBanner,
       branding: branding,
       contacts: contacts,
       media: media,
@@ -214,6 +221,8 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           updateSponsor(idx, "logo_url", res.url);
         } else if (index === 'popup') {
           setPopup({ ...popup, foto_url: res.url });
+        } else if (index === 'sportclubby_logo') {
+          setSportclubbyBanner({ ...sportclubbyBanner, logo_url: res.url });
         } else if (index === 'branding_logo') {
           setBranding({ ...branding, logo_url: res.url });
         } else if (index === 'branding_logo_white') {
@@ -1052,10 +1061,62 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
+        {/* Sportclubby Banner */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b pb-2 mt-8">
+            <h3 className="text-lg font-semibold text-slate-800">7. Banner Sportclubby (App)</h3>
+          </div>
+          
+          <div className="space-y-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Titolo Banner</label>
+              <input 
+                type="text" 
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                value={sportclubbyBanner.titolo || ""}
+                onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, titolo: e.target.value})}
+                placeholder="Prenota le tue lezioni in un click."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Descrizione</label>
+              <textarea 
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm resize-y"
+                value={sportclubbyBanner.descrizione || ""}
+                onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, descrizione: e.target.value})}
+                placeholder="Scarica l'app Sportclubby per..."
+                rows={3}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Immagine Custom (Logo o Mockup)</label>
+              <div className="flex gap-4 items-center">
+                <input 
+                  type="text" 
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                  value={sportclubbyBanner.logo_url || ""}
+                  onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, logo_url: e.target.value})}
+                  placeholder="URL dell'immagine (se vuoto usa Sc)"
+                />
+                <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2.5 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'sportclubby_logo' ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {uploadingImageIndex === 'sportclubby_logo' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                  <span className="ml-2 font-medium">{uploadingImageIndex === 'sportclubby_logo' ? 'Caricamento...' : 'Sfoglia'}</span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => handleImageUpload('sportclubby_logo', e)} 
+                    className="hidden" 
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Popup Promozionale */}
         <div className="space-y-4">
           <div className="flex justify-between items-center border-b pb-2 mt-8">
-            <h3 className="text-lg font-semibold text-slate-800">6. Popup Promozionale</h3>
+            <h3 className="text-lg font-semibold text-slate-800">8. Popup Promozionale</h3>
             <label className="flex items-center gap-2 cursor-pointer">
               <span className="text-sm font-medium text-slate-600">Attivo nel sito</span>
               <div className="relative">
