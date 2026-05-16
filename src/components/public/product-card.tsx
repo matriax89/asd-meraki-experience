@@ -1,8 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { addToCart } from "@/lib/shop/cart-actions";
 import { Link, useRouter } from "@/i18n/routing";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type ProductCardProps = {
   id: string;
@@ -11,6 +12,7 @@ type ProductCardProps = {
   categoria: string;
   sottocategoria?: string | null;
   copertina_url?: string | null;
+  immagini_urls?: string[] | null;
   prezzo_base_cents: number;
   in_evidenza?: boolean | null;
   descrizione_breve?: string | null;
@@ -24,6 +26,7 @@ export function ProductCard({
   categoria,
   sottocategoria,
   copertina_url,
+  immagini_urls,
   prezzo_base_cents,
   in_evidenza,
   descrizione_breve,
@@ -31,6 +34,31 @@ export function ProductCard({
 }: ProductCardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const images = immagini_urls && immagini_urls.length > 0 
+    ? immagini_urls 
+    : copertina_url ? [copertina_url] : [];
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [images.length]);
+
+  const nextImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
 
   const handleAddToCart = (e: React.MouseEvent, variantId?: string) => {
     e.preventDefault();
@@ -62,14 +90,52 @@ export function ProductCard({
   return (
     <div className="group relative flex flex-col h-full rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-gradient-to-br from-indigo-500/80 to-purple-600/80">
       
-      {/* Background Image that sits behind the white card */}
-      <div className="absolute top-0 left-0 w-full h-[60%]">
-        {copertina_url && (
-          <img 
-            src={copertina_url} 
-            alt={nome} 
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" 
-          />
+      {/* Background Image Carousel that sits behind the white card */}
+      <div className="absolute top-0 left-0 w-full h-[60%] overflow-hidden z-0">
+        {images.length > 0 && (
+          <>
+            <div 
+              className="flex w-full h-full transition-transform duration-500 ease-out"
+              style={{ transform: `translateX(-${currentImageIndex * 100}%)` }}
+            >
+              {images.map((img, idx) => (
+                <div key={idx} className="w-full h-full shrink-0 relative">
+                  <img 
+                    src={img} 
+                    alt={`${nome} - Foto ${idx + 1}`} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" 
+                  />
+                </div>
+              ))}
+            </div>
+
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={prevImage}
+                  className="absolute left-2 top-1/2 -translate-y-8 w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white opacity-0 group-hover:opacity-100 hover:bg-white/40 transition-all z-20"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={nextImage}
+                  className="absolute right-2 top-1/2 -translate-y-8 w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white opacity-0 group-hover:opacity-100 hover:bg-white/40 transition-all z-20"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+                
+                {/* Indicators */}
+                <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-1.5 z-20">
+                  {images.map((_, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentImageIndex ? "w-4 bg-white" : "w-1.5 bg-white/50"}`} 
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
 
