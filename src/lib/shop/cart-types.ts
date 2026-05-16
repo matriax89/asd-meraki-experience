@@ -1,4 +1,4 @@
-export interface CartItem {
+interface CartItem {
   variantId: string;
   quantity: number;
 }

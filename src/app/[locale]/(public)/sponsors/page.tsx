@@ -13,18 +13,11 @@ export async function generateMetadata({ params: { locale } }: { params: { local
 
 export default async function SponsorsPage() {
   const supabase = await createClient();
-  const { data: settings } = await supabase
-    .from("site_settings")
-    .select("value")
-    .eq("key", "homepage_content")
-    .single();
-
-  const sponsorsList = (settings?.value as any)?.sponsors_list || [
-    { name: "Brand One", tier: "Main Sponsor", desc: "Supporto ufficiale attrezzature.", logo_url: "" },
-    { name: "Apex Sport", tier: "Gold Partner", desc: "Fornitura nutrizione sportiva.", logo_url: "" },
-    { name: "Global Fit", tier: "Silver Partner", desc: "Abbigliamento tecnico.", logo_url: "" },
-    { name: "Studio Plus", tier: "Bronze Partner", desc: "Consulenza e servizi.", logo_url: "" },
-  ];
+  const { data: sponsorsList } = await supabase
+    .from("sponsors")
+    .select("*")
+    .eq("attivo", true)
+    .order("ordine_display", { ascending: true });
 
   const benefits = [
     "Visibilità Premium del tuo brand all'interno delle nostre sedi e sui nostri canali digitali.",
@@ -99,28 +92,32 @@ export default async function SponsorsPage() {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {sponsorsList.map((s: any) => (
+            {sponsorsList && sponsorsList.length > 0 ? sponsorsList.map((s) => (
               <Link 
-                key={s.name} 
-                href={`/sponsors/${s.name.toLowerCase().replace(/\s+/g, "-")}`} 
+                key={s.id} 
+                href={`/sponsors/${s.slug}`} 
                 className="group p-8 bg-background border border-border/40 rounded-[2rem] flex flex-col items-center text-center shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300"
               >
                 <div className="w-20 h-20 bg-secondary rounded-2xl mb-6 flex items-center justify-center font-bold text-muted-foreground group-hover:bg-foreground group-hover:text-background transition-colors relative overflow-hidden">
                   {s.logo_url ? (
-                    <Image src={s.logo_url} alt={s.name} fill className="object-cover" />
+                    <Image src={s.logo_url} alt={s.nome} fill className="object-cover" />
                   ) : (
                     "LOGO"
                   )}
                 </div>
-                <h3 className="text-[17px] font-bold tracking-tight mb-1">{s.name}</h3>
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">{s.tier}</p>
-                <p className="text-[13px] text-muted-foreground leading-relaxed">{s.desc}</p>
+                <h3 className="text-[17px] font-bold tracking-tight mb-1">{s.nome}</h3>
+                {s.tier && <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">{s.tier}</p>}
+                {s.descrizione && <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-3">{s.descrizione}</p>}
                 
                 <span className="mt-6 text-[12px] font-semibold text-foreground flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   Scopri di più <ArrowRight className="w-3 h-3" />
                 </span>
               </Link>
-            ))}
+            )) : (
+              <div className="col-span-full text-center text-muted-foreground py-12">
+                Diventa il nostro primo sponsor! Contattaci per scoprire i vantaggi.
+              </div>
+            )}
           </div>
         </div>
       </section>
