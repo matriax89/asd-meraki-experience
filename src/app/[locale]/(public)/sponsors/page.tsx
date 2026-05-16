@@ -91,30 +91,33 @@ export default async function SponsorsPage() {
             <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Chi ci sostiene già</h2>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6">
             {sponsorsList && sponsorsList.length > 0 ? sponsorsList.map((s) => (
               <Link 
                 key={s.id} 
                 href={`/sponsors/${s.slug}`} 
-                className="group p-8 bg-background border border-border/40 rounded-[2rem] flex flex-col items-center text-center shadow-sm hover:shadow-apple hover:-translate-y-1 transition-all duration-300"
+                className="group w-[200px] md:w-[280px] h-[160px] md:h-[200px] rounded-[1.5rem] bg-white border border-slate-100 p-5 md:p-6 flex flex-col items-center justify-center shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_15px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1.5 transition-all duration-300 cursor-pointer relative overflow-hidden"
               >
-                <div className="w-20 h-20 bg-secondary rounded-2xl mb-6 flex items-center justify-center font-bold text-muted-foreground group-hover:bg-foreground group-hover:text-background transition-colors relative overflow-hidden">
+                <div className="flex flex-col items-center justify-center w-full h-full relative z-0">
                   {s.logo_url ? (
-                    <Image src={s.logo_url} alt={s.nome} fill className="object-cover" />
+                    <div className="relative w-full h-20 md:h-28 mb-3 md:mb-4">
+                      <Image src={s.logo_url} alt={s.nome} fill className="object-contain group-hover:scale-105 transition-transform duration-500 ease-out" />
+                    </div>
                   ) : (
-                    "LOGO"
+                    <div className="w-14 h-14 bg-slate-50 rounded-full mb-3 flex items-center justify-center text-slate-300 group-hover:bg-slate-100 transition-colors">
+                      <span className="text-xl font-bold">{s.nome[0]}</span>
+                    </div>
+                  )}
+                  <span className="font-bold text-[13px] md:text-sm tracking-tight text-center text-slate-700 group-hover:text-slate-900 transition-colors line-clamp-1">{s.nome}</span>
+                  {s.tier && (
+                    <span className="mt-2 px-2.5 py-0.5 bg-slate-50 text-slate-600 group-hover:bg-amber-50 group-hover:text-amber-700 text-[9px] font-bold uppercase tracking-wider rounded-full border border-slate-100 group-hover:border-amber-100 whitespace-nowrap transition-colors duration-300">
+                      {s.tier}
+                    </span>
                   )}
                 </div>
-                <h3 className="text-[17px] font-bold tracking-tight mb-1">{s.nome}</h3>
-                {s.tier && <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">{s.tier}</p>}
-                {s.descrizione && <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-3">{s.descrizione}</p>}
-                
-                <span className="mt-6 text-[12px] font-semibold text-foreground flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  Scopri di più <ArrowRight className="w-3 h-3" />
-                </span>
               </Link>
             )) : (
-              <div className="col-span-full text-center text-muted-foreground py-12">
+              <div className="w-full text-center text-muted-foreground py-12">
                 Diventa il nostro primo sponsor! Contattaci per scoprire i vantaggi.
               </div>
             )}
