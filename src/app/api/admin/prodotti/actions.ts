@@ -87,7 +87,10 @@ export async function upsertProduct(data: ProductFormData) {
       if (v.id && !v.id.toString().startsWith("temp_")) {
         return { ...variantPayload, id: v.id };
       }
-      return variantPayload;
+      
+      // Se è una nuova variante, generiamo noi l'UUID per evitare che Supabase 
+      // lo imposti a null durante l'inserimento in blocco (batch upsert)
+      return { ...variantPayload, id: crypto.randomUUID() };
     });
 
     const { error: variantsError } = await supabase
