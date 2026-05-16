@@ -26,6 +26,13 @@ export function MultiImageUpload({ label, value, onChange, folder = "products" }
       const newUrls: string[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        
+        // Client-side validation for file size (10MB max)
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`L'immagine ${file.name} è troppo grande. Il limite è 10MB.`);
+          continue;
+        }
+
         const formData = new FormData();
         formData.append("file", file);
         formData.append("folder", folder);
