@@ -36,9 +36,22 @@ export function ProductCard({
   const [isPending, startTransition] = useTransition();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  const images = immagini_urls && immagini_urls.length > 0 
-    ? immagini_urls 
-    : copertina_url ? [copertina_url] : [];
+  // Aggregate all unique images: copertina, base product images, and all variant images
+  const allImages = new Set<string>();
+  if (copertina_url) allImages.add(copertina_url);
+  if (immagini_urls && immagini_urls.length > 0) {
+    immagini_urls.forEach(url => allImages.add(url));
+  }
+  if (product_variants && product_variants.length > 0) {
+    product_variants.forEach(variant => {
+      // The type definition doesn't include immagini_urls yet, but we know it's in the DB and passed if selected.
+      const v = variant as any;
+      if (v.immagini_urls && v.immagini_urls.length > 0) {
+        v.immagini_urls.forEach((url: string) => allImages.add(url));
+      }
+    });
+  }
+  const images = Array.from(allImages);
 
   useEffect(() => {
     if (images.length <= 1) return;

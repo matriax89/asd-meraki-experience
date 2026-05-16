@@ -30,6 +30,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       if (!images.includes(url)) images.push(url);
     });
   }
+  
+  if (activeVariants && activeVariants.length > 0) {
+    activeVariants.forEach((v: any) => {
+      if (v.immagini_urls && v.immagini_urls.length > 0) {
+        v.immagini_urls.forEach((url: string) => {
+          if (!images.includes(url)) images.push(url);
+        });
+      }
+    });
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-background pb-24 pt-32 md:pt-40">
