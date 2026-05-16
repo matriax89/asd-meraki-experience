@@ -112,13 +112,13 @@ export function ProductCard({
               style={{ transform: `translateX(-${currentImageIndex * 100}%)` }}
             >
               {images.map((img, idx) => (
-                <div key={idx} className="w-full h-full shrink-0 relative">
+                <Link key={idx} href={`/shop/${slug}`} className="w-full h-full shrink-0 relative block">
                   <img 
                     src={img} 
                     alt={`${nome} - Foto ${idx + 1}`} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" 
                   />
-                </div>
+                </Link>
               ))}
             </div>
 
@@ -153,14 +153,14 @@ export function ProductCard({
       </div>
 
       {/* Top Spacer for the Image Area */}
-      <Link href={`/shop/${slug}`} className="block h-56 md:h-64 shrink-0 relative z-10">
+      <div className="block h-56 md:h-64 shrink-0 relative z-10 pointer-events-none">
         {/* Optional Bestseller Badge */}
         {in_evidenza && (
-          <div className="absolute top-4 left-4 z-20 bg-white/90 backdrop-blur-md text-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
+          <div className="absolute top-4 left-4 z-20 bg-white/90 backdrop-blur-md text-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm pointer-events-auto">
             Bestseller
           </div>
         )}
-      </Link>
+      </div>
       
       {/* Content Section overlapping with rounded top corners */}
       <div className="relative z-20 flex flex-col flex-1 p-6 md:p-7 bg-white rounded-t-[24px] mt-auto">
