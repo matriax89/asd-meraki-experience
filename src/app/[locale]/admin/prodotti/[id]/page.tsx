@@ -13,7 +13,7 @@ export default async function AdminProductPage({ params }: { params: Promise<{ i
   if (id !== "nuovo") {
     const { data: product, error } = await supabase
       .from('products')
-      .select('*')
+      .select('*, product_variants(*)')
       .eq('id', id)
       .single();
 

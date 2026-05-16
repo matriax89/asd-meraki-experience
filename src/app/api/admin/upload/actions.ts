@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 export async function uploadImageAction(formData: FormData) {
   try {
     const file = formData.get("file") as File | null;
+    const folder = formData.get("folder") as string || "uploads";
     
     if (!file) {
       return { success: false, error: "Nessun file fornito" };
@@ -15,7 +16,7 @@ export async function uploadImageAction(formData: FormData) {
     // Generate a unique file name
     const fileExtension = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExtension}`;
-    const filePath = `direttivo/${fileName}`;
+    const filePath = `${folder}/${fileName}`;
 
     // Convert File to ArrayBuffer for Supabase
     const arrayBuffer = await file.arrayBuffer();
