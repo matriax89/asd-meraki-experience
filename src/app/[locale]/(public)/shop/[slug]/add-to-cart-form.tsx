@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { addToCart } from "@/lib/shop/cart-actions";
 import { useRouter } from "next/navigation";
+import { Check, ShieldCheck, Truck, RefreshCcw, AlertCircle } from "lucide-react";
 
 type Variant = {
   id: string;
@@ -29,7 +30,6 @@ export function AddToCartForm({
   const selectedVariant = varianti.find((v) => v.id === selectedVariantId);
   const outOfStock = selectedVariant && selectedVariant.stock <= 0;
   
-  // Per prodotti con una sola variante fittizia (es. borraccia senza taglia/colore)
   const isSimpleProduct = varianti.length === 1 && !varianti[0].taglia && !varianti[0].colore;
 
   const handleAddToCart = () => {
@@ -37,40 +37,60 @@ export function AddToCartForm({
     
     startTransition(async () => {
       await addToCart(selectedVariantId, 1);
-      // Optional: mostra un toast o apri il drawer del carrello
-      // Per semplicità, in questa fase mandiamo alla pagina carrello
       router.push("/carrello");
     });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col">
       {!isSimpleProduct && varianti.length > 0 && (
-        <div className="space-y-4">
-          <label className="block text-sm font-medium text-foreground">
-            Seleziona Opzione
-          </label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="space-y-4 mb-8">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">
+              Seleziona Opzione
+            </span>
+            {!selectedVariantId && (
+              <span className="text-xs font-bold text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Richiesto
+              </span>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
             {varianti.map((variant) => {
               const isSelected = variant.id === selectedVariantId;
               const isOOS = variant.stock <= 0;
+              const isLowStock = !isOOS && variant.stock > 0 && variant.stock <= 5;
+              
               return (
                 <button
                   key={variant.id}
                   onClick={() => setSelectedVariantId(variant.id)}
                   disabled={isOOS}
                   className={`
-                    border rounded-lg p-3 text-sm flex flex-col items-center justify-center transition-all
-                    ${isSelected ? 'border-primary bg-primary/5 text-primary ring-1 ring-primary' : 'border-border hover:border-foreground/50 text-foreground'}
-                    ${isOOS ? 'opacity-50 cursor-not-allowed bg-muted' : 'cursor-pointer'}
+                    relative rounded-2xl p-4 text-left border-2 transition-all overflow-hidden flex flex-col items-start justify-center w-full
+                    ${isSelected ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20 shadow-sm' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-card'}
+                    ${isOOS ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                   `}
                 >
-                  <span className="font-semibold">
+                  <span className={`font-bold text-[17px] ${isSelected ? 'text-indigo-900 dark:text-indigo-300' : 'text-slate-800 dark:text-slate-200'}`}>
                     {variant.taglia && variant.colore 
                       ? `${variant.taglia} - ${variant.colore}`
                       : variant.taglia || variant.colore || variant.sku}
                   </span>
-                  {isOOS && <span className="text-[10px] uppercase mt-1">Esaurito</span>}
+                  
+                  {isSelected && (
+                    <div className="absolute top-4 right-4 text-indigo-600 dark:text-indigo-400">
+                      <Check className="w-5 h-5 stroke-[3]" />
+                    </div>
+                  )}
+                  
+                  {isOOS && <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest mt-1">Esaurito</span>}
+                  {isLowStock && (
+                    <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-widest mt-1">
+                      Solo {variant.stock} rimasti
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -79,24 +99,52 @@ export function AddToCartForm({
       )}
 
       {selectedVariant && selectedVariant.prezzo_cents && selectedVariant.prezzo_cents !== prezzoBase && (
-        <div className="text-xl font-bold text-primary">
-          Prezzo variante: €{(selectedVariant.prezzo_cents / 100).toFixed(2).replace('.', ',')}
+        <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400 mb-6 flex items-center gap-2">
+          Prezzo Variante: €{(selectedVariant.prezzo_cents / 100).toFixed(2).replace('.', ',')}
         </div>
       )}
 
       <button
         onClick={handleAddToCart}
         disabled={!selectedVariantId || outOfStock || isPending}
-        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 flex justify-center items-center"
+        className={`
+          w-full font-bold text-[17px] py-5 px-6 rounded-2xl flex justify-center items-center transition-all duration-300
+          ${!selectedVariantId || outOfStock || isPending 
+            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 shadow-none' 
+            : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-slate-900/10 dark:shadow-white/10'
+          }
+        `}
       >
         {isPending ? (
-          <span className="animate-pulse">Aggiunta in corso...</span>
+          <span className="animate-pulse">Attendi...</span>
         ) : outOfStock ? (
-          "Esaurito"
+          "Prodotto Esaurito"
         ) : (
           "Aggiungi al Carrello"
         )}
       </button>
+
+      {/* Trust Badges */}
+      <div className="flex flex-col gap-4 mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex items-center text-[13px] font-medium text-slate-500 dark:text-slate-400 gap-3">
+          <div className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center shrink-0">
+            <Truck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <span>Spedizione rapida in tutta Italia</span>
+        </div>
+        <div className="flex items-center text-[13px] font-medium text-slate-500 dark:text-slate-400 gap-3">
+          <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <span>Pagamenti 100% sicuri e crittografati</span>
+        </div>
+        <div className="flex items-center text-[13px] font-medium text-slate-500 dark:text-slate-400 gap-3">
+          <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+            <RefreshCcw className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <span>Reso facile entro 14 giorni dalla consegna</span>
+        </div>
+      </div>
     </div>
   );
 }
