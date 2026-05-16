@@ -62,19 +62,51 @@ export function MultiImageUpload({ label, value, onChange, folder = "products" }
     onChange(value.filter((_, index) => index !== indexToRemove));
   };
 
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex) return;
+
+    const newUrls = [...value];
+    const draggedUrl = newUrls[draggedIndex];
+    
+    newUrls.splice(draggedIndex, 1);
+    newUrls.splice(targetIndex, 0, draggedUrl);
+
+    onChange(newUrls);
+    setDraggedIndex(null);
+  };
+
   return (
     <div className="space-y-3">
       {label && <label className="text-sm font-semibold">{label}</label>}
       
       <div className="flex flex-wrap gap-4">
         {value.map((url, index) => (
-          <div key={index} className="relative group w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted">
+          <div 
+            key={url + index} 
+            draggable
+            onDragStart={() => handleDragStart(index)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
+            onDragEnd={() => setDraggedIndex(null)}
+            className={`relative group w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted cursor-grab active:cursor-grabbing transition-opacity ${draggedIndex === index ? 'opacity-40' : 'opacity-100'}`}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+            <img src={url} alt={`Preview ${index}`} className="w-full h-full object-cover pointer-events-none" />
             <button
               type="button"
               onClick={() => handleRemove(index)}
-              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
             >
               <X className="w-3 h-3" />
             </button>
