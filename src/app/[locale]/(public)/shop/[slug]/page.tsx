@@ -62,7 +62,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </h1>
           
           <div className="text-2xl font-bold text-foreground mb-6 pb-6 border-b border-border">
-            €{(prodotto.prezzo_base_cents / 100).toFixed(2)}
+            €{(prodotto.prezzo_base_cents / 100).toFixed(2).replace('.', ',')}
           </div>
           
           {prodotto.descrizione_breve && (

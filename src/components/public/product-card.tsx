@@ -105,9 +105,11 @@ export function ProductCard({
         </div>
 
         {/* Description */}
-        <p className="text-slate-500 text-[15px] leading-relaxed mb-6 line-clamp-3">
-          {descrizione_breve || "Scopri l'esclusivo merchandising Meraki Experience. Design confortevole, stile inconfondibile e performance al top."}
-        </p>
+        {descrizione_breve && (
+          <p className="text-slate-500 text-[15px] leading-relaxed mb-6 line-clamp-3">
+            {descrizione_breve}
+          </p>
+        )}
         
           {/* Footer: Price & Add to Cart */}
         <div className="mt-auto flex items-end justify-between pt-2">
@@ -116,7 +118,7 @@ export function ProductCard({
               Prezzo
             </span>
             <span className="text-2xl font-extrabold text-slate-800 tracking-tight">
-              €{(prezzo_base_cents / 100).toFixed(2)}
+              €{(prezzo_base_cents / 100).toFixed(2).replace('.', ',')}
             </span>
           </div>
           

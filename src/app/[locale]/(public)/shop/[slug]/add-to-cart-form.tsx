@@ -80,7 +80,7 @@ export function AddToCartForm({
 
       {selectedVariant && selectedVariant.prezzo_cents && selectedVariant.prezzo_cents !== prezzoBase && (
         <div className="text-xl font-bold text-primary">
-          Prezzo variante: €{(selectedVariant.prezzo_cents / 100).toFixed(2)}
+          Prezzo variante: €{(selectedVariant.prezzo_cents / 100).toFixed(2).replace('.', ',')}
         </div>
       )}
 
