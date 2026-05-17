@@ -32,34 +32,50 @@ export async function sendLeadNotification(lead: any) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nuovo Messaggio</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f9f9fb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f9f9fb; padding: 40px 20px;">
+<body style="margin: 0; padding: 0; background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f5f5f7; padding: 40px 20px;">
     <tr>
       <td align="center">
-        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.04); margin: 0 auto;">
+        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e5e5ea; overflow: hidden; margin: 0 auto;">
           <tr>
-            <td style="background-color: #1d1d1f; padding: 32px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">Nuovo Messaggio</h1>
-              <p style="color: #a1a1a6; margin: 8px 0 0 0; font-size: 15px;">Hai ricevuto una nuova richiesta su ASD Meraki</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 40px 32px;">
-              <h2 style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0;">Dettagli Contatto</h2>
-              <div style="background-color: #f5f5f7; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
-                <p style="margin: 0 0 12px 0; font-size: 15px; color: #1d1d1f;"><strong>Nome:</strong> ${lead.nome} ${lead.cognome}</p>
-                <p style="margin: 0 0 12px 0; font-size: 15px; color: #1d1d1f;"><strong>Email:</strong> <a href="mailto:${lead.email}" style="color: #0066cc; text-decoration: none;">${lead.email}</a></p>
-                ${lead.telefono && lead.telefono !== 'N/A' ? `<p style="margin: 0 0 12px 0; font-size: 15px; color: #1d1d1f;"><strong>Telefono:</strong> ${lead.telefono}</p>` : ""}
-                <p style="margin: 0; font-size: 15px; color: #1d1d1f;"><strong>Sorgente:</strong> ${lead.source}</p>
+            <td style="padding: 48px 40px; text-align: left;">
+              <h1 style="color: #1d1d1f; margin: 0 0 8px 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">Nuovo Messaggio</h1>
+              <p style="color: #86868b; margin: 0 0 32px 0; font-size: 15px;">Hai ricevuto una nuova richiesta su ASD Meraki.</p>
+              
+              <hr style="border: none; border-top: 1px solid #e5e5ea; margin: 0 0 32px 0;" />
+
+              <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">Dettagli Contatto</h2>
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 32px;">
+                <tr>
+                  <td style="padding: 0 0 12px 0; font-size: 15px; color: #1d1d1f;">
+                    <span style="color: #86868b; display: inline-block; width: 80px;">Nome</span> ${lead.nome} ${lead.cognome}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 0 0 12px 0; font-size: 15px; color: #1d1d1f;">
+                    <span style="color: #86868b; display: inline-block; width: 80px;">Email</span> <a href="mailto:${lead.email}" style="color: #1d1d1f; text-decoration: underline;">${lead.email}</a>
+                  </td>
+                </tr>
+                ${lead.telefono && lead.telefono !== 'N/A' ? `
+                <tr>
+                  <td style="padding: 0 0 12px 0; font-size: 15px; color: #1d1d1f;">
+                    <span style="color: #86868b; display: inline-block; width: 80px;">Telefono</span> ${lead.telefono}
+                  </td>
+                </tr>` : ""}
+                <tr>
+                  <td style="padding: 0 0 0 0; font-size: 15px; color: #1d1d1f;">
+                    <span style="color: #86868b; display: inline-block; width: 80px;">Sorgente</span> ${lead.source}
+                  </td>
+                </tr>
+              </table>
+              
+              <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">Messaggio</h2>
+              <div style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin-bottom: 40px;">
+                ${lead.messaggio ? lead.messaggio.replace(/\\n/g, '<br />') : "<span style='color: #86868b; font-style: italic;'>Nessun messaggio fornito.</span>"}
               </div>
               
-              <h2 style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0;">Messaggio</h2>
-              <div style="background-color: #f5f5f7; border-radius: 12px; padding: 20px; font-size: 15px; line-height: 1.5; color: #1d1d1f;">
-                ${lead.messaggio ? lead.messaggio.replace(/\\n/g, '<br />') : "<em>Nessun messaggio fornito.</em>"}
-              </div>
-              
-              <div style="margin-top: 40px; text-align: center;">
-                <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/admin/dashboard/leads" style="display: inline-block; background-color: #f97316; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 28px; border-radius: 20px;">Gestisci su Dashboard</a>
+              <div style="text-align: left;">
+                <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/admin/dashboard/leads" style="display: inline-block; background-color: #1d1d1f; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 500; padding: 12px 24px; border-radius: 8px;">Gestisci nella Dashboard</a>
               </div>
             </td>
           </tr>
@@ -147,26 +163,28 @@ export async function sendAutoReply(lead: any) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Grazie per averci contattato</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f9f9fb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f9f9fb; padding: 40px 20px;">
+<body style="margin: 0; padding: 0; background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f5f5f7; padding: 40px 20px;">
     <tr>
       <td align="center">
-        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.04); margin: 0 auto;">
+        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e5e5ea; overflow: hidden; margin: 0 auto;">
           <tr>
-            <td style="padding: 48px 32px; text-align: center;">
-              <h1 style="margin: 0 0 16px 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #1d1d1f;">Grazie per averci contattato, ${lead.nome}!</h1>
-              <p style="font-size: 17px; line-height: 1.5; color: #515154; margin: 0 0 32px 0;">
+            <td style="padding: 48px 40px; text-align: left;">
+              <h1 style="color: #1d1d1f; margin: 0 0 16px 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">Grazie per averci contattato, ${lead.nome}!</h1>
+              <p style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin: 0 0 32px 0;">
                 Abbiamo ricevuto la tua richiesta e il nostro team la sta già esaminando. Ti risponderemo il prima possibile all'indirizzo email che ci hai fornito.
               </p>
-              <div style="background-color: #f5f5f7; border-radius: 16px; padding: 24px; text-align: left; margin-bottom: 32px;">
-                <h2 style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 12px 0;">Il tuo messaggio</h2>
-                <p style="font-size: 15px; line-height: 1.5; color: #1d1d1f; margin: 0; font-style: italic;">
-                  "${lead.messaggio ? lead.messaggio.replace(/\\n/g, '<br />') : "Richiesta prova gratuita"}"
-                </p>
+              
+              <hr style="border: none; border-top: 1px solid #e5e5ea; margin: 0 0 32px 0;" />
+              
+              <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">Il tuo messaggio</h2>
+              <div style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin-bottom: 40px; font-style: italic; border-left: 3px solid #e5e5ea; padding-left: 16px;">
+                ${lead.messaggio ? lead.messaggio.replace(/\\n/g, '<br />') : "Richiesta prova gratuita"}
               </div>
-              <p style="font-size: 15px; color: #86868b; margin: 0;">
+              
+              <p style="font-size: 15px; color: #86868b; margin: 0; line-height: 1.5;">
                 A presto,<br />
-                <strong style="color: #1d1d1f;">Il Team di ASD Meraki Experience</strong>
+                <strong style="color: #1d1d1f; font-weight: 600;">Il Team di ASD Meraki Experience</strong>
               </p>
             </td>
           </tr>
