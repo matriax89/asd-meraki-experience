@@ -61,7 +61,7 @@ export default async function CarrelloPage() {
     }));
 
   return (
-    <div className="container py-12 md:py-24 max-w-5xl">
+    <div className="container pt-28 pb-12 md:pt-36 md:pb-24 max-w-5xl">
       <h1 className="text-4xl font-extrabold text-slate-900 mb-8 tracking-tight">
         Il tuo Carrello
       </h1>
