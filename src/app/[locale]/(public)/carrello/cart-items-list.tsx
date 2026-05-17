@@ -4,10 +4,13 @@ import { useTransition } from "react";
 import { updateCartItemQuantity, removeFromCart } from "@/lib/shop/cart-actions";
 import { useRouter } from "next/navigation";
 import { Trash2, Minus, Plus } from "lucide-react";
+import { useLocale } from "next-intl";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export function CartItemsList({ initialItems }: { initialItems: any[] }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const locale = useLocale();
 
   const handleUpdate = (variantId: string, newQuantity: number) => {
     startTransition(async () => {
@@ -29,9 +32,9 @@ export function CartItemsList({ initialItems }: { initialItems: any[] }) {
         <div key={item.variantId} className="flex gap-5 md:gap-6 p-4 md:p-5 bg-white border border-slate-100 rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] group">
           <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center">
             {item.variant?.immagini_urls && item.variant.immagini_urls.length > 0 ? (
-              <img src={item.variant.immagini_urls[0]} alt={item.product.nome} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <img src={item.variant.immagini_urls[0]} alt={getLocalizedText(item.product.nome, locale)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
             ) : item.product.copertina_url ? (
-              <img src={item.product.copertina_url} alt={item.product.nome} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <img src={item.product.copertina_url} alt={getLocalizedText(item.product.nome, locale)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
             ) : (
               <img src="/images/logo-meraki.png" alt="Meraki" className="w-1/2 h-1/2 object-contain opacity-50 grayscale" />
             )}
@@ -40,7 +43,7 @@ export function CartItemsList({ initialItems }: { initialItems: any[] }) {
           <div className="flex-1 flex flex-col justify-between py-1">
             <div className="flex justify-between items-start">
               <div className="pr-4">
-                <h3 className="font-bold text-lg text-slate-800 line-clamp-2 leading-tight">{item.product.nome}</h3>
+                <h3 className="font-bold text-lg text-slate-800 line-clamp-2 leading-tight">{getLocalizedText(item.product.nome, locale)}</h3>
                 <p className="text-sm font-medium text-slate-500 mt-1.5 uppercase tracking-wider text-[11px]">
                   {item.variant.taglia && item.variant.colore 
                     ? `${item.variant.taglia} / ${item.variant.colore}`
