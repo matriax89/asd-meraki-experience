@@ -105,6 +105,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     donate_title: "Supporta l'Associazione",
     donate_desc: "Aiutaci a promuovere il benessere e a migliorare costantemente i nostri servizi e la nostra struttura per tutti gli associati.",
     donate_cta: "Fai una donazione",
+    donate_link: "https://www.retedeldono.it/progetto/aiutaci-portare-il-fitness-dove-conta",
     workshop_image_url: "",
     merch_image_url: "",
     donate_image_url: ""
@@ -1004,6 +1005,10 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
                   <input value={shopText.donate_cta} onChange={(e) => setShopText({...shopText, donate_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Link Destinazione Bottone</label>
+                  <input value={shopText.donate_link || ""} onChange={(e) => setShopText({...shopText, donate_link: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="https://..." />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Sfondo Card (URL o Upload)</label>

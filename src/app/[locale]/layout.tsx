@@ -80,6 +80,7 @@ export default async function LocaleLayout({
     
   const themeColors = (settings?.value as any)?.theme_colors || null;
   const integrations = (settings?.value as any)?.integrations || null;
+  const branding = (settings?.value as any)?.branding || null;
 
   // Default LocalBusiness Schema
   const localBusinessSchema = {
@@ -111,6 +112,9 @@ export default async function LocaleLayout({
       className={`${inter.variable} h-full antialiased`}
     >
       <head>
+        {branding?.favicon_url && (
+          <link rel="icon" href={branding.favicon_url} />
+        )}
         <JsonLd schema={localBusinessSchema} />
         {themeColors && (
           <style dangerouslySetInnerHTML={{ __html: `

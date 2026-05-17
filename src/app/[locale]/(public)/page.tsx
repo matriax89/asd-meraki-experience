@@ -509,7 +509,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 
             {/* Nuova Card Donazioni */}
             <StaggerItem className="h-full">
-              <Link href="/sponsors" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-gradient-to-br from-amber-50 to-orange-50">
+              <a href={content.shop_text?.donate_link || "https://www.retedeldono.it/progetto/aiutaci-portare-il-fitness-dove-conta"} target="_blank" rel="noopener noreferrer" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-gradient-to-br from-amber-50 to-orange-50">
                 {/* Background Pattern / Icon / Image */}
                 <div className="absolute top-0 left-0 w-full h-[65%] flex items-center justify-center overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-b from-amber-100/50 to-amber-50/10 z-10" />
@@ -540,7 +540,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                     </span>
                   </div>
                 </div>
-              </Link>
+              </a>
             </StaggerItem>
           </StaggerContainer>
         </div>
