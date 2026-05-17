@@ -119,13 +119,13 @@ export function ShopClient({ prodotti }: ShopClientProps) {
               <div className="flex flex-row flex-wrap gap-2">
                 <button
                   onClick={() => setActiveTaglia("Tutte")}
-                  className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold transition-all duration-200 text-sm ${
+                  className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold transition-all duration-200 text-[11px] uppercase tracking-wider ${
                     activeTaglia === "Tutte"
                       ? "bg-foreground text-background shadow-md border border-foreground"
                       : "bg-white text-slate-500 border border-slate-200 hover:border-foreground hover:text-foreground"
                   }`}
                 >
-                  All
+                  Tutte
                 </button>
                 {availableTaglie.map((taglia: any) => (
                   <button
