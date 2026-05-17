@@ -4,6 +4,7 @@ interface Column<T> {
   header: string;
   accessorKey?: keyof T;
   cell?: (item: T) => React.ReactNode;
+  align?: "left" | "center" | "right";
 }
 
 interface DataTableProps<T> {
@@ -19,7 +20,7 @@ export function DataTable<T>({ data, columns, keyExtractor }: DataTableProps<T>)
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             {columns.map((col, idx) => (
-              <th key={idx} className="px-6 py-5 text-[12px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+              <th key={idx} className={`px-6 py-5 text-[12px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
                 {col.header}
               </th>
             ))}
@@ -39,7 +40,7 @@ export function DataTable<T>({ data, columns, keyExtractor }: DataTableProps<T>)
                 className="hover:bg-slate-50/50 transition-colors"
               >
                 {columns.map((col, colIndex) => (
-                  <td key={colIndex} className="px-6 py-5 text-slate-700">
+                  <td key={colIndex} className={`px-6 py-5 text-slate-700 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
                     {col.cell 
                       ? col.cell(item) 
                       : col.accessorKey 

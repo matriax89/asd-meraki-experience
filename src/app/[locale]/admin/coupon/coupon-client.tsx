@@ -99,6 +99,7 @@ export function CouponClient({
     },
     {
       header: "Azioni",
+      align: "right",
       cell: (item: Coupon) => (
         <div className="flex items-center justify-end gap-2">
           <button
@@ -276,24 +277,30 @@ export function CouponClient({
           <div className="md:col-span-2 space-y-2">
             <label className="text-sm font-semibold text-slate-700">Prodotti Validi (Opzionale)</label>
             <p className="text-xs text-slate-500">Seleziona uno o più prodotti. Se non ne selezioni nessuno, il coupon varrà su tutto il carrello.</p>
-            <div className="max-h-[200px] overflow-y-auto border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
-              {products.map(p => (
-                <label key={p.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-200">
-                  <input 
-                    type="checkbox" 
-                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600"
-                    checked={formData.applicable_product_ids.includes(p.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
+            <div className="flex flex-wrap gap-2 pt-2">
+              {products.map(p => {
+                const isSelected = formData.applicable_product_ids.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      if (!isSelected) {
                         setFormData({...formData, applicable_product_ids: [...formData.applicable_product_ids, p.id]});
                       } else {
                         setFormData({...formData, applicable_product_ids: formData.applicable_product_ids.filter(id => id !== p.id)});
                       }
                     }}
-                  />
-                  <span className="text-sm font-medium text-slate-700">{p.nome}</span>
-                </label>
-              ))}
+                    className={`px-4 py-2 rounded-full text-sm font-semibold transition-all border ${
+                      isSelected 
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20" 
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    {p.nome}
+                  </button>
+                );
+              })}
               {products.length === 0 && <p className="text-sm text-slate-500 p-2">Nessun prodotto attivo trovato.</p>}
             </div>
           </div>
