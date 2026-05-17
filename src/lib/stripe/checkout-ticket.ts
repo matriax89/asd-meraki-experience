@@ -8,6 +8,7 @@ export async function createTicketCheckoutSession({
   capacity,
   buyerEmail,
   tipo,
+  siteUrl,
 }: {
   eventId: string;
   eventSlug: string;
@@ -16,8 +17,8 @@ export async function createTicketCheckoutSession({
   capacity: number;
   buyerEmail: string;
   tipo: "evento" | "workshop" | "masterclass";
+  siteUrl: string;
 }) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],

@@ -66,7 +66,8 @@ export async function POST(request: Request) {
     // For now we'll add a fixed standard shipping of 5.00 EUR (500 cents), or free if subtotal > 100 EUR.
     const shippingCost = isHandDelivery ? 0 : (subtotalCents > 10000 ? 0 : 500);
     
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const origin = request.headers.get("origin");
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin || "http://localhost:3000";
 
     // Generate temporary order id metadata to pass to Stripe
     const tempOrderId = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;

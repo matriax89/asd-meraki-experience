@@ -37,6 +37,9 @@ export async function POST(request: Request) {
       );
     }
 
+    const origin = request.headers.get("origin");
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin || "http://localhost:3000";
+
     // Create Stripe Session
     const session = await createTicketCheckoutSession({
       eventId: event.id,
@@ -46,6 +49,7 @@ export async function POST(request: Request) {
       capacity: event.capacity || 0,
       buyerEmail,
       tipo: event.tipo,
+      siteUrl,
     });
 
     return NextResponse.json({ url: session.url });
