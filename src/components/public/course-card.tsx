@@ -31,7 +31,7 @@ export async function CourseCard({
             <img 
               src={copertina_url} 
               alt={nome} 
-              className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700 ease-out" 
+              className="w-full h-full object-contain object-top group-hover:scale-105 transition-transform duration-700 ease-out bg-white" 
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-tr from-slate-200 to-slate-100" />
