@@ -41,6 +41,10 @@ export async function POST(request: Request) {
     const origin = request.headers.get("origin");
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin || "http://localhost:3000";
 
+    const referer = request.headers.get("referer") || "";
+    const localeMatch = referer.match(/\/(it|en|de)\//);
+    const locale = localeMatch ? localeMatch[1] : "it";
+
     // Create Stripe Session
     const session = await createTicketCheckoutSession({
       eventId: event.id,
@@ -51,6 +55,7 @@ export async function POST(request: Request) {
       buyerEmail,
       tipo: event.tipo,
       siteUrl,
+      locale,
     });
 
     return NextResponse.json({ url: session.url });

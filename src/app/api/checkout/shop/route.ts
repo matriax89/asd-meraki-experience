@@ -14,6 +14,10 @@ export async function POST(request: Request) {
       return NextResponse.redirect(new URL(referer, request.url));
     }
 
+    const referer = request.headers.get("referer") || "";
+    const localeMatch = referer.match(/\/(it|en|de)\//);
+    const locale = localeMatch ? localeMatch[1] : "it";
+
     const supabase = await createClient();
     const variantIds = cart.items.map(i => i.variantId);
     
@@ -151,6 +155,7 @@ export async function POST(request: Request) {
         temp_order_id: tempOrderId,
         coupon_code: couponCode || "",
         hand_delivery: isHandDelivery ? "true" : "false",
+        locale: locale,
       },
     };
 

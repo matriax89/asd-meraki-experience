@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { stripe } from "@/lib/stripe/client";
 import { createAdminClient } from "@/lib/supabase/server";
+import { sendOrderConfirmation, sendOrderNotification, sendTicketConfirmation } from "@/lib/resend/client";
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -56,7 +57,11 @@ export async function POST(request: Request) {
       // Incrementa i posti venduti
       await supabase.rpc('increment_ticket_count', { row_id: eventId });
 
-      // Qui andrebbe inviata la mail con Resend
+      // Invia il biglietto
+      const { data: eventData } = await supabase.from('events').select('titolo').eq('id', eventId).single();
+      const locale = metadata?.locale || 'it';
+      await sendTicketConfirmation(ticket, eventData || { titolo: 'Evento' }, locale);
+
       console.log(`Ticket ${ticket.id} created successfully for ${buyerEmail}`);
     } else if (metadata?.flow_type === "shop_order") {
       const cartItems = JSON.parse(metadata.cart_data || "[]");
@@ -122,6 +127,12 @@ export async function POST(request: Request) {
           await supabase.from('coupons').update({ uses_count: (coupon.uses_count || 0) + 1 }).eq('id', coupon.id);
         }
       }
+
+      // Invia email di conferma al cliente e notifica all'admin
+      const { data: items } = await supabase.from('order_items').select('*').eq('order_id', order.id);
+      const locale = metadata?.locale || 'it';
+      await sendOrderConfirmation(order, items || [], locale);
+      await sendOrderNotification(order, items || []);
 
       console.log(`Order ${order.id} created successfully for ${email}`);
     }

@@ -18,6 +18,7 @@ export async function createTicketCheckoutSession({
   buyerEmail: string;
   tipo: "evento" | "workshop" | "masterclass";
   siteUrl: string;
+  locale?: string;
 }) {
 
   const session = await stripe.checkout.sessions.create({
@@ -43,6 +44,7 @@ export async function createTicketCheckoutSession({
       flow_type: tipo === "evento" ? "ticket_event" : "ticket_workshop",
       event_id: eventId,
       buyer_email: buyerEmail,
+      locale: locale || "it",
     },
   });
 
