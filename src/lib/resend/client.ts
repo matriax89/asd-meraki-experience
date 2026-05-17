@@ -173,7 +173,7 @@ export async function sendAutoReply(lead: any) {
 
       const resend = new Resend(activeApiKey);
       await resend.emails.send({
-        from: \`Meraki Experience <\${FROM_EMAIL}>\`,
+        from: `Meraki Experience <${FROM_EMAIL}>`,
         to: lead.email,
         subject,
         html: htmlContent,
