@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { submitLead } from "@/app/api/lead/actions";
+import { useLocale } from "next-intl";
 
 export function LeadForm() {
+  const locale = useLocale();
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null);
 
@@ -60,6 +62,7 @@ export function LeadForm() {
       </div>
       
       <input type="hidden" name="source" value="prova_gratuita" />
+      <input type="hidden" name="locale" value={locale} />
 
       {result?.error && (
         <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg border border-destructive/20">

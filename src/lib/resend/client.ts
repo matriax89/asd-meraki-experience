@@ -142,7 +142,7 @@ export async function sendLeadNotification(lead: any) {
   }
 }
 
-export async function sendAutoReply(lead: any) {
+export async function sendAutoReply(lead: any, locale: string = "it") {
   const supabase = createAdminClient();
   const { data: settings } = await supabase
     .from("site_settings")
@@ -154,14 +154,47 @@ export async function sendAutoReply(lead: any) {
   const emailProvider = integrations?.email_provider || "resend";
   const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
 
-  const subject = "Abbiamo ricevuto la tua richiesta - ASD Meraki Experience";
+  // Localized strings
+  const translations: Record<string, any> = {
+    it: {
+      subject: "Abbiamo ricevuto la tua richiesta - ASD Meraki Experience",
+      title: `Grazie per averci contattato, ${lead.nome}!`,
+      body: "Abbiamo ricevuto la tua richiesta e il nostro team la sta già esaminando. Ti risponderemo il prima possibile all'indirizzo email che ci hai fornito.",
+      messageLabel: "Il tuo messaggio",
+      defaultMessage: "Richiesta prova gratuita",
+      footer: "A presto",
+      team: "Il Team di ASD Meraki Experience"
+    },
+    en: {
+      subject: "We received your request - ASD Meraki Experience",
+      title: `Thanks for contacting us, ${lead.nome}!`,
+      body: "We have received your request and our team is already reviewing it. We will reply as soon as possible to the email address you provided.",
+      messageLabel: "Your message",
+      defaultMessage: "Free trial request",
+      footer: "See you soon",
+      team: "The ASD Meraki Experience Team"
+    },
+    de: {
+      subject: "Wir haben Ihre Anfrage erhalten - ASD Meraki Experience",
+      title: `Danke für Ihre Kontaktaufnahme, ${lead.nome}!`,
+      body: "Wir haben Ihre Anfrage erhalten und unser Team prüft sie bereits. Wir werden so schnell wie möglich an die von Ihnen angegebene E-Mail-Adresse antworten.",
+      messageLabel: "Ihre Nachricht",
+      defaultMessage: "Anfrage für ein kostenloses Probetraining",
+      footer: "Bis bald",
+      team: "Das Team von ASD Meraki Experience"
+    }
+  };
+
+  const t = translations[locale] || translations["it"];
+
+  const subject = t.subject;
 
   const htmlContent = `<!DOCTYPE html>
-<html lang="it">
+<html lang="${locale}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Grazie per averci contattato</title>
+  <title>${t.title}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f5f5f7; padding: 40px 20px;">
@@ -170,21 +203,21 @@ export async function sendAutoReply(lead: any) {
         <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e5e5ea; overflow: hidden; margin: 0 auto;">
           <tr>
             <td style="padding: 48px 40px; text-align: left;">
-              <h1 style="color: #1d1d1f; margin: 0 0 16px 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">Grazie per averci contattato, ${lead.nome}!</h1>
+              <h1 style="color: #1d1d1f; margin: 0 0 16px 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">${t.title}</h1>
               <p style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin: 0 0 32px 0;">
-                Abbiamo ricevuto la tua richiesta e il nostro team la sta già esaminando. Ti risponderemo il prima possibile all'indirizzo email che ci hai fornito.
+                ${t.body}
               </p>
               
               <hr style="border: none; border-top: 1px solid #e5e5ea; margin: 0 0 32px 0;" />
               
-              <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">Il tuo messaggio</h2>
+              <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">${t.messageLabel}</h2>
               <div style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin-bottom: 40px; font-style: italic; border-left: 3px solid #e5e5ea; padding-left: 16px;">
-                ${lead.messaggio ? lead.messaggio.replace(/\\n/g, '<br />') : "Richiesta prova gratuita"}
+                ${lead.messaggio ? lead.messaggio.replace(/\\n/g, '<br />') : t.defaultMessage}
               </div>
               
               <p style="font-size: 15px; color: #86868b; margin: 0; line-height: 1.5;">
-                A presto,<br />
-                <strong style="color: #1d1d1f; font-weight: 600;">Il Team di ASD Meraki Experience</strong>
+                ${t.footer},<br />
+                <strong style="color: #1d1d1f; font-weight: 600;">${t.team}</strong>
               </p>
             </td>
           </tr>

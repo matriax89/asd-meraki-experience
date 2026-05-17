@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { submitContact } from "@/app/api/lead/actions";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 export function ContactForm() {
   const t = useTranslations("Contact");
+  const locale = useLocale();
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null);
 
@@ -47,6 +48,8 @@ export function ContactForm() {
         <label htmlFor="messaggio" className="text-sm font-bold text-slate-700">{t("form_message")}</label>
         <textarea id="messaggio" name="messaggio" required rows={5} placeholder={t("form_message_placeholder")} className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all duration-300 resize-none"></textarea>
       </div>
+
+      <input type="hidden" name="locale" value={locale} />
 
       {result?.error && (
         <div className="p-4 bg-red-50 text-red-700 text-sm font-medium rounded-xl border border-red-200">

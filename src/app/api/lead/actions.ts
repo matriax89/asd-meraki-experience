@@ -12,6 +12,7 @@ export async function submitLead(formData: FormData) {
   const telefono = formData.get("telefono") as string;
   const note = formData.get("note") as string;
   const source = formData.get("source") as string || "website";
+  const locale = formData.get("locale") as string || "it";
 
   if (!nome || !cognome || !email) {
     return { error: "Nome, cognome ed email sono obbligatori." };
@@ -44,7 +45,7 @@ export async function submitLead(formData: FormData) {
     // Try sending email if configured
     try {
       await sendLeadNotification(lead);
-      await sendAutoReply(lead);
+      await sendAutoReply(lead, locale);
       console.log("Sent emails for lead", lead.id);
     } catch (emailError) {
       console.error("Email notification failed, but lead was saved:", emailError);
@@ -61,6 +62,7 @@ export async function submitContact(formData: FormData) {
   const nome = formData.get("nome") as string;
   const email = formData.get("email") as string;
   const messaggio = formData.get("messaggio") as string;
+  const locale = formData.get("locale") as string || "it";
 
   if (!nome || !email || !messaggio) {
     return { error: "Tutti i campi sono obbligatori." };
@@ -93,7 +95,7 @@ export async function submitContact(formData: FormData) {
     // Try sending email
     try {
       await sendLeadNotification(lead);
-      await sendAutoReply(lead);
+      await sendAutoReply(lead, locale);
       console.log("Sent emails for contact", lead.id);
     } catch (emailError) {
       console.error("Email notification failed, but contact was saved:", emailError);
