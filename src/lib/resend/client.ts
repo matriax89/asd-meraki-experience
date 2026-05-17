@@ -294,7 +294,7 @@ export async function sendOrderConfirmation(order: any, items: any[], locale: st
     </tr>
   `).join('');
 
-  const htmlContent = \`<!DOCTYPE html>
+  const htmlContent = `<!DOCTYPE html>
 <html lang="\${locale}">
 <head>
   <meta charset="utf-8">
@@ -338,19 +338,19 @@ export async function sendOrderConfirmation(order: any, items: any[], locale: st
       </table>
     </td></tr>
   </table>
-</body></html>\`;
+</body></html>`;
 
   try {
     if (emailProvider === "smtp") {
       const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
       if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
       const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: \`"Meraki Experience" <\${smtp_user}>\`, to: order.buyer_email, subject: t.subject, html: htmlContent });
+      await transporter.sendMail({ from: `"Meraki Experience" <\${smtp_user}>`, to: order.buyer_email, subject: t.subject, html: htmlContent });
       return { success: true };
     } else {
       if (!activeApiKey) return { success: false };
       const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: \`Meraki Experience <\${FROM_EMAIL}>\`, to: order.buyer_email, subject: t.subject, html: htmlContent });
+      await resend.emails.send({ from: `Meraki Experience <\${FROM_EMAIL}>`, to: order.buyer_email, subject: t.subject, html: htmlContent });
       return { success: true };
     }
   } catch (error) {
@@ -367,11 +367,11 @@ export async function sendOrderNotification(order: any, items: any[]) {
   const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
   const targetEmail = integrations?.admin_email || "amministrazione.meraki@gmail.com";
 
-  const subject = \`Nuovo Ordine Shop: \${order.numero_ordine}\`;
+  const subject = `Nuovo Ordine Shop: \${order.numero_ordine}`;
   
-  const itemsHtml = items.map(i => \`<li>\${i.product_nome} (\${i.variant_descrizione || ''}) x\${i.quantita}</li>\`).join('');
+  const itemsHtml = items.map(i => `<li>\${i.product_nome} (\${i.variant_descrizione || ''}) x\${i.quantita}</li>`).join('');
 
-  const htmlContent = \`<!DOCTYPE html>
+  const htmlContent = `<!DOCTYPE html>
 <html lang="it">
 <head><meta charset="utf-8"></head>
 <body style="margin: 0; padding: 40px 20px; font-family: -apple-system, sans-serif; background-color: #f5f5f7;">
@@ -382,18 +382,18 @@ export async function sendOrderNotification(order: any, items: any[]) {
     <p>Totale: €\${(order.total_cents / 100).toFixed(2)}</p>
     <a href="\${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/it/admin/ordini" style="display: inline-block; background: #1d1d1f; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin-top: 16px;">Gestisci Ordini</a>
   </div>
-</body></html>\`;
+</body></html>`;
 
   try {
     if (emailProvider === "smtp") {
       const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
       if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
       const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: \`"Sistema" <\${smtp_user}>\`, to: targetEmail, subject, html: htmlContent });
+      await transporter.sendMail({ from: `"Sistema" <\${smtp_user}>`, to: targetEmail, subject, html: htmlContent });
     } else {
       if (!activeApiKey) return { success: false };
       const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: \`Sistema <\${FROM_EMAIL}>\`, to: targetEmail, subject, html: htmlContent });
+      await resend.emails.send({ from: `Sistema <\${FROM_EMAIL}>`, to: targetEmail, subject, html: htmlContent });
     }
   } catch (error) {
     console.error("Failed to send admin order notification:", error);
@@ -409,7 +409,7 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
 
   const subject = locale === 'it' ? "Il tuo biglietto - ASD Meraki Experience" : "Your Ticket - ASD Meraki Experience";
   
-  const htmlContent = \`<!DOCTYPE html>
+  const htmlContent = `<!DOCTYPE html>
 <html lang="\${locale}">
 <head><meta charset="utf-8"></head>
 <body style="margin: 0; padding: 40px 20px; font-family: -apple-system, sans-serif; background-color: #f5f5f7;">
@@ -421,18 +421,18 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
     </div>
     <p style="color: #86868b; font-size: 14px;">\${locale === 'it' ? 'Mostra questo codice all\\'ingresso.' : 'Show this code at the entrance.'}</p>
   </div>
-</body></html>\`;
+</body></html>`;
 
   try {
     if (emailProvider === "smtp") {
       const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
       if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
       const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: \`"Meraki Experience" <\${smtp_user}>\`, to: ticket.buyer_email, subject, html: htmlContent });
+      await transporter.sendMail({ from: `"Meraki Experience" <\${smtp_user}>`, to: ticket.buyer_email, subject, html: htmlContent });
     } else {
       if (!activeApiKey) return { success: false };
       const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: \`Meraki Experience <\${FROM_EMAIL}>\`, to: ticket.buyer_email, subject, html: htmlContent });
+      await resend.emails.send({ from: `Meraki Experience <\${FROM_EMAIL}>`, to: ticket.buyer_email, subject, html: htmlContent });
     }
   } catch (error) {
     console.error("Failed to send ticket:", error);
