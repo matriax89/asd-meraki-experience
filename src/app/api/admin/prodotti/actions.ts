@@ -8,6 +8,7 @@ interface ProductFormData {
   nome: string;
   slug: string;
   categoria: string;
+  sottocategoria?: string;
   descrizione_breve?: string;
   descrizione_lunga?: string;
   prezzo_base_cents: number;

@@ -26,6 +26,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
     nome: initialData?.nome || "",
     slug: initialData?.slug || "",
     categoria: initialData?.categoria || "abbigliamento",
+    sottocategoria: initialData?.sottocategoria || "",
     descrizione_breve: initialData?.descrizione_breve || "",
     descrizione_lunga: initialData?.descrizione_lunga || "",
     prezzo_euro: initialPriceEuro,
@@ -93,6 +94,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
       nome: formData.nome,
       slug: formData.slug,
       categoria: formData.categoria,
+      sottocategoria: formData.sottocategoria || null,
       descrizione_breve: formData.descrizione_breve,
       descrizione_lunga: formData.descrizione_lunga,
       prezzo_base_cents,
@@ -145,10 +147,15 @@ export function ProductForm({ initialData }: ProductFormProps) {
             options={[
               { value: "abbigliamento", label: "Abbigliamento" },
               { value: "accessori", label: "Accessori" },
-              { value: "attrezzatura", label: "Attrezzatura" }
+              { value: "altro", label: "Altro" }
             ]}
             value={formData.categoria}
             onChange={e => setFormData({...formData, categoria: e.target.value})}
+          />
+          <Input 
+            label="Sottocategoria / Tipologia (Es: T-Shirt, Felpa)" 
+            value={formData.sottocategoria} 
+            onChange={e => setFormData({...formData, sottocategoria: e.target.value})} 
           />
           <div className="relative">
             <Input 
