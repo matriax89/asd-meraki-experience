@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
+import Script from "next/script";
 import "../globals.css";
 
 const inter = Inter({
@@ -131,7 +132,9 @@ export default async function LocaleLayout({
         
         {integrations?.facebook_pixel_id && (
           <>
-            <script
+            <Script
+              id="fb-pixel"
+              strategy="afterInteractive"
               dangerouslySetInnerHTML={{
                 __html: `
                   !function(f,b,e,v,n,t,s)
