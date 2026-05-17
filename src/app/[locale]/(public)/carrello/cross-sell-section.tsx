@@ -5,26 +5,16 @@ import { addToCart } from "@/lib/shop/cart-actions";
 import { useRouter } from "@/i18n/routing";
 import { Plus, Loader2 } from "lucide-react";
 
-const CROSS_SELL_PRODUCTS = [
-  {
-    id: "mock-3",
-    variantId: "mock-3",
-    nome: "Borraccia Termica 500ml",
-    categoria: "ACCESSORI",
-    prezzo_base_cents: 1900,
-    copertina_url: "/images/v2/aerial_glow.png"
-  },
-  {
-    id: "mock-2",
-    variantId: "mock-2",
-    nome: "Tappetino Premium",
-    categoria: "ACCESSORI",
-    prezzo_base_cents: 4500,
-    copertina_url: "/images/v2/salsation_glow.png"
-  }
-];
+export type CrossSellItem = {
+  id: string;
+  variantId: string;
+  nome: string;
+  categoria: string;
+  prezzo_base_cents: number;
+  copertina_url: string;
+};
 
-export function CrossSellSection() {
+export function CrossSellSection({ items }: { items: CrossSellItem[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -41,10 +31,10 @@ export function CrossSellSection() {
   return (
     <div className="mt-12 pt-10 border-t border-slate-100">
       <h3 className="text-xl font-bold text-slate-800 mb-2">Completa il tuo look</h3>
-      <p className="text-sm text-slate-500 mb-6">Aggiungi questi accessori al carrello e ottieni un 10% di sconto bundle.</p>
+      <p className="text-sm text-slate-500 mb-6">Aggiungi questi prodotti al carrello per completare il tuo acquisto.</p>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {CROSS_SELL_PRODUCTS.map(product => (
+        {items.map(product => (
           <div key={product.id} className="flex bg-white border border-slate-100 rounded-2xl p-3 shadow-sm hover:shadow-md transition-shadow">
             <div className="w-20 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0">
               <img src={product.copertina_url} alt={product.nome} className="w-full h-full object-cover" />

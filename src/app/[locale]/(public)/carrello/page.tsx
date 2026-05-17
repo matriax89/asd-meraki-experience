@@ -21,17 +21,7 @@ export default async function CarrelloPage() {
       .select("*, product:products(*)")
       .in("id", variantIds);
 
-    // MOCK DATA INJECTION per far funzionare il carrello con i prodotti finti
-    const isMock = variantIds.some(id => id.startsWith("v") || id.startsWith("mock"));
-    if (isMock) {
-      varianti = [
-        { id: "v1", taglia: "S", stock: 5, prezzo_cents: 2900, product: { nome: "T-Shirt Ufficiale Meraki", copertina_url: "/images/v2/yoga_moody.png", prezzo_base_cents: 2900, slug: "t-shirt-basic" } },
-        { id: "v2", taglia: "M", stock: 10, prezzo_cents: 2900, product: { nome: "T-Shirt Ufficiale Meraki", copertina_url: "/images/v2/yoga_moody.png", prezzo_base_cents: 2900, slug: "t-shirt-basic" } },
-        { id: "v3", taglia: "L", stock: 3, prezzo_cents: 2900, product: { nome: "T-Shirt Ufficiale Meraki", copertina_url: "/images/v2/yoga_moody.png", prezzo_base_cents: 2900, slug: "t-shirt-basic" } },
-        { id: "mock-2", taglia: null, stock: 10, product: { nome: "Tappetino Premium Eco-Friendly", copertina_url: "/images/v2/salsation_glow.png", prezzo_base_cents: 4500, slug: "tappetino-yoga" } },
-        { id: "mock-3", taglia: null, stock: 10, product: { nome: "Borraccia Termica 500ml", copertina_url: "/images/v2/aerial_glow.png", prezzo_base_cents: 1900, slug: "borraccia-termica" } },
-      ] as any;
-    }
+
 
     if (varianti) {
       cartDetails = cart.items.map((cartItem) => {
@@ -51,8 +41,23 @@ export default async function CarrelloPage() {
     }
   }
 
-  // Verifica se i prodotti "Bundle" sono nel carrello per applicare lo sconto consigliato
-  const hasCrossSellDiscount = variantIds.includes("mock-2") || variantIds.includes("mock-3");
+  // Fetch real cross sell variants (up to 10 to filter from)
+  const { data: allVariants } = await supabase
+    .from("product_variants")
+    .select("*, product:products(*)")
+    .limit(10);
+    
+  const crossSellItems = (allVariants || [])
+    .filter(v => !variantIds.includes(v.id) && (v.product as any)?.status === "published")
+    .slice(0, 2)
+    .map(v => ({
+      id: v.id,
+      variantId: v.id,
+      nome: v.product?.nome || "Prodotto",
+      categoria: "CONSIGLIATO",
+      prezzo_base_cents: v.prezzo_cents || v.product?.prezzo_base_cents || 0,
+      copertina_url: v.product?.copertina_url || "/images/placeholder.png"
+    }));
 
   return (
     <div className="container py-12 md:py-24 max-w-6xl">
@@ -72,14 +77,13 @@ export default async function CarrelloPage() {
           {/* Main Content Column */}
           <div className="lg:col-span-7 xl:col-span-8">
             <CartItemsList initialItems={cartDetails} />
-            <CrossSellSection />
+            {crossSellItems.length > 0 && <CrossSellSection items={crossSellItems} />}
           </div>
           
           {/* Sidebar Summary Column */}
           <div className="lg:col-span-5 xl:col-span-4">
             <CartSummaryClient 
               subtotalCents={subtotal} 
-              hasCrossSellDiscount={hasCrossSellDiscount}
               cartItems={cartDetails.map(i => ({ 
                 variantId: i.variantId, 
                 quantity: i.quantity, 

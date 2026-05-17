@@ -6,11 +6,10 @@ import { Link } from "@/i18n/routing";
 
 type CartSummaryClientProps = {
   subtotalCents: number;
-  hasCrossSellDiscount?: boolean;
   cartItems: { variantId: string; quantity: number; priceCents: number; productId: string }[];
 };
 
-export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false, cartItems }: CartSummaryClientProps) {
+export function CartSummaryClient({ subtotalCents, cartItems }: CartSummaryClientProps) {
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; type: "percentage" | "fixed"; value: number; discountAmount: number } | null>(null);
   const [isApplying, setIsApplying] = useState(false);
@@ -22,9 +21,6 @@ export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false,
 
   // 1. Cross-sell Bundle Discount (e.g., 10% off if a recommended product is in cart)
   let bundleDiscountAmount = 0;
-  if (hasCrossSellDiscount) {
-    bundleDiscountAmount = subtotal * 0.10; // 10% bundle discount
-  }
 
   // 2. Coupon Discount
   let couponDiscountAmount = 0;
@@ -167,12 +163,7 @@ export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false,
           <span>€{subtotal.toFixed(2)}</span>
         </div>
         
-        {hasCrossSellDiscount && (
-          <div className="flex justify-between text-slate-900 font-bold">
-            <span>Sconto Bundle (10%)</span>
-            <span>-€{bundleDiscountAmount.toFixed(2)}</span>
-          </div>
-        )}
+
 
         {appliedCoupon && (
           <div className="flex justify-between text-green-600 font-bold">
