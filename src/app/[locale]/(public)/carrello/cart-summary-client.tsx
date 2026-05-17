@@ -110,7 +110,7 @@ export function CartSummaryClient({ subtotalCents, cartItems }: CartSummaryClien
   };
 
   return (
-    <div className="bg-white rounded-3xl p-6 md:p-8 sticky top-24 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100">
+    <div className="bg-slate-50/50 backdrop-blur-xl rounded-3xl p-6 md:p-8 sticky top-24 shadow-sm border border-slate-200/60">
       <h2 className="text-xl font-bold text-slate-800 mb-6">Riepilogo Ordine</h2>
       
       {/* Coupon Section */}

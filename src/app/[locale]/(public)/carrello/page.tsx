@@ -41,14 +41,15 @@ export default async function CarrelloPage() {
     }
   }
 
-  // Fetch real cross sell variants (up to 10 to filter from)
+  // Fetch real cross sell variants
   const { data: allVariants } = await supabase
     .from("product_variants")
-    .select("*, product:products(*)")
-    .limit(10);
+    .select("*, product:products!inner(*)")
+    .eq("attivo", true)
+    .limit(50);
     
   const crossSellItems = (allVariants || [])
-    .filter(v => !variantIds.includes(v.id) && (v.product as any)?.status === "published")
+    .filter(v => !variantIds.includes(v.id))
     .slice(0, 2)
     .map(v => ({
       id: v.id,
@@ -60,7 +61,7 @@ export default async function CarrelloPage() {
     }));
 
   return (
-    <div className="container py-12 md:py-24 max-w-6xl">
+    <div className="container py-12 md:py-24 max-w-5xl">
       <h1 className="text-4xl font-extrabold text-slate-900 mb-8 tracking-tight">
         Il tuo Carrello
       </h1>
