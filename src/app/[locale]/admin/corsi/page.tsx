@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/admin/data-table";
 import { Link } from "@/i18n/routing";
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export default async function AdminCorsiPage() {
+  const locale = await getLocale();
   const supabase = await createClient();
 
   const { data: courses, error } = await supabase
@@ -37,7 +40,7 @@ export default async function AdminCorsiPage() {
       header: "Corso",
       cell: (course: any) => (
         <div>
-          <span className="block font-bold text-slate-900">{course.nome}</span>
+          <span className="block font-bold text-slate-900">{getLocalizedText(course.nome, locale)}</span>
           <span className="block text-[13px] text-slate-500 uppercase tracking-widest mt-0.5">{course.disciplina}</span>
         </div>
       )

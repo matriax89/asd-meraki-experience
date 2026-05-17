@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/admin/data-table";
 import { Link } from "@/i18n/routing";
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export default async function AdminProdottiPage() {
+  const locale = await getLocale();
   const supabase = await createClient();
 
   // Fetch products with their variants to show aggregated stock
@@ -45,7 +48,7 @@ export default async function AdminProdottiPage() {
       header: "Prodotto",
       cell: (p: any) => (
         <div>
-          <span className="block font-bold text-slate-900">{p.nome}</span>
+          <span className="block font-bold text-slate-900">{getLocalizedText(p.nome, locale)}</span>
           <span className="block text-[13px] text-slate-500 capitalize mt-0.5">{p.categoria}</span>
         </div>
       )
