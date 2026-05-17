@@ -28,7 +28,7 @@ export default async function AdminCouponsPage() {
         </p>
       </div>
 
-      <CouponClient initialCoupons={coupons || []} />
+      <CouponClient initialCoupons={(coupons || []) as any} />
     </div>
   );
 }
