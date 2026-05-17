@@ -14,6 +14,7 @@ export function CartSummaryClient({ subtotalCents, cartItems }: CartSummaryClien
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; type: "percentage" | "fixed"; value: number; discountAmount: number } | null>(null);
   const [isApplying, setIsApplying] = useState(false);
   const [couponError, setCouponError] = useState("");
+  const [isHandDelivery, setIsHandDelivery] = useState(false);
 
   const subtotal = subtotalCents / 100;
   let total = subtotal;
@@ -172,9 +173,33 @@ export function CartSummaryClient({ subtotalCents, cartItems }: CartSummaryClien
           </div>
         )}
 
-        <div className="flex justify-between text-slate-500 font-medium">
+        <div className="flex justify-between items-center text-slate-500 font-medium">
           <span>Spedizione</span>
-          <span>Calcolata al checkout</span>
+          {isHandDelivery ? (
+            <span className="text-green-600 font-bold">Gratis (a mano)</span>
+          ) : (
+            <span>Calcolata al checkout</span>
+          )}
+        </div>
+        
+        {/* Toggle Consegna a mano */}
+        <div className="pt-2">
+          <label className="flex items-center gap-3 p-4 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors group">
+            <div className="relative flex items-center">
+              <input 
+                type="checkbox" 
+                className="sr-only" 
+                checked={isHandDelivery}
+                onChange={(e) => setIsHandDelivery(e.target.checked)}
+              />
+              <div className={`block w-10 h-6 rounded-full transition-colors ${isHandDelivery ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
+              <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${isHandDelivery ? 'transform translate-x-4' : ''}`}></div>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-slate-800 text-sm">Consegna a mano</span>
+              <span className="text-xs text-slate-500 font-medium">Ritiro gratuito in sede o a lezione</span>
+            </div>
+          </label>
         </div>
         
         <div className="border-t border-slate-100 pt-4 flex justify-between items-end">
@@ -190,6 +215,7 @@ export function CartSummaryClient({ subtotalCents, cartItems }: CartSummaryClien
 
       <form action="/api/checkout/shop" method="POST">
         <input type="hidden" name="coupon" value={appliedCoupon?.code || ""} />
+        <input type="hidden" name="hand_delivery" value={isHandDelivery ? "true" : "false"} />
         <button 
           type="submit"
           className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-6 rounded-xl transition-all hover:shadow-lg flex items-center justify-center gap-2 group"

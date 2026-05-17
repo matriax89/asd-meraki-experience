@@ -58,17 +58,18 @@ export async function POST(request: Request) {
       });
     }
 
+    const formData = await request.formData().catch(() => null);
+    const couponCode = formData?.get("coupon")?.toString();
+    const isHandDelivery = formData?.get("hand_delivery") === "true";
+    
     // In a real app we might fetch shipping options from the database.
     // For now we'll add a fixed standard shipping of 5.00 EUR (500 cents), or free if subtotal > 100 EUR.
-    const shippingCost = subtotalCents > 10000 ? 0 : 500;
+    const shippingCost = isHandDelivery ? 0 : (subtotalCents > 10000 ? 0 : 500);
     
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
     // Generate temporary order id metadata to pass to Stripe
     const tempOrderId = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
-    const formData = await request.formData().catch(() => null);
-    const couponCode = formData?.get("coupon")?.toString();
 
     let stripeCouponId: string | undefined = undefined;
 
@@ -134,14 +135,27 @@ export async function POST(request: Request) {
       }
     }
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card", "paypal"], // Added paypal if enabled
+    const sessionConfig: any = {
+      payment_method_types: ["card", "paypal"],
       line_items: lineItems,
       mode: "payment",
-      shipping_address_collection: {
-        allowed_countries: ["IT", "AT", "DE"],
+      discounts: stripeCouponId ? [{ coupon: stripeCouponId }] : undefined,
+      success_url: `${siteUrl}/api/checkout/success?session_id={CHECKOUT_SESSION_ID}&type=shop`,
+      cancel_url: `${siteUrl}/carrello`,
+      metadata: {
+        flow_type: "shop_order",
+        cart_data: JSON.stringify(cart.items),
+        temp_order_id: tempOrderId,
+        coupon_code: couponCode || "",
+        hand_delivery: isHandDelivery ? "true" : "false",
       },
-      shipping_options: [
+    };
+
+    if (!isHandDelivery) {
+      sessionConfig.shipping_address_collection = {
+        allowed_countries: ["IT", "AT", "DE"],
+      };
+      sessionConfig.shipping_options = [
         {
           shipping_rate_data: {
             type: "fixed_amount",
@@ -153,17 +167,10 @@ export async function POST(request: Request) {
             },
           },
         },
-      ],
-      discounts: stripeCouponId ? [{ coupon: stripeCouponId }] : undefined,
-      success_url: `${siteUrl}/api/checkout/success?session_id={CHECKOUT_SESSION_ID}&type=shop`,
-      cancel_url: `${siteUrl}/carrello`,
-      metadata: {
-        flow_type: "shop_order",
-        cart_data: JSON.stringify(cart.items),
-        temp_order_id: tempOrderId,
-        coupon_code: couponCode || "",
-      },
-    });
+      ];
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
 
     if (session.url) {
       return NextResponse.redirect(session.url, 303);
