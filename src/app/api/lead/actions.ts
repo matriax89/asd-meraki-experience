@@ -3,7 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 // In a real scenario we'd use resend here, but for now we simulate or fallback
-import { sendLeadNotification } from "@/lib/resend/client";
+import { sendLeadNotification, sendAutoReply } from "@/lib/resend/client";
 
 export async function submitLead(formData: FormData) {
   const nome = formData.get("nome") as string;
@@ -41,10 +41,11 @@ export async function submitLead(formData: FormData) {
       return { error: "Errore durante il salvataggio della richiesta." };
     }
 
-    // Try sending email if resend is configured
+    // Try sending email if configured
     try {
       await sendLeadNotification(lead);
-      console.log("Sent email via Resend for lead", lead.id);
+      await sendAutoReply(lead);
+      console.log("Sent emails for lead", lead.id);
     } catch (emailError) {
       console.error("Email notification failed, but lead was saved:", emailError);
     }
@@ -92,7 +93,8 @@ export async function submitContact(formData: FormData) {
     // Try sending email
     try {
       await sendLeadNotification(lead);
-      console.log("Sent email via Resend for contact", lead.id);
+      await sendAutoReply(lead);
+      console.log("Sent emails for contact", lead.id);
     } catch (emailError) {
       console.error("Email notification failed, but contact was saved:", emailError);
     }
