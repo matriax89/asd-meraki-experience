@@ -93,7 +93,7 @@ export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }:
                   {cartData.items.map((item) => (
                     <div key={item.variantId} className="flex gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors group">
                       {/* Image */}
-                      <div className="w-16 h-16 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-100 flex items-center justify-center p-1.5">
+                      <div className="w-16 h-16 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-100 flex items-center justify-center">
                         {item.variant?.immagini_urls && item.variant.immagini_urls.length > 0 ? (
                           <img src={item.variant.immagini_urls[0]} alt={item.product?.nome} className="w-full h-full object-cover" />
                         ) : item.product?.copertina_url ? (

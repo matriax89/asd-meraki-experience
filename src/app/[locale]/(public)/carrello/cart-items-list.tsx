@@ -27,7 +27,7 @@ export function CartItemsList({ initialItems }: { initialItems: any[] }) {
     <div className={`space-y-6 ${isPending ? 'opacity-50 pointer-events-none' : ''} transition-opacity duration-300`}>
       {initialItems.map((item) => (
         <div key={item.variantId} className="flex gap-5 md:gap-6 p-4 md:p-5 bg-white border border-slate-100 rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] group">
-          <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center p-2">
+          <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center">
             {item.variant?.immagini_urls && item.variant.immagini_urls.length > 0 ? (
               <img src={item.variant.immagini_urls[0]} alt={item.product.nome} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
             ) : item.product.copertina_url ? (
