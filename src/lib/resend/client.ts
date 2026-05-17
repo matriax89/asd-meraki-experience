@@ -75,7 +75,7 @@ export async function sendLeadNotification(lead: any) {
               </div>
               
               <div style="text-align: left;">
-                <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/admin/dashboard/leads" style="display: inline-block; background-color: #1d1d1f; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 500; padding: 12px 24px; border-radius: 8px;">Gestisci nella Dashboard</a>
+                <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/it/admin/leads" style="display: inline-block; background-color: #1d1d1f; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 500; padding: 12px 24px; border-radius: 8px;">Gestisci nella Dashboard</a>
               </div>
             </td>
           </tr>
