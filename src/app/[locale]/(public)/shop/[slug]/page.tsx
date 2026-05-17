@@ -62,12 +62,12 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
           
           {/* Left Column: Image Gallery Slider */}
-          <div className="lg:col-span-7 flex flex-col gap-4 md:gap-6">
+          <div className="lg:col-span-6 xl:col-span-5 flex flex-col gap-4 md:gap-6">
             <ProductGallery images={images} nome={prodotto.nome} />
           </div>
 
           {/* Right Column: Info & Buy (Sticky) */}
-          <div className="lg:col-span-5 sticky top-32 flex flex-col">
+          <div className="lg:col-span-6 xl:col-span-6 xl:col-start-7 sticky top-32 flex flex-col">
             <div className="mb-6">
               <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mb-3 leading-tight">
                 {prodotto.nome}

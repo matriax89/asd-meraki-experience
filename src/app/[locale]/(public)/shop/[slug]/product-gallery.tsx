@@ -29,12 +29,12 @@ export function ProductGallery({ images, nome }: ProductGalleryProps) {
 
   if (images.length === 0) {
     return (
-      <div className="aspect-[4/5] bg-gradient-to-tr from-secondary to-muted rounded-[2rem] relative border border-border/50 shadow-sm" />
+      <div className="aspect-square bg-gradient-to-tr from-secondary to-muted rounded-[2rem] relative border border-border/50 shadow-sm" />
     );
   }
 
   return (
-    <div className="relative group aspect-[4/5] bg-muted/30 rounded-[2rem] overflow-hidden border border-border/50 shadow-sm">
+    <div className="relative group aspect-square bg-muted/30 rounded-[2rem] overflow-hidden border border-border/50 shadow-sm">
       <div 
         className="flex w-full h-full transition-transform duration-700 ease-in-out"
         style={{ transform: `translateX(-${currentIndex * 100}%)` }}
