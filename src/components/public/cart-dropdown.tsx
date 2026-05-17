@@ -5,6 +5,8 @@ import { Link, useRouter } from "@/i18n/routing";
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Loader2 } from "lucide-react";
 import { getHydratedCart, updateCartItemQuantity, removeFromCart } from "@/lib/shop/cart-actions";
 import { AnimatePresence, motion } from "framer-motion";
+import { useLocale } from "next-intl";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }: { initialCount?: number; isTransparentAndHome?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,6 +14,7 @@ export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }:
   const [isLoading, setIsLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const locale = useLocale();
 
   // Fetch dei dettagli ogni volta che initialCount cambia (es. quando l'utente aggiunge qualcosa e la pagina fa router.refresh)
   // Oppure la prima volta che apre il dropdown
@@ -95,9 +98,9 @@ export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }:
                       {/* Image */}
                       <div className="w-16 h-16 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-100 flex items-center justify-center">
                         {item.variant?.immagini_urls && item.variant.immagini_urls.length > 0 ? (
-                          <img src={item.variant.immagini_urls[0]} alt={item.product?.nome} className="w-full h-full object-cover" />
+                          <img src={item.variant.immagini_urls[0]} alt={getLocalizedText(item.product?.nome, locale)} className="w-full h-full object-cover" />
                         ) : item.product?.copertina_url ? (
-                          <img src={item.product.copertina_url} alt={item.product?.nome} className="w-full h-full object-cover" />
+                          <img src={item.product.copertina_url} alt={getLocalizedText(item.product?.nome, locale)} className="w-full h-full object-cover" />
                         ) : (
                           <img src="/images/logo-meraki.png" alt="Meraki" className="w-1/2 h-1/2 object-contain opacity-50 grayscale" />
                         )}
@@ -105,7 +108,7 @@ export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }:
                       
                       {/* Info */}
                       <div className="flex flex-col flex-1 min-w-0">
-                        <h4 className="font-bold text-slate-800 text-sm leading-tight truncate">{item.product?.nome}</h4>
+                        <h4 className="font-bold text-slate-800 text-sm leading-tight truncate">{getLocalizedText(item.product?.nome, locale)}</h4>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                           {item.variant?.taglia || item.variant?.colore || "UNICA"}
                         </span>
