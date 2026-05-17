@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AddToCartForm } from "./add-to-cart-form";
 import { Link } from "@/i18n/routing";
 import { ChevronRight } from "lucide-react";
+import { ProductGallery } from "./product-gallery";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -60,22 +61,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
           
-          {/* Left Column: Images (Stack on desktop, swipe on mobile natively with CSS snap if we wanted, but stack is fine for high-end look) */}
+          {/* Left Column: Image Gallery Slider */}
           <div className="lg:col-span-7 flex flex-col gap-4 md:gap-6">
-            {images.length > 0 ? (
-              images.map((url, idx) => (
-                <div key={idx} className="aspect-[4/5] bg-muted/30 rounded-[2rem] overflow-hidden relative border border-border/50 shadow-sm">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img 
-                    src={url} 
-                    alt={`${prodotto.nome} - Vista ${idx + 1}`} 
-                    className="object-cover w-full h-full hover:scale-105 transition-transform duration-700 ease-out" 
-                  />
-                </div>
-              ))
-            ) : (
-              <div className="aspect-[4/5] bg-gradient-to-tr from-secondary to-muted rounded-[2rem] relative border border-border/50" />
-            )}
+            <ProductGallery images={images} nome={prodotto.nome} />
           </div>
 
           {/* Right Column: Info & Buy (Sticky) */}
