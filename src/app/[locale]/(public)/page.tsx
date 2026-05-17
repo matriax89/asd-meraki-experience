@@ -364,6 +364,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               fasce={fasce} 
               giorniSettimana={giorni.map(g => ({ ...g, short: g.label.substring(0, 3).toUpperCase() }))} 
               locations={locations} 
+              locale={locale}
             />
           </FadeIn>
         </div>

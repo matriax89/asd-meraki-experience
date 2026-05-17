@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
-export function ScheduleClient({ slotsByDay, fasce, giorniSettimana, locations }: any) {
+export function ScheduleClient({ slotsByDay, fasce, giorniSettimana, locations, locale }: any) {
   const [selectedLocation, setSelectedLocation] = useState<string>("all");
 
   return (
@@ -57,7 +58,7 @@ export function ScheduleClient({ slotsByDay, fasce, giorniSettimana, locations }
                             <div key={idx} className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl p-3 flex flex-col transition-all hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:border-indigo-200 dark:hover:border-indigo-800 shadow-sm cursor-pointer group">
                               <div className="flex justify-between items-start mb-1">
                                 <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest group-hover:text-indigo-700 transition-colors">
-                                  {slot.course?.disciplina || "Corso"}
+                                  {getLocalizedText(slot.course?.disciplina, locale) || "Corso"}
                                 </span>
                                 {slot.sede && (
                                   <span className="text-[9px] font-bold bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full uppercase">
@@ -66,7 +67,7 @@ export function ScheduleClient({ slotsByDay, fasce, giorniSettimana, locations }
                                 )}
                               </div>
                               <span className="font-bold text-[14px] text-foreground leading-tight mb-1 group-hover:text-indigo-600 transition-colors">
-                                {slot.course?.nome || "Allenamento"}
+                                {getLocalizedText(slot.course?.nome, locale) || "Allenamento"}
                               </span>
                               <span className="text-[12px] text-muted-foreground mt-auto">
                                 {slot.ora_inizio?.substring(0, 5)} – {slot.ora_fine?.substring(0, 5)}
