@@ -9,6 +9,7 @@ export async function createTicketCheckoutSession({
   buyerEmail,
   tipo,
   siteUrl,
+  locale,
 }: {
   eventId: string;
   eventSlug: string;
