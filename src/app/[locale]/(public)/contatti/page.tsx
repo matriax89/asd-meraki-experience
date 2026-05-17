@@ -37,7 +37,7 @@ export default async function ContattiPage({ params }: { params: Promise<{ local
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-12 items-start">
           {/* Info Card */}
-          <div className="lg:col-span-2 bg-slate-900 rounded-[40px] p-10 md:p-12 text-white shadow-[0_20px_40px_rgb(0,0,0,0.2)] relative overflow-hidden h-full flex flex-col justify-between">
+          <div className="lg:col-span-2 bg-slate-900 rounded-[32px] md:rounded-[40px] p-6 sm:p-8 md:p-12 text-white shadow-[0_20px_40px_rgb(0,0,0,0.2)] relative overflow-hidden h-full flex flex-col justify-between">
             {/* Background decoration */}
             <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-slate-800 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
             
@@ -54,14 +54,14 @@ export default async function ContattiPage({ params }: { params: Promise<{ local
                       <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 group-hover:bg-white/20 group-hover:scale-110 transition-all duration-300">
                         <item.icon className="w-5 h-5 text-white" />
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-slate-400 mb-1">{item.title}</p>
                         {item.href ? (
-                          <a href={item.href} className="text-lg font-semibold hover:text-slate-300 transition-colors">
+                          <a href={item.href} className="text-base sm:text-lg font-semibold hover:text-slate-300 transition-colors break-all sm:break-words">
                             {item.content}
                           </a>
                         ) : (
-                          <p className="text-lg font-semibold">{item.content}</p>
+                          <p className="text-base sm:text-lg font-semibold break-words">{item.content}</p>
                         )}
                       </div>
                     </div>
@@ -79,7 +79,7 @@ export default async function ContattiPage({ params }: { params: Promise<{ local
           </div>
 
           {/* Form Card */}
-          <div className="lg:col-span-3 bg-white rounded-[40px] p-10 md:p-12 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100">
+          <div className="lg:col-span-3 bg-white rounded-[32px] md:rounded-[40px] p-6 sm:p-8 md:p-12 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100">
             <h2 className="text-2xl font-bold text-slate-900 mb-2">{t("form_title")}</h2>
             <p className="text-slate-500 mb-10">{t("form_desc")}</p>
             <ContactForm />
