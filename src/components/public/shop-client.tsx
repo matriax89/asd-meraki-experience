@@ -9,30 +9,21 @@ type ShopClientProps = {
   prodotti: any[];
 };
 
-const FILTERS = ["Tutti", "Magliette", "Felpe", "Borse", "Borracce", "Asciugamani"];
-
 export function ShopClient({ prodotti }: ShopClientProps) {
   const [activeFilter, setActiveFilter] = useState("Tutti");
 
+  const availableCategories = Array.from(new Set(prodotti.map(p => p.categoria))).filter(Boolean);
+  const dynamicFilters = [
+    { id: "Tutti", label: "Tutti" },
+    ...availableCategories.map(cat => ({
+      id: cat as string,
+      label: cat === "abbigliamento" ? "Abbigliamento" : cat === "accessori" ? "Accessori" : "Altro"
+    }))
+  ];
+
   const filteredProdotti = prodotti.filter((p) => {
     if (activeFilter === "Tutti") return true;
-    
-    const searchText = `${p.nome} ${p.sottocategoria || ""} ${p.descrizione_breve || ""}`.toLowerCase();
-    
-    switch (activeFilter) {
-      case "Magliette": 
-        return searchText.includes("t-shirt") || searchText.includes("magliett");
-      case "Felpe": 
-        return searchText.includes("felp") || searchText.includes("hoodie");
-      case "Borse": 
-        return searchText.includes("bors") || searchText.includes("zain");
-      case "Borracce": 
-        return searchText.includes("borracc") || searchText.includes("bottigl");
-      case "Asciugamani": 
-        return searchText.includes("asciugaman") || searchText.includes("telo");
-      default: 
-        return true;
-    }
+    return p.categoria === activeFilter;
   });
 
   return (
@@ -47,17 +38,17 @@ export function ShopClient({ prodotti }: ShopClientProps) {
           </div>
           
           <div className="flex lg:flex-col flex-row flex-wrap gap-2 lg:gap-1">
-            {FILTERS.map((filter) => (
+            {dynamicFilters.map((filter) => (
               <button
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
+                key={filter.id}
+                onClick={() => setActiveFilter(filter.id)}
                 className={`text-left px-4 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm md:text-base ${
-                  activeFilter === filter
+                  activeFilter === filter.id
                     ? "bg-foreground text-background shadow-md"
                     : "bg-secondary/30 text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                 }`}
               >
-                {filter}
+                {filter.label}
               </button>
             ))}
           </div>
