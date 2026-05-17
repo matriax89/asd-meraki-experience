@@ -37,28 +37,48 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
       <JsonLd schema={courseSchema} />
       <div className="container py-12 md:py-24">
       {/* Hero Section */}
-      <div className="aspect-[21/9] md:aspect-[3/1] bg-muted rounded-2xl overflow-hidden mb-12 relative border border-border">
+      <div className="aspect-[21/9] md:aspect-[3/1] bg-slate-900 rounded-[32px] overflow-hidden mb-16 relative border-4 border-white shadow-[0_20px_40px_rgb(0,0,0,0.12)]">
         {corso.copertina_url ? (
           <img 
             src={corso.copertina_url} 
             alt={getLocalizedText(corso.nome, locale)} 
-            className="object-cover w-full h-full" 
+            className="object-cover w-full h-full opacity-80 mix-blend-overlay" 
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-tr from-primary/80 to-secondary/80" />
+          <div className="absolute inset-0 bg-gradient-to-tr from-indigo-900 via-slate-900 to-indigo-800" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent flex items-end p-8 md:p-12">
-          <div className="max-w-3xl">
-            <div className="inline-block bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4">
-              {corso.disciplina}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent flex items-end p-8 md:p-14">
+          <div className="max-w-4xl relative z-10 w-full flex flex-col md:flex-row md:items-end justify-between gap-8">
+            <div>
+              <div className="inline-flex items-center bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6">
+                {corso.disciplina}
+              </div>
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-extrabold text-white mb-4 tracking-tight drop-shadow-md">
+                {getLocalizedText(corso.nome, locale)}
+              </h1>
+              {corso.descrizione_breve && (
+                <p className="text-xl md:text-2xl text-white/90 max-w-2xl font-medium leading-relaxed">
+                  {getLocalizedText(corso.descrizione_breve, locale)}
+                </p>
+              )}
             </div>
-            <h1 className="text-4xl md:text-6xl font-heading font-bold text-foreground mb-4">
-              {getLocalizedText(corso.nome, locale)}
-            </h1>
-            {corso.descrizione_breve && (
-              <p className="text-xl md:text-2xl text-foreground/90">
-                {getLocalizedText(corso.descrizione_breve, locale)}
-              </p>
+
+            {corso.istruttore && (
+              <div className="hidden md:flex flex-shrink-0 items-center gap-4 bg-white/10 backdrop-blur-xl p-4 rounded-[24px] border border-white/20 shadow-2xl">
+                 <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-800 border-2 border-white/50 shadow-inner">
+                    {corso.istruttore.foto_url ? (
+                      <img src={corso.istruttore.foto_url} className="w-full h-full object-cover" alt={corso.istruttore.nome} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xl font-bold text-white">
+                        {corso.istruttore.nome[0]}
+                      </div>
+                    )}
+                 </div>
+                 <div className="pr-4">
+                    <div className="text-[10px] uppercase tracking-widest text-white/70 font-bold mb-1">Il tuo Istruttore</div>
+                    <div className="font-extrabold text-white text-base leading-tight">{corso.istruttore.nome} {corso.istruttore.cognome}</div>
+                 </div>
+              </div>
             )}
           </div>
         </div>
@@ -118,6 +138,18 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
                 <div>
                   <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Durata</div>
                   <div className="font-semibold">{corso.durata_minuti} minuti</div>
+                </div>
+              )}
+              {corso.frequenza && (
+                <div>
+                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Frequenza</div>
+                  <div className="font-semibold">{corso.frequenza}</div>
+                </div>
+              )}
+              {corso.attrezzatura_richiesta && (
+                <div>
+                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Attrezzatura Richiesta</div>
+                  <div className="font-semibold">{getLocalizedText(corso.attrezzatura_richiesta, locale)}</div>
                 </div>
               )}
             </div>

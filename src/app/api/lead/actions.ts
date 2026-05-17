@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 // In a real scenario we'd use resend here, but for now we simulate or fallback
 import { sendLeadNotification } from "@/lib/resend/client";
@@ -66,7 +66,8 @@ export async function submitContact(formData: FormData) {
   }
 
   try {
-    const supabase = await createClient();
+    // We use createAdminClient to bypass RLS for anonymous public form submissions
+    const supabase = createAdminClient();
     
     const { data: lead, error } = await supabase
       .from("leads")

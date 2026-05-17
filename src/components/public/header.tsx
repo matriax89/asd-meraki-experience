@@ -104,7 +104,7 @@ export function Header({ initialCartCount = 0, logoUrl, logoWhiteUrl }: { initia
               <Link
                 href="/sponsors"
                 className={`hidden md:inline-flex h-10 items-center gap-1.5 rounded-full px-5 text-[13px] font-bold tracking-wide transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 active:scale-95 ml-2 ${
-                  isTransparentAndHome ? "bg-white text-black" : "bg-slate-900 text-white hover:bg-slate-800"
+                  isTransparentAndHome ? "bg-white text-orange-600 hover:bg-orange-50" : "bg-orange-500 text-white hover:bg-orange-600 border border-orange-400"
                 }`}
               >
                 {t("sponsor")}
