@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Link } from "@/i18n/routing";
 import { JsonLd } from "@/components/seo/json-ld";
+import { getLocalizedText, getLocalizedArray } from "@/lib/i18n-utils";
 
-export default async function CorsoDetailPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+export default async function CorsoDetailPage({ params }: { params: Promise<{ slug: string, locale: string }> }) {
+  const { slug, locale } = await params;
   const supabase = await createClient();
 
   const { data: corso } = await supabase
@@ -21,8 +22,8 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
   const courseSchema = {
     "@context": "https://schema.org",
     "@type": "Course",
-    "name": corso.nome,
-    "description": corso.descrizione_breve || corso.nome,
+    "name": getLocalizedText(corso.nome, locale),
+    "description": getLocalizedText(corso.descrizione_breve, locale) || getLocalizedText(corso.nome, locale),
     "provider": {
       "@type": "Organization",
       "name": "ASD Meraki Experience",
@@ -40,7 +41,7 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
         {corso.copertina_url ? (
           <img 
             src={corso.copertina_url} 
-            alt={corso.nome} 
+            alt={getLocalizedText(corso.nome, locale)} 
             className="object-cover w-full h-full" 
           />
         ) : (
@@ -52,11 +53,11 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
               {corso.disciplina}
             </div>
             <h1 className="text-4xl md:text-6xl font-heading font-bold text-foreground mb-4">
-              {corso.nome}
+              {getLocalizedText(corso.nome, locale)}
             </h1>
             {corso.descrizione_breve && (
               <p className="text-xl md:text-2xl text-foreground/90">
-                {corso.descrizione_breve}
+                {getLocalizedText(corso.descrizione_breve, locale)}
               </p>
             )}
           </div>
@@ -68,17 +69,17 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
         <div className="lg:col-span-2 space-y-12">
           {corso.descrizione_lunga && (
             <div className="prose prose-neutral dark:prose-invert max-w-none">
-              {corso.descrizione_lunga.split("\n").map((par, i) => (
+              {getLocalizedText(corso.descrizione_lunga, locale).split("\n").map((par, i) => (
                 <p key={i}>{par}</p>
               ))}
             </div>
           )}
 
-          {corso.benefici && corso.benefici.length > 0 && (
+          {corso.benefici && (
             <div>
               <h2 className="text-3xl font-heading font-bold mb-6">Cosa imparerai</h2>
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {corso.benefici.map((ben, i) => (
+                {getLocalizedArray(corso.benefici, locale).map((ben, i) => (
                   <li key={i} className="flex items-start">
                     <svg className="w-6 h-6 text-primary mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

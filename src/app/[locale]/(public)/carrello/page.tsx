@@ -4,8 +4,11 @@ import { Link } from "@/i18n/routing";
 import { CartItemsList } from "./cart-items-list";
 import { CartSummaryClient } from "./cart-summary-client";
 import { CrossSellSection } from "./cross-sell-section";
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export default async function CarrelloPage() {
+  const locale = await getLocale();
   const cart = await getCart();
   const supabase = await createClient();
 
@@ -54,7 +57,7 @@ export default async function CarrelloPage() {
     .map(v => ({
       id: v.id,
       variantId: v.id,
-      nome: v.product?.nome || "Prodotto",
+      nome: getLocalizedText(v.product?.nome || null, locale) || "Prodotto",
       categoria: "CONSIGLIATO",
       prezzo_base_cents: v.prezzo_cents || v.product?.prezzo_base_cents || 0,
       copertina_url: (v.immagini_urls && v.immagini_urls.length > 0) ? v.immagini_urls[0] : (v.product?.copertina_url || "/images/logo-meraki.png")

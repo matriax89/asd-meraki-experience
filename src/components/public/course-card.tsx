@@ -1,15 +1,18 @@
 import { Link } from "@/i18n/routing";
 
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
+
 type CourseCardProps = {
   slug: string;
-  nome: string;
-  descrizione_breve?: string | null;
+  nome: any;
+  descrizione_breve?: any | null;
   copertina_url?: string | null;
   disciplina: string;
   orari?: { giorno: string; ora_inizio: string; ora_fine: string; sede: string }[];
 };
 
-export function CourseCard({
+export async function CourseCard({
   slug,
   nome,
   descrizione_breve,
@@ -17,6 +20,7 @@ export function CourseCard({
   disciplina,
   orari
 }: CourseCardProps) {
+  const locale = await getLocale();
   return (
     <div className="group relative flex flex-col h-full rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-50">
       
@@ -43,7 +47,7 @@ export function CourseCard({
         {/* Title */}
         <Link href={`/corsi/${slug}`}>
           <h3 className="font-bold text-[22px] text-slate-800 mb-3 leading-tight group-hover:text-slate-600 transition-colors">
-            {nome}
+            {getLocalizedText(nome, locale)}
           </h3>
         </Link>
         
@@ -76,7 +80,7 @@ export function CourseCard({
         
         {/* Description */}
         <p className="text-slate-500 text-[15px] leading-relaxed mb-6 line-clamp-3 flex-1">
-          {descrizione_breve || "Scopri i nostri corsi e migliora il tuo benessere fisico e mentale."}
+          {getLocalizedText(descrizione_breve, locale) || "Scopri i nostri corsi e migliora il tuo benessere fisico e mentale."}
         </p>
         
         {/* Footer Action */}

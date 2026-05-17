@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Input, Textarea, Select, Checkbox } from "@/components/admin/form-elements";
+import { Input, Textarea, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
 import { upsertCourse } from "@/app/api/admin/corsi/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
@@ -48,12 +48,13 @@ export function CourseForm({ initialData, instructors, locations }: CourseFormPr
     return nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
   };
 
-  const handleNomeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const nome = e.target.value;
+  const handleNomeChange = (value: any) => {
+    // Generate slug from the 'it' locale if it's a new course
+    const itNome = typeof value === 'object' ? (value.it || "") : (typeof value === 'string' ? value : "");
     setFormData(prev => ({
       ...prev,
-      nome,
-      slug: prev.id === "nuovo" ? generateSlug(nome) : prev.slug // Auto-generate slug solo per i nuovi
+      nome: value,
+      slug: prev.id === "nuovo" ? generateSlug(itNome) : prev.slug // Auto-generate slug solo per i nuovi
     }));
   };
 
@@ -137,7 +138,7 @@ export function CourseForm({ initialData, instructors, locations }: CourseFormPr
         <h2 className="text-xl font-bold border-b border-border pb-2">Informazioni Principali</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Input 
+          <MultilingualInput 
             label="Nome Corso *" 
             required 
             value={formData.nome} 
@@ -164,22 +165,22 @@ export function CourseForm({ initialData, instructors, locations }: CourseFormPr
           />
         </div>
 
-        <Textarea 
+        <MultilingualTextarea 
           label="Descrizione Breve (Anteprima)" 
           maxLength={200}
           value={formData.descrizione_breve} 
-          onChange={e => setFormData({...formData, descrizione_breve: e.target.value})} 
+          onChange={val => setFormData({...formData, descrizione_breve: val})} 
         />
       </div>
 
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
         <h2 className="text-xl font-bold border-b border-border pb-2">Dettagli Approfonditi</h2>
         
-        <Textarea 
+        <MultilingualTextarea 
           label="Descrizione Completa" 
           className="min-h-[200px]"
           value={formData.descrizione_completa} 
-          onChange={e => setFormData({...formData, descrizione_completa: e.target.value})} 
+          onChange={val => setFormData({...formData, descrizione_completa: val})} 
         />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

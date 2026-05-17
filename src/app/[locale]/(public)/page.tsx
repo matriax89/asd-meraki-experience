@@ -5,6 +5,8 @@ import { ArrowRight, ChevronRight, FileText, Scale, ShieldCheck, FileSignature, 
 import { FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/fade-in";
 import { CourseCard } from "@/components/public/course-card";
 import { getTranslations } from "next-intl/server";
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 import { YoutubeCarousel } from "@/components/public/youtube-carousel";
 import { ScheduleClient } from "./orario/schedule-client";
 import { InstagramWidget } from "@/components/public/instagram-widget";
@@ -309,17 +311,17 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               
               // MOCK DATA per orari e sedi se il database è ancora vuoto
               if (orariFormattati.length === 0) {
-                if (corso.slug === "salsation" || corso.nome.toLowerCase().includes("salsation")) {
+                if (corso.slug === "salsation" || getLocalizedText(corso.nome, locale).toLowerCase().includes("salsation")) {
                   orariFormattati.push(
                     { giorno: "lun", ora_inizio: "18:00", ora_fine: "19:00", sede: "Bolzano" },
                     { giorno: "mer", ora_inizio: "19:30", ora_fine: "20:30", sede: "Appiano" }
                   );
-                } else if (corso.slug === "yoga-flow" || corso.nome.toLowerCase().includes("yoga")) {
+                } else if (corso.slug === "yoga-flow" || getLocalizedText(corso.nome, locale).toLowerCase().includes("yoga")) {
                   orariFormattati.push(
                     { giorno: "mar", ora_inizio: "09:00", ora_fine: "10:30", sede: "Postal" },
                     { giorno: "ven", ora_inizio: "18:30", ora_fine: "20:00", sede: "Bolzano" }
                   );
-                } else if (corso.slug === "danza-aerea" || corso.nome.toLowerCase().includes("aerea")) {
+                } else if (corso.slug === "danza-aerea" || getLocalizedText(corso.nome, locale).toLowerCase().includes("aerea")) {
                   orariFormattati.push(
                     { giorno: "gio", ora_inizio: "17:00", ora_fine: "18:30", sede: "Appiano" }
                   );

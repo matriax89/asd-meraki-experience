@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 import { stripe } from "@/lib/stripe/client";
 import { createAdminClient } from "@/lib/supabase/server";
 
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
           await supabase.from('order_items').insert({
             order_id: order.id,
             variant_id: v.id,
-            product_nome: v.product?.nome || "Prodotto",
+            product_nome: getLocalizedText(v.product?.nome, 'it') || "Prodotto",
             variant_descrizione: `${v.taglia || ''} ${v.colore || ''}`.trim(),
             sku: v.sku,
             quantita: item.quantity,

@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
+import { getLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { CouponClient } from "./coupon-client";
 
 export default async function AdminCouponsPage() {
+  const locale = await getLocale();
   const supabase = await createClient();
   
   const { data: adminCheck } = await supabase.rpc('is_admin');
@@ -34,7 +37,10 @@ export default async function AdminCouponsPage() {
 
       <CouponClient 
         initialCoupons={(coupons || []) as any} 
-        products={products || []} 
+        products={(products || []).map(p => ({
+          id: p.id,
+          nome: getLocalizedText(p.nome, locale)
+        }))} 
       />
     </div>
   );

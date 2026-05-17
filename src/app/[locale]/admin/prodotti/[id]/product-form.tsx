@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Input, Textarea, Select, Checkbox } from "@/components/admin/form-elements";
+import { Input, Textarea, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
 import { upsertProduct } from "@/app/api/admin/prodotti/actions";
 import { MultiImageUpload } from "@/components/admin/multi-image-upload";
 import { Plus, Trash2, Image as ImageIcon } from "lucide-react";
@@ -44,12 +44,12 @@ export function ProductForm({ initialData }: ProductFormProps) {
     return nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
   };
 
-  const handleNomeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const nome = e.target.value;
+  const handleNomeChange = (value: any) => {
+    const itNome = typeof value === 'object' ? (value.it || "") : (typeof value === 'string' ? value : "");
     setFormData(prev => ({
       ...prev,
-      nome,
-      slug: prev.id === "nuovo" ? generateSlug(nome) : prev.slug
+      nome: value,
+      slug: prev.id === "nuovo" ? generateSlug(itNome) : prev.slug
     }));
   };
 
@@ -129,7 +129,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
         <h2 className="text-xl font-bold border-b border-border pb-2">Dati Principali</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Input 
+          <MultilingualInput 
             label="Nome Prodotto *" 
             required 
             value={formData.nome} 
@@ -169,18 +169,18 @@ export function ProductForm({ initialData }: ProductFormProps) {
           </div>
         </div>
 
-        <Textarea 
+        <MultilingualTextarea 
           label="Descrizione Breve (Anteprima)" 
           maxLength={200}
           value={formData.descrizione_breve} 
-          onChange={e => setFormData({...formData, descrizione_breve: e.target.value})} 
+          onChange={val => setFormData({...formData, descrizione_breve: val})} 
         />
         
-        <Textarea 
+        <MultilingualTextarea 
           label="Descrizione Completa" 
           className="min-h-[150px]"
           value={formData.descrizione_lunga} 
-          onChange={e => setFormData({...formData, descrizione_lunga: e.target.value})} 
+          onChange={val => setFormData({...formData, descrizione_lunga: val})} 
         />
       </div>
 

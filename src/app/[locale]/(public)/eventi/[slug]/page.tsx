@@ -3,9 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { CheckoutButton } from "./checkout-button";
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export default async function EventoDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const locale = await getLocale();
   const supabase = await createClient();
   
   const { data: evento } = await supabase
@@ -30,7 +33,7 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
     <div className="container py-12 md:py-24 max-w-4xl">
       {evento.copertina_url && (
         <div className="aspect-[21/9] bg-muted rounded-xl overflow-hidden mb-12 relative">
-          <img src={evento.copertina_url} alt={evento.titolo} className="object-cover w-full h-full" />
+          <img src={evento.copertina_url} alt={getLocalizedText(evento.titolo, locale)} className="object-cover w-full h-full" />
         </div>
       )}
       
@@ -41,17 +44,17 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
               Evento
             </div>
             <h1 className="text-4xl md:text-5xl font-heading font-bold text-foreground mb-4">
-              {evento.titolo}
+              {getLocalizedText(evento.titolo, locale)}
             </h1>
             {evento.sottotitolo && (
               <p className="text-xl text-muted-foreground">
-                {evento.sottotitolo}
+                {getLocalizedText(evento.sottotitolo, locale)}
               </p>
             )}
           </div>
           
           <div className="prose prose-neutral dark:prose-invert max-w-none">
-            {evento.descrizione?.split("\n").map((par, i) => (
+            {getLocalizedText(evento.descrizione, locale).split("\n").map((par, i) => (
               <p key={i}>{par}</p>
             ))}
           </div>

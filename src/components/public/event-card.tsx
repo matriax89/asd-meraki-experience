@@ -2,12 +2,15 @@ import { Link } from "@/i18n/routing";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
+
 type EventCardProps = {
   id: string;
   slug: string;
   tipo: "evento" | "workshop" | "masterclass";
-  titolo: string;
-  sottotitolo?: string | null;
+  titolo: any;
+  sottotitolo?: any | null;
   data_inizio: string;
   copertina_url?: string | null;
   capacity?: number | null;
@@ -15,7 +18,7 @@ type EventCardProps = {
   prezzo_cents?: number | null;
 };
 
-export function EventCard({
+export async function EventCard({
   slug,
   tipo,
   titolo,
@@ -26,6 +29,7 @@ export function EventCard({
   posti_venduti,
   prezzo_cents,
 }: EventCardProps) {
+  const locale = await getLocale();
   const date = new Date(data_inizio);
   const formattedDate = format(date, "d MMMM yyyy", { locale: it });
   const formattedTime = format(date, "HH:mm");
@@ -40,7 +44,7 @@ export function EventCard({
     <Link href={href} className="group relative flex flex-col h-full rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-background border border-border/40">
       <div className="aspect-[16/9] relative overflow-hidden bg-secondary/50">
         {copertina_url ? (
-          <img src={copertina_url} alt={titolo} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-700 ease-out" />
+          <img src={copertina_url} alt={getLocalizedText(titolo, locale)} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-700 ease-out" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-tr from-secondary to-secondary/50" />
         )}
@@ -57,12 +61,12 @@ export function EventCard({
         </div>
         
         <h3 className="font-bold text-[22px] text-foreground mb-3 leading-tight group-hover:text-slate-600 transition-colors">
-          {titolo}
+          {getLocalizedText(titolo, locale)}
         </h3>
         
         {sottotitolo && (
           <p className="text-slate-500 text-[15px] leading-relaxed mb-6 line-clamp-2">
-            {sottotitolo}
+            {getLocalizedText(sottotitolo, locale)}
           </p>
         )}
         

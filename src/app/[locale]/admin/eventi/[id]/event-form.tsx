@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Input, Textarea, Select, Checkbox } from "@/components/admin/form-elements";
+import { Input, Textarea, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
 import { upsertEvent, deleteEvent } from "@/app/api/admin/eventi/actions";
 import { useModal } from "@/components/ui/modal-provider";
 
@@ -42,12 +42,12 @@ export function EventForm({ initialData }: EventFormProps) {
     return nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
   };
 
-  const handleTitoloChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const titolo = e.target.value;
+  const handleTitoloChange = (value: any) => {
+    const itTitolo = typeof value === 'object' ? (value.it || "") : (typeof value === 'string' ? value : "");
     setFormData(prev => ({
       ...prev,
-      titolo,
-      slug: prev.id === "nuovo" ? generateSlug(titolo) : prev.slug
+      titolo: value,
+      slug: prev.id === "nuovo" ? generateSlug(itTitolo) : prev.slug
     }));
   };
 
@@ -137,16 +137,16 @@ export function EventForm({ initialData }: EventFormProps) {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Input 
+          <MultilingualInput 
             label="Titolo *" 
             required 
             value={formData.titolo} 
             onChange={handleTitoloChange} 
           />
-          <Input 
+          <MultilingualInput 
             label="Sottotitolo" 
             value={formData.sottotitolo} 
-            onChange={e => setFormData({...formData, sottotitolo: e.target.value})} 
+            onChange={val => setFormData({...formData, sottotitolo: val})} 
           />
           <Input 
             label="Slug (URL) *" 
@@ -167,11 +167,11 @@ export function EventForm({ initialData }: EventFormProps) {
           />
         </div>
 
-        <Textarea 
+        <MultilingualTextarea 
           label="Descrizione Completa" 
           className="min-h-[150px]"
           value={formData.descrizione} 
-          onChange={e => setFormData({...formData, descrizione: e.target.value})} 
+          onChange={val => setFormData({...formData, descrizione: val})} 
         />
       </div>
 

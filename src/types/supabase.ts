@@ -79,74 +79,74 @@ export type Database = {
       courses: {
         Row: {
           attivo: boolean | null
-          benefici: string[] | null
+          benefici: Json | null
           copertina_url: string | null
           created_at: string | null
           cta_url: string | null
-          descrizione_breve: string | null
-          descrizione_lunga: string | null
+          descrizione_breve: Json | null
+          descrizione_lunga: Json | null
           disciplina: string
           durata_minuti: number | null
           galleria_urls: string[] | null
           id: string
           instructor_id: string | null
           livello: string | null
-          meta_description: string | null
-          meta_title: string | null
-          nome: string
+          meta_description: Json | null
+          meta_title: Json | null
+          nome: Json
           ordine_display: number | null
           prezzo_indicativo_cents: number | null
           slug: string
           frequenza: string | null
-          attrezzatura_richiesta: string | null
+          attrezzatura_richiesta: Json | null
           updated_at: string | null
         }
         Insert: {
           attivo?: boolean | null
-          benefici?: string[] | null
+          benefici?: Json | null
           copertina_url?: string | null
           created_at?: string | null
           cta_url?: string | null
-          descrizione_breve?: string | null
-          descrizione_lunga?: string | null
+          descrizione_breve?: Json | null
+          descrizione_lunga?: Json | null
           disciplina: string
           durata_minuti?: number | null
           galleria_urls?: string[] | null
           id?: string
           instructor_id?: string | null
           livello?: string | null
-          meta_description?: string | null
-          meta_title?: string | null
-          nome: string
+          meta_description?: Json | null
+          meta_title?: Json | null
+          nome: Json
           ordine_display?: number | null
           prezzo_indicativo_cents?: number | null
           slug: string
           frequenza?: string | null
-          attrezzatura_richiesta?: string | null
+          attrezzatura_richiesta?: Json | null
           updated_at?: string | null
         }
         Update: {
           attivo?: boolean | null
-          benefici?: string[] | null
+          benefici?: Json | null
           copertina_url?: string | null
           created_at?: string | null
           cta_url?: string | null
-          descrizione_breve?: string | null
-          descrizione_lunga?: string | null
+          descrizione_breve?: Json | null
+          descrizione_lunga?: Json | null
           disciplina?: string
           durata_minuti?: number | null
           galleria_urls?: string[] | null
           id?: string
           instructor_id?: string | null
           livello?: string | null
-          meta_description?: string | null
-          meta_title?: string | null
-          nome?: string
+          meta_description?: Json | null
+          meta_title?: Json | null
+          nome?: Json
           ordine_display?: number | null
           prezzo_indicativo_cents?: number | null
           slug?: string
           frequenza?: string | null
-          attrezzatura_richiesta?: string | null
+          attrezzatura_richiesta?: Json | null
           updated_at?: string | null
         }
         Relationships: [
@@ -211,21 +211,21 @@ export type Database = {
           cta_url: string | null
           data_fine: string | null
           data_inizio: string
-          descrizione: string | null
+          descrizione: Json | null
           galleria_urls: string[] | null
           id: string
           in_evidenza: boolean | null
           indirizzo: string | null
           location: string | null
-          meta_description: string | null
-          meta_title: string | null
+          meta_description: Json | null
+          meta_title: Json | null
           posti_venduti: number | null
           prezzo_cents: number | null
           slug: string
-          sottotitolo: string | null
+          sottotitolo: Json | null
           stripe_price_id: string | null
           tipo: Database["public"]["Enums"]["event_tipo_enum"]
-          titolo: string
+          titolo: Json
           updated_at: string | null
         }
         Insert: {
@@ -237,21 +237,21 @@ export type Database = {
           cta_url?: string | null
           data_fine?: string | null
           data_inizio: string
-          descrizione?: string | null
+          descrizione?: Json | null
           galleria_urls?: string[] | null
           id?: string
           in_evidenza?: boolean | null
           indirizzo?: string | null
           location?: string | null
-          meta_description?: string | null
-          meta_title?: string | null
+          meta_description?: Json | null
+          meta_title?: Json | null
           posti_venduti?: number | null
           prezzo_cents?: number | null
           slug: string
-          sottotitolo?: string | null
+          sottotitolo?: Json | null
           stripe_price_id?: string | null
           tipo?: Database["public"]["Enums"]["event_tipo_enum"]
-          titolo: string
+          titolo: Json
           updated_at?: string | null
         }
         Update: {
@@ -263,21 +263,21 @@ export type Database = {
           cta_url?: string | null
           data_fine?: string | null
           data_inizio?: string
-          descrizione?: string | null
+          descrizione?: Json | null
           galleria_urls?: string[] | null
           id?: string
           in_evidenza?: boolean | null
           indirizzo?: string | null
           location?: string | null
-          meta_description?: string | null
-          meta_title?: string | null
+          meta_description?: Json | null
+          meta_title?: Json | null
           posti_venduti?: number | null
           prezzo_cents?: number | null
           slug?: string
-          sottotitolo?: string | null
+          sottotitolo?: Json | null
           stripe_price_id?: string | null
           tipo?: Database["public"]["Enums"]["event_tipo_enum"]
-          titolo?: string
+          titolo?: Json
           updated_at?: string | null
         }
         Relationships: []
@@ -543,9 +543,9 @@ export type Database = {
         Row: {
           attivo: boolean | null
           created_at: string | null
-          cta_label: string | null
+          cta_label: Json | null
           cta_url: string | null
-          descrizione: string | null
+          descrizione: Json | null
           features: string[] | null
           id: string
           in_evidenza: boolean | null
@@ -553,15 +553,15 @@ export type Database = {
           periodo: string
           prezzo_cents: number
           slug: string
-          titolo: string
+          titolo: Json
           valuta: string | null
         }
         Insert: {
           attivo?: boolean | null
           created_at?: string | null
-          cta_label?: string | null
+          cta_label?: Json | null
           cta_url?: string | null
-          descrizione?: string | null
+          descrizione?: Json | null
           features?: string[] | null
           id?: string
           in_evidenza?: boolean | null
@@ -569,15 +569,15 @@ export type Database = {
           periodo: string
           prezzo_cents: number
           slug: string
-          titolo: string
+          titolo: Json
           valuta?: string | null
         }
         Update: {
           attivo?: boolean | null
           created_at?: string | null
-          cta_label?: string | null
+          cta_label?: Json | null
           cta_url?: string | null
-          descrizione?: string | null
+          descrizione?: Json | null
           features?: string[] | null
           id?: string
           in_evidenza?: boolean | null
@@ -585,7 +585,7 @@ export type Database = {
           periodo?: string
           prezzo_cents?: number
           slug?: string
-          titolo?: string
+          titolo?: Json
           valuta?: string | null
         }
         Relationships: []
@@ -654,15 +654,15 @@ export type Database = {
           categoria: Database["public"]["Enums"]["product_categoria_enum"]
           copertina_url: string | null
           created_at: string | null
-          descrizione_breve: string | null
-          descrizione_lunga: string | null
+          descrizione_breve: Json | null
+          descrizione_lunga: Json | null
           id: string
           immagini_urls: string[] | null
           in_evidenza: boolean | null
           in_vendita: boolean | null
-          meta_description: string | null
-          meta_title: string | null
-          nome: string
+          meta_description: Json | null
+          meta_title: Json | null
+          nome: Json
           ordine_display: number | null
           peso_grammi: number | null
           prezzo_base_cents: number
@@ -674,15 +674,15 @@ export type Database = {
           categoria: Database["public"]["Enums"]["product_categoria_enum"]
           copertina_url?: string | null
           created_at?: string | null
-          descrizione_breve?: string | null
-          descrizione_lunga?: string | null
+          descrizione_breve?: Json | null
+          descrizione_lunga?: Json | null
           id?: string
           immagini_urls?: string[] | null
           in_evidenza?: boolean | null
           in_vendita?: boolean | null
-          meta_description?: string | null
-          meta_title?: string | null
-          nome: string
+          meta_description?: Json | null
+          meta_title?: Json | null
+          nome: Json
           ordine_display?: number | null
           peso_grammi?: number | null
           prezzo_base_cents: number
@@ -694,15 +694,15 @@ export type Database = {
           categoria?: Database["public"]["Enums"]["product_categoria_enum"]
           copertina_url?: string | null
           created_at?: string | null
-          descrizione_breve?: string | null
-          descrizione_lunga?: string | null
+          descrizione_breve?: Json | null
+          descrizione_lunga?: Json | null
           id?: string
           immagini_urls?: string[] | null
           in_evidenza?: boolean | null
           in_vendita?: boolean | null
-          meta_description?: string | null
-          meta_title?: string | null
-          nome?: string
+          meta_description?: Json | null
+          meta_title?: Json | null
+          nome?: Json
           ordine_display?: number | null
           peso_grammi?: number | null
           prezzo_base_cents?: number

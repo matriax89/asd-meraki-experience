@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 import { createClient } from "@/lib/supabase/server";
 import { createTicketCheckoutSession } from "@/lib/stripe/checkout-ticket";
 import { z } from "zod";
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
     const session = await createTicketCheckoutSession({
       eventId: event.id,
       eventSlug: event.slug,
-      title: event.titolo,
+      title: getLocalizedText(event.titolo, 'it'),
       priceCents: event.prezzo_cents || 0,
       capacity: event.capacity || 0,
       buyerEmail,

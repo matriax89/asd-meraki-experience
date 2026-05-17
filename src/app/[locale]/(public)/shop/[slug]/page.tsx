@@ -5,8 +5,11 @@ import { Link } from "@/i18n/routing";
 import { ChevronRight } from "lucide-react";
 import { ProductGallery } from "./product-gallery";
 
-export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
+
+export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string, locale: string }> }) {
+  const { slug, locale } = await params;
   const supabase = await createClient();
 
   const { data: prodotto } = await supabase
@@ -63,14 +66,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           
           {/* Left Column: Image Gallery Slider */}
           <div className="lg:col-span-6 xl:col-span-5 flex flex-col gap-4 md:gap-6">
-            <ProductGallery images={images} nome={prodotto.nome} />
+            <ProductGallery images={images} nome={getLocalizedText(prodotto.nome, locale)} />
           </div>
 
           {/* Right Column: Info & Buy (Sticky) */}
           <div className="lg:col-span-6 xl:col-span-6 xl:col-start-7 sticky top-32 flex flex-col">
             <div className="mb-6">
               <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mb-3 leading-tight">
-                {prodotto.nome}
+                {getLocalizedText(prodotto.nome, locale)}
               </h1>
               <div className="text-2xl md:text-3xl font-bold text-indigo-600 dark:text-indigo-400 tracking-tight">
                 €{(prodotto.prezzo_base_cents / 100).toFixed(2).replace('.', ',')}
@@ -79,7 +82,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             
             {prodotto.descrizione_breve && (
               <p className="text-lg text-slate-600 dark:text-slate-400 mb-8 leading-relaxed">
-                {prodotto.descrizione_breve}
+                {getLocalizedText(prodotto.descrizione_breve, locale)}
               </p>
             )}
 
@@ -95,7 +98,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               <div className="prose prose-slate dark:prose-invert prose-lg max-w-none prose-p:leading-relaxed prose-headings:font-bold">
                 <h3 className="text-xl">Dettagli del prodotto</h3>
                 <div className="whitespace-pre-line text-slate-600 dark:text-slate-400 text-base">
-                  {prodotto.descrizione_lunga}
+                  {getLocalizedText(prodotto.descrizione_lunga, locale).split('\n').map((par, i) => <p key={i}>{par}</p>)}
                 </div>
               </div>
             )}

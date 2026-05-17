@@ -4,18 +4,20 @@ import { useState, useEffect, useTransition } from "react";
 import { addToCart } from "@/lib/shop/cart-actions";
 import { Link, useRouter } from "@/i18n/routing";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLocale } from "next-intl";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 type ProductCardProps = {
   id: string;
   slug: string;
-  nome: string;
+  nome: any;
   categoria: string;
   sottocategoria?: string | null;
   copertina_url?: string | null;
   immagini_urls?: string[] | null;
   prezzo_base_cents: number;
   in_evidenza?: boolean | null;
-  descrizione_breve?: string | null;
+  descrizione_breve?: any | null;
   product_variants?: { id: string; taglia?: string | null; colore?: string | null; stock: number }[] | null;
 };
 
@@ -33,6 +35,7 @@ export function ProductCard({
   product_variants,
 }: ProductCardProps) {
   const router = useRouter();
+  const locale = useLocale();
   const [isPending, startTransition] = useTransition();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -115,7 +118,7 @@ export function ProductCard({
                 <Link key={idx} href={`/shop/${slug}`} className="w-full h-full shrink-0 relative block">
                   <img 
                     src={img} 
-                    alt={`${nome} - Foto ${idx + 1}`} 
+                    alt={`${getLocalizedText(nome, locale)} - Foto ${idx + 1}`} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" 
                   />
                 </Link>
@@ -167,7 +170,7 @@ export function ProductCard({
         {/* Title */}
         <Link href={`/shop/${slug}`}>
           <h3 className="font-bold text-[22px] text-slate-800 mb-3 leading-tight group-hover:text-indigo-600 transition-colors">
-            {nome}
+            {getLocalizedText(nome, locale)}
           </h3>
         </Link>
         
@@ -186,7 +189,7 @@ export function ProductCard({
         {/* Description */}
         {descrizione_breve && (
           <p className="text-slate-500 text-[15px] leading-relaxed mb-6 line-clamp-3">
-            {descrizione_breve}
+            {getLocalizedText(descrizione_breve, locale)}
           </p>
         )}
         
