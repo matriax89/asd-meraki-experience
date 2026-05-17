@@ -67,6 +67,40 @@ export async function POST(request: Request) {
     // Generate temporary order id metadata to pass to Stripe
     const tempOrderId = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
+    const formData = await request.formData().catch(() => null);
+    const couponCode = formData?.get("coupon")?.toString();
+
+    let stripeCouponId: string | undefined = undefined;
+
+    if (couponCode) {
+      const { data: coupon, error: couponError } = await supabase
+        .from("coupons")
+        .select("*")
+        .eq("code", couponCode.toUpperCase().trim())
+        .single();
+      
+      if (!couponError && coupon && coupon.active) {
+        const isExpired = coupon.expires_at && new Date(coupon.expires_at) < new Date();
+        const maxUsesReached = coupon.max_uses !== null && coupon.uses_count >= coupon.max_uses;
+        const minimumMet = !coupon.min_order_cents || subtotalCents >= coupon.min_order_cents;
+
+        if (!isExpired && !maxUsesReached && minimumMet) {
+          try {
+            const stripeCoupon = await stripe.coupons.create({
+              name: coupon.code,
+              duration: 'once',
+              amount_off: coupon.discount_type === 'fixed_amount' ? Math.round(Number(coupon.discount_value) * 100) : undefined,
+              percent_off: coupon.discount_type === 'percentage' ? Number(coupon.discount_value) : undefined,
+              currency: coupon.discount_type === 'fixed_amount' ? 'eur' : undefined,
+            });
+            stripeCouponId = stripeCoupon.id;
+          } catch (e) {
+            console.error("Failed to create Stripe coupon:", e);
+          }
+        }
+      }
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card", "paypal"], // Added paypal if enabled
       line_items: lineItems,
@@ -87,12 +121,14 @@ export async function POST(request: Request) {
           },
         },
       ],
+      discounts: stripeCouponId ? [{ coupon: stripeCouponId }] : undefined,
       success_url: `${siteUrl}/api/checkout/success?session_id={CHECKOUT_SESSION_ID}&type=shop`,
       cancel_url: `${siteUrl}/carrello`,
       metadata: {
         flow_type: "shop_order",
         cart_data: JSON.stringify(cart.items),
         temp_order_id: tempOrderId,
+        coupon_code: couponCode || "",
       },
     });
 

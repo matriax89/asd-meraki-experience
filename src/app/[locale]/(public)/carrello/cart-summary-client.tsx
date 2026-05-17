@@ -45,22 +45,33 @@ export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false 
     setIsApplying(true);
     setCouponError("");
 
-    // SIMULAZIONE CHIAMATA BACKEND
-    // In futuro, questo farà una fetch a /api/coupons?code=... o interrogherà Supabase
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      const response = await fetch("/api/cart/verify-coupon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          code: couponCode, 
+          subtotalCents 
+        }),
+      });
 
-    const code = couponCode.toUpperCase().trim();
-    if (code === "MERAKI10") {
-      setAppliedCoupon({ code, type: "percentage", value: 10 });
-      setCouponCode("");
-    } else if (code === "BENVENUTO5") {
-      setAppliedCoupon({ code, type: "fixed", value: 5 });
-      setCouponCode("");
-    } else {
-      setCouponError("Codice sconto non valido o scaduto.");
+      const data = await response.json();
+
+      if (!response.ok || !data.valid) {
+        setCouponError(data.error || "Errore durante la verifica del coupon.");
+      } else {
+        setAppliedCoupon({
+          code: data.coupon.code,
+          type: data.coupon.discount_type === "percentage" ? "percentage" : "fixed",
+          value: data.coupon.discount_value,
+        });
+        setCouponCode("");
+      }
+    } catch (error) {
+      setCouponError("Errore di connessione. Riprova.");
+    } finally {
+      setIsApplying(false);
     }
-
-    setIsApplying(false);
   };
 
   const handleRemoveCoupon = () => {
