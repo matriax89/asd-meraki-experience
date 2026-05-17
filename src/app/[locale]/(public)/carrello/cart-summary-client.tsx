@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tag, ArrowRight, Loader2, CheckCircle2, X } from "lucide-react";
 import { Link } from "@/i18n/routing";
 
@@ -34,6 +34,42 @@ export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false,
 
   discountAmount = bundleDiscountAmount + couponDiscountAmount;
   total = Math.max(0, subtotal - discountAmount);
+
+  // Re-verify coupon if cart changes
+  const cartItemsStr = JSON.stringify(cartItems);
+  useEffect(() => {
+    if (appliedCoupon?.code) {
+      const reVerifyCoupon = async () => {
+        try {
+          const response = await fetch("/api/cart/verify-coupon", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              code: appliedCoupon.code, 
+              subtotalCents,
+              items: cartItems
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok || !data.valid) {
+            setAppliedCoupon(null);
+            setCouponError(data.error || "Il coupon non è più valido per il carrello corrente.");
+          } else {
+            setAppliedCoupon(prev => prev ? {
+              ...prev,
+              discountAmount: data.discountCents / 100
+            } : null);
+          }
+        } catch (error) {
+          console.error("Error reverifying coupon", error);
+        }
+      };
+
+      reVerifyCoupon();
+    }
+  }, [subtotalCents, cartItemsStr, appliedCoupon?.code]);
 
   const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
