@@ -7,6 +7,45 @@ import { ProductGallery } from "./product-gallery";
 
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import type { Metadata } from "next";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string, locale: string }> }): Promise<Metadata> {
+  const { slug, locale } = await params;
+  const supabase = await createClient();
+
+  const { data: prodotto } = await supabase
+    .from("products")
+    .select("nome, descrizione_breve, copertina_url")
+    .eq("slug", slug)
+    .single();
+
+  if (!prodotto) {
+    return { title: "Prodotto non trovato" };
+  }
+
+  const title = getLocalizedText(prodotto.nome, locale);
+  const description = getLocalizedText(prodotto.descrizione_breve, locale) || title;
+  const image = prodotto.copertina_url;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      ...(image && {
+        images: [
+          {
+            url: image,
+            width: 1200,
+            height: 630,
+            alt: title,
+          },
+        ],
+      }),
+    },
+  };
+}
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string, locale: string }> }) {
   const { slug, locale } = await params;

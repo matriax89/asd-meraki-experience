@@ -5,6 +5,45 @@ import { it } from "date-fns/locale";
 import { CheckoutButton } from "./checkout-button";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import type { Metadata } from "next";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string, locale: string }> }): Promise<Metadata> {
+  const { slug, locale } = await params;
+  const supabase = await createClient();
+
+  const { data: evento } = await supabase
+    .from("events")
+    .select("titolo, descrizione, copertina_url")
+    .eq("slug", slug)
+    .single();
+
+  if (!evento) {
+    return { title: "Evento non trovato" };
+  }
+
+  const title = getLocalizedText(evento.titolo, locale);
+  const description = getLocalizedText(evento.descrizione, locale) || title;
+  const image = evento.copertina_url;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      ...(image && {
+        images: [
+          {
+            url: image,
+            width: 1200,
+            height: 630,
+            alt: title,
+          },
+        ],
+      }),
+    },
+  };
+}
 
 export default async function EventoDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

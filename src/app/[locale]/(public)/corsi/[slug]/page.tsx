@@ -3,6 +3,45 @@ import { createClient } from "@/lib/supabase/server";
 import { Link } from "@/i18n/routing";
 import { JsonLd } from "@/components/seo/json-ld";
 import { getLocalizedText, getLocalizedArray } from "@/lib/i18n-utils";
+import type { Metadata } from "next";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string, locale: string }> }): Promise<Metadata> {
+  const { slug, locale } = await params;
+  const supabase = await createClient();
+
+  const { data: corso } = await supabase
+    .from("courses")
+    .select("nome, descrizione_breve, copertina_url")
+    .eq("slug", slug)
+    .single();
+
+  if (!corso) {
+    return { title: "Corso non trovato" };
+  }
+
+  const title = getLocalizedText(corso.nome, locale);
+  const description = getLocalizedText(corso.descrizione_breve, locale) || title;
+  const image = corso.copertina_url;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      ...(image && {
+        images: [
+          {
+            url: image,
+            width: 1200,
+            height: 630,
+            alt: title,
+          },
+        ],
+      }),
+    },
+  };
+}
 
 export default async function CorsoDetailPage({ params }: { params: Promise<{ slug: string, locale: string }> }) {
   const { slug, locale } = await params;
