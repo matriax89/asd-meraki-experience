@@ -557,7 +557,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-3">Supportano il nostro progetto</p>
               <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">I Nostri Partner</h2>
             </div>
-            <Link href="/sponsors" className="text-sm font-semibold text-foreground hover:underline inline-flex items-center gap-1">
+            <Link href="/sponsors" className="inline-flex h-10 items-center gap-1.5 rounded-full bg-orange-500 hover:bg-orange-600 text-white border border-orange-400 px-5 text-[13px] font-bold tracking-wide transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 active:scale-95">
               Diventa sponsor <ArrowRight className="w-4 h-4" />
             </Link>
           </FadeIn>
