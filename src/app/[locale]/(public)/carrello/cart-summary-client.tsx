@@ -7,11 +7,12 @@ import { Link } from "@/i18n/routing";
 type CartSummaryClientProps = {
   subtotalCents: number;
   hasCrossSellDiscount?: boolean;
+  cartItems: { variantId: string; quantity: number; priceCents: number; productId: string }[];
 };
 
-export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false }: CartSummaryClientProps) {
+export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false, cartItems }: CartSummaryClientProps) {
   const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; type: "percentage" | "fixed"; value: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; type: "percentage" | "fixed"; value: number; discountAmount: number } | null>(null);
   const [isApplying, setIsApplying] = useState(false);
   const [couponError, setCouponError] = useState("");
 
@@ -28,11 +29,7 @@ export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false 
   // 2. Coupon Discount
   let couponDiscountAmount = 0;
   if (appliedCoupon) {
-    if (appliedCoupon.type === "percentage") {
-      couponDiscountAmount = (subtotal - bundleDiscountAmount) * (appliedCoupon.value / 100);
-    } else {
-      couponDiscountAmount = appliedCoupon.value;
-    }
+    couponDiscountAmount = appliedCoupon.discountAmount;
   }
 
   discountAmount = bundleDiscountAmount + couponDiscountAmount;
@@ -51,7 +48,8 @@ export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           code: couponCode, 
-          subtotalCents 
+          subtotalCents,
+          items: cartItems
         }),
       });
 
@@ -64,6 +62,7 @@ export function CartSummaryClient({ subtotalCents, hasCrossSellDiscount = false 
           code: data.coupon.code,
           type: data.coupon.discount_type === "percentage" ? "percentage" : "fixed",
           value: data.coupon.discount_value,
+          discountAmount: data.discountCents / 100
         });
         setCouponCode("");
       }

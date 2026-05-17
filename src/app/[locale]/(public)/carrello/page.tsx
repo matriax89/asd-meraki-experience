@@ -77,7 +77,16 @@ export default async function CarrelloPage() {
           
           {/* Sidebar Summary Column */}
           <div className="lg:col-span-5 xl:col-span-4">
-            <CartSummaryClient subtotalCents={subtotal} hasCrossSellDiscount={hasCrossSellDiscount} />
+            <CartSummaryClient 
+              subtotalCents={subtotal} 
+              hasCrossSellDiscount={hasCrossSellDiscount}
+              cartItems={cartDetails.map(i => ({ 
+                variantId: i.variantId, 
+                quantity: i.quantity, 
+                priceCents: i.price, 
+                productId: i.product?.id || i.product?.slug 
+              }))} 
+            />
           </div>
         </div>
       )}

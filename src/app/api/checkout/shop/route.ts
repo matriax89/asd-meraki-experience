@@ -86,14 +86,47 @@ export async function POST(request: Request) {
 
         if (!isExpired && !maxUsesReached && minimumMet) {
           try {
-            const stripeCoupon = await stripe.coupons.create({
-              name: coupon.code,
-              duration: 'once',
-              amount_off: coupon.discount_type === 'fixed_amount' ? Math.round(Number(coupon.discount_value) * 100) : undefined,
-              percent_off: coupon.discount_type === 'percentage' ? Number(coupon.discount_value) : undefined,
-              currency: coupon.discount_type === 'fixed_amount' ? 'eur' : undefined,
+            let discountCents = 0;
+            const restrictedProductIds = (coupon as any).applicable_product_ids || [];
+            
+            const items = cart.items.map(cartItem => {
+              const dbVariant = varianti.find(v => v.id === cartItem.variantId);
+              return {
+                ...cartItem,
+                priceCents: dbVariant?.prezzo_cents || dbVariant?.product?.prezzo_base_cents || 0,
+                productId: dbVariant?.product?.id
+              };
             });
-            stripeCouponId = stripeCoupon.id;
+
+            if (restrictedProductIds.length > 0) {
+              let applicableSubtotalCents = 0;
+              for (const item of items) {
+                if (restrictedProductIds.includes(item.productId)) {
+                  applicableSubtotalCents += item.priceCents * item.quantity;
+                }
+              }
+              if (coupon.discount_type === "percentage") {
+                discountCents = Math.round(applicableSubtotalCents * (Number(coupon.discount_value) / 100));
+              } else {
+                discountCents = Math.min(Math.round(Number(coupon.discount_value) * 100), applicableSubtotalCents);
+              }
+            } else {
+              if (coupon.discount_type === "percentage") {
+                discountCents = Math.round(subtotalCents * (Number(coupon.discount_value) / 100));
+              } else {
+                discountCents = Math.round(Number(coupon.discount_value) * 100);
+              }
+            }
+
+            if (discountCents > 0) {
+              const stripeCoupon = await stripe.coupons.create({
+                name: coupon.code,
+                duration: 'once',
+                amount_off: discountCents,
+                currency: 'eur',
+              });
+              stripeCouponId = stripeCoupon.id;
+            }
           } catch (e) {
             console.error("Failed to create Stripe coupon:", e);
           }

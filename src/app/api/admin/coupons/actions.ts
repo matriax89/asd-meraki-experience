@@ -10,6 +10,7 @@ export async function createCoupon(data: {
   min_order_cents: number;
   max_uses: number | null;
   expires_at: string | null;
+  applicable_product_ids: string[] | null;
   active: boolean;
 }) {
   const supabase = await createClient();

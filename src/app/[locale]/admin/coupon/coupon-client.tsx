@@ -17,10 +17,17 @@ type Coupon = {
   uses_count: number;
   active: boolean;
   expires_at: string | null;
+  applicable_product_ids: string[] | null;
   created_at: string;
 };
 
-export function CouponClient({ initialCoupons }: { initialCoupons: Coupon[] }) {
+export function CouponClient({ 
+  initialCoupons,
+  products
+}: { 
+  initialCoupons: Coupon[];
+  products: { id: string, nome: string }[];
+}) {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +37,8 @@ export function CouponClient({ initialCoupons }: { initialCoupons: Coupon[] }) {
     discount_value: "",
     min_order: "",
     max_uses: "",
-    expires_at: ""
+    expires_at: "",
+    applicable_product_ids: [] as string[]
   });
 
   const columns = [
@@ -125,13 +133,14 @@ export function CouponClient({ initialCoupons }: { initialCoupons: Coupon[] }) {
       min_order_cents: formData.min_order ? parseFloat(formData.min_order) * 100 : 0,
       max_uses: formData.max_uses ? parseInt(formData.max_uses) : null,
       expires_at: formData.expires_at ? new Date(formData.expires_at).toISOString() : null,
+      applicable_product_ids: formData.applicable_product_ids.length > 0 ? formData.applicable_product_ids : null,
       active: true
     });
 
     if (result.success) {
       setIsCreating(false);
       setFormData({
-        code: "", discount_type: "percentage", discount_value: "", min_order: "", max_uses: "", expires_at: ""
+        code: "", discount_type: "percentage", discount_value: "", min_order: "", max_uses: "", expires_at: "", applicable_product_ids: []
       });
       router.refresh();
     } else {
@@ -227,6 +236,31 @@ export function CouponClient({ initialCoupons }: { initialCoupons: Coupon[] }) {
             value={formData.expires_at}
             onChange={(e) => setFormData({...formData, expires_at: e.target.value})}
           />
+
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-sm font-semibold text-slate-700">Prodotti Validi (Opzionale)</label>
+            <p className="text-xs text-slate-500">Seleziona uno o più prodotti. Se non ne selezioni nessuno, il coupon varrà su tutto il carrello.</p>
+            <div className="max-h-[200px] overflow-y-auto border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
+              {products.map(p => (
+                <label key={p.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-200">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600"
+                    checked={formData.applicable_product_ids.includes(p.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFormData({...formData, applicable_product_ids: [...formData.applicable_product_ids, p.id]});
+                      } else {
+                        setFormData({...formData, applicable_product_ids: formData.applicable_product_ids.filter(id => id !== p.id)});
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium text-slate-700">{p.nome}</span>
+                </label>
+              ))}
+              {products.length === 0 && <p className="text-sm text-slate-500 p-2">Nessun prodotto attivo trovato.</p>}
+            </div>
+          </div>
 
           <div className="md:col-span-2 flex justify-end mt-4">
             <button

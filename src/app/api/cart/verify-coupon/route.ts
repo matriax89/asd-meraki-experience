@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
-    const { code, subtotalCents } = await request.json();
+    const { code, subtotalCents, items = [] } = await request.json();
 
     if (!code) {
       return NextResponse.json({ valid: false, error: "Codice coupon mancante." }, { status: 400 });
@@ -47,9 +47,39 @@ export async function POST(request: Request) {
       });
     }
 
-    // 6. Return valid data
+    // 6. Calculate discount
+    let discountCents = 0;
+    const restrictedProductIds = (coupon as any).applicable_product_ids || [];
+    
+    if (restrictedProductIds.length > 0) {
+      let applicableSubtotalCents = 0;
+      for (const item of items) {
+        if (restrictedProductIds.includes(item.productId)) {
+          applicableSubtotalCents += item.priceCents * item.quantity;
+        }
+      }
+      
+      if (applicableSubtotalCents === 0) {
+        return NextResponse.json({ valid: false, error: "Questo coupon non è valido per i prodotti nel carrello." });
+      }
+      
+      if (coupon.discount_type === "percentage") {
+        discountCents = Math.round(applicableSubtotalCents * (Number(coupon.discount_value) / 100));
+      } else {
+        discountCents = Math.min(Math.round(Number(coupon.discount_value) * 100), applicableSubtotalCents);
+      }
+    } else {
+      if (coupon.discount_type === "percentage") {
+        discountCents = Math.round(subtotalCents * (Number(coupon.discount_value) / 100));
+      } else {
+        discountCents = Math.round(Number(coupon.discount_value) * 100);
+      }
+    }
+
+    // 7. Return valid data
     return NextResponse.json({
       valid: true,
+      discountCents,
       coupon: {
         code: coupon.code,
         discount_type: coupon.discount_type,

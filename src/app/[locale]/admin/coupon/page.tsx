@@ -19,6 +19,10 @@ export default async function AdminCouponsPage() {
     console.error("Error fetching coupons:", error);
   }
 
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, nome");
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
@@ -28,7 +32,10 @@ export default async function AdminCouponsPage() {
         </p>
       </div>
 
-      <CouponClient initialCoupons={(coupons || []) as any} />
+      <CouponClient 
+        initialCoupons={(coupons || []) as any} 
+        products={products || []} 
+      />
     </div>
   );
 }
