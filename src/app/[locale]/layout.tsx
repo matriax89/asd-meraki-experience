@@ -129,7 +129,9 @@ export default async function LocaleLayout({
             .bg-slate-900 { background-color: ${themeColors.cardBackground} !important; }
           `}} />
         )}
-        <script
+        <Script
+          id="fb-pixel-init"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               !function(f,b,e,v,n,t,s)
