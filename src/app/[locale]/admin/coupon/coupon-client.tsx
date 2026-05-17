@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { DataTable } from "@/components/admin/data-table";
 import { Input } from "@/components/admin/form-elements";
-import { Plus, Tag, Percent, Euro, Trash2, Power, PowerOff } from "lucide-react";
-import { createCoupon, toggleCouponActive, deleteCoupon } from "@/app/api/admin/coupons/actions";
+import { Plus, Tag, Percent, Euro, Trash2, Power, PowerOff, Pencil } from "lucide-react";
+import { createCoupon, toggleCouponActive, deleteCoupon, updateCoupon } from "@/app/api/admin/coupons/actions";
 import { useRouter } from "next/navigation";
 
 type Coupon = {
@@ -30,6 +30,7 @@ export function CouponClient({
 }) {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     code: "",
@@ -99,7 +100,14 @@ export function CouponClient({
     {
       header: "Azioni",
       cell: (item: Coupon) => (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => handleEdit(item)}
+            className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+            title="Modifica"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
           <button
             onClick={() => handleDelete(item.id)}
             className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -122,11 +130,35 @@ export function CouponClient({
     }
   };
 
+  const handleEdit = (item: Coupon) => {
+    setFormData({
+      code: item.code,
+      discount_type: item.discount_type,
+      discount_value: item.discount_value.toString(),
+      min_order: item.min_order_cents ? (item.min_order_cents / 100).toString() : "",
+      max_uses: item.max_uses ? item.max_uses.toString() : "",
+      expires_at: item.expires_at ? item.expires_at.split('T')[0] : "",
+      applicable_product_ids: item.applicable_product_ids || []
+    });
+    setEditingId(item.id);
+    setIsCreating(true);
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const resetForm = () => {
+    setIsCreating(false);
+    setEditingId(null);
+    setFormData({
+      code: "", discount_type: "percentage", discount_value: "", min_order: "", max_uses: "", expires_at: "", applicable_product_ids: []
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    const result = await createCoupon({
+    const data = {
       code: formData.code,
       discount_type: formData.discount_type,
       discount_value: parseFloat(formData.discount_value),
@@ -135,13 +167,17 @@ export function CouponClient({
       expires_at: formData.expires_at ? new Date(formData.expires_at).toISOString() : null,
       applicable_product_ids: formData.applicable_product_ids.length > 0 ? formData.applicable_product_ids : null,
       active: true
-    });
+    };
+
+    let result;
+    if (editingId) {
+      result = await updateCoupon(editingId, data);
+    } else {
+      result = await createCoupon(data);
+    }
 
     if (result.success) {
-      setIsCreating(false);
-      setFormData({
-        code: "", discount_type: "percentage", discount_value: "", min_order: "", max_uses: "", expires_at: "", applicable_product_ids: []
-      });
+      resetForm();
       router.refresh();
     } else {
       alert("Errore: " + result.error);
@@ -155,7 +191,7 @@ export function CouponClient({
       <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-100">
         <h2 className="font-semibold text-slate-800">Tutti i Coupon</h2>
         <button
-          onClick={() => setIsCreating(!isCreating)}
+          onClick={() => isCreating ? resetForm() : setIsCreating(true)}
           className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -268,7 +304,7 @@ export function CouponClient({
               disabled={isLoading}
               className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-50"
             >
-              {isLoading ? "Creazione..." : "Crea Coupon"}
+              {isLoading ? "Salvataggio..." : (editingId ? "Salva Modifiche" : "Crea Coupon")}
             </button>
           </div>
         </form>
