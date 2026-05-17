@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCart, clearCart } from "@/lib/shop/cart-actions";
 import { stripe } from "@/lib/stripe/client";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export async function POST(request: Request) {
   try {
@@ -38,9 +39,10 @@ export async function POST(request: Request) {
       const price = dbVariant.prezzo_cents || dbVariant.product?.prezzo_base_cents || 0;
       subtotalCents += price * cartItem.quantity;
       
+      const productName = getLocalizedText(dbVariant.product?.nome, "it") || 'Prodotto';
       const variantName = dbVariant.taglia || dbVariant.colore 
-        ? `${dbVariant.product?.nome || 'Prodotto'} - ${dbVariant.taglia || ''} ${dbVariant.colore || ''}`.trim() 
-        : (dbVariant.product?.nome || 'Prodotto');
+        ? `${productName} - ${dbVariant.taglia || ''} ${dbVariant.colore || ''}`.trim() 
+        : productName;
 
       lineItems.push({
         price_data: {
