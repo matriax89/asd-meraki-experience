@@ -118,7 +118,7 @@ export async function POST(request: Request) {
         // Find the coupon and increment uses_count
         const { data: coupon } = await supabase.from('coupons').select('id, uses_count').eq('code', metadata.coupon_code).single();
         if (coupon) {
-          await supabase.from('coupons').update({ uses_count: coupon.uses_count + 1 }).eq('id', coupon.id);
+          await supabase.from('coupons').update({ uses_count: (coupon.uses_count || 0) + 1 }).eq('id', coupon.id);
         }
       }
 

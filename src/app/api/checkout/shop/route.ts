@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       
       if (!couponError && coupon && coupon.active) {
         const isExpired = coupon.expires_at && new Date(coupon.expires_at) < new Date();
-        const maxUsesReached = coupon.max_uses !== null && coupon.uses_count >= coupon.max_uses;
+        const maxUsesReached = coupon.max_uses !== null && (coupon.uses_count || 0) >= coupon.max_uses;
         const minimumMet = !coupon.min_order_cents || subtotalCents >= coupon.min_order_cents;
 
         if (!isExpired && !maxUsesReached && minimumMet) {

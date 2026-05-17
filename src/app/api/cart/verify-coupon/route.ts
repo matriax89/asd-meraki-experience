@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     // 4. Validate max uses
-    if (coupon.max_uses !== null && coupon.uses_count >= coupon.max_uses) {
+    if (coupon.max_uses !== null && (coupon.uses_count || 0) >= coupon.max_uses) {
       return NextResponse.json({ valid: false, error: "Questo coupon ha superato il limite massimo di utilizzi." });
     }
 
