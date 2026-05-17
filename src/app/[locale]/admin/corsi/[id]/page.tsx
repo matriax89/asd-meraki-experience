@@ -1,10 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { Link } from "@/i18n/routing";
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 import { CourseForm } from "./course-form";
 
 export default async function AdminCoursePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const locale = await getLocale();
   const supabase = await createClient();
 
   // Fetch instructors per il menu a tendina
@@ -45,7 +48,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
           &larr; Torna ai corsi
         </Link>
         <h1 className="text-3xl font-heading font-bold text-foreground">
-          {id === "nuovo" ? "Nuovo Corso" : `Modifica: ${initialData?.nome}`}
+          {id === "nuovo" ? "Nuovo Corso" : `Modifica: ${getLocalizedText(initialData?.nome, locale)}`}
         </h1>
       </div>
 

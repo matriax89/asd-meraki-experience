@@ -36,7 +36,16 @@ export function CourseForm({ initialData, instructors, locations }: CourseFormPr
     livello: initialData?.livello || "",
     durata_minuti: initialData?.durata_minuti || 60,
     frequenza: initialData?.frequenza || "",
-    benefici: initialData?.benefici?.join(", ") || "",
+    benefici: (() => {
+      const b = initialData?.benefici;
+      if (!b) return "";
+      if (Array.isArray(b)) return b.join(", ");
+      if (typeof b === 'object') {
+        const it = b.it || b.en || b.de || [];
+        return Array.isArray(it) ? it.join(", ") : (typeof it === 'string' ? it : "");
+      }
+      return typeof b === 'string' ? b : "";
+    })(),
     attrezzatura_richiesta: initialData?.attrezzatura_richiesta || "",
     copertina_url: initialData?.copertina_url || "",
     attivo: initialData?.attivo ?? true,

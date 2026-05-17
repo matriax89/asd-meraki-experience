@@ -1,11 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { Link } from "@/i18n/routing";
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 import { ProductForm } from "./product-form";
 import { ArrowLeft } from "lucide-react";
 
 export default async function AdminProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const locale = await getLocale();
   const supabase = await createClient();
 
   let initialData = null;
@@ -31,7 +34,7 @@ export default async function AdminProductPage({ params }: { params: Promise<{ i
         </Link>
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            {id === "nuovo" ? "Nuovo Prodotto" : `Modifica: ${initialData?.nome}`}
+            {id === "nuovo" ? "Nuovo Prodotto" : `Modifica: ${getLocalizedText(initialData?.nome, locale)}`}
           </h1>
           <p className="text-slate-500 mt-1">
             {id === "nuovo" ? "Aggiungi un nuovo articolo al catalogo." : "Modifica i dettagli e le impostazioni del prodotto."}
