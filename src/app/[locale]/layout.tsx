@@ -142,9 +142,18 @@ export default async function LocaleLayout({
               t.src=v;s=b.getElementsByTagName(e)[0];
               s.parentNode.insertBefore(t,s)}(window, document,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('consent', 'grant');
+              fbq('consent', 'revoke');
               fbq('init', '4287498058183493');
-              fbq('track', 'PageView');
+              try {
+                var c = localStorage.getItem('meraki_cookie_consent');
+                if (c) {
+                  var p = JSON.parse(c);
+                  if (p.marketing) {
+                    fbq('consent', 'grant');
+                    fbq('track', 'PageView');
+                  }
+                }
+              } catch(e) {}
             `,
           }}
         />

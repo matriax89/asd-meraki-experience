@@ -39,6 +39,16 @@ export function useCookieConsent() {
     localStorage.setItem(CONSENT_KEY, JSON.stringify(toSave));
     setPreferences(toSave);
     setHasConsented(true);
+
+    // Sync Facebook Pixel consent
+    if (typeof window !== "undefined" && typeof (window as any).fbq === "function") {
+      if (toSave.marketing) {
+        (window as any).fbq("consent", "grant");
+        (window as any).fbq("track", "PageView");
+      } else {
+        (window as any).fbq("consent", "revoke");
+      }
+    }
   };
 
   const acceptAll = () => {
