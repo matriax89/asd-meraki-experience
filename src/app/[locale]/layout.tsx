@@ -5,6 +5,8 @@ import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
 import Script from "next/script";
+import { Suspense } from "react";
+import { FacebookPixelEvents } from "@/components/public/facebook-pixel-events";
 import "../globals.css";
 
 const inter = Inter({
@@ -144,16 +146,6 @@ export default async function LocaleLayout({
               'https://connect.facebook.net/en_US/fbevents.js');
               fbq('consent', 'revoke');
               fbq('init', '4287498058183493');
-              try {
-                var c = localStorage.getItem('meraki_cookie_consent');
-                if (c) {
-                  var p = JSON.parse(c);
-                  if (p.marketing) {
-                    fbq('consent', 'grant');
-                    fbq('track', 'PageView');
-                  }
-                }
-              } catch(e) {}
             `,
           }}
         />
@@ -170,6 +162,9 @@ export default async function LocaleLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <NextIntlClientProvider messages={messages}>
           <ModalProvider>
+            <Suspense fallback={null}>
+              <FacebookPixelEvents />
+            </Suspense>
             {children}
           </ModalProvider>
         </NextIntlClientProvider>
