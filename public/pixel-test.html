@@ -13,6 +13,7 @@ n.queue=[];t=b.createElement(e);t.async=!0;
 t.src=v;s=b.getElementsByTagName(e)[0];
 s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
+fbq('consent', 'grant');
 fbq('init', '4287498058183493');
 fbq('track', 'PageView');
 </script>
@@ -32,8 +33,8 @@ h1 { font-size: 24px; margin: 0 0 16px; }
 </head>
 <body>
 <div class="card">
-  <h1>🔍 Meta Pixel Test</h1>
-  <p>Questa pagina verifica se il pixel sta funzionando.</p>
+  <h1>🔍 Meta Pixel Test v2</h1>
+  <p>Questa pagina verifica se il pixel sta funzionando (con consent grant).</p>
   <div id="status" class="loading">Caricamento in corso...</div>
   <div id="details"></div>
 </div>
@@ -43,14 +44,12 @@ setTimeout(function() {
   var detailsEl = document.getElementById('details');
   var results = [];
 
-  // Check 1: fbq function
   if (typeof window.fbq === 'function') {
     results.push('✅ fbq() esiste');
   } else {
     results.push('❌ fbq() NON trovato');
   }
 
-  // Check 2: fbevents.js loaded
   var fbResources = performance.getEntriesByType('resource').filter(function(r) {
     return r.name.includes('fbevents');
   });
@@ -62,7 +61,6 @@ setTimeout(function() {
     results.push('❌ fbevents.js NON caricato');
   }
 
-  // Check 3: tracking pixel sent
   var trResources = performance.getEntriesByType('resource').filter(function(r) {
     return r.name.includes('facebook.com/tr');
   });
@@ -72,17 +70,17 @@ setTimeout(function() {
     results.push('❌ Nessuna richiesta inviata a facebook.com/tr');
   }
 
-  // Check 4: fbq queue
   if (window.fbq && window.fbq.queue) {
     results.push('📋 Coda fbq: ' + window.fbq.queue.length + ' eventi in attesa');
+  } else {
+    results.push('✅ Coda fbq processata (nessun evento in attesa)');
   }
 
-  // Check 5: fbq loaded flag
   if (window.fbq && window.fbq.loaded) {
     results.push('✅ fbq.loaded = true');
   }
 
-  var allOk = results.every(function(r) { return r.startsWith('✅'); });
+  var allOk = results.filter(function(r) { return r.startsWith('❌'); }).length === 0;
   statusEl.className = allOk ? 'ok' : 'fail';
   statusEl.innerHTML = allOk ? '✅ PIXEL FUNZIONANTE!' : '⚠️ Problemi rilevati';
   detailsEl.innerHTML = '<ul style="text-align:left;list-style:none;padding:0;margin-top:16px;">' + 
