@@ -6,11 +6,25 @@ import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
 import { useModal } from "@/components/ui/modal-provider";
-import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail } from "lucide-react";
+import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail, Home, Users, Images, FileText, Plug, ShoppingBag, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+
+const settingsSections = [
+  { id: "base", label: "Identità", description: "Colori, logo e SEO", icon: Palette },
+  { id: "homepage", label: "Homepage", description: "Hero, testi e valori", icon: Home },
+  { id: "offerta", label: "Offerta", description: "Shop e prenotazioni", icon: ShoppingBag },
+  { id: "persone", label: "Persone", description: "Direttivo e istruttori", icon: Users },
+  { id: "media", label: "Media", description: "Immagini e video", icon: Images },
+  { id: "promo", label: "Promozione", description: "Partner e popup", icon: Megaphone },
+  { id: "organizzazione", label: "Organizzazione", description: "Contatti, documenti e sedi", icon: FileText },
+  { id: "integrazioni", label: "Integrazioni", description: "Email e tracciamenti", icon: Plug },
+] as const;
+
+type SettingsSection = (typeof settingsSections)[number]["id"];
 
 export function SettingsClient({ initialData, initialIstruttori }: { initialData: any, initialIstruttori?: any[] }) {
   const [loading, setLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState<SettingsSection>("base");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const { showAlert, showConfirm } = useModal();
 
@@ -147,6 +161,11 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
   });
 
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | string | null>(null);
+
+  const sectionClass = (section: SettingsSection, className = "space-y-4") =>
+    `${className} ${activeSection === section ? "block" : "hidden"}`;
+
+  const activeSectionIndex = settingsSections.findIndex((section) => section.id === activeSection);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -394,37 +413,54 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
   };
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="sticky top-16 hidden rounded-lg border border-slate-200 bg-white p-3 lg:block">
-        <p className="px-2 pb-2 text-xs font-semibold text-slate-900">Procedura guidata</p>
-        <ol className="space-y-1 text-xs text-slate-600">
-          {["Aspetto e colori", "Homepage", "Persone e partner", "Media", "Documenti e sedi", "Email e integrazioni"].map((label, index) => (
-            <li key={label} className="rounded-md px-2 py-2 hover:bg-slate-100">
-              <span className="mr-2 text-slate-400">{index + 1}.</span>{label}
-            </li>
-          ))}
-        </ol>
-        <p className="mt-3 border-t border-slate-200 px-2 pt-3 text-[11px] leading-4 text-slate-500">
-          Inizia dai testi e dai contatti. Immagini, popup e integrazioni sono facoltativi.
-        </p>
-      </aside>
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 p-4">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 p-4 md:p-5">
         <div>
-          <h2 className="font-semibold text-slate-900">Configurazione pubblica</h2>
-          <p className="text-xs text-slate-500">Procedi dall’alto verso il basso. I campi avanzati sono facoltativi.</p>
+          <h2 className="font-semibold text-slate-900">Cosa vuoi modificare?</h2>
+          <p className="mt-1 text-xs text-slate-500">Scegli una sezione. Le altre rimangono salvate mentre lavori.</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
+          {settingsSections.map((section) => {
+            const Icon = section.icon;
+            const selected = activeSection === section.id;
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setActiveSection(section.id)}
+                aria-pressed={selected}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  selected
+                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                }`}
+              >
+                <Icon className="mb-2 h-4 w-4" />
+                <span className="block text-xs font-semibold">{section.label}</span>
+                <span className="mt-0.5 hidden text-[10px] text-slate-500 xl:block">{section.description}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-10 p-4 md:p-6">
+      <form onSubmit={handleSubmit}>
         {message && (
-          <div className={`p-4 rounded-xl text-sm font-medium ${message.type === "success" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+          <div className={`m-4 rounded-lg p-3 text-sm font-medium md:mx-6 ${message.type === "success" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
             {message.text}
           </div>
         )}
+        <div className="space-y-10 p-4 md:p-6">
+          <div className="mb-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">
+              Sezione {activeSectionIndex + 1} di {settingsSections.length}
+            </p>
+            <h3 className="mt-1 text-xl font-semibold text-slate-900">{settingsSections[activeSectionIndex].label}</h3>
+            <p className="mt-1 text-sm text-slate-500">{settingsSections[activeSectionIndex].description}</p>
+          </div>
 
         {/* Theme Settings */}
-        <div className="space-y-4">
+        <div className={sectionClass("base")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
             <Palette className="w-5 h-5 text-indigo-500" /> Colori del Brand
           </h3>
@@ -502,7 +538,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Hero Section */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
             1. Sezione Hero (In alto)
           </h3>
@@ -528,7 +564,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Philosophy Section */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2 mt-8">
             2. La Nostra Filosofia
           </h3>
@@ -555,7 +591,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Banners */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2 mt-8">
             3. Banner Scorrevoli (Marquee)
           </h3>
@@ -580,7 +616,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Direttivo */}
-        <div className="space-y-4">
+        <div className={sectionClass("persone")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">4. Il Direttivo</h3>
             <button type="button" onClick={addDirettivo} className="flex items-center gap-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
@@ -659,7 +695,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Sponsors (Chi ci sostiene già) */}
-        <div className="space-y-4">
+        <div className={sectionClass("promo")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">5. Chi ci sostiene già (Pagina Diventa Sponsor)</h3>
             <button type="button" onClick={addSponsor} className="flex items-center gap-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
@@ -737,7 +773,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Istruttori */}
-        <div className="space-y-4">
+        <div className={sectionClass("persone")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <div>
               <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">Istruttori</h3>
@@ -836,7 +872,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Card Valori */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">5. Card Valori (Homepage)</h3>
           </div>
@@ -893,7 +929,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Footer */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">6. Testi Footer</h3>
           </div>
@@ -919,7 +955,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Shop Texts */}
-        <div className="space-y-4">
+        <div className={sectionClass("offerta")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">7. Testi Sezione Novità & Shop</h3>
           </div>
@@ -1044,7 +1080,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* YouTube */}
-        <div className="space-y-4">
+        <div className={sectionClass("media")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">7. Video YouTube</h3>
             <button type="button" onClick={addYoutube} className="flex items-center gap-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
@@ -1086,7 +1122,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Sportclubby Banner */}
-        <div className="space-y-4">
+        <div className={sectionClass("offerta")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">7. Banner Sportclubby (App)</h3>
           </div>
@@ -1160,7 +1196,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Popup Promozionale */}
-        <div className="space-y-4">
+        <div className={sectionClass("promo")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">8. Popup Promozionale</h3>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -1260,7 +1296,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Branding e SEO */}
-        <div className="space-y-4">
+        <div className={sectionClass("base")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">7. Branding e SEO</h3>
           </div>
@@ -1359,7 +1395,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Contatti & Social */}
-        <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm mt-8">
+        <div className={sectionClass("organizzazione", "rounded-xl border border-slate-200 bg-white p-5 md:p-6")}>
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
               <Mail className="w-6 h-6" />
@@ -1474,7 +1510,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Media Backgrounds */}
-        <div className="space-y-4">
+        <div className={sectionClass("media")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
             <Upload className="w-5 h-5 text-indigo-500" /> Sfondi e Immagini Sezioni
           </h3>
@@ -1519,7 +1555,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Documenti e Modulistica */}
-        <div className="space-y-4">
+        <div className={sectionClass("organizzazione")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
             <Save className="w-5 h-5 text-indigo-500" /> Testi e Link Documenti (PDF / Pagine)
           </h3>
@@ -1607,7 +1643,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-8 shadow-sm">
+        <div className={sectionClass("organizzazione", "rounded-xl border border-slate-200 bg-white p-5 md:p-6")}>
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
             <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
               <Plus className="w-5 h-5" />
@@ -1668,7 +1704,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
-        <div className="pt-8 mt-8 border-t border-slate-200">
+        <div className={sectionClass("integrazioni")}>
           <div className="mb-6">
             <h2 className="text-xl font-bold text-slate-800">Integrazioni & Marketing</h2>
             <p className="text-sm text-slate-500">Configura Facebook Pixel, Email e altri servizi esterni.</p>
@@ -1794,19 +1830,38 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
-        <div className="sticky bottom-0 -mx-4 flex items-center justify-between border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
-          <p className="hidden text-xs text-slate-500 sm:block">Le modifiche non salvate restano solo in questa pagina.</p>
+        </div>
+
+        <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:px-6">
           <button
-            type="submit"
-            disabled={loading}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            type="button"
+            disabled={activeSectionIndex === 0}
+            onClick={() => setActiveSection(settingsSections[activeSectionIndex - 1].id)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:invisible"
           >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            Salva e pubblica
+            <ChevronLeft size={16} /> Indietro
           </button>
+          <div className="flex items-center gap-2">
+            {activeSectionIndex < settingsSections.length - 1 && (
+              <button
+                type="button"
+                onClick={() => setActiveSection(settingsSections[activeSectionIndex + 1].id)}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Avanti <ChevronRight size={16} />
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salva
+            </button>
+          </div>
         </div>
       </form>
-      </div>
     </div>
   );
 }
