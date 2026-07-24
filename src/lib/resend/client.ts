@@ -1,10 +1,25 @@
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 const defaultResendApiKey = process.env.RESEND_API_KEY;
 const FROM_EMAIL = "noreply@merakiexperience.org";
 const DEFAULT_ADMIN_EMAIL = "info@merakiexperience.org";
+const EMAIL_LOGO_URL = "https://www.merakiexperience.org/images/logo-meraki.png";
+
+function emailHeader(kicker: string) {
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:24px;margin-bottom:28px;border-bottom:1px solid #e2e8f0;">
+      <img src="${EMAIL_LOGO_URL}" width="150" alt="Meraki Experience" style="display:block;width:150px;max-width:46%;height:auto;" />
+      <span style="display:inline-block;padding:7px 10px;border-radius:999px;background:#f1f5f9;color:#475569;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-align:right;">${kicker}</span>
+    </div>`;
+}
+
+const emailFooter = `
+  <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:11px;line-height:1.6;">
+    ASD Meraki Experience · Bolzano · <a href="https://www.merakiexperience.org" style="color:#64748b;text-decoration:none;">merakiexperience.org</a>
+  </div>`;
 
 export async function sendLeadNotification(lead: any) {
   // Fetch dynamic settings from database
@@ -39,7 +54,8 @@ export async function sendLeadNotification(lead: any) {
         <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e5e5ea; overflow: hidden; margin: 0 auto;">
           <tr>
             <td style="padding: 48px 40px; text-align: left;">
-              <h1 style="color: #1d1d1f; margin: 0 0 8px 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">Nuovo Messaggio</h1>
+              ${emailHeader("Notifica amministrativa")}
+              <h1 style="color: #0f172a; margin: 0 0 8px 0; font-size: 24px; font-weight: 650; letter-spacing: -0.5px;">Nuovo messaggio</h1>
               <p style="color: #86868b; margin: 0 0 32px 0; font-size: 15px;">Hai ricevuto una nuova richiesta su ASD Meraki.</p>
               
               <hr style="border: none; border-top: 1px solid #e5e5ea; margin: 0 0 32px 0;" />
@@ -77,6 +93,7 @@ export async function sendLeadNotification(lead: any) {
               <div style="text-align: left;">
                 <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/it/admin/leads" style="display: inline-block; background-color: #1d1d1f; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 500; padding: 12px 24px; border-radius: 8px;">Gestisci nella Dashboard</a>
               </div>
+              ${emailFooter}
             </td>
           </tr>
         </table>
@@ -203,7 +220,8 @@ export async function sendAutoReply(lead: any, locale: string = "it") {
         <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e5e5ea; overflow: hidden; margin: 0 auto;">
           <tr>
             <td style="padding: 48px 40px; text-align: left;">
-              <h1 style="color: #1d1d1f; margin: 0 0 16px 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">${t.title}</h1>
+              ${emailHeader("Conferma richiesta")}
+              <h1 style="color: #0f172a; margin: 0 0 16px 0; font-size: 24px; font-weight: 650; letter-spacing: -0.5px;">${t.title}</h1>
               <p style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin: 0 0 32px 0;">
                 ${t.body}
               </p>
@@ -219,6 +237,7 @@ export async function sendAutoReply(lead: any, locale: string = "it") {
                 ${t.footer},<br />
                 <strong style="color: #1d1d1f; font-weight: 600;">${t.team}</strong>
               </p>
+              ${emailFooter}
             </td>
           </tr>
         </table>
@@ -295,45 +314,47 @@ export async function sendOrderConfirmation(order: any, items: any[], locale: st
   `).join('');
 
   const htmlContent = `<!DOCTYPE html>
-<html lang="\${locale}">
+<html lang="${locale}">
 <head>
   <meta charset="utf-8">
-  <title>\${t.title}</title>
+  <title>${t.title}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 20px;">
     <tr><td align="center">
       <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e5e5ea; overflow: hidden;">
         <tr><td style="padding: 48px 40px; text-align: left;">
-          <h1 style="color: #1d1d1f; margin: 0 0 16px 0; font-size: 24px; font-weight: 600;">\${t.title}</h1>
-          <p style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin: 0 0 32px 0;">\${t.body}</p>
+          ${emailHeader("Conferma ordine")}
+          <h1 style="color: #0f172a; margin: 0 0 16px 0; font-size: 24px; font-weight: 650;">${t.title}</h1>
+          <p style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin: 0 0 32px 0;">${t.body}</p>
           
-          <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">\${t.orderNum}: \${order.numero_ordine}</h2>
+          <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">${t.orderNum}: ${order.numero_ordine}</h2>
           
           <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
-            \${itemsHtml}
+            ${itemsHtml}
             <tr>
               <td style="padding: 16px 0 0 0; text-align: right; color: #86868b; font-size: 14px;">Spedizione:</td>
-              <td style="padding: 16px 0 0 0; text-align: right; color: #1d1d1f; font-size: 14px;">€\${(order.shipping_cents / 100).toFixed(2)}</td>
+              <td style="padding: 16px 0 0 0; text-align: right; color: #1d1d1f; font-size: 14px;">€${(order.shipping_cents / 100).toFixed(2)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px 0 0 0; text-align: right; color: #1d1d1f; font-size: 16px; font-weight: 600;">\${t.total}:</td>
-              <td style="padding: 8px 0 0 0; text-align: right; color: #1d1d1f; font-size: 16px; font-weight: 600;">€\${(order.total_cents / 100).toFixed(2)}</td>
+              <td style="padding: 8px 0 0 0; text-align: right; color: #1d1d1f; font-size: 16px; font-weight: 600;">${t.total}:</td>
+              <td style="padding: 8px 0 0 0; text-align: right; color: #1d1d1f; font-size: 16px; font-weight: 600;">€${(order.total_cents / 100).toFixed(2)}</td>
             </tr>
           </table>
 
           <div style="background-color: #f5f5f7; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
-            <h3 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 8px 0; font-weight: 600;">\${t.shipTo}</h3>
+            <h3 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 8px 0; font-weight: 600;">${t.shipTo}</h3>
             <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #1d1d1f;">
-              \${order.buyer_nome} \${order.buyer_cognome}<br/>
-              \${order.ship_address_line1}<br/>
-              \${order.ship_address_line2 ? order.ship_address_line2 + '<br/>' : ''}
-              \${order.ship_city}, \${order.ship_postal_code} (\${order.ship_state})<br/>
-              \${order.ship_country}
+              ${order.buyer_nome} ${order.buyer_cognome}<br/>
+              ${order.ship_address_line1}<br/>
+              ${order.ship_address_line2 ? order.ship_address_line2 + '<br/>' : ''}
+              ${order.ship_city}, ${order.ship_postal_code} (${order.ship_state})<br/>
+              ${order.ship_country}
             </p>
           </div>
           
-          <p style="font-size: 15px; color: #86868b; margin: 0;">\${t.footer},<br/><strong style="color: #1d1d1f;">\${t.team}</strong></p>
+          <p style="font-size: 15px; color: #86868b; margin: 0;">${t.footer},<br/><strong style="color: #1d1d1f;">${t.team}</strong></p>
+          ${emailFooter}
         </td></tr>
       </table>
     </td></tr>
@@ -345,12 +366,12 @@ export async function sendOrderConfirmation(order: any, items: any[], locale: st
       const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
       if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
       const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: `"Meraki Experience" <\${smtp_user}>`, to: order.buyer_email, subject: t.subject, html: htmlContent });
+      await transporter.sendMail({ from: `"Meraki Experience" <${smtp_user}>`, to: order.buyer_email, subject: t.subject, html: htmlContent });
       return { success: true };
     } else {
       if (!activeApiKey) return { success: false };
       const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: `Meraki Experience <\${FROM_EMAIL}>`, to: order.buyer_email, subject: t.subject, html: htmlContent });
+      await resend.emails.send({ from: `Meraki Experience <${FROM_EMAIL}>`, to: order.buyer_email, subject: t.subject, html: htmlContent });
       return { success: true };
     }
   } catch (error) {
@@ -367,20 +388,22 @@ export async function sendOrderNotification(order: any, items: any[]) {
   const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
   const targetEmail = integrations?.admin_email || "amministrazione.meraki@gmail.com";
 
-  const subject = `Nuovo Ordine Shop: \${order.numero_ordine}`;
+  const subject = `Nuovo Ordine Shop: ${order.numero_ordine}`;
   
-  const itemsHtml = items.map(i => `<li>\${i.product_nome} (\${i.variant_descrizione || ''}) x\${i.quantita}</li>`).join('');
+  const itemsHtml = items.map(i => `<li>${i.product_nome} (${i.variant_descrizione || ''}) x${i.quantita}</li>`).join('');
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="it">
 <head><meta charset="utf-8"></head>
 <body style="margin: 0; padding: 40px 20px; font-family: -apple-system, sans-serif; background-color: #f5f5f7;">
   <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 16px;">
-    <h1 style="margin: 0 0 16px; font-size: 20px;">Nuovo Ordine Ricevuto</h1>
-    <p>È stato appena pagato l'ordine <strong>\${order.numero_ordine}</strong> da \${order.buyer_nome} \${order.buyer_cognome} (\${order.buyer_email}).</p>
-    <ul>\${itemsHtml}</ul>
-    <p>Totale: €\${(order.total_cents / 100).toFixed(2)}</p>
-    <a href="\${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/it/admin/ordini" style="display: inline-block; background: #1d1d1f; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin-top: 16px;">Gestisci Ordini</a>
+    ${emailHeader("Notifica amministrativa")}
+    <h1 style="color:#0f172a;margin: 0 0 16px; font-size: 22px;">Nuovo ordine ricevuto</h1>
+    <p>È stato appena pagato l'ordine <strong>${order.numero_ordine}</strong> da ${order.buyer_nome} ${order.buyer_cognome} (${order.buyer_email}).</p>
+    <ul>${itemsHtml}</ul>
+    <p>Totale: €${(order.total_cents / 100).toFixed(2)}</p>
+    <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/it/admin/ordini" style="display: inline-block; background: #1d1d1f; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin-top: 16px;">Gestisci Ordini</a>
+    ${emailFooter}
   </div>
 </body></html>`;
 
@@ -389,11 +412,11 @@ export async function sendOrderNotification(order: any, items: any[]) {
       const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
       if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
       const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: `"Sistema" <\${smtp_user}>`, to: targetEmail, subject, html: htmlContent });
+      await transporter.sendMail({ from: `"Sistema" <${smtp_user}>`, to: targetEmail, subject, html: htmlContent });
     } else {
       if (!activeApiKey) return { success: false };
       const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: `Sistema <\${FROM_EMAIL}>`, to: targetEmail, subject, html: htmlContent });
+      await resend.emails.send({ from: `Sistema <${FROM_EMAIL}>`, to: targetEmail, subject, html: htmlContent });
     }
   } catch (error) {
     console.error("Failed to send admin order notification:", error);
@@ -408,18 +431,21 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
   const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
 
   const subject = locale === 'it' ? "Il tuo biglietto - ASD Meraki Experience" : "Your Ticket - ASD Meraki Experience";
+  const eventTitle = getLocalizedText(eventData.titolo, locale) || "Meraki Experience";
   
   const htmlContent = `<!DOCTYPE html>
-<html lang="\${locale}">
+<html lang="${locale}">
 <head><meta charset="utf-8"></head>
 <body style="margin: 0; padding: 40px 20px; font-family: -apple-system, sans-serif; background-color: #f5f5f7;">
   <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 16px; text-align: center;">
-    <h1 style="margin: 0 0 16px; font-size: 24px;">\${locale === 'it' ? 'Ecco il tuo biglietto!' : 'Here is your ticket!'}</h1>
-    <p>\${eventData.titolo}</p>
+    ${emailHeader("Biglietto digitale")}
+    <h1 style="color:#0f172a;margin: 0 0 16px; font-size: 24px;">${locale === 'it' ? 'Ecco il tuo biglietto!' : 'Here is your ticket!'}</h1>
+    <p>${eventTitle}</p>
     <div style="margin: 32px 0; padding: 24px; border: 2px dashed #e5e5ea; border-radius: 16px;">
-      <h2 style="font-size: 32px; font-family: monospace; letter-spacing: 2px; margin: 0;">\${ticket.qr_code}</h2>
+      <h2 style="font-size: 32px; font-family: monospace; letter-spacing: 2px; margin: 0;">${ticket.qr_code}</h2>
     </div>
-    <p style="color: #86868b; font-size: 14px;">\${locale === 'it' ? 'Mostra questo codice all\\'ingresso.' : 'Show this code at the entrance.'}</p>
+    <p style="color: #86868b; font-size: 14px;">${locale === "it" ? "Mostra questo codice all'ingresso." : "Show this code at the entrance."}</p>
+    ${emailFooter}
   </div>
 </body></html>`;
 
@@ -428,14 +454,13 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
       const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
       if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
       const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: `"Meraki Experience" <\${smtp_user}>`, to: ticket.buyer_email, subject, html: htmlContent });
+      await transporter.sendMail({ from: `"Meraki Experience" <${smtp_user}>`, to: ticket.buyer_email, subject, html: htmlContent });
     } else {
       if (!activeApiKey) return { success: false };
       const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: `Meraki Experience <\${FROM_EMAIL}>`, to: ticket.buyer_email, subject, html: htmlContent });
+      await resend.emails.send({ from: `Meraki Experience <${FROM_EMAIL}>`, to: ticket.buyer_email, subject, html: htmlContent });
     }
   } catch (error) {
     console.error("Failed to send ticket:", error);
   }
 }
-
