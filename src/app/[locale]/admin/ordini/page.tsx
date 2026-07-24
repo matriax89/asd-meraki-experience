@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/admin/data-table";
 import { RowActions } from "@/components/admin/row-actions";
+import { syncPaidStripeOrders } from "@/app/api/admin/ordini/actions";
+import { RefreshCw } from "lucide-react";
 
 export default async function AdminOrdiniPage() {
   const supabase = await createClient();
@@ -75,6 +77,11 @@ export default async function AdminOrdiniPage() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Ordini Shop</h1>
           <p className="text-slate-500 mt-2">Gestisci gli ordini e-commerce e le spedizioni.</p>
         </div>
+        <form action={syncPaidStripeOrders}>
+          <button type="submit" className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <RefreshCw size={16} /> Sincronizza Stripe
+          </button>
+        </form>
       </div>
 
       <DataTable 

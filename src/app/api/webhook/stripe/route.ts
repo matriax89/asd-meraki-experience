@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getLocalizedText } from "@/lib/i18n-utils";
 import { stripe } from "@/lib/stripe/client";
 import { createAdminClient } from "@/lib/supabase/server";
-import { sendOrderConfirmation, sendOrderNotification, sendTicketConfirmation } from "@/lib/resend/client";
+import { sendTicketConfirmation } from "@/lib/resend/client";
+import { fulfillShopOrder } from "@/lib/stripe/fulfill-shop-order";
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -64,6 +64,8 @@ export async function POST(request: Request) {
 
       console.log(`Ticket ${ticket.id} created successfully for ${buyerEmail}`);
     } else if (metadata?.flow_type === "shop_order") {
+      await fulfillShopOrder(session);
+      /*
       const cartItems = JSON.parse(metadata.cart_data || "[]");
       const customerDetails = session.customer_details;
       const shippingDetails = session.shipping_details;
@@ -135,6 +137,7 @@ export async function POST(request: Request) {
       await sendOrderNotification(order, items || []);
 
       console.log(`Order ${order.id} created successfully for ${email}`);
+      */
     }
   }
 

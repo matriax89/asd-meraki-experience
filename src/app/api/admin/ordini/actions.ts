@@ -3,6 +3,28 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { stripe } from "@/lib/stripe/client";
+import { fulfillShopOrder } from "@/lib/stripe/fulfill-shop-order";
+
+export async function syncPaidStripeOrders() {
+  await requireAdmin();
+  const sessions = await stripe.checkout.sessions.list({ limit: 100 });
+  let recovered = 0;
+
+  for (const session of sessions.data) {
+    if (session.payment_status !== "paid" || session.metadata?.flow_type !== "shop_order") continue;
+    const adminSupabase = createAdminClient();
+    const { data: existing } = await adminSupabase.from("orders").select("id").eq("stripe_session_id", session.id).maybeSingle();
+    if (!existing) {
+      await fulfillShopOrder(session);
+      recovered += 1;
+    }
+  }
+
+  revalidatePath("/[locale]/admin/ordini", "page");
+  revalidatePath("/[locale]/admin", "page");
+  console.info(`Stripe order sync completed: ${recovered} recovered`);
+}
 
 export async function updateOrderStatus(id: string, status: string, trackingNumber?: string, trackingUrl?: string) {
   await requireAdmin();

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { clearCart } from "@/lib/shop/cart-actions";
 import { stripe } from "@/lib/stripe/client";
+import { fulfillShopOrder } from "@/lib/stripe/fulfill-shop-order";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
       // The Stripe session is the source of truth for payment. Clear the
       // browser cart immediately, independently from webhook timing.
       await clearCart();
+      await fulfillShopOrder(session);
     }
 
     // The Stripe session id is an unguessable capability returned by Stripe.

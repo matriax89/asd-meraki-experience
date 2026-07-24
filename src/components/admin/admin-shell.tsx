@@ -33,6 +33,7 @@ type AdminShellProps = {
     fullName: string | null;
     role: "admin" | "editor";
   };
+  orderNotificationCount?: number;
 };
 
 type NavItem = {
@@ -76,7 +77,7 @@ function isActive(pathname: string, href: string) {
     : pathname.includes(href);
 }
 
-export function AdminShell({ children, identity }: AdminShellProps) {
+export function AdminShell({ children, identity, orderNotificationCount = 0 }: AdminShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -152,6 +153,11 @@ export function AdminShell({ children, identity }: AdminShellProps) {
                     {!compact && (
                       <>
                         <span className="flex-1 text-[12px] font-medium">{item.name}</span>
+                        {item.href === "/admin/ordini" && orderNotificationCount > 0 && (
+                          <span className="grid min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-4 text-white">
+                            {orderNotificationCount > 99 ? "99+" : orderNotificationCount}
+                          </span>
+                        )}
                         {active && <ChevronRight className="size-3.5 opacity-50" />}
                       </>
                     )}
