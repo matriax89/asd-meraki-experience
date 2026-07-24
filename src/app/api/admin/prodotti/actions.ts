@@ -2,6 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/admin/auth";
 
 interface ProductFormData {
   id?: string;
@@ -19,6 +20,7 @@ interface ProductFormData {
 }
 
 export async function upsertProduct(data: ProductFormData) {
+  await requireAdmin();
   const supabase = await createClient();
   
   const { data: { session } } = await supabase.auth.getSession();

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe/client";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { clearCart } from "@/lib/shop/cart-actions";
 
 export async function GET(request: Request) {
@@ -13,7 +12,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = await createClient();
+    // The Stripe session id is an unguessable capability returned by Stripe.
+    // Use the service client only to resolve that exact session; never expose a list.
+    const supabase = createAdminClient();
 
     if (type === "ticket") {
       // Find the ticket matching the stripe session id
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
         .single();
 
       if (ticket && !error) {
-        return NextResponse.redirect(new URL(`/it/biglietto/${ticket.id}`, request.url));
+        return NextResponse.redirect(new URL(`/it/biglietto/${ticket.id}?session_id=${encodeURIComponent(sessionId)}`, request.url));
       }
     } else if (type === "shop") {
       // Find the order matching the stripe session id
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
       if (order && !error) {
         // Clear the cart
         await clearCart();
-        return NextResponse.redirect(new URL(`/it/ordine/${order.id}/conferma`, request.url));
+        return NextResponse.redirect(new URL(`/it/ordine/${order.id}/conferma?session_id=${encodeURIComponent(sessionId)}`, request.url));
       }
     }
 
@@ -47,12 +48,12 @@ export async function GET(request: Request) {
     
     if (type === "ticket") {
       const { data: ticket } = await supabase.from("tickets").select("id").eq("stripe_session_id", sessionId).single();
-      if (ticket) return NextResponse.redirect(new URL(`/it/biglietto/${ticket.id}`, request.url));
+      if (ticket) return NextResponse.redirect(new URL(`/it/biglietto/${ticket.id}?session_id=${encodeURIComponent(sessionId)}`, request.url));
     } else if (type === "shop") {
       const { data: order } = await supabase.from("orders").select("id").eq("stripe_session_id", sessionId).single();
       if (order) {
         await clearCart();
-        return NextResponse.redirect(new URL(`/it/ordine/${order.id}/conferma`, request.url));
+        return NextResponse.redirect(new URL(`/it/ordine/${order.id}/conferma?session_id=${encodeURIComponent(sessionId)}`, request.url));
       }
     }
 

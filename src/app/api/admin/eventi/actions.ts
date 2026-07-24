@@ -2,8 +2,10 @@
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/admin/auth";
 
 export async function getEvent(id: string) {
+  await requireAdmin();
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("events")
@@ -20,6 +22,7 @@ export async function getEvent(id: string) {
 }
 
 export async function upsertEvent(eventData: any) {
+  await requireAdmin();
   const supabase = createAdminClient();
   
   // Create slug if new
@@ -57,6 +60,7 @@ export async function upsertEvent(eventData: any) {
 }
 
 export async function deleteEvent(id: string) {
+  await requireAdmin();
   const supabase = createAdminClient();
   
   // Check if there are tickets

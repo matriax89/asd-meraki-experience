@@ -1,10 +1,18 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { Link } from "@/i18n/routing";
 
-export default async function ConfermaOrdinePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ConfermaOrdinePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ session_id?: string }>;
+}) {
   const { id } = await params;
-  const supabase = await createClient();
+  const { session_id: sessionId } = await searchParams;
+  if (!sessionId) notFound();
+  const supabase = createAdminClient();
 
   const { data: order, error } = await supabase
     .from("orders")
@@ -13,6 +21,7 @@ export default async function ConfermaOrdinePage({ params }: { params: Promise<{
       items:order_items(*)
     `)
     .eq("id", id)
+    .eq("stripe_session_id", sessionId)
     .single();
 
   if (error || !order) {

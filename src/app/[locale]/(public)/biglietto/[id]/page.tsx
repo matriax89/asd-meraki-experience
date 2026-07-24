@@ -1,12 +1,20 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import QRCode from "qrcode";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
-export default async function BigliettoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BigliettoPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ session_id?: string }>;
+}) {
   const { id } = await params;
-  const supabase = await createClient();
+  const { session_id: sessionId } = await searchParams;
+  if (!sessionId) notFound();
+  const supabase = createAdminClient();
 
   // Fetch the ticket and join with the event
   const { data: ticket, error } = await supabase
@@ -16,6 +24,7 @@ export default async function BigliettoPage({ params }: { params: Promise<{ id: 
       event:events(*)
     `)
     .eq("id", id)
+    .eq("stripe_session_id", sessionId)
     .single();
 
   if (error || !ticket || !ticket.event) {

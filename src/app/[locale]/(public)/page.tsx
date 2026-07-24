@@ -7,6 +7,7 @@ import { CourseCard } from "@/components/public/course-card";
 import { getTranslations } from "next-intl/server";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 import { YoutubeCarousel } from "@/components/public/youtube-carousel";
 import { ScheduleClient } from "./orario/schedule-client";
 import { InstagramWidget } from "@/components/public/instagram-widget";
@@ -115,11 +116,11 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         {/* Hero Content */}
         <div className="relative z-10 container text-center flex flex-col items-center justify-center h-full px-6 pt-20">
           <FadeIn delay={0.2} direction="up">
-            <h1 className="text-5xl md:text-7xl lg:text-[100px] font-extrabold tracking-tighter text-white mb-6 leading-[1.05] drop-shadow-xl" dangerouslySetInnerHTML={{ __html: content.hero_headline || t("hero.headline") }} />
+            <h1 className="text-5xl md:text-7xl lg:text-[100px] font-extrabold tracking-tighter text-white mb-6 leading-[1.05] drop-shadow-xl" dangerouslySetInnerHTML={{ __html: sanitizeRichText(content.hero_headline || t("hero.headline")) }} />
           </FadeIn>
           
           <FadeIn delay={0.4} direction="up">
-            <p className="text-xl md:text-2xl font-medium text-white/90 max-w-2xl mx-auto mb-10 tracking-tight text-shadow-sm" dangerouslySetInnerHTML={{ __html: content.hero_subheadline || t("hero.subheadline") }} />
+            <p className="text-xl md:text-2xl font-medium text-white/90 max-w-2xl mx-auto mb-10 tracking-tight text-shadow-sm" dangerouslySetInnerHTML={{ __html: sanitizeRichText(content.hero_subheadline || t("hero.subheadline")) }} />
           </FadeIn>
           
           <FadeIn delay={0.6} direction="up">
@@ -170,7 +171,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                   <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
                   <h3 className="text-xl font-bold text-white tracking-tight">{t("philosophy.mission_title")}</h3>
                 </div>
-                <p className="text-[15px] text-white/90 leading-relaxed max-w-md" dangerouslySetInnerHTML={{ __html: content.mission_desc || t("philosophy.mission_desc") }} />
+                <p className="text-[15px] text-white/90 leading-relaxed max-w-md" dangerouslySetInnerHTML={{ __html: sanitizeRichText(content.mission_desc || t("philosophy.mission_desc")) }} />
               </div>
             </StaggerItem>
 
@@ -180,7 +181,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                 <svg className="w-7 h-7 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
               </div>
               <h3 className="text-2xl font-bold text-slate-900 tracking-tight mb-4">{t("philosophy.vision_title")}</h3>
-              <p className="text-[16px] text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: content.vision_desc || t("philosophy.vision_desc") }} />
+              <p className="text-[16px] text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeRichText(content.vision_desc || t("philosophy.vision_desc")) }} />
             </StaggerItem>
 
             <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-2">
@@ -281,7 +282,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       <div className="w-full bg-gold py-4 overflow-hidden relative rotate-[-2deg] scale-[1.02] z-10 -my-6 shadow-xl">
         <div className="flex whitespace-nowrap animate-marquee">
           {[...Array(10)].map((_, i) => (
-            <span key={i} className="text-3xl md:text-5xl font-black text-black uppercase mx-8 tracking-tighter" dangerouslySetInnerHTML={{ __html: content.banner1_text || `PASSION IS <span class="text-white">EVERYTHING</span> . #DANCE NEVER FELT SO GOOD` }} />
+            <span key={i} className="text-3xl md:text-5xl font-black text-black uppercase mx-8 tracking-tighter" dangerouslySetInnerHTML={{ __html: sanitizeRichText(content.banner1_text || `PASSION IS <span class="text-white">EVERYTHING</span> . #DANCE NEVER FELT SO GOOD`) }} />
           ))}
         </div>
       </div>
@@ -663,7 +664,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       <div className="w-full bg-black py-4 overflow-hidden relative rotate-[2deg] scale-[1.02] z-10 -my-6 shadow-xl">
         <div className="flex whitespace-nowrap animate-marquee-reverse">
           {[...Array(10)].map((_, i) => (
-            <span key={i} className="text-3xl md:text-5xl font-black text-white uppercase mx-8 tracking-tighter" dangerouslySetInnerHTML={{ __html: content.banner2_text || `FITNESS IS DREAM FOR <span class="text-gold">EVERYONE</span> . #FITNESS` }} />
+            <span key={i} className="text-3xl md:text-5xl font-black text-white uppercase mx-8 tracking-tighter" dangerouslySetInnerHTML={{ __html: sanitizeRichText(content.banner2_text || `FITNESS IS DREAM FOR <span class="text-gold">EVERYONE</span> . #FITNESS`) }} />
           ))}
         </div>
       </div>

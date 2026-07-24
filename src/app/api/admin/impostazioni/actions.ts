@@ -2,8 +2,10 @@
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/admin/auth";
 
 export async function saveHomepageContent(formData: FormData) {
+  await requireAdmin();
   const adminSupabase = createAdminClient();
   
   const payloadStr = formData.get("payload") as string;
@@ -36,6 +38,7 @@ export async function saveHomepageContent(formData: FormData) {
 }
 
 export async function saveProvaGratuitaContent(formData: FormData) {
+  await requireAdmin();
   const adminSupabase = createAdminClient();
   
   const payloadStr = formData.get("payload") as string;

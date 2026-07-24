@@ -15,32 +15,32 @@ interface DataTableProps<T> {
 
 export function DataTable<T>({ data, columns, keyExtractor }: DataTableProps<T>) {
   return (
-    <div className="w-full overflow-x-auto rounded-[24px] border border-slate-200 bg-white shadow-sm">
+    <div className="w-full overflow-x-auto rounded-[22px] border border-black/[0.07] bg-white shadow-[0_16px_50px_rgba(24,27,20,.04)]">
       <table className="w-full text-sm text-left">
-        <thead className="bg-slate-50 border-b border-slate-200">
+        <thead className="border-b border-black/[0.06] bg-[#f7f7f3]">
           <tr>
             {columns.map((col, idx) => (
-              <th key={idx} className={`px-6 py-5 text-[12px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
+              <th key={idx} className={`px-5 py-4 text-[10px] font-extrabold text-black/40 uppercase tracking-[0.14em] whitespace-nowrap ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
                 {col.header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-black/[0.055]">
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-6 py-16 text-center text-slate-400 font-medium">
+              <td colSpan={columns.length} className="px-6 py-16 text-center text-black/35 font-semibold">
                 Nessun dato disponibile.
               </td>
             </tr>
           ) : (
-            data.map((item, rowIndex) => (
+            data.map((item) => (
               <tr 
                 key={keyExtractor(item)} 
-                className="hover:bg-slate-50/50 transition-colors"
+                className="hover:bg-[#f7f7f3] transition-colors"
               >
                 {columns.map((col, colIndex) => (
-                  <td key={colIndex} className={`px-6 py-5 text-slate-700 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
+                  <td key={colIndex} className={`px-5 py-4 text-[#34362f] ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
                     {col.cell 
                       ? col.cell(item) 
                       : col.accessorKey 
