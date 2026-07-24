@@ -18,6 +18,11 @@ export default async function ImpostazioniPage() {
     .eq("is_istruttore", true)
     .order("nome");
 
+  const { data: sponsors } = await adminSupabase
+    .from("sponsors")
+    .select("id, nome, tier, logo_url, attivo, ordine_display")
+    .order("ordine_display");
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-5 border-b border-slate-200 pb-5">
@@ -25,7 +30,7 @@ export default async function ImpostazioniPage() {
         <p className="mt-1 text-slate-500">Segui le sezioni guidate. Le modifiche vengono pubblicate solo al salvataggio.</p>
       </div>
 
-      <SettingsClient initialData={initialData} initialIstruttori={istruttori || []} />
+      <SettingsClient initialData={initialData} initialIstruttori={istruttori || []} initialSponsors={sponsors || []} />
     </div>
   );
 }
