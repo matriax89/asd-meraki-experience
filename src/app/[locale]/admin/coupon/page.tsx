@@ -1,17 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { getLocale } from "next-intl/server";
-import { redirect } from "next/navigation";
 import { CouponClient } from "./coupon-client";
+import { requireAdmin } from "@/lib/admin/auth";
 
 export default async function AdminCouponsPage() {
   const locale = await getLocale();
+  await requireAdmin();
   const supabase = await createClient();
-  
-  const { data: adminCheck } = await supabase.rpc('is_admin');
-  if (!adminCheck) {
-    redirect("/");
-  }
 
   const { data: coupons, error } = await supabase
     .from("coupons")

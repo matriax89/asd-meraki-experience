@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/admin/auth";
 import { revalidatePath } from "next/cache";
 
 export async function createCoupon(data: {
@@ -13,12 +14,8 @@ export async function createCoupon(data: {
   applicable_product_ids: string[] | null;
   active: boolean;
 }) {
-  const supabase = await createClient();
-  
-  const { data: adminCheck } = await supabase.rpc('is_admin');
-  if (!adminCheck) {
-    return { success: false, error: "Non autorizzato" };
-  }
+  await requireAdmin();
+  const supabase = createAdminClient();
 
   const { error } = await supabase
     .from("coupons")
@@ -46,12 +43,8 @@ export async function updateCoupon(id: string, data: {
   applicable_product_ids: string[] | null;
   active: boolean;
 }) {
-  const supabase = await createClient();
-  
-  const { data: adminCheck } = await supabase.rpc('is_admin');
-  if (!adminCheck) {
-    return { success: false, error: "Non autorizzato" };
-  }
+  await requireAdmin();
+  const supabase = createAdminClient();
 
   const { error } = await supabase
     .from("coupons")
@@ -71,12 +64,8 @@ export async function updateCoupon(id: string, data: {
 }
 
 export async function toggleCouponActive(id: string, active: boolean) {
-  const supabase = await createClient();
-  
-  const { data: adminCheck } = await supabase.rpc('is_admin');
-  if (!adminCheck) {
-    return { success: false, error: "Non autorizzato" };
-  }
+  await requireAdmin();
+  const supabase = createAdminClient();
 
   const { error } = await supabase
     .from("coupons")
@@ -93,12 +82,8 @@ export async function toggleCouponActive(id: string, active: boolean) {
 }
 
 export async function deleteCoupon(id: string) {
-  const supabase = await createClient();
-  
-  const { data: adminCheck } = await supabase.rpc('is_admin');
-  if (!adminCheck) {
-    return { success: false, error: "Non autorizzato" };
-  }
+  await requireAdmin();
+  const supabase = createAdminClient();
 
   const { error } = await supabase
     .from("coupons")
