@@ -23,6 +23,7 @@ export default async function AdminOrdiniPage() {
       case 'paid': return <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Pagato</span>;
       case 'processing': return <span className="px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">In lavorazione</span>;
       case 'shipped': return <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Spedito</span>;
+      case 'ready_for_pickup': return <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Pronto al ritiro</span>;
       case 'delivered': return <span className="px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Consegnato</span>;
       case 'completed': return <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Completato</span>;
       case 'cancelled': return <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Cancellato</span>;

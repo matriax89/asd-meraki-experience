@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import { stripe } from "@/lib/stripe/client";
 import { fulfillShopOrder } from "@/lib/stripe/fulfill-shop-order";
+import { sendOrderStatusUpdate } from "@/lib/resend/client";
 
 export async function syncPaidStripeOrders() {
   await requireAdmin();
@@ -46,6 +47,15 @@ export async function updateOrderStatus(id: string, status: string, trackingNumb
   }
 
   const updates: any = { status };
+  const { data: currentOrder } = await adminSupabase.from("orders").select("*").eq("id", id).single();
+  if (!currentOrder) return { error: "Ordine non trovato." };
+
+  if (currentOrder.delivery_method === "hand_delivery" && ["shipped", "delivered"].includes(status)) {
+    return { error: "Un ordine con ritiro a mano non può essere segnato come spedito." };
+  }
+  if (currentOrder.delivery_method !== "hand_delivery" && status === "ready_for_pickup") {
+    return { error: "Questo ordine deve essere spedito: usa lo stato Spedito." };
+  }
   
   if (status === 'shipped') {
     updates.shipped_at = new Date().toISOString();
@@ -68,14 +78,19 @@ export async function updateOrderStatus(id: string, status: string, trackingNumb
     return { error: "Errore durante l'aggiornamento dell'ordine." };
   }
 
-  // Se lo stato è "shipped", bisognerebbe inviare una mail con Resend!
-  if (status === 'shipped') {
-    console.log("Mock: Inviata mail di 'Ordine Spedito' al cliente per l'ordine", id);
+  let emailWarning: string | undefined;
+  if (currentOrder.status !== status) {
+    const { data: updatedOrder } = await adminSupabase.from("orders").select("*").eq("id", id).single();
+    const { data: items } = await adminSupabase.from("order_items").select("*").eq("order_id", id);
+    if (updatedOrder) {
+      const emailResult = await sendOrderStatusUpdate(updatedOrder, items || [], updatedOrder.locale || "it");
+      if (!emailResult.success) emailWarning = "Stato salvato, ma l’email al cliente non è partita.";
+    }
   }
 
   revalidatePath("/[locale]/admin/ordini", "page");
   revalidatePath(`/[locale]/admin/ordini/${id}`, "page");
   revalidatePath("/[locale]/admin", "page");
   
-  return { success: true };
+  return { success: true, warning: emailWarning };
 }

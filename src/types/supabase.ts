@@ -397,11 +397,14 @@ export type Database = {
           buyer_nome: string
           buyer_telefono: string | null
           consenso_marketing: boolean | null
+          admin_notification_sent_at: string | null
           completed_at: string | null
           created_at: string | null
+          customer_confirmation_sent_at: string | null
           delivery_method: string
           delivered_at: string | null
           id: string
+          locale: string
           note_cliente: string | null
           numero_ordine: string
           ship_address_line1: string
@@ -428,11 +431,14 @@ export type Database = {
           buyer_nome: string
           buyer_telefono?: string | null
           consenso_marketing?: boolean | null
+          admin_notification_sent_at?: string | null
           completed_at?: string | null
           created_at?: string | null
+          customer_confirmation_sent_at?: string | null
           delivery_method?: string
           delivered_at?: string | null
           id?: string
+          locale?: string
           note_cliente?: string | null
           numero_ordine: string
           ship_address_line1: string
@@ -459,11 +465,14 @@ export type Database = {
           buyer_nome?: string
           buyer_telefono?: string | null
           consenso_marketing?: boolean | null
+          admin_notification_sent_at?: string | null
           completed_at?: string | null
           created_at?: string | null
+          customer_confirmation_sent_at?: string | null
           delivery_method?: string
           delivered_at?: string | null
           id?: string
+          locale?: string
           note_cliente?: string | null
           numero_ordine?: string
           ship_address_line1?: string
@@ -1035,6 +1044,7 @@ export type Database = {
         | "paid"
         | "processing"
         | "shipped"
+        | "ready_for_pickup"
         | "delivered"
         | "completed"
         | "cancelled"
@@ -1187,6 +1197,7 @@ const Constants = {
         "paid",
         "processing",
         "shipped",
+        "ready_for_pickup",
         "delivered",
         "completed",
         "cancelled",

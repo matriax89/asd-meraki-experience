@@ -11,10 +11,10 @@ export default async function AdminLayout({
   const { locale } = await params;
   const identity = await requireAdminPage(locale);
   const adminSupabase = createAdminClient();
-  const { count: paidOrderCount } = await adminSupabase
+  const { count: activeOrderCount } = await adminSupabase
     .from("orders")
     .select("*", { count: "exact", head: true })
-    .eq("status", "paid");
+    .in("status", ["pending", "paid", "processing", "shipped", "ready_for_pickup", "delivered"]);
   return (
     <Theme
       appearance="light"
@@ -24,7 +24,7 @@ export default async function AdminLayout({
       radius="small"
       scaling="100%"
     >
-      <AdminShell identity={identity} orderNotificationCount={paidOrderCount || 0}>{children}</AdminShell>
+      <AdminShell identity={identity} orderNotificationCount={activeOrderCount || 0}>{children}</AdminShell>
     </Theme>
   );
 }

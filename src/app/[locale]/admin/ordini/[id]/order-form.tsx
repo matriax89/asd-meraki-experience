@@ -19,7 +19,7 @@ export function OrderStatusForm({ order }: { order: any }) {
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success("Ordine aggiornato");
+        result.warning ? toast.warning(result.warning) : toast.success("Ordine aggiornato e cliente avvisato");
       }
     });
   };
@@ -32,11 +32,14 @@ export function OrderStatusForm({ order }: { order: any }) {
         return;
       }
       setStatus("completed");
-      toast.success("Ordine completato. La notifica è stata rimossa.");
+      result.warning
+        ? toast.warning(`${result.warning} La notifica è stata rimossa.`)
+        : toast.success("Ordine completato, cliente avvisato e notifica rimossa.");
     });
   };
 
   const isClosed = ["completed", "cancelled", "refunded"].includes(status);
+  const isHandDelivery = order.delivery_method === "hand_delivery";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -61,18 +64,24 @@ export function OrderStatusForm({ order }: { order: any }) {
           className="w-full p-2 border border-border rounded-lg bg-background"
         >
           <option value="pending">In attesa</option>
-          <option value="paid">Pagato (Da spedire)</option>
+          <option value="paid">Pagato (da gestire)</option>
           <option value="processing">In lavorazione</option>
-          <option value="shipped">Spedito</option>
-          <option value="delivered">Consegnato</option>
+          {isHandDelivery ? (
+            <option value="ready_for_pickup">Pronto al ritiro</option>
+          ) : (
+            <>
+              <option value="shipped">Spedito</option>
+              <option value="delivered">Consegnato</option>
+            </>
+          )}
           <option value="completed">Completato</option>
           <option value="cancelled">Cancellato</option>
           <option value="refunded">Rimborsato</option>
         </select>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-muted-foreground mb-1">Tracking Number</label>
+      {!isHandDelivery && <div>
+        <label className="block text-sm font-medium text-muted-foreground mb-1">Codice tracking</label>
         <input 
           type="text" 
           value={trackingNumber} 
@@ -80,9 +89,9 @@ export function OrderStatusForm({ order }: { order: any }) {
           placeholder="Es. 1Z9999999999999999"
           className="w-full p-2 border border-border rounded-lg bg-background"
         />
-      </div>
+      </div>}
 
-      <div>
+      {!isHandDelivery && <div>
         <label className="block text-sm font-medium text-muted-foreground mb-1">Tracking URL</label>
         <input 
           type="url" 
@@ -91,7 +100,7 @@ export function OrderStatusForm({ order }: { order: any }) {
           placeholder="https://..."
           className="w-full p-2 border border-border rounded-lg bg-background"
         />
-      </div>
+      </div>}
 
       <button 
         type="submit" 

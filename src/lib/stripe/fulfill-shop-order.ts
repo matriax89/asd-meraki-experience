@@ -14,7 +14,20 @@ export async function fulfillShopOrder(session: Stripe.Checkout.Session) {
     .select("*")
     .eq("stripe_session_id", session.id)
     .maybeSingle();
-  if (existing) return existing;
+  if (existing) {
+    const { data: existingItems } = await supabase.from("order_items").select("*").eq("order_id", existing.id);
+    const updates: { customer_confirmation_sent_at?: string; admin_notification_sent_at?: string } = {};
+    if (!existing.customer_confirmation_sent_at) {
+      const result = await sendOrderConfirmation(existing, existingItems || [], existing.locale || "it");
+      if (result.success) updates.customer_confirmation_sent_at = new Date().toISOString();
+    }
+    if (!existing.admin_notification_sent_at) {
+      const result = await sendOrderNotification(existing, existingItems || []);
+      if (result?.success) updates.admin_notification_sent_at = new Date().toISOString();
+    }
+    if (Object.keys(updates).length) await supabase.from("orders").update(updates).eq("id", existing.id);
+    return existing;
+  }
 
   const cartItems = JSON.parse(session.metadata.cart_data || "[]") as Array<{ variantId: string; quantity: number }>;
   const customer = session.customer_details;
@@ -36,6 +49,7 @@ export async function fulfillShopOrder(session: Stripe.Checkout.Session) {
       ship_state: shipping?.address?.state || "",
       ship_country: shipping?.address?.country || "IT",
       delivery_method: session.metadata.hand_delivery === "true" ? "hand_delivery" : "shipping",
+      locale: ["it", "en", "de"].includes(session.metadata.locale || "") ? session.metadata.locale : "it",
       stripe_session_id: session.id,
       stripe_payment_intent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id,
       subtotal_cents: session.amount_subtotal || 0,
@@ -83,10 +97,14 @@ export async function fulfillShopOrder(session: Stripe.Checkout.Session) {
   }
 
   const { data: items } = await supabase.from("order_items").select("*").eq("order_id", order.id);
-  await Promise.all([
+  const [customerEmail, adminEmail] = await Promise.all([
     sendOrderConfirmation(order, items || [], session.metadata?.locale || "it"),
     sendOrderNotification(order, items || []),
   ]);
+  const emailUpdates: { customer_confirmation_sent_at?: string; admin_notification_sent_at?: string } = {};
+  if (customerEmail.success) emailUpdates.customer_confirmation_sent_at = new Date().toISOString();
+  if (adminEmail?.success) emailUpdates.admin_notification_sent_at = new Date().toISOString();
+  if (Object.keys(emailUpdates).length) await supabase.from("orders").update(emailUpdates).eq("id", order.id);
 
   return order;
 }
