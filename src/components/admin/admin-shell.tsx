@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Link, usePathname } from "@/i18n/routing";
 import type { LucideIcon } from "lucide-react";
+import { Badge, IconButton, TextField } from "@radix-ui/themes";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -91,37 +92,40 @@ export function AdminShell({ children, identity }: AdminShellProps) {
 
   const navigation = (
     <>
-      <div className="flex h-20 items-center justify-between px-5">
+      <div className="flex h-14 items-center justify-between border-b border-slate-200 px-3">
         <Link href="/admin" className="flex min-w-0 items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#f2d95c] text-sm font-black text-[#151712] shadow-[0_8px_28px_rgba(242,217,92,.2)]">
+          <span className="grid size-7 shrink-0 place-items-center rounded-[5px] bg-slate-950 text-[11px] font-bold text-white">
             M
           </span>
           {!compact && (
             <span className="min-w-0">
-              <span className="block truncate text-sm font-extrabold tracking-[-0.02em] text-white">
-                Meraki Experience
+              <span className="block truncate text-[13px] font-semibold text-slate-950">
+                Meraki
               </span>
-              <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
-                Control room
+              <span className="block text-[10px] text-slate-500">
+                Amministrazione
               </span>
             </span>
           )}
         </Link>
-        <button
+        <IconButton
           type="button"
+          variant="ghost"
+          color="gray"
+          size="1"
           onClick={() => setCompact((value) => !value)}
-          className="hidden size-9 place-items-center rounded-xl text-white/35 transition hover:bg-white/8 hover:text-white lg:grid"
+          className="!hidden lg:!inline-flex"
           aria-label={compact ? "Espandi navigazione" : "Comprimi navigazione"}
         >
           <PanelLeftClose className={`size-4 transition ${compact ? "rotate-180" : ""}`} />
-        </button>
+        </IconButton>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 pb-5">
+      <nav className="flex-1 overflow-y-auto px-2 py-3">
         {sections.map((section) => (
           <div key={section.label} className="mb-6">
             {!compact && (
-              <p className="mb-2 px-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/25">
+              <p className="mb-1.5 px-2 text-[10px] font-medium text-slate-500">
                 {section.label}
               </p>
             )}
@@ -135,18 +139,18 @@ export function AdminShell({ children, identity }: AdminShellProps) {
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     title={compact ? item.name : undefined}
-                    className={`group flex h-11 items-center rounded-2xl transition ${
-                      compact ? "justify-center px-0" : "gap-3 px-3"
+                    className={`group flex h-8 items-center rounded-[5px] transition ${
+                      compact ? "justify-center px-0" : "gap-2 px-2"
                     } ${
                       active
-                        ? "bg-[#f2d95c] text-[#171914] shadow-[0_10px_24px_rgba(0,0,0,.18)]"
-                        : "text-white/55 hover:bg-white/[0.06] hover:text-white"
+                        ? "bg-slate-100 text-slate-950"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                     }`}
                   >
-                    <Icon className="size-[18px] shrink-0" strokeWidth={active ? 2.4 : 1.8} />
+                    <Icon className="size-[15px] shrink-0" strokeWidth={active ? 2.1 : 1.7} />
                     {!compact && (
                       <>
-                        <span className="flex-1 text-[13px] font-semibold">{item.name}</span>
+                        <span className="flex-1 text-[12px] font-medium">{item.name}</span>
                         {active && <ChevronRight className="size-3.5 opacity-50" />}
                       </>
                     )}
@@ -158,25 +162,25 @@ export function AdminShell({ children, identity }: AdminShellProps) {
         ))}
       </nav>
 
-      <div className="border-t border-white/[0.06] p-3">
-        <div className={`flex items-center ${compact ? "justify-center" : "gap-3"} rounded-2xl bg-white/[0.04] p-2`}>
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white/10 text-xs font-extrabold text-white">
+      <div className="border-t border-slate-200 p-2">
+        <div className={`flex items-center ${compact ? "justify-center" : "gap-2"} rounded-[6px] p-1.5`}>
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-700">
             {initials}
           </span>
           {!compact && (
             <>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-bold text-white">
+                <span className="block truncate text-[11px] font-medium text-slate-950">
                   {identity.fullName || "Team Meraki"}
                 </span>
-                <span className="block truncate text-[10px] text-white/35">
+                <span className="block truncate text-[10px] text-slate-500">
                   {identity.role === "admin" ? "Amministratore" : "Editor"}
                 </span>
               </span>
               <form action="/auth/signout" method="post">
                 <button
                   type="submit"
-                  className="grid size-8 place-items-center rounded-xl text-white/35 transition hover:bg-rose-400/10 hover:text-rose-300"
+                  className="grid size-7 place-items-center rounded-[5px] text-slate-500 transition hover:bg-red-50 hover:text-red-600"
                   aria-label="Disconnetti"
                 >
                   <LogOut className="size-4" />
@@ -190,10 +194,10 @@ export function AdminShell({ children, identity }: AdminShellProps) {
   );
 
   return (
-    <div className="admin-surface min-h-dvh bg-[#f3f4ef] text-[#20221d]">
+    <div className="admin-surface min-h-dvh bg-slate-50 text-slate-950">
       <aside
-        className={`fixed inset-y-0 left-0 z-40 hidden flex-col bg-[#171914] transition-[width] duration-300 lg:flex ${
-          compact ? "w-[76px]" : "w-[264px]"
+        className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-slate-200 bg-white transition-[width] duration-200 lg:flex ${
+          compact ? "w-[56px]" : "w-[224px]"
         }`}
       >
         {navigation}
@@ -207,11 +211,11 @@ export function AdminShell({ children, identity }: AdminShellProps) {
             onClick={() => setMobileOpen(false)}
             aria-label="Chiudi navigazione"
           />
-          <aside className="relative flex h-full w-[286px] flex-col bg-[#171914] shadow-2xl">
+          <aside className="relative flex h-full w-[260px] flex-col border-r border-slate-200 bg-white shadow-lg">
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
-              className="absolute right-3 top-3 z-10 grid size-10 place-items-center rounded-xl text-white/50 hover:bg-white/10 hover:text-white"
+              className="absolute right-2 top-2 z-10 grid size-8 place-items-center rounded-[5px] text-slate-500 hover:bg-slate-50 hover:text-slate-950"
               aria-label="Chiudi navigazione"
             >
               <X className="size-5" />
@@ -221,40 +225,37 @@ export function AdminShell({ children, identity }: AdminShellProps) {
         </div>
       )}
 
-      <div className={`transition-[padding] duration-300 ${compact ? "lg:pl-[76px]" : "lg:pl-[264px]"}`}>
-        <header className="sticky top-0 z-30 border-b border-black/[0.06] bg-[#f3f4ef]/90 backdrop-blur-xl">
-          <div className="flex h-16 items-center gap-3 px-4 sm:px-7 lg:px-9">
-            <button
+      <div className={`transition-[padding] duration-200 ${compact ? "lg:pl-[56px]" : "lg:pl-[224px]"}`}>
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div className="flex h-12 items-center gap-3 px-4 lg:px-6">
+            <IconButton
               type="button"
+              variant="soft"
+              color="gray"
+              size="2"
               onClick={() => setMobileOpen(true)}
-              className="grid size-10 place-items-center rounded-2xl border border-black/[0.08] bg-white lg:hidden"
+              className="lg:!hidden"
               aria-label="Apri navigazione"
             >
               <Menu className="size-5" />
-            </button>
+            </IconButton>
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-black/35">
-                Meraki / Workspace
-              </p>
-              <h1 className="truncate text-sm font-extrabold tracking-[-0.02em]">
+              <h1 className="truncate text-[13px] font-semibold">
                 {currentItem?.name || "Pannello di controllo"}
               </h1>
             </div>
-            <button
-              type="button"
-              className="hidden h-10 w-56 items-center gap-2 rounded-2xl border border-black/[0.07] bg-white px-3 text-xs text-black/35 shadow-sm sm:flex"
-            >
-              <Search className="size-4" />
-              Cerca nel pannello
-              <kbd className="ml-auto rounded-md bg-black/[0.05] px-1.5 py-0.5 text-[9px] font-bold">⌘ K</kbd>
-            </button>
-            <span className="flex items-center gap-2 rounded-full border border-emerald-700/10 bg-emerald-100/70 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-emerald-800">
+            <TextField.Root size="1" placeholder="Cerca…" className="hidden w-48 sm:flex">
+              <TextField.Slot>
+                <Search className="size-3.5" />
+              </TextField.Slot>
+            </TextField.Root>
+            <Badge color="green" variant="soft" radius="full" size="1">
               <Activity className="size-3" />
-              Live
-            </span>
+              Online
+            </Badge>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1540px] px-4 py-6 sm:px-7 sm:py-8 lg:px-9">
+        <main className="mx-auto w-full max-w-[1440px] px-4 py-5 lg:px-6">
           {children}
         </main>
       </div>

@@ -8,12 +8,12 @@ interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
 export const Input = React.forwardRef<HTMLInputElement, FormFieldProps>(
   ({ label, error, className = "", ...props }, ref) => {
     return (
-      <div className="space-y-2">
-        <label className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-black/48">{label}</label>
+      <div className="space-y-1.5">
+        <label className="block text-[11px] font-medium text-slate-700">{label}</label>
         <input
           ref={ref}
-          className={`h-12 w-full rounded-2xl border bg-white px-4 text-sm text-[#24261f] outline-none transition placeholder:text-black/25 focus:border-black/25 focus:ring-4 focus:ring-[#f2d95c]/25 ${
-            error ? "border-rose-400" : "border-black/[0.09]"
+          className={`h-8 w-full rounded-[5px] border bg-white px-2.5 text-[13px] text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 ${
+            error ? "border-red-400" : "border-slate-300"
           } ${className}`}
           {...props}
         />
@@ -32,12 +32,12 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ label, error, className = "", ...props }, ref) => {
     return (
-      <div className="space-y-2">
-        <label className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-black/48">{label}</label>
+      <div className="space-y-1.5">
+        <label className="block text-[11px] font-medium text-slate-700">{label}</label>
         <textarea
           ref={ref}
-          className={`min-h-[130px] w-full resize-y rounded-2xl border bg-white px-4 py-3 text-sm leading-6 text-[#24261f] outline-none transition placeholder:text-black/25 focus:border-black/25 focus:ring-4 focus:ring-[#f2d95c]/25 ${
-            error ? "border-rose-400" : "border-black/[0.09]"
+          className={`min-h-[96px] w-full resize-y rounded-[5px] border bg-white px-2.5 py-2 text-[13px] leading-5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 ${
+            error ? "border-red-400" : "border-slate-300"
           } ${className}`}
           {...props}
         />
@@ -57,12 +57,12 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, options, className = "", ...props }, ref) => {
     return (
-      <div className="space-y-2">
-        <label className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-black/48">{label}</label>
+      <div className="space-y-1.5">
+        <label className="block text-[11px] font-medium text-slate-700">{label}</label>
         <select
           ref={ref}
-          className={`h-12 w-full appearance-none rounded-2xl border bg-white px-4 text-sm text-[#24261f] outline-none transition focus:border-black/25 focus:ring-4 focus:ring-[#f2d95c]/25 ${
-            error ? "border-rose-400" : "border-black/[0.09]"
+          className={`h-8 w-full appearance-none rounded-[5px] border bg-white px-2.5 text-[13px] text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 ${
+            error ? "border-red-400" : "border-slate-300"
           } ${className}`}
           {...props}
         >
@@ -85,7 +85,7 @@ interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
 export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
   ({ label, description, className = "", ...props }, ref) => {
     return (
-      <div className="flex items-start gap-3 rounded-2xl border border-black/[0.07] bg-white p-4">
+      <div className="flex items-start gap-2.5 rounded-[6px] border border-slate-200 bg-white p-3">
         <div className="flex items-center h-5">
           <input
             type="checkbox"

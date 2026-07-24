@@ -53,7 +53,7 @@ export default async function AdminDashboardPage() {
       note: "richieste da gestire",
       icon: Users,
       href: "/admin/leads",
-      tone: "bg-[#d9eeff] text-[#22577a]",
+      tone: "bg-blue-50 text-blue-700",
     },
     {
       label: "Da spedire",
@@ -61,7 +61,7 @@ export default async function AdminDashboardPage() {
       note: "ordini già pagati",
       icon: ShoppingBag,
       href: "/admin/ordini",
-      tone: "bg-[#dff2dc] text-[#315c2b]",
+      tone: "bg-green-50 text-green-700",
     },
     {
       label: "Biglietti",
@@ -69,7 +69,7 @@ export default async function AdminDashboardPage() {
       note: "emessi in totale",
       icon: Ticket,
       href: "/admin/biglietti",
-      tone: "bg-[#eee4ff] text-[#654597]",
+      tone: "bg-purple-50 text-purple-700",
     },
     {
       label: "Stock critico",
@@ -77,19 +77,19 @@ export default async function AdminDashboardPage() {
       note: "varianti da riordinare",
       icon: AlertTriangle,
       href: "/admin/prodotti",
-      tone: "bg-[#ffe3dd] text-[#8c3d2f]",
+      tone: "bg-red-50 text-red-700",
     },
   ] as const;
 
   return (
     <div className="space-y-7">
-      <section className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+      <section className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-end">
         <div>
           <span className="admin-eyebrow">Venerdì, 24 luglio</span>
-          <h2 className="mt-2 max-w-3xl text-3xl font-black tracking-[-0.045em] text-[#1b1d18] sm:text-4xl">
-            Tutto ciò che richiede attenzione, in un unico posto.
+          <h2 className="mt-1 max-w-3xl text-xl font-semibold tracking-[-0.025em] text-slate-950 sm:text-2xl">
+            Panoramica operativa
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-black/45">
+          <p className="mt-1 max-w-2xl text-[13px] leading-5 text-slate-500">
             Una vista operativa su vendite, community, attività e contenuti Meraki.
           </p>
         </div>
@@ -110,14 +110,14 @@ export default async function AdminDashboardPage() {
           const Icon = kpi.icon;
           return (
             <Link key={kpi.label} href={kpi.href} className="admin-kpi group">
-              <div className={`grid size-11 place-items-center rounded-2xl ${kpi.tone}`}>
-                <Icon className="size-5" strokeWidth={2} />
+              <div className={`grid size-8 place-items-center rounded-[5px] ${kpi.tone}`}>
+                <Icon className="size-4" strokeWidth={1.8} />
               </div>
               <ArrowUpRight className="absolute right-5 top-5 size-4 text-black/20 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-black/60" />
-              <p className="mt-7 text-[11px] font-extrabold uppercase tracking-[0.12em] text-black/38">{kpi.label}</p>
+              <p className="mt-5 text-[11px] font-medium text-slate-500">{kpi.label}</p>
               <div className="mt-1 flex items-end justify-between gap-3">
-                <strong className="text-4xl font-black tracking-[-0.06em]">{kpi.value}</strong>
-                <span className="pb-1 text-right text-[11px] leading-4 text-black/38">{kpi.note}</span>
+                <strong className="text-2xl font-semibold tracking-[-0.04em]">{kpi.value}</strong>
+                <span className="pb-0.5 text-right text-[10px] leading-4 text-slate-400">{kpi.note}</span>
               </div>
             </Link>
           );
@@ -179,9 +179,9 @@ export default async function AdminDashboardPage() {
                   <Link
                     key={event.id}
                     href={`/admin/eventi/${event.id}`}
-                    className="flex items-center gap-3 rounded-2xl p-2.5 transition hover:bg-black/[0.035]"
+                    className="flex items-center gap-3 rounded-[6px] p-2.5 transition hover:bg-slate-50"
                   >
-                    <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#f2d95c]/55 text-center">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-[5px] bg-slate-100 text-center">
                       <span>
                         <span className="block text-[9px] font-black uppercase leading-none">
                           {date?.toLocaleDateString("it-IT", { month: "short" }) || "—"}
