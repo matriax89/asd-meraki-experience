@@ -51,6 +51,8 @@ export async function updateOrderStatus(id: string, status: string, trackingNumb
     updates.shipped_at = new Date().toISOString();
   } else if (status === 'delivered') {
     updates.delivered_at = new Date().toISOString();
+  } else if (status === 'completed') {
+    updates.completed_at = new Date().toISOString();
   }
 
   if (trackingNumber !== undefined) updates.tracking_number = trackingNumber;

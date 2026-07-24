@@ -345,11 +345,13 @@ export async function sendOrderConfirmation(order: any, items: any[], locale: st
           <div style="background-color: #f5f5f7; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
             <h3 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 8px 0; font-weight: 600;">${t.shipTo}</h3>
             <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #1d1d1f;">
-              ${order.buyer_nome} ${order.buyer_cognome}<br/>
-              ${order.ship_address_line1}<br/>
-              ${order.ship_address_line2 ? order.ship_address_line2 + '<br/>' : ''}
-              ${order.ship_city}, ${order.ship_postal_code} (${order.ship_state})<br/>
-              ${order.ship_country}
+              ${order.delivery_method === "hand_delivery"
+                ? "Ritiro a mano — riceverai le indicazioni dal team Meraki."
+                : `${order.buyer_nome} ${order.buyer_cognome}<br/>
+                  ${order.ship_address_line1}<br/>
+                  ${order.ship_address_line2 ? order.ship_address_line2 + '<br/>' : ''}
+                  ${order.ship_city}, ${order.ship_postal_code}${order.ship_state ? ` (${order.ship_state})` : ''}<br/>
+                  ${order.ship_country}`}
             </p>
           </div>
           

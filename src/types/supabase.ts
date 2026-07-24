@@ -397,7 +397,9 @@ export type Database = {
           buyer_nome: string
           buyer_telefono: string | null
           consenso_marketing: boolean | null
+          completed_at: string | null
           created_at: string | null
+          delivery_method: string
           delivered_at: string | null
           id: string
           note_cliente: string | null
@@ -426,7 +428,9 @@ export type Database = {
           buyer_nome: string
           buyer_telefono?: string | null
           consenso_marketing?: boolean | null
+          completed_at?: string | null
           created_at?: string | null
+          delivery_method?: string
           delivered_at?: string | null
           id?: string
           note_cliente?: string | null
@@ -455,7 +459,9 @@ export type Database = {
           buyer_nome?: string
           buyer_telefono?: string | null
           consenso_marketing?: boolean | null
+          completed_at?: string | null
           created_at?: string | null
+          delivery_method?: string
           delivered_at?: string | null
           id?: string
           note_cliente?: string | null
@@ -1030,6 +1036,7 @@ export type Database = {
         | "processing"
         | "shipped"
         | "delivered"
+        | "completed"
         | "cancelled"
         | "refunded"
       product_categoria_enum: "abbigliamento" | "accessori" | "altro"
@@ -1181,6 +1188,7 @@ const Constants = {
         "processing",
         "shipped",
         "delivered",
+        "completed",
         "cancelled",
         "refunded",
       ],
@@ -1191,4 +1199,3 @@ const Constants = {
     },
   },
 } as const
-

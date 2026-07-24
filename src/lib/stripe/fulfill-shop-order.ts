@@ -35,6 +35,7 @@ export async function fulfillShopOrder(session: Stripe.Checkout.Session) {
       ship_postal_code: shipping?.address?.postal_code || "",
       ship_state: shipping?.address?.state || "",
       ship_country: shipping?.address?.country || "IT",
+      delivery_method: session.metadata.hand_delivery === "true" ? "hand_delivery" : "shipping",
       stripe_session_id: session.id,
       stripe_payment_intent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id,
       subtotal_cents: session.amount_subtotal || 0,
