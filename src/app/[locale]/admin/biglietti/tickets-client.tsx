@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { checkInTicket } from "@/app/api/admin/biglietti/actions";
 import { DataTable } from "@/components/admin/data-table";
+import { toast } from "sonner";
+import { ScanLine } from "lucide-react";
 
 interface Ticket {
   id: string;
@@ -30,7 +32,9 @@ export function TicketsClient({ initialTickets }: { initialTickets: Ticket[] }) 
     );
 
     startTransition(async () => {
-      await checkInTicket(id);
+      const result = await checkInTicket(id);
+      if (result.error) toast.error("Check-in non riuscito", { description: result.error });
+      else toast.success("Check-in completato");
     });
   };
 
@@ -79,7 +83,7 @@ export function TicketsClient({ initialTickets }: { initialTickets: Ticket[] }) 
               disabled={isPending}
               className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-xl text-[12px] font-bold uppercase tracking-widest disabled:opacity-50 transition-all active:scale-95 shadow-sm hover:shadow"
             >
-              Check-in
+              <ScanLine className="mr-1 inline size-3.5" /> Check-in
             </button>
           );
         }

@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { X, Upload, Loader2, ImagePlus } from "lucide-react";
 import Image from "next/image";
+import { toast } from "sonner";
 
 interface MultiImageUploadProps {
   label?: string;
@@ -29,7 +30,7 @@ export function MultiImageUpload({ label, value, onChange, folder = "products" }
         
         // Client-side validation for file size (10MB max)
         if (file.size > 10 * 1024 * 1024) {
-          alert(`L'immagine ${file.name} è troppo grande. Il limite è 10MB.`);
+          toast.error("Immagine troppo grande", { description: `${file.name}: il limite è 10 MB.` });
           continue;
         }
 
@@ -42,14 +43,14 @@ export function MultiImageUpload({ label, value, onChange, folder = "products" }
           newUrls.push(result.url);
         } else {
           console.error("Failed to upload:", result.error);
-          alert(`Errore caricamento ${file.name}: ${result.error}`);
+          toast.error("Caricamento non riuscito", { description: `${file.name}: ${result.error}` });
         }
       }
 
       onChange([...value, ...newUrls]);
     } catch (error) {
       console.error("Upload failed", error);
-      alert("Errore durante l'upload.");
+      toast.error("Errore durante il caricamento");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {

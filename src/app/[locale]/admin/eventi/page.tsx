@@ -3,6 +3,8 @@ import { DataTable } from "@/components/admin/data-table";
 import { Link } from "@/i18n/routing";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { RowActions } from "@/components/admin/row-actions";
+import { Plus } from "lucide-react";
 
 export default async function AdminEventiPage() {
   const locale = await getLocale();
@@ -66,11 +68,8 @@ export default async function AdminEventiPage() {
     },
     {
       header: "Azioni",
-      cell: (evento: any) => (
-        <Link href={`/admin/eventi/${evento.id}`} className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
-          Modifica
-        </Link>
-      )
+      align: "right" as const,
+      cell: (evento: any) => <RowActions id={evento.id} editHref={`/admin/eventi/${evento.id}`} label="l’evento" deleteEntity="event" />
     }
   ];
 
@@ -82,7 +81,7 @@ export default async function AdminEventiPage() {
           <p className="text-slate-500 mt-2">Gestisci il calendario di eventi speciali e ritiri.</p>
         </div>
         <Link href="/admin/eventi/nuovo" className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-slate-800 hover:shadow-lg transition-all active:scale-95">
-          + Nuovo Evento
+          <Plus className="inline size-4" /> Nuovo evento
         </Link>
       </div>
 

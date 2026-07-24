@@ -24,6 +24,7 @@ import {
 import { Link, usePathname } from "@/i18n/routing";
 import type { LucideIcon } from "lucide-react";
 import { Badge, IconButton, TextField } from "@radix-ui/themes";
+import { Toaster } from "sonner";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -195,6 +196,7 @@ export function AdminShell({ children, identity }: AdminShellProps) {
 
   return (
     <div className="admin-surface min-h-dvh bg-slate-50 text-slate-950">
+      <Toaster position="top-right" richColors closeButton />
       <aside
         className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-slate-200 bg-white transition-[width] duration-200 lg:flex ${
           compact ? "w-[56px]" : "w-[224px]"

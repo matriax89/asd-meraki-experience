@@ -3,6 +3,8 @@ import { DataTable } from "@/components/admin/data-table";
 import { Link } from "@/i18n/routing";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { RowActions } from "@/components/admin/row-actions";
+import { Plus } from "lucide-react";
 
 export default async function AdminCorsiPage() {
   const locale = await getLocale();
@@ -65,11 +67,8 @@ export default async function AdminCorsiPage() {
     },
     {
       header: "Azioni",
-      cell: (course: any) => (
-        <Link href={`/admin/corsi/${course.id}`} className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
-          Modifica
-        </Link>
-      )
+      align: "right" as const,
+      cell: (course: any) => <RowActions id={course.id} editHref={`/admin/corsi/${course.id}`} label="il corso" deleteEntity="course" />
     }
   ];
 
@@ -81,7 +80,7 @@ export default async function AdminCorsiPage() {
           <p className="text-slate-500 mt-2">Gestisci le schede dei corsi mostrati sul sito pubblico.</p>
         </div>
         <Link href="/admin/corsi/nuovo" className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-slate-800 hover:shadow-lg transition-all active:scale-95">
-          + Nuovo Corso
+          <Plus className="inline size-4" /> Nuovo corso
         </Link>
       </div>
 

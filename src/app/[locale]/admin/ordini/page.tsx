@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/admin/data-table";
-import { Link } from "@/i18n/routing";
+import { RowActions } from "@/components/admin/row-actions";
 
 export default async function AdminOrdiniPage() {
   const supabase = await createClient();
@@ -63,11 +63,8 @@ export default async function AdminOrdiniPage() {
     },
     {
       header: "Azioni",
-      cell: (order: any) => (
-        <Link href={`/admin/ordini/${order.id}`} className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
-          Dettagli &rarr;
-        </Link>
-      )
+      align: "right" as const,
+      cell: (order: any) => <RowActions id={order.id} editHref={`/admin/ordini/${order.id}`} label="l’ordine" mode="view" />
     }
   ];
 

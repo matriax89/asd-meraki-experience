@@ -112,3 +112,14 @@ export async function upsertProduct(data: ProductFormData) {
   
   return { success: true, id: savedProduct.id };
 }
+
+export async function deleteProduct(id: string) {
+  await requireAdmin();
+  const adminSupabase = createAdminClient();
+  const { error } = await adminSupabase.from("products").delete().eq("id", id);
+  if (error) {
+    return { success: false, error: "Il prodotto è collegato a ordini o varianti non eliminabili." };
+  }
+  revalidatePath("/[locale]/admin/prodotti", "page");
+  return { success: true };
+}

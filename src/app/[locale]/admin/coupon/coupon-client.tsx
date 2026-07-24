@@ -6,6 +6,8 @@ import { Input } from "@/components/admin/form-elements";
 import { Plus, Tag, Percent, Euro, Trash2, Power, PowerOff, Pencil } from "lucide-react";
 import { createCoupon, toggleCouponActive, deleteCoupon, updateCoupon } from "@/app/api/admin/coupons/actions";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { IconButton, Tooltip } from "@radix-ui/themes";
 
 type Coupon = {
   id: string;
@@ -102,32 +104,32 @@ export function CouponClient({
       align: "right",
       cell: (item: Coupon) => (
         <div className="flex items-center justify-end gap-2">
-          <button
-            onClick={() => handleEdit(item)}
-            className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
-            title="Modifica"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDelete(item.id)}
-            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            title="Elimina"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <Tooltip content="Modifica coupon">
+            <IconButton variant="ghost" color="gray" aria-label="Modifica coupon" onClick={() => handleEdit(item)}>
+              <Pencil size={16} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content="Elimina coupon">
+            <IconButton variant="ghost" color="red" aria-label="Elimina coupon" onClick={() => handleDelete(item.id)}>
+              <Trash2 size={16} />
+            </IconButton>
+          </Tooltip>
         </div>
       )
     }
   ];
 
   const handleToggleActive = async (id: string, active: boolean) => {
-    await toggleCouponActive(id, active);
+    const result = await toggleCouponActive(id, active);
+    if (result.error) toast.error("Impossibile aggiornare il coupon", { description: result.error });
+    else toast.success(active ? "Coupon attivato" : "Coupon disattivato");
   };
 
   const handleDelete = async (id: string) => {
     if (confirm("Sei sicuro di voler eliminare questo coupon?")) {
-      await deleteCoupon(id);
+      const result = await deleteCoupon(id);
+      if (result.error) toast.error("Coupon non eliminato", { description: result.error });
+      else toast.success("Coupon eliminato");
     }
   };
 
@@ -180,8 +182,9 @@ export function CouponClient({
     if (result.success) {
       resetForm();
       router.refresh();
+      toast.success(editingId ? "Coupon aggiornato" : "Coupon creato");
     } else {
-      alert("Errore: " + result.error);
+      toast.error("Salvataggio non riuscito", { description: result.error });
     }
     
     setIsLoading(false);

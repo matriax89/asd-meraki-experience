@@ -7,6 +7,7 @@ import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions
 import { compressImageToWebp } from "@/lib/image-utils";
 import { useModal } from "@/components/ui/modal-provider";
 import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail } from "lucide-react";
+import { toast } from "sonner";
 
 export function SettingsClient({ initialData, initialIstruttori }: { initialData: any, initialIstruttori?: any[] }) {
   const [loading, setLoading] = useState(false);
@@ -187,8 +188,10 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
 
     if (result.success) {
       setMessage({ type: "success", text: "Impostazioni salvate con successo!" });
+      toast.success("Impostazioni pubblicate", { description: "Le modifiche sono ora visibili sul sito." });
     } else {
       setMessage({ type: "error", text: "Errore durante il salvataggio: " + result.error });
+      toast.error("Salvataggio non riuscito", { description: result.error });
     }
     
     setLoading(false);
@@ -391,15 +394,29 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+    <div className="grid items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <aside className="sticky top-16 hidden rounded-lg border border-slate-200 bg-white p-3 lg:block">
+        <p className="px-2 pb-2 text-xs font-semibold text-slate-900">Procedura guidata</p>
+        <ol className="space-y-1 text-xs text-slate-600">
+          {["Aspetto e colori", "Homepage", "Persone e partner", "Media", "Documenti e sedi", "Email e integrazioni"].map((label, index) => (
+            <li key={label} className="rounded-md px-2 py-2 hover:bg-slate-100">
+              <span className="mr-2 text-slate-400">{index + 1}.</span>{label}
+            </li>
+          ))}
+        </ol>
+        <p className="mt-3 border-t border-slate-200 px-2 pt-3 text-[11px] leading-4 text-slate-500">
+          Inizia dai testi e dai contatti. Immagini, popup e integrazioni sono facoltativi.
+        </p>
+      </aside>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 p-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Testi Homepage</h2>
-          <p className="text-sm text-slate-500">Modifica i testi principali della tua landing page.</p>
+          <h2 className="font-semibold text-slate-900">Configurazione pubblica</h2>
+          <p className="text-xs text-slate-500">Procedi dall’alto verso il basso. I campi avanzati sono facoltativi.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-10 p-4 md:p-6">
         {message && (
           <div className={`p-4 rounded-xl text-sm font-medium ${message.type === "success" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
             {message.text}
@@ -1777,17 +1794,19 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
-        <div className="pt-6 border-t border-slate-200">
+        <div className="sticky bottom-0 -mx-4 flex items-center justify-between border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
+          <p className="hidden text-xs text-slate-500 sm:block">Le modifiche non salvate restano solo in questa pagina.</p>
           <button
             type="submit"
             disabled={loading}
             className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            Salva Impostazioni
+            Salva e pubblica
           </button>
         </div>
       </form>
+      </div>
     </div>
   );
 }

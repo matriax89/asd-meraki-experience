@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/admin/data-table";
 import { Link } from "@/i18n/routing";
 import Image from "next/image";
+import { RowActions } from "@/components/admin/row-actions";
+import { Plus } from "lucide-react";
 
 export default async function AdminSponsorsPage() {
   const supabase = await createClient();
@@ -76,11 +78,8 @@ export default async function AdminSponsorsPage() {
     },
     {
       header: "Azioni",
-      cell: (sponsor: any) => (
-        <Link href={`/admin/sponsors/${sponsor.id}`} className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
-          Modifica
-        </Link>
-      )
+      align: "right" as const,
+      cell: (sponsor: any) => <RowActions id={sponsor.id} editHref={`/admin/sponsors/${sponsor.id}`} label="il partner" deleteEntity="sponsor" />
     }
   ];
 
@@ -92,7 +91,7 @@ export default async function AdminSponsorsPage() {
           <p className="text-slate-500 mt-2">Gestisci i loghi e i link dei partner mostrati in homepage.</p>
         </div>
         <Link href="/admin/sponsors/nuovo" className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-slate-800 hover:shadow-lg transition-all active:scale-95">
-          + Nuovo Sponsor
+          <Plus className="inline size-4" /> Nuovo partner
         </Link>
       </div>
 
