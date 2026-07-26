@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { TicketsClient } from "./tickets-client";
+import { getLocale } from "next-intl/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export default async function AdminBigliettiPage() {
+  const locale = await getLocale();
   const supabase = await createClient();
 
   const { data: tickets, error } = await supabase
@@ -31,7 +34,10 @@ export default async function AdminBigliettiPage() {
   // Assuming it returns an object here because it's a many-to-one relationship.
   const formattedTickets = (tickets || []).map(t => ({
     ...t,
-    events: Array.isArray(t.events) ? t.events[0] : t.events
+    events: (() => {
+      const event = Array.isArray(t.events) ? t.events[0] : t.events;
+      return event ? { ...event, titolo: getLocalizedText(event.titolo, locale) } : event;
+    })()
   }));
 
   return <TicketsClient initialTickets={formattedTickets as any} />;

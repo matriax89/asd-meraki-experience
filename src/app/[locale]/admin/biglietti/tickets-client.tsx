@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { checkInTicket } from "@/app/api/admin/biglietti/actions";
+import { checkInTicket, resendTicketEmail } from "@/app/api/admin/biglietti/actions";
 import { DataTable } from "@/components/admin/data-table";
 import { toast } from "sonner";
-import { ScanLine } from "lucide-react";
+import { Mail, ScanLine } from "lucide-react";
+import { TicketScanner } from "./ticket-scanner";
 
 interface Ticket {
   id: string;
@@ -78,13 +79,21 @@ export function TicketsClient({ initialTickets }: { initialTickets: Ticket[] }) 
       cell: (ticket: Ticket) => {
         if (ticket.status === 'paid') {
           return (
-            <button 
-              onClick={() => handleCheckIn(ticket.id)}
-              disabled={isPending}
-              className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-xl text-[12px] font-bold uppercase tracking-widest disabled:opacity-50 transition-all active:scale-95 shadow-sm hover:shadow"
-            >
-              <ScanLine className="mr-1 inline size-3.5" /> Check-in
-            </button>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => startTransition(async () => {
+                const result = await resendTicketEmail(ticket.id);
+                result.error ? toast.error(result.error) : toast.success("Email biglietto inviata");
+              })} disabled={isPending} className="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" title="Invia nuovamente il biglietto">
+                <Mail className="size-3.5" />
+              </button>
+              <button
+                onClick={() => handleCheckIn(ticket.id)}
+                disabled={isPending}
+                className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-xl text-[12px] font-bold uppercase tracking-widest disabled:opacity-50 transition-all active:scale-95 shadow-sm hover:shadow"
+              >
+                <ScanLine className="mr-1 inline size-3.5" /> Check-in
+              </button>
+            </div>
           );
         }
         if (ticket.status === 'used') {
@@ -109,6 +118,7 @@ export function TicketsClient({ initialTickets }: { initialTickets: Ticket[] }) 
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Biglietti Eventi</h1>
           <p className="text-slate-500 mt-2">Gestisci ingressi e check-in dei partecipanti agli eventi.</p>
         </div>
+        <TicketScanner />
       </div>
 
       <DataTable 

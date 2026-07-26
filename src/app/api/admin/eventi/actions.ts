@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export async function getEvent(id: string) {
   await requireAdmin();
@@ -25,10 +26,17 @@ export async function upsertEvent(eventData: any) {
   await requireAdmin();
   const supabase = createAdminClient();
   
+  const start = new Date(eventData.data_inizio);
+  const end = eventData.data_fine ? new Date(eventData.data_fine) : null;
+  if (Number.isNaN(start.getTime())) return { success: false, error: "Data di inizio non valida." };
+  if (end && (Number.isNaN(end.getTime()) || end <= start)) return { success: false, error: "La data di fine deve essere successiva all’inizio." };
+  if (eventData.capacity !== null && (!Number.isInteger(eventData.capacity) || eventData.capacity < 1)) return { success: false, error: "La capienza deve essere almeno 1." };
+  if (eventData.prezzo_cents !== null && eventData.prezzo_cents < 0) return { success: false, error: "Il prezzo non può essere negativo." };
+
   // Create slug if new
   let slug = eventData.slug;
   if (!eventData.id && !slug && eventData.titolo) {
-    slug = eventData.titolo
+    slug = getLocalizedText(eventData.titolo, "it")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)+/g, "");
@@ -54,8 +62,9 @@ export async function upsertEvent(eventData: any) {
     return { success: false, error: error.message };
   }
 
-  revalidatePath("/admin/eventi");
-  revalidatePath("/eventi");
+  revalidatePath("/[locale]/admin/eventi", "page");
+  revalidatePath("/[locale]/eventi", "page");
+  revalidatePath("/[locale]/workshop", "page");
   return { success: true, id: data.id };
 }
 
@@ -87,7 +96,8 @@ export async function deleteEvent(id: string) {
     return { success: false, error: error.message };
   }
 
-  revalidatePath("/admin/eventi");
-  revalidatePath("/eventi");
+  revalidatePath("/[locale]/admin/eventi", "page");
+  revalidatePath("/[locale]/eventi", "page");
+  revalidatePath("/[locale]/workshop", "page");
   return { success: true };
 }

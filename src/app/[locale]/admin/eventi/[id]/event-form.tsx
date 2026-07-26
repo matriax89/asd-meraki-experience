@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/routing";
 import { Input, Textarea, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
 import { upsertEvent, deleteEvent } from "@/app/api/admin/eventi/actions";
 import { useModal } from "@/components/ui/modal-provider";
+import { uploadImageAction } from "@/app/api/admin/upload/actions";
+import { compressImageToWebp } from "@/lib/image-utils";
+import { ImageUp, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface EventFormProps {
   initialData: any;
@@ -14,6 +18,7 @@ export function EventForm({ initialData }: EventFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const { showConfirm } = useModal();
 
   // Convert cents to euros for the UI
@@ -28,8 +33,8 @@ export function EventForm({ initialData }: EventFormProps) {
     slug: initialData?.slug || "",
     tipo: initialData?.tipo || "evento",
     descrizione: initialData?.descrizione || "",
-    data_inizio: initialData?.data_inizio ? new Date(initialData.data_inizio).toISOString().slice(0, 16) : "",
-    data_fine: initialData?.data_fine ? new Date(initialData.data_fine).toISOString().slice(0, 16) : "",
+    data_inizio: toLocalDateTimeInput(initialData?.data_inizio),
+    data_fine: toLocalDateTimeInput(initialData?.data_fine),
     location: initialData?.location || "",
     indirizzo: initialData?.indirizzo || "",
     prezzo_euro: initialPriceEuro,
@@ -90,7 +95,7 @@ export function EventForm({ initialData }: EventFormProps) {
       } else {
         setMessage({ type: 'success', text: 'Evento salvato con successo!' });
         if (formData.id === "nuovo") {
-          router.push(`/it/admin/eventi/${result.id}`);
+          router.push(`/admin/eventi/${result.id}`);
         }
       }
     });
@@ -109,9 +114,28 @@ export function EventForm({ initialData }: EventFormProps) {
       if (result.error) {
         setMessage({ type: 'error', text: result.error });
       } else {
-        router.push("/it/admin/eventi");
+        router.push("/admin/eventi");
       }
     });
+  };
+
+  const handleCoverUpload = async (file?: File) => {
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const compressed = await compressImageToWebp(file, 1920, 0.88);
+      const uploadData = new FormData();
+      uploadData.append("file", compressed);
+      uploadData.append("folder", "events");
+      const result = await uploadImageAction(uploadData);
+      if (!result.success || !result.url) throw new Error(result.error || "Upload non riuscito");
+      setFormData(current => ({ ...current, copertina_url: result.url! }));
+      toast.success("Copertina caricata");
+    } catch (error) {
+      toast.error("Caricamento non riuscito", { description: error instanceof Error ? error.message : undefined });
+    } finally {
+      setUploadingCover(false);
+    }
   };
 
   return (
@@ -227,12 +251,22 @@ export function EventForm({ initialData }: EventFormProps) {
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
         <h2 className="text-xl font-bold border-b border-border pb-2">Media e Visibilità</h2>
         
-        <Input 
-          label="URL Immagine di Copertina" 
-          placeholder="https://..."
-          value={formData.copertina_url} 
-          onChange={e => setFormData({...formData, copertina_url: e.target.value})} 
-        />
+        <div className="space-y-2">
+          <label className="block text-sm font-semibold">Immagine di copertina</label>
+          <div className="flex gap-2">
+            <input
+              value={formData.copertina_url}
+              onChange={e => setFormData({...formData, copertina_url: e.target.value})}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              placeholder="URL oppure carica un’immagine"
+            />
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold hover:bg-slate-50">
+              {uploadingCover ? <Loader2 className="size-4 animate-spin" /> : <ImageUp className="size-4" />}
+              {uploadingCover ? "Caricamento…" : "Carica"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploadingCover} onChange={event => handleCoverUpload(event.target.files?.[0])} />
+            </label>
+          </div>
+        </div>
         {formData.copertina_url && (
           <div className="mt-2 w-full max-w-sm rounded-lg overflow-hidden border border-border bg-white p-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -262,3 +296,9 @@ export function EventForm({ initialData }: EventFormProps) {
     </form>
   );
 }
+  const toLocalDateTimeInput = (value?: string) => {
+    if (!value) return "";
+    const date = new Date(value);
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+    return local.toISOString().slice(0, 16);
+  };

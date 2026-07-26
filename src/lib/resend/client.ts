@@ -527,21 +527,32 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
   const emailProvider = integrations?.email_provider || "resend";
   const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
 
-  const subject = locale === 'it' ? "Il tuo biglietto - ASD Meraki Experience" : "Your Ticket - ASD Meraki Experience";
-  const eventTitle = getLocalizedText(eventData.titolo, locale) || "Meraki Experience";
+  const language = ["it", "en", "de"].includes(locale) ? locale : "it";
+  const eventTitle = getLocalizedText(eventData.titolo, language) || "Meraki Experience";
+  const copy = {
+    it: { subject: `Il tuo biglietto per ${eventTitle}`, title: "Il tuo biglietto è pronto", body: "Conserva questa email e mostra il QR code all’ingresso.", date: "Data e luogo" },
+    en: { subject: `Your ticket for ${eventTitle}`, title: "Your ticket is ready", body: "Keep this email and show the QR code at the entrance.", date: "Date and venue" },
+    de: { subject: `Ihre Eintrittskarte für ${eventTitle}`, title: "Ihre Eintrittskarte ist bereit", body: "Bewahren Sie diese E-Mail auf und zeigen Sie den QR-Code am Eingang.", date: "Datum und Ort" },
+  }[language as "it" | "en" | "de"];
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.merakiexperience.org";
+  const qrUrl = `${siteUrl}/api/tickets/qr?token=${ticket.access_token}`;
+  const ticketUrl = `${siteUrl}/${language}/biglietto/${ticket.id}?token=${ticket.access_token}`;
+  const eventDate = new Intl.DateTimeFormat(language, { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Rome" }).format(new Date(eventData.data_inizio));
   
   const htmlContent = `<!DOCTYPE html>
-<html lang="${locale}">
-<head><meta charset="utf-8"></head>
+<html lang="${language}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin: 0; padding: 40px 20px; font-family: -apple-system, sans-serif; background-color: #f5f5f7;">
-  <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 16px; text-align: center;">
+  <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 40px; border:1px solid #e2e8f0; border-radius: 16px; text-align: center;">
     ${emailHeader("Biglietto digitale")}
-    <h1 style="color:#0f172a;margin: 0 0 16px; font-size: 24px;">${locale === 'it' ? 'Ecco il tuo biglietto!' : 'Here is your ticket!'}</h1>
-    <p>${eventTitle}</p>
-    <div style="margin: 32px 0; padding: 24px; border: 2px dashed #e5e5ea; border-radius: 16px;">
-      <h2 style="font-size: 32px; font-family: monospace; letter-spacing: 2px; margin: 0;">${ticket.qr_code}</h2>
+    <h1 style="color:#0f172a;margin:0 0 12px;font-size:24px;">${copy.title}</h1>
+    <p style="color:#475569;margin:0 0 8px;">${copy.body}</p>
+    <h2 style="color:#0f172a;margin:24px 0 8px;font-size:20px;">${eventTitle}</h2>
+    <p style="color:#64748b;font-size:14px;line-height:1.5;margin:0;">${copy.date}:<br><strong>${eventDate}</strong>${eventData.location ? `<br>${eventData.location}` : ""}</p>
+    <div style="margin:28px auto;padding:18px;border:2px dashed #cbd5e1;border-radius:16px;max-width:260px;">
+      <img src="${qrUrl}" width="220" height="220" alt="QR code" style="display:block;width:220px;height:220px;margin:auto;" />
     </div>
-    <p style="color: #86868b; font-size: 14px;">${locale === "it" ? "Mostra questo codice all'ingresso." : "Show this code at the entrance."}</p>
+    <a href="${ticketUrl}" style="display:inline-block;background:#0f172a;color:#fff;text-decoration:none;border-radius:8px;padding:12px 20px;font-size:14px;font-weight:600;">Apri biglietto</a>
     ${emailFooter}
   </div>
 </body></html>`;
@@ -551,13 +562,56 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
       const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
       if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
       const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: `"Meraki Experience" <${smtp_user}>`, to: ticket.buyer_email, subject, html: htmlContent });
+      await transporter.sendMail({ from: `"Meraki Experience" <${smtp_user}>`, to: ticket.buyer_email, subject: copy.subject, html: htmlContent });
     } else {
       if (!activeApiKey) return { success: false };
       const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: `Meraki Experience <${FROM_EMAIL}>`, to: ticket.buyer_email, subject, html: htmlContent });
+      const { error } = await resend.emails.send({ from: `Meraki Experience <${FROM_EMAIL}>`, to: ticket.buyer_email, subject: copy.subject, html: htmlContent });
+      if (error) throw error;
     }
+    return { success: true };
   } catch (error) {
     console.error("Failed to send ticket:", error);
+    return { success: false };
+  }
+}
+
+export async function sendTicketNotification(ticket: any, eventData: any) {
+  const supabase = createAdminClient();
+  const { data: settings } = await supabase.from("site_settings").select("value").eq("key", "homepage_content").single();
+  const integrations = (settings?.value as any)?.integrations;
+  const provider = integrations?.email_provider || "resend";
+  const apiKey = integrations?.resend_api_key || defaultResendApiKey;
+  const targetEmail = integrations?.admin_email || DEFAULT_ADMIN_EMAIL;
+  const eventTitle = getLocalizedText(eventData.titolo, "it") || "Evento";
+  const subject = `Nuova iscrizione: ${eventTitle}`;
+  const html = `<!DOCTYPE html><html lang="it"><body style="margin:0;padding:40px 20px;background:#f5f5f7;font-family:-apple-system,sans-serif;">
+    <div style="max-width:600px;margin:auto;background:#fff;padding:40px;border:1px solid #e2e8f0;border-radius:16px;">
+      ${emailHeader("Nuova iscrizione")}
+      <h1 style="margin:0 0 14px;color:#0f172a;font-size:23px;">${eventTitle}</h1>
+      <p style="color:#475569;line-height:1.6;">È stato emesso un biglietto per <strong>${ticket.buyer_email}</strong>.</p>
+      <div style="margin:22px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#334155;">
+        Importo: <strong>${ticket.amount_cents ? `€${(ticket.amount_cents / 100).toFixed(2)}` : "Iscrizione gratuita"}</strong><br>
+        Codice: <strong>${ticket.qr_code}</strong>
+      </div>
+      <a href="${process.env.NEXT_PUBLIC_SITE_URL || "https://www.merakiexperience.org"}/it/admin/biglietti" style="display:inline-block;background:#0f172a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Gestisci partecipanti</a>
+      ${emailFooter}
+    </div></body></html>`;
+  try {
+    if (provider === "smtp") {
+      const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations || {};
+      if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
+      const transport = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
+      await transport.sendMail({ from: `"Meraki Experience" <${smtp_user}>`, to: targetEmail, subject, html });
+    } else {
+      if (!apiKey) return { success: false };
+      const resend = new Resend(apiKey);
+      const { error } = await resend.emails.send({ from: `Meraki Experience <${FROM_EMAIL}>`, to: targetEmail, subject, html });
+      if (error) throw error;
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to send ticket notification:", error);
+    return { success: false };
   }
 }

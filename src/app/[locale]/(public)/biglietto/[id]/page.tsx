@@ -1,19 +1,18 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import QRCode from "qrcode";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export default async function BigliettoPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ session_id?: string }>;
+  params: Promise<{ id: string; locale: string }>;
+  searchParams: Promise<{ session_id?: string; token?: string }>;
 }) {
-  const { id } = await params;
-  const { session_id: sessionId } = await searchParams;
-  if (!sessionId) notFound();
+  const { id, locale } = await params;
+  const { session_id: sessionId, token } = await searchParams;
+  if (!sessionId && !token) notFound();
   const supabase = createAdminClient();
 
   // Fetch the ticket and join with the event
@@ -24,7 +23,7 @@ export default async function BigliettoPage({
       event:events(*)
     `)
     .eq("id", id)
-    .eq("stripe_session_id", sessionId)
+    .match(token ? { access_token: token } : { stripe_session_id: sessionId! })
     .single();
 
   if (error || !ticket || !ticket.event) {
@@ -43,8 +42,13 @@ export default async function BigliettoPage({
 
   const event = ticket.event as any;
   const date = new Date(event.data_inizio);
-  const formattedDate = format(date, "d MMMM yyyy", { locale: it });
-  const formattedTime = format(date, "HH:mm");
+  const formattedDate = new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "Europe/Rome" }).format(date);
+  const formattedTime = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(date);
+  const copy = {
+    it: { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", footer: "Mostra questo QR code all’ingresso dell’evento." },
+    en: { ticket: "Ticket", holder: "Holder", date: "Date", time: "Time", place: "Venue", status: "Status", footer: "Show this QR code at the event entrance." },
+    de: { ticket: "Eintrittskarte", holder: "Inhaber", date: "Datum", time: "Uhrzeit", place: "Ort", status: "Status", footer: "Zeigen Sie diesen QR-Code am Eingang." },
+  }[locale as "it" | "en" | "de"] || { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", footer: "Mostra questo QR code all’ingresso dell’evento." };
 
   return (
     <div className="container py-12 flex justify-center">
@@ -52,9 +56,9 @@ export default async function BigliettoPage({
         {/* Ticket Header */}
         <div className="bg-primary p-6 text-primary-foreground text-center">
           <div className="text-sm font-bold uppercase tracking-wider mb-2 opacity-80">
-            Biglietto {event.tipo}
+            {copy.ticket} {event.tipo}
           </div>
-          <h1 className="text-2xl font-heading font-bold">{event.titolo}</h1>
+          <h1 className="text-2xl font-heading font-bold">{getLocalizedText(event.titolo, locale)}</h1>
         </div>
 
         {/* Ticket Body */}
@@ -67,23 +71,23 @@ export default async function BigliettoPage({
           
           <div className="w-full space-y-4">
             <div className="flex justify-between border-b border-border pb-2">
-              <span className="text-muted-foreground">Intestatario</span>
+              <span className="text-muted-foreground">{copy.holder}</span>
               <span className="font-semibold text-foreground">{ticket.buyer_email}</span>
             </div>
             
             <div className="flex justify-between border-b border-border pb-2">
-              <span className="text-muted-foreground">Data</span>
+              <span className="text-muted-foreground">{copy.date}</span>
               <span className="font-semibold text-foreground">{formattedDate}</span>
             </div>
             
             <div className="flex justify-between border-b border-border pb-2">
-              <span className="text-muted-foreground">Ora</span>
+              <span className="text-muted-foreground">{copy.time}</span>
               <span className="font-semibold text-foreground">{formattedTime}</span>
             </div>
             
             {(event.location || event.indirizzo) && (
               <div className="flex justify-between border-b border-border pb-2">
-                <span className="text-muted-foreground">Luogo</span>
+                <span className="text-muted-foreground">{copy.place}</span>
                 <span className="font-semibold text-foreground text-right">
                   {event.location}<br/>
                   <span className="text-sm font-normal">{event.indirizzo}</span>
@@ -92,7 +96,7 @@ export default async function BigliettoPage({
             )}
             
             <div className="flex justify-between pt-2">
-              <span className="text-muted-foreground">Status</span>
+              <span className="text-muted-foreground">{copy.status}</span>
               <span className={`font-bold ${ticket.status === 'paid' ? 'text-green-600' : 'text-primary'}`}>
                 {ticket.status?.toUpperCase() || 'UNKNOWN'}
               </span>
@@ -102,7 +106,7 @@ export default async function BigliettoPage({
 
         {/* Ticket Footer */}
         <div className="bg-muted p-4 text-center text-sm text-muted-foreground border-t border-border">
-          Mostra questo QR code all'ingresso dell'evento.
+          {copy.footer}
           <br />ID: {ticket.id}
         </div>
       </div>

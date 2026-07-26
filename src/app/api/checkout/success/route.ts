@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { clearCart } from "@/lib/shop/cart-actions";
 import { stripe } from "@/lib/stripe/client";
 import { fulfillShopOrder } from "@/lib/stripe/fulfill-shop-order";
+import { fulfillTicket } from "@/lib/stripe/fulfill-ticket";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -25,6 +26,14 @@ export async function GET(request: Request) {
       // browser cart immediately, independently from webhook timing.
       await clearCart();
       await fulfillShopOrder(session);
+    } else if (type === "ticket") {
+      const ticket = await fulfillTicket(session);
+      if (ticket) {
+        return NextResponse.redirect(new URL(
+          `/${locale}/biglietto/${ticket.id}?token=${ticket.access_token}`,
+          request.url,
+        ));
+      }
     }
 
     // The Stripe session id is an unguessable capability returned by Stripe.
@@ -35,12 +44,12 @@ export async function GET(request: Request) {
       // Find the ticket matching the stripe session id
       const { data: ticket, error } = await supabase
         .from("tickets")
-        .select("id")
+        .select("id, access_token")
         .eq("stripe_session_id", sessionId)
         .single();
 
       if (ticket && !error) {
-        return NextResponse.redirect(new URL(`/${locale}/biglietto/${ticket.id}?session_id=${encodeURIComponent(sessionId)}`, request.url));
+        return NextResponse.redirect(new URL(`/${locale}/biglietto/${ticket.id}?token=${ticket.access_token}`, request.url));
       }
     } else if (type === "shop") {
       // Find the order matching the stripe session id
@@ -60,8 +69,8 @@ export async function GET(request: Request) {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       await new Promise(resolve => setTimeout(resolve, 500));
       if (type === "ticket") {
-        const { data: ticket } = await supabase.from("tickets").select("id").eq("stripe_session_id", sessionId).maybeSingle();
-        if (ticket) return NextResponse.redirect(new URL(`/${locale}/biglietto/${ticket.id}?session_id=${encodeURIComponent(sessionId)}`, request.url));
+        const { data: ticket } = await supabase.from("tickets").select("id, access_token").eq("stripe_session_id", sessionId).maybeSingle();
+        if (ticket) return NextResponse.redirect(new URL(`/${locale}/biglietto/${ticket.id}?token=${ticket.access_token}`, request.url));
       } else if (type === "shop") {
         const { data: order } = await supabase.from("orders").select("id").eq("stripe_session_id", sessionId).maybeSingle();
         if (order) {
@@ -71,7 +80,12 @@ export async function GET(request: Request) {
     }
 
     // Payment is confirmed even if the asynchronous webhook is still working.
-    return NextResponse.redirect(new URL(`/${locale}/ordine/conferma?session_id=${encodeURIComponent(sessionId)}`, request.url));
+    return NextResponse.redirect(new URL(
+      type === "ticket"
+        ? `/${locale}/biglietto/conferma?session_id=${encodeURIComponent(sessionId)}`
+        : `/${locale}/ordine/conferma?session_id=${encodeURIComponent(sessionId)}`,
+      request.url,
+    ));
   } catch (error) {
     console.error("Success page error:", error);
     return NextResponse.redirect(new URL(`/?error=unknown_error`, request.url));

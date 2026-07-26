@@ -18,6 +18,7 @@ export default async function EventiPage({ params }: { params: Promise<{ locale:
     .select("*")
     .eq("attivo", true)
     .eq("tipo", "evento")
+    .gte("data_inizio", new Date().toISOString())
     .order("data_inizio", { ascending: true });
 
   return (

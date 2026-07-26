@@ -1,7 +1,5 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { CheckoutButton } from "./checkout-button";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
@@ -15,6 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     .from("events")
     .select("titolo, descrizione, copertina_url")
     .eq("slug", slug)
+    .eq("attivo", true)
     .single();
 
   if (!evento) {
@@ -55,6 +54,7 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
     .select("*")
     .eq("slug", slug)
     .eq("tipo", "evento")
+    .eq("attivo", true)
     .single();
 
   if (!evento) {
@@ -62,8 +62,13 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
   }
 
   const date = new Date(evento.data_inizio);
-  const formattedDate = format(date, "d MMMM yyyy", { locale: it });
-  const formattedTime = format(date, "HH:mm");
+  const formattedDate = new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "Europe/Rome" }).format(date);
+  const formattedTime = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(date);
+  const copy = {
+    it: { badge: "Evento", date: "Data e ora", place: "Luogo", price: "Prezzo", soldOut: "Posti esauriti", remaining: "posti rimanenti", at: "alle" },
+    en: { badge: "Event", date: "Date and time", place: "Venue", price: "Price", soldOut: "Sold out", remaining: "places remaining", at: "at" },
+    de: { badge: "Event", date: "Datum und Uhrzeit", place: "Ort", price: "Preis", soldOut: "Ausverkauft", remaining: "Plätze verfügbar", at: "um" },
+  }[locale as "it" | "en" | "de"] || { badge: "Evento", date: "Data e ora", place: "Luogo", price: "Prezzo", soldOut: "Posti esauriti", remaining: "posti rimanenti", at: "alle" };
   
   const postiDisponibili = evento.capacity ? evento.capacity - (evento.posti_venduti || 0) : null;
   const isEsaurito = postiDisponibili !== null && postiDisponibili <= 0;
@@ -80,7 +85,7 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
         <div className="md:col-span-2 space-y-8">
           <div>
             <div className="inline-block bg-primary text-primary-foreground text-sm font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4">
-              Evento
+              {copy.badge}
             </div>
             <h1 className="text-4xl md:text-5xl font-heading font-bold text-foreground mb-4">
               {getLocalizedText(evento.titolo, locale)}
@@ -93,7 +98,7 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
           </div>
           
           <div className="prose prose-neutral dark:prose-invert max-w-none">
-            {getLocalizedText(evento.descrizione, locale).split("\n").map((par, i) => (
+            {(getLocalizedText(evento.descrizione, locale) || "").split("\n").map((par, i) => (
               <p key={i}>{par}</p>
             ))}
           </div>
@@ -103,20 +108,20 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
           <div className="bg-card border border-border rounded-xl p-6 space-y-6 sticky top-24">
             <div className="space-y-4">
               <div className="flex flex-col">
-                <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Data e Ora</span>
-                <span className="text-foreground">{formattedDate} alle {formattedTime}</span>
+                <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">{copy.date}</span>
+                <span className="text-foreground">{formattedDate} {copy.at} {formattedTime}</span>
               </div>
               
               {(evento.location || evento.indirizzo) && (
                 <div className="flex flex-col">
-                  <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Location</span>
+                  <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">{copy.place}</span>
                   {evento.location && <span className="text-foreground">{evento.location}</span>}
                   {evento.indirizzo && <span className="text-sm text-muted-foreground">{evento.indirizzo}</span>}
                 </div>
               )}
               
               <div className="flex flex-col">
-                <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Prezzo</span>
+                <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">{copy.price}</span>
                 <span className="text-2xl font-bold text-foreground">
                   {evento.prezzo_cents ? `€${(evento.prezzo_cents / 100).toFixed(2)}` : "Gratis"}
                 </span>
@@ -126,15 +131,15 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
             <div className="pt-4 border-t border-border">
               {isEsaurito ? (
                 <button disabled className="w-full bg-muted text-muted-foreground font-bold py-3 px-4 rounded-lg cursor-not-allowed">
-                  Posti Esauriti
+                  {copy.soldOut}
                 </button>
               ) : (
-                <CheckoutButton eventId={evento.id} />
+                <CheckoutButton eventId={evento.id} isFree={(evento.prezzo_cents || 0) === 0} />
               )}
               
               {postiDisponibili !== null && !isEsaurito && (
                 <p className="text-sm text-center text-muted-foreground mt-3">
-                  Solo <strong className="text-foreground">{postiDisponibili}</strong> posti rimanenti
+                  <strong className="text-foreground">{postiDisponibili}</strong> {copy.remaining}
                 </p>
               )}
             </div>

@@ -3,16 +3,23 @@ import { getLocalizedText } from "@/lib/i18n-utils";
 import { createClient } from "@/lib/supabase/server";
 import { createTicketCheckoutSession } from "@/lib/stripe/checkout-ticket";
 import { z } from "zod";
+import { createAdminClient } from "@/lib/supabase/server";
+import { deliverTicketEmails } from "@/lib/stripe/fulfill-ticket";
 
 const requestSchema = z.object({
   eventId: z.string().uuid(),
   buyerEmail: z.string().email(),
+  buyerName: z.string().trim().min(2).max(120),
+  locale: z.enum(["it", "en", "de"]).default("it"),
 });
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { eventId, buyerEmail } = requestSchema.parse(body);
+    const { eventId, buyerEmail, buyerName, locale } = requestSchema.parse(body);
+    const nameParts = buyerName.trim().split(/\s+/);
+    const buyerNome = nameParts.shift() || "";
+    const buyerCognome = nameParts.join(" ");
 
     const supabase = await createClient();
 
@@ -41,21 +48,45 @@ export async function POST(request: Request) {
     const origin = request.headers.get("origin");
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin || "http://localhost:3000";
 
-    const referer = request.headers.get("referer") || "";
-    const localeMatch = referer.match(/\/(it|en|de)\//);
-    const locale = localeMatch ? localeMatch[1] : "it";
+    if ((event.prezzo_cents || 0) === 0) {
+      const adminSupabase = createAdminClient();
+      const { data: ticket, error: ticketError } = await (adminSupabase.rpc as any)("reserve_event_ticket", {
+        p_event_id: event.id,
+        p_buyer_email: buyerEmail,
+        p_amount_cents: 0,
+        p_locale: locale,
+        p_stripe_session_id: null,
+        p_stripe_payment_intent: null,
+        p_buyer_nome: buyerNome,
+        p_buyer_cognome: buyerCognome,
+      });
+      if (ticketError || !ticket) {
+        const soldOut = ticketError?.message?.includes("EVENT_SOLD_OUT");
+        return NextResponse.json(
+          { error: soldOut ? "Posti esauriti" : "Non è stato possibile completare l’iscrizione" },
+          { status: soldOut ? 409 : 400 },
+        );
+      }
+      await deliverTicketEmails(ticket, event);
+      return NextResponse.json({
+        url: `/${locale}/biglietto/${ticket.id}?token=${ticket.access_token}`,
+        free: true,
+      });
+    }
 
     // Create Stripe Session
     const session = await createTicketCheckoutSession({
       eventId: event.id,
       eventSlug: event.slug,
-      title: getLocalizedText(event.titolo, 'it'),
+      title: getLocalizedText(event.titolo, locale),
       priceCents: event.prezzo_cents || 0,
       capacity: event.capacity || 0,
       buyerEmail,
       tipo: event.tipo,
       siteUrl,
       locale,
+      buyerNome,
+      buyerCognome,
     });
 
     return NextResponse.json({ url: session.url });

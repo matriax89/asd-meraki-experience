@@ -10,23 +10,30 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   };
 }
 
-export default async function WorkshopPage() {
+export default async function WorkshopPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
   const supabase = await createClient();
   const { data: workshop } = await supabase
     .from("events")
     .select("*")
     .eq("attivo", true)
-    .eq("tipo", "workshop")
+    .in("tipo", ["workshop", "masterclass"])
+    .gte("data_inizio", new Date().toISOString())
     .order("data_inizio", { ascending: true });
+  const copy = {
+    it: { title: "Workshop e masterclass", desc: "Approfondisci la tua pratica con incontri tematici guidati dai nostri esperti.", empty: "Nessun workshop in programma al momento." },
+    en: { title: "Workshops and masterclasses", desc: "Deepen your practice with themed sessions led by our experts.", empty: "There are no workshops scheduled at the moment." },
+    de: { title: "Workshops und Masterclasses", desc: "Vertiefen Sie Ihre Praxis mit thematischen Einheiten unter der Leitung unserer Experten.", empty: "Derzeit sind keine Workshops geplant." },
+  }[locale as "it" | "en" | "de"] || { title: "Workshop e masterclass", desc: "Approfondisci la tua pratica con incontri tematici guidati dai nostri esperti.", empty: "Nessun workshop in programma al momento." };
 
   return (
     <div className="container py-12 md:py-24">
       <div className="max-w-2xl mb-12">
         <h1 className="text-4xl md:text-5xl font-heading font-bold text-primary mb-6">
-          Workshop
+          {copy.title}
         </h1>
         <p className="text-lg text-muted-foreground">
-          Approfondisci la tua pratica con i nostri workshop tematici tenuti dai nostri esperti.
+          {copy.desc}
         </p>
       </div>
 
@@ -38,7 +45,7 @@ export default async function WorkshopPage() {
         </div>
       ) : (
         <div className="text-center py-20 bg-card rounded-xl border border-border">
-          <p className="text-muted-foreground">Nessun workshop in programma al momento.</p>
+          <p className="text-muted-foreground">{copy.empty}</p>
         </div>
       )}
     </div>

@@ -963,14 +963,18 @@ export type Database = {
       }
       tickets: {
         Row: {
+          access_token: string
+          admin_email_sent_at: string | null
           amount_cents: number | null
           buyer_cognome: string | null
           buyer_email: string
           buyer_nome: string | null
           buyer_telefono: string | null
           created_at: string | null
+          customer_email_sent_at: string | null
           event_id: string | null
           id: string
+          locale: string
           qr_code: string | null
           status: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent: string | null
@@ -978,14 +982,18 @@ export type Database = {
           used_at: string | null
         }
         Insert: {
+          access_token?: string
+          admin_email_sent_at?: string | null
           amount_cents?: number | null
           buyer_cognome?: string | null
           buyer_email: string
           buyer_nome?: string | null
           buyer_telefono?: string | null
           created_at?: string | null
+          customer_email_sent_at?: string | null
           event_id?: string | null
           id?: string
+          locale?: string
           qr_code?: string | null
           status?: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent?: string | null
@@ -993,14 +1001,18 @@ export type Database = {
           used_at?: string | null
         }
         Update: {
+          access_token?: string
+          admin_email_sent_at?: string | null
           amount_cents?: number | null
           buyer_cognome?: string | null
           buyer_email?: string
           buyer_nome?: string | null
           buyer_telefono?: string | null
           created_at?: string | null
+          customer_email_sent_at?: string | null
           event_id?: string | null
           id?: string
+          locale?: string
           qr_code?: string | null
           status?: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent?: string | null
