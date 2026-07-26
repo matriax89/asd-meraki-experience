@@ -154,7 +154,7 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
                   {locale === "de" ? "Informationen anfordern" : locale === "en" ? "Request information" : "Richiedi informazioni"}
                 </a>
               ) : (
-                <CheckoutButton eventId={evento.id} isFree={(evento.prezzo_cents || 0) === 0} registrationFields={evento.registration_fields} />
+                <CheckoutButton eventId={evento.id} isFree={(evento.prezzo_cents || 0) === 0} registrationFields={evento.registration_fields} isTrialCampaign={Boolean((evento as any).trial_campaign_key)} />
               )}
               
               {postiDisponibili !== null && !isEsaurito && (

@@ -228,6 +228,7 @@ export type Database = {
           slug: string
           sottotitolo: Json | null
           stripe_price_id: string | null
+          trial_campaign_key: string | null
           tipo: Database["public"]["Enums"]["event_tipo_enum"]
           titolo: Json
           updated_at: string | null
@@ -258,6 +259,7 @@ export type Database = {
           slug: string
           sottotitolo?: Json | null
           stripe_price_id?: string | null
+          trial_campaign_key?: string | null
           tipo?: Database["public"]["Enums"]["event_tipo_enum"]
           titolo: Json
           updated_at?: string | null
@@ -288,6 +290,7 @@ export type Database = {
           slug?: string
           sottotitolo?: Json | null
           stripe_price_id?: string | null
+          trial_campaign_key?: string | null
           tipo?: Database["public"]["Enums"]["event_tipo_enum"]
           titolo?: Json
           updated_at?: string | null

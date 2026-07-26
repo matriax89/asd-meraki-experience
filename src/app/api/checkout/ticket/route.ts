@@ -56,27 +56,56 @@ export async function POST(request: Request) {
 
     if ((event.prezzo_cents || 0) === 0) {
       const adminSupabase = createAdminClient();
-      const { data: ticket, error: ticketError } = await (adminSupabase.rpc as any)("reserve_event_ticket", {
-        p_event_id: event.id,
-        p_buyer_email: buyerEmail,
-        p_amount_cents: 0,
-        p_locale: locale,
-        p_stripe_session_id: null,
-        p_stripe_payment_intent: null,
-        p_buyer_nome: buyerNome,
-        p_buyer_cognome: buyerCognome,
-      });
+      const isTrialCampaign = Boolean((event as any).trial_campaign_key);
+      const { data: ticket, error: ticketError } = isTrialCampaign
+        ? await (adminSupabase.rpc as any)("reserve_trial_event_ticket", {
+            p_event_id: event.id,
+            p_buyer_email: buyerEmail,
+            p_locale: locale,
+            p_buyer_nome: buyerNome,
+            p_buyer_cognome: buyerCognome,
+            p_registration_answers: answerValidation.answers,
+          })
+        : await (adminSupabase.rpc as any)("reserve_event_ticket", {
+            p_event_id: event.id,
+            p_buyer_email: buyerEmail,
+            p_amount_cents: 0,
+            p_locale: locale,
+            p_stripe_session_id: null,
+            p_stripe_payment_intent: null,
+            p_buyer_nome: buyerNome,
+            p_buyer_cognome: buyerCognome,
+          });
       if (ticketError || !ticket) {
         const soldOut = ticketError?.message?.includes("EVENT_SOLD_OUT");
+        const trialAlreadyUsed = ticketError?.message?.includes("TRIAL_ALREADY_USED");
+        if (trialAlreadyUsed) {
+          const { data: settings } = await adminSupabase
+            .from("site_settings")
+            .select("value")
+            .eq("key", "homepage_content")
+            .maybeSingle();
+          const appSettings = (settings?.value as any)?.sportclubby_banner || {};
+          return NextResponse.json({
+            code: "TRIAL_ALREADY_USED",
+            error: "Hai già utilizzato la tua lezione di prova gratuita. Le prossime lezioni si prenotano tramite l’app Sportclubby.",
+            appLinks: {
+              apple: appSettings.apple_link || "https://apps.apple.com/it/app/sportclubby/id1250917631",
+              google: appSettings.google_link || "https://play.google.com/store/apps/details?id=com.sportclubby.app",
+            },
+          }, { status: 409 });
+        }
         return NextResponse.json(
           { error: soldOut ? "Posti esauriti" : "Non è stato possibile completare l’iscrizione" },
           { status: soldOut ? 409 : 400 },
         );
       }
-      await adminSupabase
-        .from("tickets")
-        .update({ registration_answers: answerValidation.answers } as any)
-        .eq("id", ticket.id);
+      if (!isTrialCampaign) {
+        await adminSupabase
+          .from("tickets")
+          .update({ registration_answers: answerValidation.answers } as any)
+          .eq("id", ticket.id);
+      }
       await deliverTicketEmails({ ...ticket, registration_answers: answerValidation.answers }, event);
       return NextResponse.json({
         url: `/${locale}/biglietto/${ticket.id}?token=${ticket.access_token}`,

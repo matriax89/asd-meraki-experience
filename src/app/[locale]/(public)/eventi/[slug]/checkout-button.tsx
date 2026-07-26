@@ -3,23 +3,34 @@
 import { useState } from "react";
 import { useModal } from "@/components/ui/modal-provider";
 import { useLocale } from "next-intl";
-import { X } from "lucide-react";
+import { ExternalLink, Smartphone, X } from "lucide-react";
 import { normalizeRegistrationFields, type RegistrationAnswers } from "@/lib/events/registration-fields";
 
-export function CheckoutButton({ eventId, isFree = false, registrationFields }: { eventId: string; isFree?: boolean; registrationFields?: unknown }) {
+export function CheckoutButton({
+  eventId,
+  isFree = false,
+  registrationFields,
+  isTrialCampaign = false,
+}: {
+  eventId: string;
+  isFree?: boolean;
+  registrationFields?: unknown;
+  isTrialCampaign?: boolean;
+}) {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [answers, setAnswers] = useState<RegistrationAnswers>({});
+  const [trialBlocked, setTrialBlocked] = useState<{ message: string; apple?: string; google?: string } | null>(null);
   const { showAlert } = useModal();
   const locale = useLocale();
   const fields = normalizeRegistrationFields(registrationFields);
 
   const copy = {
-    it: { title: isFree ? "Iscrizione gratuita" : "Acquista il biglietto", name: "Nome e cognome", email: "Email", submit: isFree ? "Completa iscrizione" : "Continua al pagamento", button: isFree ? "Iscriviti gratuitamente" : "Acquista biglietto", wait: "Attendere…" },
-    en: { title: isFree ? "Free registration" : "Buy your ticket", name: "Full name", email: "Email", submit: isFree ? "Complete registration" : "Continue to payment", button: isFree ? "Register for free" : "Buy ticket", wait: "Please wait…" },
-    de: { title: isFree ? "Kostenlose Anmeldung" : "Eintrittskarte kaufen", name: "Vor- und Nachname", email: "E-Mail", submit: isFree ? "Anmeldung abschließen" : "Weiter zur Zahlung", button: isFree ? "Kostenlos anmelden" : "Eintrittskarte kaufen", wait: "Bitte warten…" },
+    it: { title: isFree ? "Iscrizione gratuita" : "Acquista il biglietto", name: "Nome e cognome", email: "Email", submit: isFree ? "Completa iscrizione" : "Continua al pagamento", button: isFree ? "Iscriviti gratuitamente" : "Acquista biglietto", wait: "Attendere…", trial: "La prima lezione Outdoor è gratuita. Dopo la prova, le prenotazioni successive vengono gestite tramite l’app Sportclubby.", appTitle: "Continua con Sportclubby", appBody: "La tua prova gratuita risulta già utilizzata. Per scegliere le prossime lezioni apri l’app." },
+    en: { title: isFree ? "Free registration" : "Buy your ticket", name: "Full name", email: "Email", submit: isFree ? "Complete registration" : "Continue to payment", button: isFree ? "Register for free" : "Buy ticket", wait: "Please wait…", trial: "Your first Outdoor class is free. Further bookings are managed through the Sportclubby app.", appTitle: "Continue with Sportclubby", appBody: "Your free trial has already been used. Open the app to book your next classes." },
+    de: { title: isFree ? "Kostenlose Anmeldung" : "Eintrittskarte kaufen", name: "Vor- und Nachname", email: "E-Mail", submit: isFree ? "Anmeldung abschließen" : "Weiter zur Zahlung", button: isFree ? "Kostenlos anmelden" : "Eintrittskarte kaufen", wait: "Bitte warten…", trial: "Die erste Outdoor-Probestunde ist kostenlos. Weitere Buchungen erfolgen über die Sportclubby-App.", appTitle: "Weiter mit Sportclubby", appBody: "Deine kostenlose Probestunde wurde bereits genutzt. Buche weitere Stunden über die App." },
   }[locale as "it" | "en" | "de"];
 
   const handleCheckout = async (event: React.FormEvent) => {
@@ -44,6 +55,13 @@ export function CheckoutButton({ eventId, isFree = false, registrationFields }: 
 
       if (data.url) {
         window.location.assign(data.url);
+      } else if (data.code === "TRIAL_ALREADY_USED") {
+        setTrialBlocked({
+          message: data.error || copy.appBody,
+          apple: data.appLinks?.apple,
+          google: data.appLinks?.google,
+        });
+        setLoading(false);
       } else {
         showAlert({ title: "Errore", message: data.error || "Errore durante il pagamento", type: "error" });
         setLoading(false);
@@ -57,7 +75,7 @@ export function CheckoutButton({ eventId, isFree = false, registrationFields }: 
 
   return (
     <>
-      <button onClick={() => setOpen(true)} disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg transition-colors disabled:opacity-50">
+      <button onClick={() => { setTrialBlocked(null); setOpen(true); }} disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg transition-colors disabled:opacity-50">
         {loading ? copy.wait : copy.button}
       </button>
       {open && (
@@ -67,6 +85,25 @@ export function CheckoutButton({ eventId, isFree = false, registrationFields }: 
               <h2 className="text-xl font-semibold text-slate-950">{copy.title}</h2>
               <button type="button" onClick={() => setOpen(false)} className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Chiudi"><X className="size-4" /></button>
             </div>
+            {trialBlocked ? (
+              <div className="py-2 text-center">
+                <span className="mx-auto grid size-12 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+                  <Smartphone className="size-5" />
+                </span>
+                <h3 className="mt-4 text-lg font-semibold text-slate-950">{copy.appTitle}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{trialBlocked.message}</p>
+                <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                  {trialBlocked.apple && <AppLink href={trialBlocked.apple} label="App Store" />}
+                  {trialBlocked.google && <AppLink href={trialBlocked.google} label="Google Play" />}
+                </div>
+              </div>
+            ) : (
+              <>
+            {isTrialCampaign && (
+              <div className="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-xs leading-5 text-indigo-900">
+                {copy.trial}
+              </div>
+            )}
             <label className="mb-4 block text-sm font-medium text-slate-700">
               {copy.name}
               <input required minLength={2} value={buyerName} onChange={event => setBuyerName(event.target.value)} autoComplete="name" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5" />
@@ -118,9 +155,19 @@ export function CheckoutButton({ eventId, isFree = false, registrationFields }: 
             <button disabled={loading} className="w-full rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
               {loading ? copy.wait : copy.submit}
             </button>
+              </>
+            )}
           </form>
         </div>
       )}
     </>
+  );
+}
+
+function AppLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800">
+      {label} <ExternalLink className="size-3.5" />
+    </a>
   );
 }
