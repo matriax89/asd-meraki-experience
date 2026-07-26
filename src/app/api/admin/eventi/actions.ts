@@ -27,18 +27,30 @@ export async function getEvent(id: string) {
 export async function upsertEvent(eventData: any) {
   await requireAdmin();
   const supabase = createAdminClient();
+  const recurrence = eventData.recurrence as {
+    enabled?: boolean;
+    frequency?: "weekly" | "monthly";
+    interval?: number;
+    occurrences?: number;
+  } | undefined;
+  const { recurrence: _recurrence, ...cleanEventData } = eventData;
   
-  const start = new Date(eventData.data_inizio);
-  const end = eventData.data_fine ? new Date(eventData.data_fine) : null;
+  const start = new Date(cleanEventData.data_inizio);
+  const end = cleanEventData.data_fine ? new Date(cleanEventData.data_fine) : null;
   if (Number.isNaN(start.getTime())) return { success: false, error: "Data di inizio non valida." };
   if (end && (Number.isNaN(end.getTime()) || end <= start)) return { success: false, error: "La data di fine deve essere successiva all’inizio." };
-  if (eventData.capacity !== null && (!Number.isInteger(eventData.capacity) || eventData.capacity < 1)) return { success: false, error: "La capienza deve essere almeno 1." };
-  if (eventData.prezzo_cents !== null && eventData.prezzo_cents < 0) return { success: false, error: "Il prezzo non può essere negativo." };
+  if (cleanEventData.capacity !== null && (!Number.isInteger(cleanEventData.capacity) || cleanEventData.capacity < 1)) return { success: false, error: "La capienza deve essere almeno 1." };
+  if (cleanEventData.prezzo_cents !== null && cleanEventData.prezzo_cents < 0) return { success: false, error: "Il prezzo non può essere negativo." };
+  if (!cleanEventData.id && recurrence?.enabled) {
+    if (!["weekly", "monthly"].includes(recurrence.frequency || "")) return { success: false, error: "Frequenza della ricorrenza non valida." };
+    if (!Number.isInteger(recurrence.interval) || (recurrence.interval || 0) < 1 || (recurrence.interval || 0) > 12) return { success: false, error: "L’intervallo della ricorrenza non è valido." };
+    if (!Number.isInteger(recurrence.occurrences) || (recurrence.occurrences || 0) < 2 || (recurrence.occurrences || 0) > 52) return { success: false, error: "Puoi creare da 2 a 52 appuntamenti." };
+  }
 
   // Create slug if new
-  let slug = eventData.slug;
-  if (!eventData.id && !slug && eventData.titolo) {
-    slug = getLocalizedText(eventData.titolo, "it")
+  let slug = cleanEventData.slug;
+  if (!cleanEventData.id && !slug && cleanEventData.titolo) {
+    slug = getLocalizedText(cleanEventData.titolo, "it")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)+/g, "");
@@ -48,7 +60,7 @@ export async function upsertEvent(eventData: any) {
   }
 
   const payload = {
-    ...eventData,
+    ...cleanEventData,
     ...(slug ? { slug } : {}),
     updated_at: new Date().toISOString()
   };
@@ -64,10 +76,56 @@ export async function upsertEvent(eventData: any) {
     return { success: false, error: error.message };
   }
 
+  let occurrencesCreated = 1;
+  if (!cleanEventData.id && recurrence?.enabled && (recurrence.occurrences || 0) > 1) {
+    const seriesId = crypto.randomUUID();
+    const duration = end ? end.getTime() - start.getTime() : null;
+    const copies = [];
+    for (let index = 1; index < recurrence.occurrences!; index += 1) {
+      const occurrenceStart = addRecurrence(start, recurrence.frequency!, recurrence.interval! * index);
+      const occurrenceEnd = duration ? new Date(occurrenceStart.getTime() + duration) : null;
+      copies.push({
+        ...payload,
+        id: undefined,
+        slug: `${slug}-${occurrenceStart.toISOString().slice(0, 10)}-${index + 1}`,
+        data_inizio: occurrenceStart.toISOString(),
+        data_fine: occurrenceEnd?.toISOString() || null,
+        posti_venduti: 0,
+        recurrence_series_id: seriesId,
+        recurrence_index: index,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+    const { error: seriesError } = await Promise.all([
+      supabase.from("events").update({ recurrence_series_id: seriesId, recurrence_index: 0 } as any).eq("id", data.id),
+      supabase.from("events").insert(copies as any),
+    ]).then((results) => ({ error: results.find((result) => result.error)?.error }));
+    if (seriesError) {
+      console.error("Recurring event creation failed:", seriesError);
+      return { success: false, error: `Evento principale creato, ma la serie non è completa: ${seriesError.message}` };
+    }
+    occurrencesCreated = recurrence.occurrences!;
+  }
+
   revalidatePath("/[locale]/admin/eventi", "page");
   revalidatePath("/[locale]/eventi", "page");
   revalidatePath("/[locale]/workshop", "page");
-  return { success: true, id: data.id };
+  return { success: true, id: data.id, occurrencesCreated };
+}
+
+function addRecurrence(date: Date, frequency: "weekly" | "monthly", amount: number) {
+  const result = new Date(date);
+  if (frequency === "weekly") {
+    result.setUTCDate(result.getUTCDate() + amount * 7);
+  } else {
+    const originalDay = result.getUTCDate();
+    result.setUTCDate(1);
+    result.setUTCMonth(result.getUTCMonth() + amount);
+    const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+    result.setUTCDate(Math.min(originalDay, lastDay));
+  }
+  return result;
 }
 
 export async function deleteEvent(id: string) {

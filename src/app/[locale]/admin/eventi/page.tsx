@@ -27,6 +27,11 @@ export default async function AdminEventiPage() {
         <div>
           <span className="block font-bold text-slate-900">{getLocalizedText(evento.titolo, locale)}</span>
           <span className="block text-[13px] text-slate-500 uppercase tracking-widest mt-0.5">{evento.tipo}</span>
+          {(evento as any).recurrence_series_id && (
+            <span className="mt-1 inline-flex rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+              Serie · appuntamento {((evento as any).recurrence_index || 0) + 1}
+            </span>
+          )}
         </div>
       )
     },

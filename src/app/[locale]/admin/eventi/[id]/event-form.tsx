@@ -58,6 +58,10 @@ export function EventForm({ initialData }: EventFormProps) {
     cta_url: initialData?.cta_url || "",
     meta_title: initialData?.meta_title || "",
     meta_description: initialData?.meta_description || "",
+    recurring: false,
+    recurrence_frequency: "weekly",
+    recurrence_interval: "1",
+    recurrence_occurrences: "4",
   });
   const draftKey = `meraki:event-draft:${initialData?.id || "new"}`;
 
@@ -144,6 +148,12 @@ export function EventForm({ initialData }: EventFormProps) {
       cta_url: formData.cta_url || null,
       meta_title: formData.meta_title || null,
       meta_description: formData.meta_description || null,
+      recurrence: formData.id === "nuovo" ? {
+        enabled: formData.recurring,
+        frequency: formData.recurrence_frequency,
+        interval: parseInt(formData.recurrence_interval),
+        occurrences: parseInt(formData.recurrence_occurrences),
+      } : undefined,
     };
 
     startTransition(async () => {
@@ -152,7 +162,11 @@ export function EventForm({ initialData }: EventFormProps) {
         setMessage({ type: 'error', text: result.error });
       } else {
         window.localStorage.removeItem(draftKey);
-        setMessage({ type: 'success', text: 'Evento salvato con successo!' });
+        const seriesMessage = result.occurrencesCreated && result.occurrencesCreated > 1
+          ? `Serie creata: ${result.occurrencesCreated} appuntamenti pubblicati.`
+          : "Evento salvato con successo!";
+        setMessage({ type: 'success', text: seriesMessage });
+        toast.success(seriesMessage);
         if (formData.id === "nuovo") {
           router.push(`/admin/eventi/${result.id}`);
         }
@@ -233,6 +247,18 @@ export function EventForm({ initialData }: EventFormProps) {
         if (formData.id === "nuovo" && start.getTime() < Date.now()) {
           toast.error("La data scelta è già passata. Scegli una data futura per pubblicare l’evento.");
           return;
+        }
+        if (formData.id === "nuovo" && formData.recurring) {
+          const interval = parseInt(formData.recurrence_interval);
+          const occurrences = parseInt(formData.recurrence_occurrences);
+          if (!Number.isInteger(interval) || interval < 1 || interval > 12) {
+            toast.error("L’intervallo deve essere compreso tra 1 e 12.");
+            return;
+          }
+          if (!Number.isInteger(occurrences) || occurrences < 2 || occurrences > 52) {
+            toast.error("Scegli da 2 a 52 appuntamenti.");
+            return;
+          }
         }
       }
       if (currentStep === 3 && formData.cta_tipo === "external_url" && !formData.cta_url.trim()) {
@@ -342,6 +368,12 @@ export function EventForm({ initialData }: EventFormProps) {
           })}
         </div>
       </nav>
+
+      {initialData?.recurrence_series_id && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-950">
+          <strong>Evento ricorrente:</strong> questo è l’appuntamento {Number(initialData.recurrence_index || 0) + 1} della serie. Le modifiche effettuate qui riguardano soltanto questa data.
+        </div>
+      )}
 
       <div className={`${currentStep === 1 ? "block" : "hidden"} space-y-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6`}>
         <div className="flex flex-col items-stretch gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
@@ -478,6 +510,49 @@ export function EventForm({ initialData }: EventFormProps) {
             onChange={e => setFormData({...formData, indirizzo: e.target.value})} 
           />
         </div>
+
+        {formData.id === "nuovo" && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <Checkbox
+              label="Questo evento si ripete"
+              description="Crea automaticamente una serie di appuntamenti con gli stessi contenuti, disponibilità e modalità di iscrizione."
+              checked={formData.recurring}
+              onChange={(event) => setFormData({ ...formData, recurring: event.target.checked })}
+            />
+            {formData.recurring && (
+              <div className="mt-4 grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-3">
+                <Select
+                  label="Frequenza"
+                  value={formData.recurrence_frequency}
+                  onChange={(event) => setFormData({ ...formData, recurrence_frequency: event.target.value })}
+                  options={[
+                    { value: "weekly", label: "Settimanale" },
+                    { value: "monthly", label: "Mensile" },
+                  ]}
+                />
+                <Input
+                  label={formData.recurrence_frequency === "weekly" ? "Ogni quante settimane?" : "Ogni quanti mesi?"}
+                  type="number"
+                  min="1"
+                  max="12"
+                  value={formData.recurrence_interval}
+                  onChange={(event) => setFormData({ ...formData, recurrence_interval: event.target.value })}
+                />
+                <Input
+                  label="Numero appuntamenti"
+                  type="number"
+                  min="2"
+                  max="52"
+                  value={formData.recurrence_occurrences}
+                  onChange={(event) => setFormData({ ...formData, recurrence_occurrences: event.target.value })}
+                />
+                <div className="sm:col-span-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-xs leading-5 text-indigo-900">
+                  Verranno creati <strong>{formData.recurrence_occurrences || "0"} eventi distinti</strong>. Ognuno avrà posti, partecipanti, biglietti e scanner indipendenti.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className={`${currentStep === 3 ? "block" : "hidden"} space-y-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6`}>
