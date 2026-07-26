@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const { data: evento } = await supabase
     .from("events")
-    .select("titolo, descrizione, copertina_url")
+    .select("titolo, descrizione, copertina_url, meta_title, meta_description")
     .eq("slug", slug)
     .eq("attivo", true)
     .single();
@@ -20,8 +20,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     return { title: "Evento non trovato" };
   }
 
-  const title = getLocalizedText(evento.titolo, locale);
-  const description = getLocalizedText(evento.descrizione, locale) || title;
+  const title = typeof evento.meta_title === "string" && evento.meta_title
+    ? evento.meta_title
+    : getLocalizedText(evento.titolo, locale);
+  const description = typeof evento.meta_description === "string" && evento.meta_description
+    ? evento.meta_description
+    : getLocalizedText(evento.descrizione, locale) || title;
   const image = evento.copertina_url;
 
   return {
@@ -65,13 +69,14 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
   const formattedDate = new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "Europe/Rome" }).format(date);
   const formattedTime = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(date);
   const copy = {
-    it: { badge: "Evento", date: "Data e ora", place: "Luogo", price: "Prezzo", soldOut: "Posti esauriti", remaining: "posti rimanenti", at: "alle" },
-    en: { badge: "Event", date: "Date and time", place: "Venue", price: "Price", soldOut: "Sold out", remaining: "places remaining", at: "at" },
-    de: { badge: "Event", date: "Datum und Uhrzeit", place: "Ort", price: "Preis", soldOut: "Ausverkauft", remaining: "Plätze verfügbar", at: "um" },
-  }[locale as "it" | "en" | "de"] || { badge: "Evento", date: "Data e ora", place: "Luogo", price: "Prezzo", soldOut: "Posti esauriti", remaining: "posti rimanenti", at: "alle" };
+    it: { badge: "Evento", date: "Data e ora", place: "Luogo", price: "Prezzo", soldOut: "Posti esauriti", ended: "Evento concluso", remaining: "posti rimanenti", at: "alle" },
+    en: { badge: "Event", date: "Date and time", place: "Venue", price: "Price", soldOut: "Sold out", ended: "Event ended", remaining: "places remaining", at: "at" },
+    de: { badge: "Event", date: "Datum und Uhrzeit", place: "Ort", price: "Preis", soldOut: "Ausverkauft", ended: "Veranstaltung beendet", remaining: "Plätze verfügbar", at: "um" },
+  }[locale as "it" | "en" | "de"] || { badge: "Evento", date: "Data e ora", place: "Luogo", price: "Prezzo", soldOut: "Posti esauriti", ended: "Evento concluso", remaining: "posti rimanenti", at: "alle" };
   
   const postiDisponibili = evento.capacity ? evento.capacity - (evento.posti_venduti || 0) : null;
   const isEsaurito = postiDisponibili !== null && postiDisponibili <= 0;
+  const isEnded = new Date(evento.data_fine || evento.data_inizio).getTime() < Date.now();
 
   return (
     <div className="container py-12 md:py-24 max-w-4xl">
@@ -129,10 +134,22 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
             </div>
             
             <div className="pt-4 border-t border-border">
-              {isEsaurito ? (
+              {isEnded ? (
+                <button disabled className="w-full bg-muted text-muted-foreground font-bold py-3 px-4 rounded-lg cursor-not-allowed">
+                  {copy.ended}
+                </button>
+              ) : isEsaurito ? (
                 <button disabled className="w-full bg-muted text-muted-foreground font-bold py-3 px-4 rounded-lg cursor-not-allowed">
                   {copy.soldOut}
                 </button>
+              ) : evento.cta_tipo === "external_url" && evento.cta_url ? (
+                <a href={evento.cta_url} target="_blank" rel="noopener noreferrer" className="block w-full rounded-lg bg-primary px-4 py-3 text-center font-bold text-primary-foreground">
+                  {locale === "de" ? "Extern anmelden" : locale === "en" ? "Register externally" : "Iscriviti sul sito esterno"}
+                </a>
+              ) : evento.cta_tipo === "info_only" ? (
+                <a href={`/${locale}/contatti`} className="block w-full rounded-lg bg-primary px-4 py-3 text-center font-bold text-primary-foreground">
+                  {locale === "de" ? "Informationen anfordern" : locale === "en" ? "Request information" : "Richiedi informazioni"}
+                </a>
               ) : (
                 <CheckoutButton eventId={evento.id} isFree={(evento.prezzo_cents || 0) === 0} />
               )}

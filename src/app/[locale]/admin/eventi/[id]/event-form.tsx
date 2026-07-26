@@ -7,7 +7,7 @@ import { upsertEvent, deleteEvent, sendEventCommunicationToAttendees } from "@/a
 import { useModal } from "@/components/ui/modal-provider";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
-import { Bell, CalendarClock, ImageUp, Loader2, MailWarning, PartyPopper } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, CalendarClock, Check, HelpCircle, ImageUp, Loader2, MailWarning, PartyPopper } from "lucide-react";
 import { toast } from "sonner";
 
 interface EventFormProps {
@@ -19,6 +19,7 @@ export function EventForm({ initialData }: EventFormProps) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
   const { showConfirm } = useModal();
 
   // Convert cents to euros for the UI
@@ -41,7 +42,19 @@ export function EventForm({ initialData }: EventFormProps) {
     capacity: initialData?.capacity || "",
     copertina_url: initialData?.copertina_url || "",
     attivo: initialData?.attivo ?? true,
+    in_evidenza: initialData?.in_evidenza ?? false,
+    cta_tipo: initialData?.cta_tipo || "stripe",
+    cta_url: initialData?.cta_url || "",
+    meta_title: initialData?.meta_title || "",
+    meta_description: initialData?.meta_description || "",
   });
+
+  const steps = [
+    { id: 1, title: "Identità", description: "Tipo, nome e descrizione" },
+    { id: 2, title: "Quando e dove", description: "Data, ora e luogo" },
+    { id: 3, title: "Iscrizioni", description: "Prezzo, posti e modalità" },
+    { id: 4, title: "Pubblicazione", description: "Immagine, SEO e visibilità" },
+  ];
 
   const generateSlug = (nome: string) => {
     return nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
@@ -86,6 +99,11 @@ export function EventForm({ initialData }: EventFormProps) {
       capacity: formData.capacity ? parseInt(formData.capacity as string) : null,
       copertina_url: formData.copertina_url,
       attivo: formData.attivo,
+      in_evidenza: formData.in_evidenza,
+      cta_tipo: formData.cta_tipo,
+      cta_url: formData.cta_url || null,
+      meta_title: formData.meta_title || null,
+      meta_description: formData.meta_description || null,
     };
 
     startTransition(async () => {
@@ -100,6 +118,47 @@ export function EventForm({ initialData }: EventFormProps) {
       }
     });
   };
+
+  const italianTitle = typeof formData.titolo === "object" ? formData.titolo.it : formData.titolo;
+  const goToStep = (nextStep: number) => {
+    if (nextStep > currentStep) {
+      if (currentStep === 1 && (!italianTitle?.trim() || !formData.slug.trim())) {
+        toast.error("Inserisci almeno il titolo italiano. L’indirizzo web viene creato automaticamente.");
+        return;
+      }
+      if (currentStep === 2) {
+        if (!formData.data_inizio) {
+          toast.error("Scegli data e ora di inizio.");
+          return;
+        }
+        const start = new Date(formData.data_inizio);
+        const end = formData.data_fine ? new Date(formData.data_fine) : null;
+        if (end && end <= start) {
+          toast.error("La fine deve essere successiva all’inizio.");
+          return;
+        }
+        if (formData.id === "nuovo" && start.getTime() < Date.now()) {
+          toast.error("La data scelta è già passata. Scegli una data futura per pubblicare l’evento.");
+          return;
+        }
+      }
+      if (currentStep === 3 && formData.cta_tipo === "external_url" && !formData.cta_url.trim()) {
+        toast.error("Inserisci il link esterno per le iscrizioni.");
+        return;
+      }
+    }
+    setCurrentStep(Math.max(1, Math.min(4, nextStep)));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const Help = ({ text }: { text: string }) => (
+    <span className="group relative inline-flex align-middle">
+      <HelpCircle className="size-4 cursor-help text-slate-400" aria-label={text} />
+      <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-60 -translate-x-1/2 rounded-lg bg-slate-950 p-2.5 text-xs font-normal leading-5 text-white shadow-xl group-hover:block group-focus-within:block">
+        {text}
+      </span>
+    </span>
+  );
 
   const handleDelete = async () => {
     const isConfirmed = await showConfirm({
@@ -162,16 +221,40 @@ export function EventForm({ initialData }: EventFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl pb-12">
+    <form onSubmit={handleSubmit} className="max-w-4xl space-y-6 pb-12">
       {message && (
         <div className={`p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
           {message.text}
         </div>
       )}
 
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
+      <nav aria-label="Avanzamento creazione evento" className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {steps.map((step) => {
+            const active = currentStep === step.id;
+            const complete = currentStep > step.id;
+            return (
+              <button key={step.id} type="button" onClick={() => goToStep(step.id)} className={`flex min-w-0 items-center gap-3 rounded-lg border p-3 text-left transition ${active ? "border-indigo-500 bg-indigo-50" : complete ? "border-emerald-200 bg-emerald-50/60" : "border-transparent hover:bg-slate-50"}`}>
+                <span className={`grid size-7 shrink-0 place-items-center rounded-full text-xs font-bold ${active ? "bg-indigo-600 text-white" : complete ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+                  {complete ? <Check className="size-4" /> : step.id}
+                </span>
+                <span className="min-w-0">
+                  <strong className="block truncate text-sm text-slate-900">{step.title}</strong>
+                  <span className="hidden truncate text-xs text-slate-500 sm:block">{step.description}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      <div className={`${currentStep === 1 ? "block" : "hidden"} space-y-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6`}>
         <div className="flex flex-col items-stretch gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-bold">Dati Principali</h2>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Passaggio 1 di 4</p>
+            <h2 className="mt-1 text-xl font-bold">Che tipo di evento stai creando?</h2>
+            <p className="mt-1 text-sm text-slate-500">Parti dalle informazioni che le persone vedranno per prime.</p>
+          </div>
           {formData.id !== "nuovo" && (
             <button 
               type="button" 
@@ -196,7 +279,7 @@ export function EventForm({ initialData }: EventFormProps) {
             onChange={val => setFormData({...formData, sottotitolo: val})} 
           />
           <Input 
-            label="Slug (URL) *" 
+            label="Indirizzo web (generato automaticamente) *"
             required 
             value={formData.slug} 
             onChange={e => setFormData({...formData, slug: e.target.value})} 
@@ -222,7 +305,7 @@ export function EventForm({ initialData }: EventFormProps) {
         />
       </div>
 
-      {formData.id !== "nuovo" && (
+      {formData.id !== "nuovo" && currentStep === 4 && (
         <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           <div className="mb-5">
             <h2 className="text-xl font-bold">Comunicazioni partecipanti</h2>
@@ -251,12 +334,16 @@ export function EventForm({ initialData }: EventFormProps) {
         </div>
       )}
 
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
-        <h2 className="text-xl font-bold border-b border-border pb-2">Data, Luogo e Prezzo</h2>
+      <div className={`${currentStep === 2 ? "block" : "hidden"} space-y-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6`}>
+        <div className="border-b border-border pb-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Passaggio 2 di 4</p>
+          <h2 className="mt-1 text-xl font-bold">Quando e dove si svolge?</h2>
+          <p className="mt-1 text-sm text-slate-500">Gli orari vengono pubblicati nel fuso di Bolzano/Roma.</p>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-semibold mb-2">Inizio Evento *</label>
+            <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold">Inizio evento * <Help text="Scegli una data futura. Un evento concluso viene spostato automaticamente nell’archivio pubblico." /></label>
             <input 
               type="datetime-local" 
               required
@@ -266,7 +353,7 @@ export function EventForm({ initialData }: EventFormProps) {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-2">Fine Evento</label>
+            <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold">Fine evento <Help text="Facoltativa. È utile per workshop, giornate intere e manifestazioni su più giorni." /></label>
             <input 
               type="datetime-local" 
               value={formData.data_fine}
@@ -275,33 +362,53 @@ export function EventForm({ initialData }: EventFormProps) {
             />
           </div>
           <Input 
-            label="Location (es. Meraki HQ)" 
-            value={formData.location} 
-            onChange={e => setFormData({...formData, location: e.target.value})} 
+            label="Nome del luogo"
+            placeholder="Es. Meraki Experience, Sala Grande"
+            value={formData.location}
+            onChange={e => setFormData({...formData, location: e.target.value})}
           />
           <Input 
-            label="Indirizzo Esteso" 
+            label="Indirizzo completo"
+            placeholder="Via, numero civico, città"
             value={formData.indirizzo} 
             onChange={e => setFormData({...formData, indirizzo: e.target.value})} 
-          />
-          <Input 
-            label="Prezzo (€)" 
-            placeholder="Lascia vuoto se gratis. es. 20.00"
-            value={formData.prezzo_euro} 
-            onChange={e => setFormData({...formData, prezzo_euro: e.target.value})} 
-          />
-          <Input 
-            label="Posti Totali (Capienza)" 
-            type="number"
-            placeholder="es. 50 (vuoto = illimitati)"
-            value={formData.capacity} 
-            onChange={e => setFormData({...formData, capacity: e.target.value})} 
           />
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
-        <h2 className="text-xl font-bold border-b border-border pb-2">Media e Visibilità</h2>
+      <div className={`${currentStep === 3 ? "block" : "hidden"} space-y-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6`}>
+        <div className="border-b border-border pb-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Passaggio 3 di 4</p>
+          <h2 className="mt-1 text-xl font-bold">Come funzionano le iscrizioni?</h2>
+          <p className="mt-1 text-sm text-slate-500">Scegli la modalità; mostreremo soltanto i campi necessari.</p>
+        </div>
+        <div className="grid gap-5 md:grid-cols-2">
+          <Select label="Modalità di partecipazione" value={formData.cta_tipo} onChange={e => setFormData({...formData, cta_tipo: e.target.value})} options={[
+            { value: "stripe", label: "Iscrizione sul sito (consigliata)" },
+            { value: "external_url", label: "Iscrizione su un sito esterno" },
+            { value: "info_only", label: "Solo informazioni, senza iscrizione" },
+          ]} />
+          {formData.cta_tipo === "external_url" && (
+            <Input label="Link esterno *" type="url" placeholder="https://..." value={formData.cta_url} onChange={e => setFormData({...formData, cta_url: e.target.value})} />
+          )}
+          {formData.cta_tipo === "stripe" && (
+            <>
+              <Input label="Prezzo (€)" inputMode="decimal" placeholder="0 oppure vuoto = gratuito" value={formData.prezzo_euro} onChange={e => setFormData({...formData, prezzo_euro: e.target.value})} />
+              <Input label="Posti disponibili" type="number" min="1" placeholder="Vuoto = nessun limite" value={formData.capacity} onChange={e => setFormData({...formData, capacity: e.target.value})} />
+            </>
+          )}
+        </div>
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
+          <strong>Come funziona:</strong> per un evento gratuito il sistema genera comunque un biglietto QR. Per un evento a pagamento, l’utente completa prima il pagamento Stripe.
+        </div>
+      </div>
+
+      <div className={`${currentStep === 4 ? "block" : "hidden"} space-y-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6`}>
+        <div className="border-b border-border pb-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Passaggio 4 di 4</p>
+          <h2 className="mt-1 text-xl font-bold">Anteprima e pubblicazione</h2>
+          <p className="mt-1 text-sm text-slate-500">Completa l’aspetto e decidi quando rendere visibile l’evento.</p>
+        </div>
         
         <div className="space-y-2">
           <label className="block text-sm font-semibold">Immagine di copertina</label>
@@ -327,6 +434,9 @@ export function EventForm({ initialData }: EventFormProps) {
         )}
 
         <div className="pt-4">
+          <div className="mb-3">
+            <Checkbox label="Metti in evidenza" description="Segnala questo evento come contenuto prioritario." checked={formData.in_evidenza} onChange={e => setFormData({...formData, in_evidenza: e.target.checked})} />
+          </div>
           <Checkbox 
             label="Pubblica sul sito" 
             description="Se disattivato, non sarà visibile e le prevendite non saranno attive."
@@ -334,16 +444,29 @@ export function EventForm({ initialData }: EventFormProps) {
             onChange={e => setFormData({...formData, attivo: e.target.checked})}
           />
         </div>
+
+        <details className="rounded-lg border border-slate-200 bg-slate-50">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">Campi avanzati e SEO</summary>
+          <div className="grid gap-4 border-t border-slate-200 p-4 md:grid-cols-2">
+            <Input label="Titolo per Google" placeholder={italianTitle || "Titolo evento"} value={formData.meta_title} onChange={e => setFormData({...formData, meta_title: e.target.value})} />
+            <Input label="Descrizione per Google" placeholder="Breve descrizione, massimo 160 caratteri" maxLength={160} value={formData.meta_description} onChange={e => setFormData({...formData, meta_description: e.target.value})} />
+          </div>
+        </details>
       </div>
 
-      <div className="sticky bottom-3 z-10 flex justify-end pt-4 sm:bottom-6">
-        <button 
-          type="submit" 
-          disabled={isPending}
-          className="w-full rounded-xl bg-primary px-8 py-4 font-bold text-primary-foreground shadow-lg shadow-black/20 transition-colors hover:bg-primary/90 hover:shadow-black/30 disabled:opacity-50 sm:w-auto"
-        >
-          {isPending ? "Salvataggio..." : (formData.id === "nuovo" ? "Crea Evento" : "Salva Modifiche")}
+      <div className="sticky bottom-3 z-10 flex flex-col-reverse gap-2 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:bottom-6 sm:flex-row sm:justify-between">
+        <button type="button" onClick={() => goToStep(currentStep - 1)} disabled={currentStep === 1 || isPending} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-5 text-sm font-semibold disabled:opacity-40">
+          <ArrowLeft className="size-4" /> Indietro
         </button>
+        {currentStep < 4 ? (
+          <button type="button" onClick={() => goToStep(currentStep + 1)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-950 px-6 text-sm font-semibold text-white">
+            Continua <ArrowRight className="size-4" />
+          </button>
+        ) : (
+          <button type="submit" disabled={isPending} className="min-h-11 rounded-lg bg-primary px-8 font-bold text-primary-foreground disabled:opacity-50">
+            {isPending ? "Salvataggio..." : (formData.id === "nuovo" ? "Pubblica evento" : "Salva modifiche")}
+          </button>
+        )}
       </div>
     </form>
   );
