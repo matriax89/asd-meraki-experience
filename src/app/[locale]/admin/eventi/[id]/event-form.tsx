@@ -18,6 +18,7 @@ import { compressImageToWebp } from "@/lib/image-utils";
 import { ArrowLeft, ArrowRight, Bell, CalendarClock, Check, Copy, Download, Eye, HelpCircle, ImageUp, Loader2, PartyPopper, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { normalizeRegistrationFields, type RegistrationField } from "@/lib/events/registration-fields";
+import { DateTimePicker } from "@/components/admin/date-time-picker";
 
 interface EventFormProps {
   initialData: any;
@@ -531,21 +532,20 @@ export function EventForm({ initialData }: EventFormProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold">Inizio evento * <Help text="Scegli una data futura. Un evento concluso viene spostato automaticamente nell’archivio pubblico." /></label>
-            <input 
-              type="datetime-local" 
+            <DateTimePicker
               required
               value={formData.data_inizio}
-              onChange={e => setFormData({...formData, data_inizio: e.target.value})}
-              className="w-full px-3 py-2 border rounded-lg bg-background text-foreground"
+              onChange={value => setFormData({ ...formData, data_inizio: value })}
+              placeholder="Scegli data e ora di inizio"
             />
           </div>
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold">Fine evento <Help text="Facoltativa. È utile per workshop, giornate intere e manifestazioni su più giorni." /></label>
-            <input 
-              type="datetime-local" 
+            <DateTimePicker
               value={formData.data_fine}
-              onChange={e => setFormData({...formData, data_fine: e.target.value})}
-              className="w-full px-3 py-2 border rounded-lg bg-background text-foreground"
+              onChange={value => setFormData({ ...formData, data_fine: value })}
+              placeholder="Scegli data e ora di fine"
+              min={formData.data_inizio}
             />
           </div>
           <Input 
