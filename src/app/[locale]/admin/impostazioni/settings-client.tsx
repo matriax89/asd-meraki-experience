@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { saveHomepageContent } from "@/app/api/admin/impostazioni/actions";
+import { publishBrandingAsset, saveHomepageContent } from "@/app/api/admin/impostazioni/actions";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions";
 import { compressImageToWebp, convertImageToPng } from "@/lib/image-utils";
@@ -237,6 +237,7 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
       const res = await uploadImageAction(uploadData);
       
       if (res.success && res.url) {
+        let brandingField: "logo_url" | "logo_white_url" | "favicon_url" | null = null;
         if (typeof index === 'number') {
           updateDirettivo(index, "foto_url", res.url);
         } else if (index === 'popup') {
@@ -245,10 +246,13 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
           setSportclubbyBanner({ ...sportclubbyBanner, logo_url: res.url });
         } else if (index === 'branding_logo') {
           setBranding({ ...branding, logo_url: res.url });
+          brandingField = "logo_url";
         } else if (index === 'branding_logo_white') {
           setBranding({ ...branding, logo_white_url: res.url });
+          brandingField = "logo_white_url";
         } else if (index === 'branding_favicon') {
           setBranding({ ...branding, favicon_url: res.url });
+          brandingField = "favicon_url";
         } else if (index === 'media_hero') {
           setMedia({ ...media, hero_bg_url: res.url });
         } else if (index === 'media_chi_siamo') {
@@ -263,6 +267,15 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
           setShopText({ ...shopText, merch_image_url: res.url });
         } else if (index === 'shop_donate_img') {
           setShopText({ ...shopText, donate_image_url: res.url });
+        }
+        if (brandingField) {
+          const publishResult = await publishBrandingAsset(brandingField, res.url);
+          if (!publishResult.success) throw new Error(publishResult.error);
+          toast.success("Branding pubblicato", {
+            description: brandingField === "favicon_url"
+              ? "La nuova icona della scheda è attiva."
+              : "Il nuovo logo è attivo sul sito e nel pannello.",
+          });
         }
       } else {
         showAlert({ title: "Errore", message: "Errore caricamento: " + res.error, type: "error" });
