@@ -71,17 +71,6 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
     });
   }
 
-  // Fetch Homepage Card Settings
-  const { data: settingsData } = (await supabase
-    .from("site_settings" as any)
-    .select("value")
-    .eq("key", "homepage_cards")
-    .single()) as any;
-    
-  const homepageSettings = settingsData?.value || {
-    masterclass_image: "/images/v2/aerial_glow.png"
-  };
-
   // Fetch Homepage Content
   const { data: contentData } = (await supabase
     .from("site_settings" as any)
