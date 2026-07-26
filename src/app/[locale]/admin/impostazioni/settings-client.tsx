@@ -4,7 +4,7 @@ import { useState } from "react";
 import { saveHomepageContent } from "@/app/api/admin/impostazioni/actions";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions";
-import { compressImageToWebp } from "@/lib/image-utils";
+import { compressImageToWebp, convertImageToPng } from "@/lib/image-utils";
 import { useModal } from "@/components/ui/modal-provider";
 import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail, Home, Users, Images, FileText, Plug, ShoppingBag, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -223,11 +223,16 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
     setUploadingImageIndex(index);
     try {
       // 1. Convert and compress locally to WebP
-      const compressedFile = await compressImageToWebp(file);
+      const compressedFile = index === "branding_favicon"
+        ? await convertImageToPng(file)
+        : await compressImageToWebp(file);
       
       // 2. Upload via Server Action
       const uploadData = new FormData();
       uploadData.append("file", compressedFile);
+      if (typeof index === "string" && index.startsWith("branding_")) {
+        uploadData.append("folder", "branding");
+      }
       
       const res = await uploadImageAction(uploadData);
       
@@ -1215,6 +1220,11 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
                     />
                   </label>
                 </div>
+                {branding.logo_url && (
+                  <div className="flex h-20 items-center rounded-lg border border-slate-200 bg-white p-3">
+                    <img src={branding.logo_url} alt="Anteprima logo principale" className="h-full max-w-full object-contain object-left" />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1270,6 +1280,11 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
                     />
                   </label>
                 </div>
+                {branding.logo_white_url && (
+                  <div className="flex h-20 items-center rounded-lg border border-slate-700 bg-slate-950 p-3">
+                    <img src={branding.logo_white_url} alt="Anteprima logo bianco" className="h-full max-w-full object-contain object-left" />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1292,6 +1307,12 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
                     />
                   </label>
                 </div>
+                {branding.favicon_url && (
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500">
+                    <img src={branding.favicon_url} alt="Anteprima favicon" className="size-10 rounded-md border border-slate-200 object-contain" />
+                    Anteprima dell’icona della scheda
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

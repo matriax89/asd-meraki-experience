@@ -71,3 +71,40 @@ export async function compressImageToWebp(
     reader.onerror = (error) => reject(error);
   });
 }
+
+export async function convertImageToPng(file: File, size: number = 512): Promise<File> {
+  return new Promise((resolve, reject) => {
+    if (!file?.type.startsWith("image/")) {
+      reject(new Error("File provided is not an image"));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Failed to get canvas context"));
+        const scale = Math.min(size / img.width, size / img.height);
+        const width = img.width * scale;
+        const height = img.height * scale;
+        ctx.clearRect(0, 0, size, size);
+        ctx.drawImage(img, (size - width) / 2, (size - height) / 2, width, height);
+        canvas.toBlob((blob) => {
+          if (!blob) return reject(new Error("Canvas to Blob failed"));
+          resolve(new File([blob], `${file.name.replace(/\.[^/.]+$/, "")}.png`, {
+            type: "image/png",
+            lastModified: Date.now(),
+          }));
+        }, "image/png");
+      };
+      img.onerror = reject;
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}

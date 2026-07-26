@@ -33,6 +33,8 @@ export async function saveHomepageContent(formData: FormData) {
 
   // Revalidate the public homepage
   revalidatePath("/", "layout");
+  revalidatePath("/[locale]", "layout");
+  revalidatePath("/[locale]/admin", "layout");
   
   return { success: true };
 }

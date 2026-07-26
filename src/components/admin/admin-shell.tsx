@@ -34,6 +34,7 @@ type AdminShellProps = {
     role: "admin" | "editor";
   };
   orderNotificationCount?: number;
+  logoUrl?: string;
 };
 
 type NavItem = {
@@ -77,7 +78,7 @@ function isActive(pathname: string, href: string) {
     : pathname.includes(href);
 }
 
-export function AdminShell({ children, identity, orderNotificationCount = 0 }: AdminShellProps) {
+export function AdminShell({ children, identity, orderNotificationCount = 0, logoUrl }: AdminShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -96,9 +97,15 @@ export function AdminShell({ children, identity, orderNotificationCount = 0 }: A
     <>
       <div className="flex h-14 items-center justify-between border-b border-slate-200 px-3">
         <Link href="/admin" className="flex min-w-0 items-center gap-3">
-          <span className="grid size-7 shrink-0 place-items-center rounded-[5px] bg-slate-950 text-[11px] font-bold text-white">
-            M
-          </span>
+          {logoUrl ? (
+            <span className="relative block h-8 w-9 shrink-0 overflow-hidden">
+              <img src={logoUrl} alt="Meraki" className="h-full w-full object-contain object-left" />
+            </span>
+          ) : (
+            <span className="grid size-7 shrink-0 place-items-center rounded-[5px] bg-slate-950 text-[11px] font-bold text-white">
+              M
+            </span>
+          )}
           {!compact && (
             <span className="min-w-0">
               <span className="block truncate text-[13px] font-semibold text-slate-950">
