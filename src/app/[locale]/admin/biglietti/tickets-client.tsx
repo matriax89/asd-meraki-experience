@@ -22,7 +22,15 @@ interface Ticket {
   };
 }
 
-export function TicketsClient({ initialTickets }: { initialTickets: Ticket[] }) {
+export function TicketsClient({
+  initialTickets,
+  scannerEvents,
+  logoUrl,
+}: {
+  initialTickets: Ticket[];
+  scannerEvents: Array<{ id: string; titolo: string; data_inizio: string; capacity: number | null; attivo: boolean | null }>;
+  logoUrl?: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const [optimisticTickets, setOptimisticTickets] = useState<Ticket[]>(initialTickets);
 
@@ -118,7 +126,7 @@ export function TicketsClient({ initialTickets }: { initialTickets: Ticket[] }) 
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Biglietti Eventi</h1>
           <p className="text-slate-500 mt-2">Gestisci ingressi e check-in dei partecipanti agli eventi.</p>
         </div>
-        <TicketScanner />
+        <TicketScanner events={scannerEvents} logoUrl={logoUrl} />
       </div>
 
       <DataTable 

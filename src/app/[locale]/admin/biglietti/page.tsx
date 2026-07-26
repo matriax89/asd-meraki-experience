@@ -7,9 +7,8 @@ export default async function AdminBigliettiPage() {
   const locale = await getLocale();
   const supabase = await createClient();
 
-  const { data: tickets, error } = await supabase
-    .from('tickets')
-    .select(`
+  const [{ data: tickets, error }, { data: events }, { data: settings }] = await Promise.all([
+    supabase.from('tickets').select(`
       id, 
       event_id, 
       buyer_nome, 
@@ -22,8 +21,10 @@ export default async function AdminBigliettiPage() {
         titolo,
         data_inizio
       )
-    `)
-    .order('created_at', { ascending: false });
+    `).order('created_at', { ascending: false }),
+    supabase.from("events").select("id, titolo, data_inizio, capacity, attivo").order("data_inizio", { ascending: false }),
+    supabase.from("site_settings").select("value").eq("key", "homepage_content").single(),
+  ]);
 
   if (error) {
     console.error("Error fetching tickets:", error);
@@ -40,5 +41,11 @@ export default async function AdminBigliettiPage() {
     })()
   }));
 
-  return <TicketsClient initialTickets={formattedTickets as any} />;
+  const scannerEvents = (events || []).map(event => ({
+    ...event,
+    titolo: getLocalizedText(event.titolo, locale),
+  }));
+  const logoUrl = (settings?.value as any)?.branding?.logo_url;
+
+  return <TicketsClient initialTickets={formattedTickets as any} scannerEvents={scannerEvents} logoUrl={logoUrl} />;
 }

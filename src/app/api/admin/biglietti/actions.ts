@@ -24,16 +24,18 @@ export async function checkInTicket(ticketId: string) {
     return { error: "Forbidden" };
   }
 
-  const { error } = await supabase
+  const { data: checkedIn, error } = await adminSupabase
     .from("tickets")
     .update({ 
       status: 'used',
       used_at: new Date().toISOString()
     })
     .eq("id", ticketId)
-    .eq("status", "paid"); // Ensure we only check-in paid tickets
+    .eq("status", "paid")
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
+  if (error || !checkedIn) {
     console.error("Check-in error:", error);
     return { error: "Errore durante il check-in del biglietto." };
   }
@@ -43,26 +45,61 @@ export async function checkInTicket(ticketId: string) {
   return { success: true };
 }
 
-export async function checkInTicketByCode(qrCode: string) {
+export async function getEventCheckInStats(eventId: string) {
+  await requireAdmin();
+  const adminSupabase = createAdminClient();
+  const { data, error } = await adminSupabase
+    .from("tickets")
+    .select("status")
+    .eq("event_id", eventId);
+  if (error) return { error: "Statistiche non disponibili." };
+  const valid = (data || []).filter(ticket => ticket.status === "paid" || ticket.status === "used");
+  const entered = valid.filter(ticket => ticket.status === "used").length;
+  return {
+    success: true,
+    stats: {
+      total: valid.length,
+      entered,
+      missing: Math.max(valid.length - entered, 0),
+    },
+  };
+}
+
+export async function checkInTicketByCode(qrCode: string, eventId: string) {
   await requireAdmin();
   const adminSupabase = createAdminClient();
   const { data: ticket, error: lookupError } = await adminSupabase
     .from("tickets")
-    .select("id, status")
+    .select("id, event_id, status, used_at, buyer_nome, buyer_cognome, buyer_email")
     .eq("qr_code", qrCode.trim())
     .maybeSingle();
-  if (lookupError || !ticket) return { error: "Biglietto non trovato." };
-  if (ticket.status === "used") return { error: "Questo biglietto è già stato utilizzato." };
-  if (ticket.status !== "paid") return { error: "Questo biglietto non è valido per il check-in." };
+  if (lookupError || !ticket) return { error: "Biglietto non trovato.", code: "not_found" };
+  if (ticket.event_id !== eventId) return { error: "Il biglietto appartiene a un altro evento.", code: "wrong_event" };
+  if (ticket.status === "used") return { error: "Questo biglietto è già stato utilizzato.", code: "already_used", usedAt: ticket.used_at };
+  if (ticket.status !== "paid") return { error: "Questo biglietto non è valido per il check-in.", code: "invalid_status" };
 
-  const { error } = await adminSupabase
+  const usedAt = new Date().toISOString();
+  const { data: checkedIn, error } = await adminSupabase
     .from("tickets")
-    .update({ status: "used", used_at: new Date().toISOString() })
+    .update({ status: "used", used_at: usedAt })
     .eq("id", ticket.id)
-    .eq("status", "paid");
-  if (error) return { error: "Check-in non riuscito." };
+    .eq("status", "paid")
+    .select("id")
+    .maybeSingle();
+  if (error) return { error: "Check-in non riuscito.", code: "update_error" };
+  if (!checkedIn) return { error: "Biglietto già convalidato da un altro dispositivo.", code: "already_used" };
+
+  const statsResult = await getEventCheckInStats(eventId);
   revalidatePath("/[locale]/admin/biglietti", "page");
-  return { success: true };
+  return {
+    success: true,
+    ticket: {
+      name: `${ticket.buyer_nome || ""} ${ticket.buyer_cognome || ""}`.trim() || ticket.buyer_email,
+      email: ticket.buyer_email,
+      usedAt,
+    },
+    stats: statsResult.stats,
+  };
 }
 
 export async function resendTicketEmail(ticketId: string) {
