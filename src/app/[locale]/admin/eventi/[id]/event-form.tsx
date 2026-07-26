@@ -98,7 +98,7 @@ export function EventForm({ initialData }: EventFormProps) {
   const steps = [
     { id: 1, title: "Identità", description: "Tipo, nome e descrizione" },
     { id: 2, title: "Quando e dove", description: "Data, ora e luogo" },
-    { id: 3, title: "Iscrizioni", description: "Prezzo, posti e modalità" },
+    { id: 3, title: "Iscrizioni e campi", description: "Prezzo, posti e dati partecipanti" },
     { id: 4, title: "Pubblicazione", description: "Immagine, SEO e visibilità" },
   ];
 
@@ -150,12 +150,12 @@ export function EventForm({ initialData }: EventFormProps) {
       cta_url: formData.cta_url || null,
       meta_title: formData.meta_title || null,
       meta_description: formData.meta_description || null,
-      recurrence: formData.id === "nuovo" ? {
+      recurrence: {
         enabled: formData.recurring,
         frequency: formData.recurrence_frequency,
         interval: parseInt(formData.recurrence_interval),
         occurrences: parseInt(formData.recurrence_occurrences),
-      } : undefined,
+      },
       registration_fields: formData.registration_fields,
     };
 
@@ -247,11 +247,13 @@ export function EventForm({ initialData }: EventFormProps) {
           toast.error("La fine deve essere successiva all’inizio.");
           return;
         }
-        if (formData.id === "nuovo" && start.getTime() < Date.now()) {
-          toast.error("La data scelta è già passata. Scegli una data futura per pubblicare l’evento.");
+        if ((formData.id === "nuovo" || formData.recurring) && start.getTime() < Date.now()) {
+          toast.error(formData.recurring
+            ? "Per creare una serie, sposta prima questo appuntamento a una data futura."
+            : "La data scelta è già passata. Scegli una data futura per pubblicare l’evento.");
           return;
         }
-        if (formData.id === "nuovo" && formData.recurring) {
+        if (formData.recurring) {
           const interval = parseInt(formData.recurrence_interval);
           const occurrences = parseInt(formData.recurrence_occurrences);
           if (!Number.isInteger(interval) || interval < 1 || interval > 12) {
@@ -402,7 +404,14 @@ export function EventForm({ initialData }: EventFormProps) {
                   {complete ? <Check className="size-4" /> : step.id}
                 </span>
                 <span className="min-w-0">
-                  <strong className="block truncate text-sm text-slate-900">{step.title}</strong>
+                  <strong className="flex items-center gap-1.5 truncate text-sm text-slate-900">
+                    <span className="truncate">{step.title}</span>
+                    {step.id === 3 && formData.registration_fields.length > 0 && (
+                      <span className="shrink-0 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">
+                        {formData.registration_fields.length}
+                      </span>
+                    )}
+                  </strong>
                   <span className="hidden truncate text-xs text-slate-500 sm:block">{step.description}</span>
                 </span>
               </button>
@@ -553,11 +562,13 @@ export function EventForm({ initialData }: EventFormProps) {
           />
         </div>
 
-        {formData.id === "nuovo" && (
+        {!initialData?.recurrence_series_id && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <Checkbox
-              label="Questo evento si ripete"
-              description="Crea automaticamente una serie di appuntamenti con gli stessi contenuti, disponibilità e modalità di iscrizione."
+              label={formData.id === "nuovo" ? "Questo evento si ripete" : "Crea una serie ricorrente da questo evento"}
+              description={formData.id === "nuovo"
+                ? "Crea automaticamente una serie di appuntamenti con gli stessi contenuti, disponibilità e modalità di iscrizione."
+                : "Mantiene questo evento come prima data e crea automaticamente gli appuntamenti successivi."}
               checked={formData.recurring}
               onChange={(event) => setFormData({ ...formData, recurring: event.target.checked })}
             />
@@ -581,7 +592,7 @@ export function EventForm({ initialData }: EventFormProps) {
                   onChange={(event) => setFormData({ ...formData, recurrence_interval: event.target.value })}
                 />
                 <Input
-                  label="Numero appuntamenti"
+                  label="Appuntamenti totali"
                   type="number"
                   min="2"
                   max="52"
@@ -589,7 +600,8 @@ export function EventForm({ initialData }: EventFormProps) {
                   onChange={(event) => setFormData({ ...formData, recurrence_occurrences: event.target.value })}
                 />
                 <div className="sm:col-span-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-xs leading-5 text-indigo-900">
-                  Verranno creati <strong>{formData.recurrence_occurrences || "0"} eventi distinti</strong>. Ognuno avrà posti, partecipanti, biglietti e scanner indipendenti.
+                  {formData.id === "nuovo" ? "Verranno creati" : "La serie conterrà"} <strong>{formData.recurrence_occurrences || "0"} eventi distinti</strong>
+                  {formData.id === "nuovo" ? "." : ", incluso questo."} Ognuno avrà posti, partecipanti, biglietti e scanner indipendenti.
                 </div>
               </div>
             )}
@@ -600,8 +612,8 @@ export function EventForm({ initialData }: EventFormProps) {
       <div className={`${currentStep === 3 ? "block" : "hidden"} space-y-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6`}>
         <div className="border-b border-border pb-3">
           <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Passaggio 3 di 4</p>
-          <h2 className="mt-1 text-xl font-bold">Come funzionano le iscrizioni?</h2>
-          <p className="mt-1 text-sm text-slate-500">Scegli la modalità; mostreremo soltanto i campi necessari.</p>
+          <h2 className="mt-1 text-xl font-bold">Iscrizioni e dati dei partecipanti</h2>
+          <p className="mt-1 text-sm text-slate-500">Configura prezzo, disponibilità e le domande da mostrare durante l’iscrizione.</p>
         </div>
         <div className="grid gap-5 md:grid-cols-2">
           <Select label="Modalità di partecipazione" value={formData.cta_tipo} onChange={e => setFormData({...formData, cta_tipo: e.target.value})} options={[
@@ -627,7 +639,7 @@ export function EventForm({ initialData }: EventFormProps) {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="flex items-center gap-1.5 text-base font-bold text-slate-900">
-                Informazioni aggiuntive <Help text="Le risposte vengono salvate nel biglietto del partecipante e incluse nell’esportazione CSV." />
+                Campi personalizzati dei partecipanti <Help text="Le risposte vengono salvate nel biglietto del partecipante e incluse nell’esportazione CSV." />
               </h3>
               <p className="mt-1 text-sm text-slate-500">Chiedi soltanto i dati realmente necessari per questo evento.</p>
             </div>

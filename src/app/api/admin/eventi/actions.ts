@@ -42,10 +42,20 @@ export async function upsertEvent(eventData: any) {
   if (end && (Number.isNaN(end.getTime()) || end <= start)) return { success: false, error: "La data di fine deve essere successiva all’inizio." };
   if (cleanEventData.capacity !== null && (!Number.isInteger(cleanEventData.capacity) || cleanEventData.capacity < 1)) return { success: false, error: "La capienza deve essere almeno 1." };
   if (cleanEventData.prezzo_cents !== null && cleanEventData.prezzo_cents < 0) return { success: false, error: "Il prezzo non può essere negativo." };
-  if (!cleanEventData.id && recurrence?.enabled) {
+  if (recurrence?.enabled) {
     if (!["weekly", "monthly"].includes(recurrence.frequency || "")) return { success: false, error: "Frequenza della ricorrenza non valida." };
     if (!Number.isInteger(recurrence.interval) || (recurrence.interval || 0) < 1 || (recurrence.interval || 0) > 12) return { success: false, error: "L’intervallo della ricorrenza non è valido." };
     if (!Number.isInteger(recurrence.occurrences) || (recurrence.occurrences || 0) < 2 || (recurrence.occurrences || 0) > 52) return { success: false, error: "Puoi creare da 2 a 52 appuntamenti." };
+    if (cleanEventData.id) {
+      const { data: existing } = await supabase
+        .from("events")
+        .select("recurrence_series_id")
+        .eq("id", cleanEventData.id)
+        .single();
+      if (existing?.recurrence_series_id) {
+        return { success: false, error: "Questo evento appartiene già a una serie ricorrente." };
+      }
+    }
   }
 
   // Create slug if new
@@ -79,7 +89,7 @@ export async function upsertEvent(eventData: any) {
   }
 
   let occurrencesCreated = 1;
-  if (!cleanEventData.id && recurrence?.enabled && (recurrence.occurrences || 0) > 1) {
+  if (recurrence?.enabled && (recurrence.occurrences || 0) > 1) {
     const seriesId = crypto.randomUUID();
     const duration = end ? end.getTime() - start.getTime() : null;
     const copies = [];
