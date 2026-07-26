@@ -1,13 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "@/i18n/routing";
 import { Input, Textarea, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
-import { upsertEvent, deleteEvent, sendEventCommunicationToAttendees } from "@/app/api/admin/eventi/actions";
+import {
+  cancelEventAndRefund,
+  deleteEvent,
+  duplicateEvent,
+  exportEventAttendees,
+  getEventCommunicationHistory,
+  sendEventCommunicationToAttendees,
+  upsertEvent,
+} from "@/app/api/admin/eventi/actions";
 import { useModal } from "@/components/ui/modal-provider";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
-import { ArrowLeft, ArrowRight, Bell, CalendarClock, Check, HelpCircle, ImageUp, Loader2, MailWarning, PartyPopper } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, CalendarClock, Check, Copy, Download, Eye, HelpCircle, ImageUp, Loader2, PartyPopper, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 interface EventFormProps {
@@ -20,6 +28,9 @@ export function EventForm({ initialData }: EventFormProps) {
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [communicationHistory, setCommunicationHistory] = useState<any[]>([]);
   const { showConfirm } = useModal();
 
   // Convert cents to euros for the UI
@@ -48,6 +59,35 @@ export function EventForm({ initialData }: EventFormProps) {
     meta_title: initialData?.meta_title || "",
     meta_description: initialData?.meta_description || "",
   });
+  const draftKey = `meraki:event-draft:${initialData?.id || "new"}`;
+
+  useEffect(() => {
+    if (!initialData) {
+      try {
+        const saved = window.localStorage.getItem(draftKey);
+        if (saved) {
+          setFormData((current) => ({ ...current, ...JSON.parse(saved), id: "nuovo" }));
+          toast.info("Bozza precedente ripristinata");
+        }
+      } catch {
+        window.localStorage.removeItem(draftKey);
+      }
+    }
+    setDraftReady(true);
+  }, [draftKey, initialData]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(draftKey, JSON.stringify(formData));
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, draftReady, formData]);
+
+  useEffect(() => {
+    if (formData.id === "nuovo" || currentStep !== 4) return;
+    getEventCommunicationHistory(formData.id).then((result) => setCommunicationHistory(result.data || []));
+  }, [currentStep, formData.id]);
 
   const steps = [
     { id: 1, title: "Identità", description: "Tipo, nome e descrizione" },
@@ -111,11 +151,64 @@ export function EventForm({ initialData }: EventFormProps) {
       if (result.error) {
         setMessage({ type: 'error', text: result.error });
       } else {
+        window.localStorage.removeItem(draftKey);
         setMessage({ type: 'success', text: 'Evento salvato con successo!' });
         if (formData.id === "nuovo") {
           router.push(`/admin/eventi/${result.id}`);
         }
       }
+    });
+  };
+
+  const handleDuplicate = async () => {
+    const confirmed = await showConfirm({
+      title: "Duplica evento",
+      message: "Verrà creata una copia non pubblicata, programmata una settimana dopo. Potrai controllarla prima di pubblicarla.",
+    });
+    if (!confirmed) return;
+    startTransition(async () => {
+      const result = await duplicateEvent(formData.id);
+      if (result.error || !result.id) {
+        toast.error(result.error || "Duplicazione non riuscita");
+        return;
+      }
+      toast.success("Copia creata come bozza");
+      router.push(`/admin/eventi/${result.id}`);
+    });
+  };
+
+  const handleExport = () => {
+    startTransition(async () => {
+      const result = await exportEventAttendees(formData.id);
+      if (result.error || !result.csv) {
+        toast.error(result.error || "Esportazione non riuscita");
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([result.csv], { type: "text/csv;charset=utf-8" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = result.filename || "partecipanti.csv";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast.success("Elenco partecipanti esportato");
+    });
+  };
+
+  const handleCancelAndRefund = async () => {
+    const confirmed = await showConfirm({
+      title: "Annulla evento e rimborsa",
+      message: "L’evento verrà nascosto, tutti i pagamenti Stripe validi saranno rimborsati e i partecipanti riceveranno l’email di annullamento. Questa operazione non può essere annullata.",
+    });
+    if (!confirmed) return;
+    startTransition(async () => {
+      const result = await cancelEventAndRefund(formData.id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      if (result.failed) toast.warning(`${result.refunded} rimborsi completati, ${result.failed} da verificare manualmente.`);
+      else toast.success(`Evento annullato: ${result.refunded} rimborsi e ${result.emailsSent} email.`);
+      router.refresh();
     });
   };
 
@@ -217,6 +310,8 @@ export function EventForm({ initialData }: EventFormProps) {
       } else {
         toast.success(`${result.sent} email inviate`);
       }
+      const history = await getEventCommunicationHistory(formData.id);
+      setCommunicationHistory(history.data || []);
     });
   };
 
@@ -322,14 +417,23 @@ export function EventForm({ initialData }: EventFormProps) {
               <Bell className="size-5 text-blue-600" />
               <span><strong className="block text-sm">Aggiornamento</strong><span className="text-xs text-slate-500">Comunica i nuovi dettagli</span></span>
             </button>
-            <button type="button" disabled={isPending} onClick={() => handleCommunication("cancelled", "Comunica annullamento")} className="inline-flex items-center gap-3 rounded-xl border border-red-200 p-4 text-left hover:bg-red-50 disabled:opacity-50">
-              <MailWarning className="size-5 text-red-600" />
-              <span><strong className="block text-sm text-red-700">Annullamento</strong><span className="text-xs text-slate-500">Avvisa tutti i partecipanti</span></span>
-            </button>
             <button type="button" disabled={isPending} onClick={() => handleCommunication("thank_you", "Invia ringraziamento")} className="inline-flex items-center gap-3 rounded-xl border border-emerald-200 p-4 text-left hover:bg-emerald-50 disabled:opacity-50">
               <PartyPopper className="size-5 text-emerald-600" />
               <span><strong className="block text-sm">Ringraziamento</strong><span className="text-xs text-slate-500">Solo partecipanti entrati</span></span>
             </button>
+          </div>
+          <div className="mt-6 border-t border-slate-200 pt-5">
+            <h3 className="text-sm font-bold text-slate-900">Storico recente</h3>
+            {communicationHistory.length ? (
+              <div className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-200">
+                {communicationHistory.map((entry) => (
+                  <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-xs">
+                    <span className="font-semibold capitalize text-slate-700">{entry.communication_type.replaceAll("_", " ")}</span>
+                    <span className="text-slate-500">{new Date(entry.created_at).toLocaleString("it-IT")} · {entry.sent_count}/{entry.recipient_count} inviate{entry.failed_count ? ` · ${entry.failed_count} errori` : ""}</span>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="mt-2 text-xs text-slate-500">Nessuna comunicazione registrata.</p>}
           </div>
         </div>
       )}
@@ -452,6 +556,25 @@ export function EventForm({ initialData }: EventFormProps) {
             <Input label="Descrizione per Google" placeholder="Breve descrizione, massimo 160 caratteri" maxLength={160} value={formData.meta_description} onChange={e => setFormData({...formData, meta_description: e.target.value})} />
           </div>
         </details>
+
+        <div className="grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-2">
+          <button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 text-sm font-semibold hover:bg-slate-50">
+            <Eye className="size-4" /> Anteprima
+          </button>
+          {formData.id !== "nuovo" && (
+            <>
+              <button type="button" onClick={handleDuplicate} disabled={isPending} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50">
+                <Copy className="size-4" /> Duplica come bozza
+              </button>
+              <button type="button" onClick={handleExport} disabled={isPending} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50">
+                <Download className="size-4" /> Esporta partecipanti
+              </button>
+              <button type="button" onClick={handleCancelAndRefund} disabled={isPending} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                <RotateCcw className="size-4" /> Annulla e rimborsa
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="sticky bottom-3 z-10 flex flex-col-reverse gap-2 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:bottom-6 sm:flex-row sm:justify-between">
@@ -468,6 +591,28 @@ export function EventForm({ initialData }: EventFormProps) {
           </button>
         )}
       </div>
+
+      {previewOpen && (
+        <div className="fixed inset-0 z-[120] overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm" onClick={() => setPreviewOpen(false)}>
+          <div className="mx-auto my-8 max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            {formData.copertina_url ? (
+              <img src={formData.copertina_url} alt="" className="aspect-[21/9] w-full object-cover" />
+            ) : <div className="grid aspect-[21/9] place-items-center bg-slate-100 text-sm text-slate-400">Nessuna copertina</div>}
+            <div className="p-6 sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">{formData.tipo}</p>
+              <h2 className="mt-2 text-3xl font-bold text-slate-950">{italianTitle || "Titolo dell’evento"}</h2>
+              <p className="mt-3 text-slate-500">{typeof formData.sottotitolo === "object" ? formData.sottotitolo.it : formData.sottotitolo}</p>
+              <div className="mt-6 grid gap-3 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
+                <span><strong>Quando:</strong><br />{formData.data_inizio ? new Date(formData.data_inizio).toLocaleString("it-IT") : "Da definire"}</span>
+                <span><strong>Dove:</strong><br />{formData.location || formData.indirizzo || "Da definire"}</span>
+                <span><strong>Prezzo:</strong><br />{formData.cta_tipo === "stripe" ? (formData.prezzo_euro ? `€${formData.prezzo_euro}` : "Gratis") : "Gestione esterna"}</span>
+                <span><strong>Posti:</strong><br />{formData.capacity || "Illimitati"}</span>
+              </div>
+              <button type="button" onClick={() => setPreviewOpen(false)} className="mt-6 min-h-11 w-full rounded-lg bg-slate-950 px-5 font-semibold text-white">Chiudi anteprima</button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

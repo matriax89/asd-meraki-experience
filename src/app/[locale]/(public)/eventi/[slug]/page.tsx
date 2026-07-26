@@ -77,6 +77,9 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
   const postiDisponibili = evento.capacity ? evento.capacity - (evento.posti_venduti || 0) : null;
   const isEsaurito = postiDisponibili !== null && postiDisponibili <= 0;
   const isEnded = new Date(evento.data_fine || evento.data_inizio).getTime() < Date.now();
+  const mapAddress = [evento.location, evento.indirizzo].filter(Boolean).join(", ");
+  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mapAddress)}`;
+  const embedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddress)}&output=embed`;
 
   return (
     <div className="container py-12 md:py-24 max-w-4xl">
@@ -163,6 +166,27 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
           </div>
         </div>
       </div>
+
+      {mapAddress && (
+        <section className="mt-14 overflow-hidden rounded-2xl border border-border bg-card">
+          <iframe
+            title={`Mappa ${mapAddress}`}
+            src={embedUrl}
+            className="h-72 w-full border-0 sm:h-96"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+          <div className="flex flex-col gap-3 border-t border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-foreground">{evento.location || copy.place}</p>
+              <p className="text-sm text-muted-foreground">{evento.indirizzo}</p>
+            </div>
+            <a href={directionsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white">
+              {locale === "de" ? "Route starten" : locale === "en" ? "Get directions" : "Ottieni indicazioni"}
+            </a>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
