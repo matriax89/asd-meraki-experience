@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import { stripe } from "@/lib/stripe/client";
 import { fulfillShopOrder } from "@/lib/stripe/fulfill-shop-order";
-import { sendOrderStatusUpdate } from "@/lib/resend/client";
+import { sendOrderConfirmation, sendOrderNotification, sendOrderStatusUpdate } from "@/lib/resend/client";
 
 export async function syncPaidStripeOrders() {
   await requireAdmin();
@@ -93,4 +93,19 @@ export async function updateOrderStatus(id: string, status: string, trackingNumb
   revalidatePath("/[locale]/admin", "page");
   
   return { success: true, warning: emailWarning };
+}
+
+export async function resendOrderEmails(id: string, target: "customer" | "admin") {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const [{ data: order }, { data: items }] = await Promise.all([
+    supabase.from("orders").select("*").eq("id", id).single(),
+    supabase.from("order_items").select("*").eq("order_id", id),
+  ]);
+  if (!order) return { error: "Ordine non trovato." };
+  const result = target === "admin"
+    ? await sendOrderNotification(order, items || [])
+    : await sendOrderConfirmation(order, items || [], order.locale || "it");
+  if (!result?.success) return { error: "Invio non riuscito. Controlla provider, mittente e destinatario." };
+  return { success: true };
 }

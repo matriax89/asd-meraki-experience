@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateOrderStatus } from "@/app/api/admin/ordini/actions";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { resendOrderEmails, updateOrderStatus } from "@/app/api/admin/ordini/actions";
+import { CheckCircle2, Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 export function OrderStatusForm({ order }: { order: any }) {
@@ -40,6 +40,15 @@ export function OrderStatusForm({ order }: { order: any }) {
 
   const isClosed = ["completed", "cancelled", "refunded"].includes(status);
   const isHandDelivery = order.delivery_method === "hand_delivery";
+
+  const handleResend = (target: "customer" | "admin") => {
+    startTransition(async () => {
+      const result = await resendOrderEmails(order.id, target);
+      result.error
+        ? toast.error(result.error)
+        : toast.success(target === "customer" ? "Conferma reinviata al cliente" : "Notifica reinviata a Meraki");
+    });
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -109,6 +118,18 @@ export function OrderStatusForm({ order }: { order: any }) {
       >
         {isPending ? "Salvataggio..." : "Salva Modifiche"}
       </button>
+
+      <div className="border-t border-slate-200 pt-4">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Reinvia email</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" disabled={isPending} onClick={() => handleResend("customer")} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50">
+            <Mail className="size-3.5" /> Cliente
+          </button>
+          <button type="button" disabled={isPending} onClick={() => handleResend("admin")} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50">
+            <Mail className="size-3.5" /> Meraki
+          </button>
+        </div>
+      </div>
     </form>
   );
 }

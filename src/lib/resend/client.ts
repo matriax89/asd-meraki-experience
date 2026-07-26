@@ -21,6 +21,66 @@ const emailFooter = `
     ASD Meraki Experience · Bolzano · <a href="https://www.merakiexperience.org" style="color:#64748b;text-decoration:none;">merakiexperience.org</a>
   </div>`;
 
+function escapeEmailText(value: unknown) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+async function getEmailTransportSettings() {
+  const supabase = createAdminClient();
+  const { data: settings } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "homepage_content")
+    .single();
+  const integrations = (settings?.value as any)?.integrations;
+  return {
+    integrations,
+    provider: integrations?.email_provider || "resend",
+    apiKey: integrations?.resend_api_key || defaultResendApiKey,
+  };
+}
+
+async function sendBrandedEmail(to: string, subject: string, html: string) {
+  const { integrations, provider, apiKey } = await getEmailTransportSettings();
+  try {
+    if (provider === "smtp") {
+      const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations || {};
+      if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
+      const transporter = nodemailer.createTransport({
+        host: smtp_host,
+        port: parseInt(smtp_port) || 587,
+        secure: parseInt(smtp_port) === 465,
+        auth: { user: smtp_user, pass: smtp_pass },
+      });
+      await transporter.sendMail({
+        from: `"Meraki Experience" <${smtp_user}>`,
+        to,
+        subject,
+        html,
+      });
+    } else {
+      if (!apiKey) return { success: false };
+      const resend = new Resend(apiKey);
+      const { error } = await resend.emails.send({
+        from: `Meraki Experience <${FROM_EMAIL}>`,
+        to,
+        subject,
+        html,
+      });
+      if (error) throw error;
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to send branded email:", error);
+    return { success: false };
+  }
+}
+
 export async function sendLeadNotification(lead: any) {
   // Fetch dynamic settings from database
   const supabase = createAdminClient();
@@ -614,4 +674,71 @@ export async function sendTicketNotification(ticket: any, eventData: any) {
     console.error("Failed to send ticket notification:", error);
     return { success: false };
   }
+}
+
+export type EventCommunicationType = "reminder" | "update" | "cancelled" | "thank_you";
+
+export async function sendEventCommunication(
+  ticket: any,
+  eventData: any,
+  type: EventCommunicationType,
+) {
+  const language = ["it", "en", "de"].includes(ticket.locale) ? ticket.locale : "it";
+  const eventTitle = getLocalizedText(eventData.titolo, language) || "Meraki Experience";
+  const eventDate = new Intl.DateTimeFormat(language, {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "Europe/Rome",
+  }).format(new Date(eventData.data_inizio));
+  const venue = [eventData.location, eventData.indirizzo].filter(Boolean).join(" · ");
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.merakiexperience.org";
+  const ticketUrl = ticket.access_token
+    ? `${siteUrl}/${language}/biglietto/${ticket.id}?token=${ticket.access_token}`
+    : `${siteUrl}/${language}/eventi/${eventData.slug}`;
+
+  const messages = {
+    it: {
+      reminder: { subject: `Promemoria: ${eventTitle}`, kicker: "Promemoria evento", title: "Ci vediamo presto", body: "Il tuo evento si avvicina. Qui trovi nuovamente data, luogo e accesso al biglietto.", cta: "Apri il biglietto" },
+      update: { subject: `Aggiornamento importante: ${eventTitle}`, kicker: "Aggiornamento evento", title: "Sono cambiati alcuni dettagli", body: "Controlla qui sotto le informazioni aggiornate dell’evento. Ti consigliamo di conservarle.", cta: "Controlla il biglietto" },
+      cancelled: { subject: `Evento annullato: ${eventTitle}`, kicker: "Evento annullato", title: "L’evento è stato annullato", body: "Ci dispiace comunicarti che questo evento non si svolgerà. Il team Meraki ti contatterà separatamente se sono previste procedure di rimborso.", cta: "Contatta Meraki" },
+      thank_you: { subject: `Grazie per aver partecipato a ${eventTitle}`, kicker: "Grazie", title: "È stato bello averti con noi", body: "Grazie per aver partecipato. Speriamo che l’esperienza ti sia piaciuta e di rivederti presto.", cta: "Scopri i prossimi eventi" },
+    },
+    en: {
+      reminder: { subject: `Reminder: ${eventTitle}`, kicker: "Event reminder", title: "See you soon", body: "Your event is approaching. Here are the date, venue and ticket details again.", cta: "Open ticket" },
+      update: { subject: `Important update: ${eventTitle}`, kicker: "Event update", title: "Some details have changed", body: "Please review the updated event information below and keep it for reference.", cta: "Review ticket" },
+      cancelled: { subject: `Event cancelled: ${eventTitle}`, kicker: "Event cancelled", title: "The event has been cancelled", body: "We are sorry to let you know that this event will not take place. The Meraki team will contact you separately if a refund process applies.", cta: "Contact Meraki" },
+      thank_you: { subject: `Thank you for joining ${eventTitle}`, kicker: "Thank you", title: "It was great to have you with us", body: "Thank you for taking part. We hope you enjoyed the experience and look forward to seeing you again.", cta: "Discover upcoming events" },
+    },
+    de: {
+      reminder: { subject: `Erinnerung: ${eventTitle}`, kicker: "Veranstaltungserinnerung", title: "Bis bald", body: "Ihre Veranstaltung rückt näher. Hier finden Sie Datum, Ort und Ticket erneut.", cta: "Ticket öffnen" },
+      update: { subject: `Wichtige Aktualisierung: ${eventTitle}`, kicker: "Veranstaltungsupdate", title: "Einige Details haben sich geändert", body: "Bitte prüfen Sie die aktualisierten Veranstaltungsinformationen unten.", cta: "Ticket prüfen" },
+      cancelled: { subject: `Veranstaltung abgesagt: ${eventTitle}`, kicker: "Veranstaltung abgesagt", title: "Die Veranstaltung wurde abgesagt", body: "Leider findet diese Veranstaltung nicht statt. Das Meraki-Team kontaktiert Sie separat, falls eine Rückerstattung vorgesehen ist.", cta: "Meraki kontaktieren" },
+      thank_you: { subject: `Danke für Ihre Teilnahme an ${eventTitle}`, kicker: "Vielen Dank", title: "Schön, dass Sie dabei waren", body: "Vielen Dank für Ihre Teilnahme. Wir hoffen, dass Ihnen das Erlebnis gefallen hat und freuen uns auf ein Wiedersehen.", cta: "Weitere Veranstaltungen" },
+    },
+  } as const;
+  const copy = messages[language as "it" | "en" | "de"][type];
+  const targetUrl = type === "cancelled"
+    ? "mailto:info@merakiexperience.org"
+    : type === "thank_you"
+      ? `${siteUrl}/${language}/eventi`
+      : ticketUrl;
+  const safeName = escapeEmailText(
+    `${ticket.buyer_nome || ""} ${ticket.buyer_cognome || ""}`.trim(),
+  );
+  const html = `<!DOCTYPE html><html lang="${language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  <body style="margin:0;padding:40px 20px;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    <div style="max-width:600px;margin:auto;background:#fff;padding:40px;border:1px solid #e2e8f0;border-radius:16px;">
+      ${emailHeader(copy.kicker)}
+      <p style="margin:0 0 10px;color:#64748b;font-size:14px;">${safeName ? `${language === "de" ? "Hallo" : language === "en" ? "Hello" : "Ciao"} ${safeName},` : ""}</p>
+      <h1 style="margin:0 0 14px;color:#0f172a;font-size:25px;line-height:1.2;">${escapeEmailText(copy.title)}</h1>
+      <p style="margin:0;color:#475569;font-size:15px;line-height:1.65;">${escapeEmailText(copy.body)}</p>
+      <div style="margin:26px 0;padding:18px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
+        <strong style="display:block;color:#0f172a;font-size:17px;margin-bottom:8px;">${escapeEmailText(eventTitle)}</strong>
+        <span style="display:block;color:#475569;font-size:14px;line-height:1.6;">${escapeEmailText(eventDate)}${venue ? `<br>${escapeEmailText(venue)}` : ""}</span>
+      </div>
+      <a href="${targetUrl}" style="display:inline-block;background:#0f172a;color:#fff;text-decoration:none;border-radius:8px;padding:12px 20px;font-size:14px;font-weight:650;">${escapeEmailText(copy.cta)}</a>
+      ${emailFooter}
+    </div>
+  </body></html>`;
+  return sendBrandedEmail(ticket.buyer_email, copy.subject, html);
 }

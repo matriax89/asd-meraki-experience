@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { sendEventCommunication, type EventCommunicationType } from "@/lib/resend/client";
 
 export async function getEvent(id: string) {
   await requireAdmin();
@@ -100,4 +101,44 @@ export async function deleteEvent(id: string) {
   revalidatePath("/[locale]/eventi", "page");
   revalidatePath("/[locale]/workshop", "page");
   return { success: true };
+}
+
+export async function sendEventCommunicationToAttendees(
+  eventId: string,
+  type: EventCommunicationType,
+) {
+  await requireAdmin();
+  if (!["reminder", "update", "cancelled", "thank_you"].includes(type)) {
+    return { success: false, error: "Tipo di comunicazione non valido." };
+  }
+  const supabase = createAdminClient();
+  const [{ data: event }, { data: tickets, error }] = await Promise.all([
+    supabase.from("events").select("*").eq("id", eventId).single(),
+    supabase
+      .from("tickets")
+      .select("*")
+      .eq("event_id", eventId)
+      .in("status", type === "thank_you" ? ["used"] : ["paid", "used"]),
+  ]);
+  if (!event) return { success: false, error: "Evento non trovato." };
+  if (error) return { success: false, error: error.message };
+  if (!tickets?.length) {
+    return { success: false, error: type === "thank_you" ? "Nessun partecipante entrato." : "Nessun partecipante da avvisare." };
+  }
+
+  let sent = 0;
+  let failed = 0;
+  for (let index = 0; index < tickets.length; index += 10) {
+    const results = await Promise.all(
+      tickets.slice(index, index + 10).map((ticket) => sendEventCommunication(ticket, event, type)),
+    );
+    sent += results.filter((result) => result.success).length;
+    failed += results.filter((result) => !result.success).length;
+  }
+  return {
+    success: failed === 0,
+    sent,
+    failed,
+    error: sent === 0 ? "Nessuna email è stata inviata. Controlla le impostazioni email." : undefined,
+  };
 }

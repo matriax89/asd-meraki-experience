@@ -3,11 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "@/i18n/routing";
 import { Input, Textarea, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
-import { upsertEvent, deleteEvent } from "@/app/api/admin/eventi/actions";
+import { upsertEvent, deleteEvent, sendEventCommunicationToAttendees } from "@/app/api/admin/eventi/actions";
 import { useModal } from "@/components/ui/modal-provider";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
-import { ImageUp, Loader2 } from "lucide-react";
+import { Bell, CalendarClock, ImageUp, Loader2, MailWarning, PartyPopper } from "lucide-react";
 import { toast } from "sonner";
 
 interface EventFormProps {
@@ -138,6 +138,29 @@ export function EventForm({ initialData }: EventFormProps) {
     }
   };
 
+  const handleCommunication = async (
+    type: "reminder" | "update" | "cancelled" | "thank_you",
+    label: string,
+  ) => {
+    const isConfirmed = await showConfirm({
+      title: label,
+      message: type === "thank_you"
+        ? "L’email sarà inviata solo alle persone entrate tramite check-in. Vuoi continuare?"
+        : `L’email sarà inviata a tutti i partecipanti validi dell’evento. Vuoi inviare “${label}”?`,
+    });
+    if (!isConfirmed) return;
+    startTransition(async () => {
+      const result = await sendEventCommunicationToAttendees(formData.id, type);
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.failed) {
+        toast.warning(`Inviate ${result.sent} email; ${result.failed} non riuscite.`);
+      } else {
+        toast.success(`${result.sent} email inviate`);
+      }
+    });
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl pb-12">
       {message && (
@@ -198,6 +221,35 @@ export function EventForm({ initialData }: EventFormProps) {
           onChange={val => setFormData({...formData, descrizione: val})} 
         />
       </div>
+
+      {formData.id !== "nuovo" && (
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+          <div className="mb-5">
+            <h2 className="text-xl font-bold">Comunicazioni partecipanti</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Invia template Meraki già tradotti nella lingua scelta durante l’acquisto.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button type="button" disabled={isPending} onClick={() => handleCommunication("reminder", "Invia promemoria")} className="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50 disabled:opacity-50">
+              <CalendarClock className="size-5 text-indigo-600" />
+              <span><strong className="block text-sm">Promemoria</strong><span className="text-xs text-slate-500">Data, luogo e biglietto</span></span>
+            </button>
+            <button type="button" disabled={isPending} onClick={() => handleCommunication("update", "Invia aggiornamento")} className="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50 disabled:opacity-50">
+              <Bell className="size-5 text-blue-600" />
+              <span><strong className="block text-sm">Aggiornamento</strong><span className="text-xs text-slate-500">Comunica i nuovi dettagli</span></span>
+            </button>
+            <button type="button" disabled={isPending} onClick={() => handleCommunication("cancelled", "Comunica annullamento")} className="inline-flex items-center gap-3 rounded-xl border border-red-200 p-4 text-left hover:bg-red-50 disabled:opacity-50">
+              <MailWarning className="size-5 text-red-600" />
+              <span><strong className="block text-sm text-red-700">Annullamento</strong><span className="text-xs text-slate-500">Avvisa tutti i partecipanti</span></span>
+            </button>
+            <button type="button" disabled={isPending} onClick={() => handleCommunication("thank_you", "Invia ringraziamento")} className="inline-flex items-center gap-3 rounded-xl border border-emerald-200 p-4 text-left hover:bg-emerald-50 disabled:opacity-50">
+              <PartyPopper className="size-5 text-emerald-600" />
+              <span><strong className="block text-sm">Ringraziamento</strong><span className="text-xs text-slate-500">Solo partecipanti entrati</span></span>
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
         <h2 className="text-xl font-bold border-b border-border pb-2">Data, Luogo e Prezzo</h2>
