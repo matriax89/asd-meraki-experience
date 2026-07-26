@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { sendEventCommunication, type EventCommunicationType } from "@/lib/resend/client";
 import { stripe } from "@/lib/stripe/client";
+import { normalizeRegistrationFields } from "@/lib/events/registration-fields";
 
 export async function getEvent(id: string) {
   await requireAdmin();
@@ -61,6 +62,7 @@ export async function upsertEvent(eventData: any) {
 
   const payload = {
     ...cleanEventData,
+    registration_fields: normalizeRegistrationFields(cleanEventData.registration_fields),
     ...(slug ? { slug } : {}),
     updated_at: new Date().toISOString()
   };
@@ -262,27 +264,34 @@ export async function getEventCommunicationHistory(eventId: string) {
 export async function exportEventAttendees(eventId: string) {
   await requireAdmin();
   const supabase = createAdminClient();
-  const { data: event } = await supabase.from("events").select("slug").eq("id", eventId).single();
+  const { data: event } = await supabase.from("events").select("slug, registration_fields").eq("id", eventId).single();
   const { data: tickets, error } = await supabase
     .from("tickets")
-    .select("buyer_nome, buyer_cognome, buyer_email, buyer_telefono, status, amount_cents, used_at, created_at, qr_code")
+    .select("buyer_nome, buyer_cognome, buyer_email, buyer_telefono, status, amount_cents, used_at, created_at, qr_code, registration_answers")
     .eq("event_id", eventId)
     .order("created_at", { ascending: true });
   if (error) return { error: error.message };
   const quote = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const customFields = normalizeRegistrationFields((event as any)?.registration_fields);
   const rows = [
-    ["Nome", "Cognome", "Email", "Telefono", "Stato", "Importo EUR", "Check-in", "Iscritto il", "Codice QR"],
-    ...(tickets || []).map((ticket) => [
-      ticket.buyer_nome,
-      ticket.buyer_cognome,
-      ticket.buyer_email,
-      ticket.buyer_telefono,
-      ticket.status,
-      ((ticket.amount_cents || 0) / 100).toFixed(2),
-      ticket.used_at,
-      ticket.created_at,
-      ticket.qr_code,
-    ]),
+    ["Nome", "Cognome", "Email", "Telefono", "Stato", "Importo EUR", "Check-in", "Iscritto il", "Codice QR", ...customFields.map((field) => field.label)],
+    ...(tickets || []).map((ticket) => {
+      const answers = ticket.registration_answers && typeof ticket.registration_answers === "object" && !Array.isArray(ticket.registration_answers)
+        ? ticket.registration_answers as Record<string, unknown>
+        : {};
+      return [
+        ticket.buyer_nome,
+        ticket.buyer_cognome,
+        ticket.buyer_email,
+        ticket.buyer_telefono,
+        ticket.status,
+        ((ticket.amount_cents || 0) / 100).toFixed(2),
+        ticket.used_at,
+        ticket.created_at,
+        ticket.qr_code,
+        ...customFields.map((field) => answers[field.id] === true ? "Sì" : answers[field.id] || ""),
+      ];
+    }),
   ];
   return {
     success: true,

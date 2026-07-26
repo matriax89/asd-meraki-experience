@@ -83,6 +83,7 @@ export type Database = {
           copertina_url: string | null
           created_at: string | null
           cta_url: string | null
+          cancelled_at: string | null
           descrizione_breve: Json | null
           descrizione_lunga: Json | null
           disciplina: string
@@ -221,6 +222,9 @@ export type Database = {
           meta_title: Json | null
           posti_venduti: number | null
           prezzo_cents: number | null
+          recurrence_index: number | null
+          recurrence_series_id: string | null
+          registration_fields: Json
           slug: string
           sottotitolo: Json | null
           stripe_price_id: string | null
@@ -235,6 +239,7 @@ export type Database = {
           created_at?: string | null
           cta_tipo?: string | null
           cta_url?: string | null
+          cancelled_at?: string | null
           data_fine?: string | null
           data_inizio: string
           descrizione?: Json | null
@@ -247,6 +252,9 @@ export type Database = {
           meta_title?: Json | null
           posti_venduti?: number | null
           prezzo_cents?: number | null
+          recurrence_index?: number | null
+          recurrence_series_id?: string | null
+          registration_fields?: Json
           slug: string
           sottotitolo?: Json | null
           stripe_price_id?: string | null
@@ -261,6 +269,7 @@ export type Database = {
           created_at?: string | null
           cta_tipo?: string | null
           cta_url?: string | null
+          cancelled_at?: string | null
           data_fine?: string | null
           data_inizio?: string
           descrizione?: Json | null
@@ -273,6 +282,9 @@ export type Database = {
           meta_title?: Json | null
           posti_venduti?: number | null
           prezzo_cents?: number | null
+          recurrence_index?: number | null
+          recurrence_series_id?: string | null
+          registration_fields?: Json
           slug?: string
           sottotitolo?: Json | null
           stripe_price_id?: string | null
@@ -976,6 +988,7 @@ export type Database = {
           id: string
           locale: string
           qr_code: string | null
+          registration_answers: Json
           status: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent: string | null
           stripe_session_id: string | null
@@ -995,6 +1008,7 @@ export type Database = {
           id?: string
           locale?: string
           qr_code?: string | null
+          registration_answers?: Json
           status?: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent?: string | null
           stripe_session_id?: string | null
@@ -1014,6 +1028,7 @@ export type Database = {
           id?: string
           locale?: string
           qr_code?: string | null
+          registration_answers?: Json
           status?: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent?: string | null
           stripe_session_id?: string | null

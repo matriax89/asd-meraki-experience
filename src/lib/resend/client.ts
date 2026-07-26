@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { normalizeRegistrationFields } from "@/lib/events/registration-fields";
 
 const defaultResendApiKey = process.env.RESEND_API_KEY;
 const FROM_EMAIL = "noreply@merakiexperience.org";
@@ -598,6 +599,7 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
   const qrUrl = `${siteUrl}/api/tickets/qr?token=${ticket.access_token}`;
   const ticketUrl = `${siteUrl}/${language}/biglietto/${ticket.id}?token=${ticket.access_token}`;
   const eventDate = new Intl.DateTimeFormat(language, { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Rome" }).format(new Date(eventData.data_inizio));
+  const answerRows = buildRegistrationAnswerRows(eventData.registration_fields, ticket.registration_answers);
   
   const htmlContent = `<!DOCTYPE html>
 <html lang="${language}">
@@ -609,6 +611,7 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
     <p style="color:#475569;margin:0 0 8px;">${copy.body}</p>
     <h2 style="color:#0f172a;margin:24px 0 8px;font-size:20px;">${eventTitle}</h2>
     <p style="color:#64748b;font-size:14px;line-height:1.5;margin:0;">${copy.date}:<br><strong>${eventDate}</strong>${eventData.location ? `<br>${eventData.location}` : ""}</p>
+    ${answerRows}
     <div style="margin:28px auto;padding:18px;border:2px dashed #cbd5e1;border-radius:16px;max-width:260px;">
       <img src="${qrUrl}" width="220" height="220" alt="QR code" style="display:block;width:220px;height:220px;margin:auto;" />
     </div>
@@ -645,6 +648,7 @@ export async function sendTicketNotification(ticket: any, eventData: any) {
   const targetEmail = integrations?.admin_email || DEFAULT_ADMIN_EMAIL;
   const eventTitle = getLocalizedText(eventData.titolo, "it") || "Evento";
   const subject = `Nuova iscrizione: ${eventTitle}`;
+  const answerRows = buildRegistrationAnswerRows(eventData.registration_fields, ticket.registration_answers);
   const html = `<!DOCTYPE html><html lang="it"><body style="margin:0;padding:40px 20px;background:#f5f5f7;font-family:-apple-system,sans-serif;">
     <div style="max-width:600px;margin:auto;background:#fff;padding:40px;border:1px solid #e2e8f0;border-radius:16px;">
       ${emailHeader("Nuova iscrizione")}
@@ -654,6 +658,7 @@ export async function sendTicketNotification(ticket: any, eventData: any) {
         Importo: <strong>${ticket.amount_cents ? `€${(ticket.amount_cents / 100).toFixed(2)}` : "Iscrizione gratuita"}</strong><br>
         Codice: <strong>${ticket.qr_code}</strong>
       </div>
+      ${answerRows}
       <a href="${process.env.NEXT_PUBLIC_SITE_URL || "https://www.merakiexperience.org"}/it/admin/biglietti" style="display:inline-block;background:#0f172a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Gestisci partecipanti</a>
       ${emailFooter}
     </div></body></html>`;
@@ -674,6 +679,23 @@ export async function sendTicketNotification(ticket: any, eventData: any) {
     console.error("Failed to send ticket notification:", error);
     return { success: false };
   }
+}
+
+function buildRegistrationAnswerRows(fieldsValue: unknown, answersValue: unknown) {
+  const fields = normalizeRegistrationFields(fieldsValue);
+  const answers = answersValue && typeof answersValue === "object" && !Array.isArray(answersValue)
+    ? answersValue as Record<string, unknown>
+    : {};
+  const rows = fields
+    .filter((field) => answers[field.id] !== undefined && answers[field.id] !== "" && answers[field.id] !== false)
+    .map((field) => `<tr>
+      <td style="padding:7px 10px;color:#64748b;font-size:12px;border-bottom:1px solid #e2e8f0;">${escapeEmailText(field.label)}</td>
+      <td style="padding:7px 10px;color:#0f172a;font-size:12px;font-weight:600;border-bottom:1px solid #e2e8f0;">${escapeEmailText(answers[field.id] === true ? "Sì" : answers[field.id])}</td>
+    </tr>`)
+    .join("");
+  return rows
+    ? `<table width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:10px;border-collapse:collapse;">${rows}</table>`
+    : "";
 }
 
 export type EventCommunicationType = "reminder" | "update" | "cancelled" | "thank_you";

@@ -34,7 +34,10 @@ export async function fulfillTicket(session: Stripe.Checkout.Session) {
     .select("*")
     .eq("stripe_session_id", session.id)
     .maybeSingle();
-  if (existing) return deliverTicketEmails(existing);
+  if (existing) {
+    const enriched = await attachRegistrationAnswers(supabase, existing, session.id);
+    return deliverTicketEmails(enriched);
+  }
 
   const paymentIntent = typeof session.payment_intent === "string"
     ? session.payment_intent
@@ -50,5 +53,20 @@ export async function fulfillTicket(session: Stripe.Checkout.Session) {
     p_buyer_cognome: session.metadata!.buyer_cognome || null,
   });
   if (error || !data) throw new Error(error?.message || "Ticket reservation failed");
-  return deliverTicketEmails(data);
+  const enriched = await attachRegistrationAnswers(supabase, data, session.id);
+  return deliverTicketEmails(enriched);
+}
+
+async function attachRegistrationAnswers(supabase: ReturnType<typeof createAdminClient>, ticket: any, stripeSessionId: string) {
+  const { data: draft } = await (supabase as any)
+    .from("ticket_checkout_answers")
+    .select("answers")
+    .eq("stripe_session_id", stripeSessionId)
+    .maybeSingle();
+  if (!draft?.answers) return ticket;
+  await Promise.all([
+    supabase.from("tickets").update({ registration_answers: draft.answers } as any).eq("id", ticket.id),
+    (supabase as any).from("ticket_checkout_answers").delete().eq("stripe_session_id", stripeSessionId),
+  ]);
+  return { ...ticket, registration_answers: draft.answers };
 }

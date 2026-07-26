@@ -4,14 +4,17 @@ import { useState } from "react";
 import { useModal } from "@/components/ui/modal-provider";
 import { useLocale } from "next-intl";
 import { X } from "lucide-react";
+import { normalizeRegistrationFields, type RegistrationAnswers } from "@/lib/events/registration-fields";
 
-export function CheckoutButton({ eventId, isFree = false }: { eventId: string; isFree?: boolean }) {
+export function CheckoutButton({ eventId, isFree = false, registrationFields }: { eventId: string; isFree?: boolean; registrationFields?: unknown }) {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
+  const [answers, setAnswers] = useState<RegistrationAnswers>({});
   const { showAlert } = useModal();
   const locale = useLocale();
+  const fields = normalizeRegistrationFields(registrationFields);
 
   const copy = {
     it: { title: isFree ? "Iscrizione gratuita" : "Acquista il biglietto", name: "Nome e cognome", email: "Email", submit: isFree ? "Completa iscrizione" : "Continua al pagamento", button: isFree ? "Iscriviti gratuitamente" : "Acquista biglietto", wait: "Attendere…" },
@@ -33,6 +36,7 @@ export function CheckoutButton({ eventId, isFree = false }: { eventId: string; i
           buyerEmail,
           buyerName,
           locale,
+          registrationAnswers: answers,
         }),
       });
 
@@ -71,6 +75,46 @@ export function CheckoutButton({ eventId, isFree = false }: { eventId: string; i
               {copy.email}
               <input required type="email" value={buyerEmail} onChange={event => setBuyerEmail(event.target.value)} autoComplete="email" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5" />
             </label>
+            {fields.length > 0 && (
+              <div className="mb-5 space-y-4 border-t border-slate-200 pt-5">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Informazioni per l’evento</p>
+                {fields.map((field) => field.type === "checkbox" ? (
+                  <label key={field.id} className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      required={field.required}
+                      checked={answers[field.id] === true}
+                      onChange={(event) => setAnswers({ ...answers, [field.id]: event.target.checked })}
+                      className="mt-0.5 size-4 accent-slate-950"
+                    />
+                    <span>{field.label}{field.required ? " *" : ""}</span>
+                  </label>
+                ) : (
+                  <label key={field.id} className="block text-sm font-medium text-slate-700">
+                    {field.label}{field.required ? " *" : ""}
+                    {field.type === "select" ? (
+                      <select
+                        required={field.required}
+                        value={String(answers[field.id] || "")}
+                        onChange={(event) => setAnswers({ ...answers, [field.id]: event.target.value })}
+                        className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"
+                      >
+                        <option value="">Seleziona…</option>
+                        {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        required={field.required}
+                        maxLength={500}
+                        value={String(answers[field.id] || "")}
+                        onChange={(event) => setAnswers({ ...answers, [field.id]: event.target.value })}
+                        className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                      />
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
             <button disabled={loading} className="w-full rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
               {loading ? copy.wait : copy.submit}
             </button>

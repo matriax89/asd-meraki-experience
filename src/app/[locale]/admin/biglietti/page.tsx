@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TicketsClient } from "./tickets-client";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { normalizeRegistrationFields } from "@/lib/events/registration-fields";
 
 export default async function AdminBigliettiPage() {
   const locale = await getLocale();
@@ -17,9 +18,11 @@ export default async function AdminBigliettiPage() {
       qr_code, 
       status, 
       used_at,
+      registration_answers,
       events (
         titolo,
-        data_inizio
+        data_inizio,
+        registration_fields
       )
     `).order('created_at', { ascending: false }),
     supabase.from("events").select("id, titolo, data_inizio, capacity, attivo").order("data_inizio", { ascending: false }),
@@ -33,13 +36,19 @@ export default async function AdminBigliettiPage() {
 
   // Supabase returns foreign tables as arrays or single objects depending on relationship.
   // Assuming it returns an object here because it's a many-to-one relationship.
-  const formattedTickets = (tickets || []).map(t => ({
-    ...t,
-    events: (() => {
-      const event = Array.isArray(t.events) ? t.events[0] : t.events;
-      return event ? { ...event, titolo: getLocalizedText(event.titolo, locale) } : event;
-    })()
-  }));
+  const formattedTickets = (tickets || []).map(t => {
+    const event = Array.isArray(t.events) ? t.events[0] : t.events;
+    const answers = (t.registration_answers && typeof t.registration_answers === "object" && !Array.isArray(t.registration_answers))
+      ? t.registration_answers as Record<string, string | boolean>
+      : {};
+    return {
+      ...t,
+      custom_answers: normalizeRegistrationFields((event as any)?.registration_fields)
+        .map((field) => ({ label: field.label, value: answers[field.id] }))
+        .filter((answer) => answer.value !== "" && answer.value !== undefined && answer.value !== false),
+      events: event ? { ...event, titolo: getLocalizedText(event.titolo, locale) } : event,
+    };
+  });
 
   const scannerEvents = (events || []).map(event => ({
     ...event,

@@ -17,6 +17,7 @@ import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
 import { ArrowLeft, ArrowRight, Bell, CalendarClock, Check, Copy, Download, Eye, HelpCircle, ImageUp, Loader2, PartyPopper, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { normalizeRegistrationFields, type RegistrationField } from "@/lib/events/registration-fields";
 
 interface EventFormProps {
   initialData: any;
@@ -62,6 +63,7 @@ export function EventForm({ initialData }: EventFormProps) {
     recurrence_frequency: "weekly",
     recurrence_interval: "1",
     recurrence_occurrences: "4",
+    registration_fields: normalizeRegistrationFields(initialData?.registration_fields),
   });
   const draftKey = `meraki:event-draft:${initialData?.id || "new"}`;
 
@@ -154,6 +156,7 @@ export function EventForm({ initialData }: EventFormProps) {
         interval: parseInt(formData.recurrence_interval),
         occurrences: parseInt(formData.recurrence_occurrences),
       } : undefined,
+      registration_fields: formData.registration_fields,
     };
 
     startTransition(async () => {
@@ -265,6 +268,17 @@ export function EventForm({ initialData }: EventFormProps) {
         toast.error("Inserisci il link esterno per le iscrizioni.");
         return;
       }
+      if (currentStep === 3) {
+        const incompleteField = formData.registration_fields.find((field) =>
+          !field.label.trim() || (field.type === "select" && (field.options || []).length < 2),
+        );
+        if (incompleteField) {
+          toast.error(!incompleteField.label.trim()
+            ? "Completa il nome di tutti i campi aggiuntivi."
+            : `Inserisci almeno due opzioni per “${incompleteField.label}”.`);
+          return;
+        }
+      }
     }
     setCurrentStep(Math.max(1, Math.min(4, nextStep)));
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -278,6 +292,34 @@ export function EventForm({ initialData }: EventFormProps) {
       </span>
     </span>
   );
+
+  const addRegistrationField = () => {
+    if (formData.registration_fields.length >= 12) {
+      toast.error("Puoi aggiungere al massimo 12 campi.");
+      return;
+    }
+    setFormData({
+      ...formData,
+      registration_fields: [
+        ...formData.registration_fields,
+        { id: crypto.randomUUID(), label: "", type: "text", required: false },
+      ],
+    });
+  };
+
+  const updateRegistrationField = (id: string, patch: Partial<RegistrationField>) => {
+    setFormData({
+      ...formData,
+      registration_fields: formData.registration_fields.map((field) => field.id === id ? { ...field, ...patch } : field),
+    });
+  };
+
+  const removeRegistrationField = (id: string) => {
+    setFormData({
+      ...formData,
+      registration_fields: formData.registration_fields.filter((field) => field.id !== id),
+    });
+  };
 
   const handleDelete = async () => {
     const isConfirmed = await showConfirm({
@@ -579,6 +621,54 @@ export function EventForm({ initialData }: EventFormProps) {
         </div>
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
           <strong>Come funziona:</strong> per un evento gratuito il sistema genera comunque un biglietto QR. Per un evento a pagamento, l’utente completa prima il pagamento Stripe.
+        </div>
+
+        <div className="border-t border-slate-200 pt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="flex items-center gap-1.5 text-base font-bold text-slate-900">
+                Informazioni aggiuntive <Help text="Le risposte vengono salvate nel biglietto del partecipante e incluse nell’esportazione CSV." />
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">Chiedi soltanto i dati realmente necessari per questo evento.</p>
+            </div>
+            <button type="button" onClick={addRegistrationField} className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold hover:bg-slate-50">
+              + Aggiungi campo
+            </button>
+          </div>
+
+          {formData.registration_fields.length === 0 ? (
+            <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">
+              Nessun campo aggiuntivo. Verranno richiesti soltanto nome ed email.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {formData.registration_fields.map((field, index) => (
+                <div key={field.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Campo {index + 1}</span>
+                    <button type="button" onClick={() => removeRegistrationField(field.id)} className="text-xs font-semibold text-red-600 hover:text-red-800">Elimina</button>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Input label="Domanda o etichetta *" placeholder="Es. Livello di esperienza" value={field.label} onChange={(event) => updateRegistrationField(field.id, { label: event.target.value })} />
+                    <Select label="Tipo di risposta" value={field.type} onChange={(event) => updateRegistrationField(field.id, { type: event.target.value as RegistrationField["type"], options: event.target.value === "select" ? field.options || [] : undefined })} options={[
+                      { value: "text", label: "Testo libero" },
+                      { value: "select", label: "Scelta da un elenco" },
+                      { value: "checkbox", label: "Conferma sì/no" },
+                    ]} />
+                    {field.type === "select" && (
+                      <div className="sm:col-span-2">
+                        <Input label="Opzioni separate da virgola *" placeholder="Principiante, Intermedio, Avanzato" value={(field.options || []).join(", ")} onChange={(event) => updateRegistrationField(field.id, { options: event.target.value.split(",").map((option) => option.trim()).filter(Boolean) })} />
+                      </div>
+                    )}
+                    <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <input type="checkbox" checked={field.required} onChange={(event) => updateRegistrationField(field.id, { required: event.target.checked })} className="size-4 accent-slate-950" />
+                      Risposta obbligatoria
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

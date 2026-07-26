@@ -16,6 +16,7 @@ interface Ticket {
   qr_code: string;
   status: 'pending' | 'paid' | 'used' | 'refunded';
   used_at: string | null;
+  custom_answers?: Array<{ label: string; value: string | boolean }>;
   events: {
     titolo: string;
     data_inizio: string;
@@ -67,6 +68,18 @@ export function TicketsClient({
           </span>
         </div>
       )
+    },
+    {
+      header: "Dati aggiuntivi",
+      cell: (ticket: Ticket) => ticket.custom_answers?.length ? (
+        <div className="max-w-xs space-y-1">
+          {ticket.custom_answers.map((answer) => (
+            <p key={answer.label} className="text-xs text-slate-600">
+              <strong className="text-slate-800">{answer.label}:</strong> {answer.value === true ? "Sì" : String(answer.value)}
+            </p>
+          ))}
+        </div>
+      ) : <span className="text-xs text-slate-400">—</span>
     },
     {
       header: "QR Code",
