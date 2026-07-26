@@ -170,13 +170,13 @@ export function EventForm({ initialData }: EventFormProps) {
       )}
 
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
-        <div className="flex justify-between items-center border-b border-border pb-2">
+        <div className="flex flex-col items-stretch gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-bold">Dati Principali</h2>
           {formData.id !== "nuovo" && (
             <button 
               type="button" 
               onClick={handleDelete}
-              className="text-sm font-semibold text-red-500 hover:text-red-700 bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:text-red-700 sm:min-h-0 sm:py-1.5"
             >
               Elimina Evento
             </button>
@@ -336,11 +336,11 @@ export function EventForm({ initialData }: EventFormProps) {
         </div>
       </div>
 
-      <div className="flex justify-end pt-4 sticky bottom-6 z-10">
+      <div className="sticky bottom-3 z-10 flex justify-end pt-4 sm:bottom-6">
         <button 
           type="submit" 
           disabled={isPending}
-          className="bg-primary text-primary-foreground font-bold px-8 py-4 rounded-xl shadow-lg hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-black/20 hover:shadow-black/30"
+          className="w-full rounded-xl bg-primary px-8 py-4 font-bold text-primary-foreground shadow-lg shadow-black/20 transition-colors hover:bg-primary/90 hover:shadow-black/30 disabled:opacity-50 sm:w-auto"
         >
           {isPending ? "Salvataggio..." : (formData.id === "nuovo" ? "Crea Evento" : "Salva Modifiche")}
         </button>

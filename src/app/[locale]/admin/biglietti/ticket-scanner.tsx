@@ -159,7 +159,7 @@ export function TicketScanner({ events, logoUrl }: { events: ScannerEvent[]; log
     <>
       <button
         onClick={() => { setOpen(true); setScanState("ready"); }}
-        className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+        className="admin-primary-action"
       >
         <ScanLine className="size-4" /> Apri scanner
       </button>

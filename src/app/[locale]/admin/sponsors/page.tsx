@@ -85,13 +85,13 @@ export default async function AdminSponsorsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-8">
+      <div className="admin-page-heading">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Partner & Sponsor</h1>
           <p className="text-slate-500 mt-2">Gestisci i loghi e i link dei partner mostrati in homepage.</p>
         </div>
-        <Link href="/admin/sponsors/nuovo" className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-slate-800 hover:shadow-lg transition-all active:scale-95">
-          <Plus className="inline size-4" /> Nuovo partner
+        <Link href="/admin/sponsors/nuovo" className="admin-primary-action">
+          <Plus className="size-4" /> Nuovo partner
         </Link>
       </div>
 

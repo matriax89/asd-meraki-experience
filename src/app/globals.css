@@ -139,7 +139,7 @@
 }
 
 .admin-button {
-  @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-[5px] px-3 text-[11px] font-medium transition active:scale-[.99];
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[5px] px-3 text-xs font-medium transition active:scale-[.99] sm:min-h-8 sm:text-[11px];
 }
 
 .admin-button-primary {
@@ -148,6 +148,22 @@
 
 .admin-button-secondary {
   @apply border border-slate-300 bg-white text-slate-950 shadow-none hover:bg-slate-50;
+}
+
+.admin-page-heading {
+  @apply mb-8 flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between;
+}
+
+.admin-page-heading > div:first-child {
+  @apply min-w-0;
+}
+
+.admin-page-heading h1 {
+  @apply text-2xl leading-tight sm:text-3xl;
+}
+
+.admin-primary-action {
+  @apply inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-slate-800 active:scale-[.99] sm:w-auto;
 }
 
 .admin-text-link {

@@ -192,11 +192,11 @@ export function CouponClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+      <div className="flex flex-col items-stretch gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-semibold text-slate-800">Tutti i Coupon</h2>
         <button
           onClick={() => isCreating ? resetForm() : setIsCreating(true)}
-          className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           {isCreating ? "Annulla" : "Nuovo Coupon"}

@@ -74,13 +74,13 @@ export default async function AdminOrdiniPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-8">
+      <div className="admin-page-heading">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Ordini Shop</h1>
           <p className="text-slate-500 mt-2">Gestisci gli ordini e-commerce e le spedizioni.</p>
         </div>
-        <form action={syncPaidStripeOrders}>
-          <button type="submit" className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        <form action={syncPaidStripeOrders} className="w-full sm:w-auto">
+          <button type="submit" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto">
             <RefreshCw size={16} /> Sincronizza Stripe
           </button>
         </form>

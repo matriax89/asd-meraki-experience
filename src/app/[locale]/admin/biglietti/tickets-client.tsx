@@ -121,7 +121,7 @@ export function TicketsClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-8">
+      <div className="admin-page-heading">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Biglietti Eventi</h1>
           <p className="text-slate-500 mt-2">Gestisci ingressi e check-in dei partecipanti agli eventi.</p>
