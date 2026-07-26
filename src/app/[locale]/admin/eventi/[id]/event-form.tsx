@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "@/i18n/routing";
-import { Input, Textarea, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
+import { Input, Select, Checkbox, MultilingualInput } from "@/components/admin/form-elements";
 import {
   cancelEventAndRefund,
   deleteEvent,
@@ -19,6 +19,7 @@ import { ArrowLeft, ArrowRight, Bell, CalendarClock, Check, Copy, Download, Eye,
 import { toast } from "sonner";
 import { normalizeRegistrationFields, type RegistrationField } from "@/lib/events/registration-fields";
 import { DateTimePicker } from "@/components/admin/date-time-picker";
+import { MultilingualRichTextEditor } from "@/components/admin/rich-text-editor";
 
 interface EventFormProps {
   initialData: any;
@@ -476,9 +477,8 @@ export function EventForm({ initialData }: EventFormProps) {
           />
         </div>
 
-        <MultilingualTextarea 
-          label="Descrizione Completa" 
-          className="min-h-[150px]"
+        <MultilingualRichTextEditor
+          label="Descrizione completa"
           value={formData.descrizione} 
           onChange={val => setFormData({...formData, descrizione: val})} 
         />

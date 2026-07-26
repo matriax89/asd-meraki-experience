@@ -7,6 +7,7 @@ import { getLocalizedText } from "@/lib/i18n-utils";
 import { sendEventCommunication, type EventCommunicationType } from "@/lib/resend/client";
 import { stripe } from "@/lib/stripe/client";
 import { normalizeRegistrationFields } from "@/lib/events/registration-fields";
+import { sanitizeLocalizedRichText } from "@/lib/sanitize-rich-text";
 
 export async function getEvent(id: string) {
   await requireAdmin();
@@ -72,6 +73,7 @@ export async function upsertEvent(eventData: any) {
 
   const payload = {
     ...cleanEventData,
+    descrizione: sanitizeLocalizedRichText(cleanEventData.descrizione),
     registration_fields: normalizeRegistrationFields(cleanEventData.registration_fields),
     ...(slug ? { slug } : {}),
     updated_at: new Date().toISOString()

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CheckoutButton } from "../../eventi/[slug]/checkout-button";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 
 export default async function WorkshopDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -57,11 +58,10 @@ export default async function WorkshopDetailPage({ params }: { params: Promise<{
             )}
           </div>
           
-          <div className="prose prose-neutral dark:prose-invert max-w-none">
-            {(getLocalizedText(evento.descrizione, locale) || "").split("\n").map((par, i) => (
-              <p key={i}>{par}</p>
-            ))}
-          </div>
+          <div
+            className="max-w-none text-base leading-8 text-slate-700 [&_a]:font-semibold [&_a]:text-indigo-600 [&_a]:underline [&_blockquote]:my-6 [&_blockquote]:border-l-2 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-5 [&_blockquote]:italic [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-slate-950 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:text-slate-950 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6"
+            dangerouslySetInnerHTML={{ __html: sanitizeRichText(getLocalizedText(evento.descrizione, locale)) }}
+          />
         </div>
         
         <div className="space-y-6">
