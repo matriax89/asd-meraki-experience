@@ -16,7 +16,15 @@ type ScannerEvent = {
 type Stats = { total: number; entered: number; missing: number };
 type ScanState = "ready" | "scanning" | "checking" | "success" | "error";
 
-export function TicketScanner({ events, logoUrl }: { events: ScannerEvent[]; logoUrl?: string }) {
+export function TicketScanner({
+  events,
+  logoUrl,
+  onCheckIn,
+}: {
+  events: ScannerEvent[];
+  logoUrl?: string;
+  onCheckIn?: () => void;
+}) {
   const eventOptions = useMemo(() => events.filter(event => event.attivo), [events]);
   const [open, setOpen] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState(eventOptions[0]?.id || "");
@@ -80,7 +88,8 @@ export function TicketScanner({ events, logoUrl }: { events: ScannerEvent[]; log
       detail: result.ticket ? `${result.ticket.name} · ${new Date(result.ticket.usedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : undefined,
     });
     setScanState("success");
-  }, [lockWithError, selectedEventId, stopCamera]);
+    onCheckIn?.();
+  }, [lockWithError, onCheckIn, selectedEventId, stopCamera]);
 
   const startScanner = useCallback(() => {
     if (!selectedEventId) {

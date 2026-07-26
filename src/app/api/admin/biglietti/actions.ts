@@ -45,6 +45,29 @@ export async function checkInTicket(ticketId: string) {
   return { success: true };
 }
 
+export async function undoCheckInTicket(ticketId: string) {
+  await requireAdmin();
+  const adminSupabase = createAdminClient();
+  const { data: restored, error } = await adminSupabase
+    .from("tickets")
+    .update({
+      status: "paid",
+      used_at: null,
+    })
+    .eq("id", ticketId)
+    .eq("status", "used")
+    .select("id")
+    .maybeSingle();
+
+  if (error || !restored) {
+    console.error("Undo check-in error:", error);
+    return { error: "Non è stato possibile annullare il check-in. Il biglietto potrebbe essere già stato modificato." };
+  }
+
+  revalidatePath("/[locale]/admin/biglietti", "page");
+  return { success: true };
+}
+
 export async function getEventCheckInStats(eventId: string) {
   await requireAdmin();
   const adminSupabase = createAdminClient();
