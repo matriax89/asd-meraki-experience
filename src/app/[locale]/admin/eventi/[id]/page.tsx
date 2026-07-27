@@ -2,10 +2,16 @@ import { getEvent } from "@/app/api/admin/eventi/actions";
 import { EventForm } from "./event-form";
 import { notFound } from "next/navigation";
 import { Link } from "@/i18n/routing";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export default async function AdminEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let initialData = null;
+  const adminSupabase = createAdminClient();
+  const { data: people } = await adminSupabase
+    .from("team_members")
+    .select("id, nome, cognome, ruolo, bio, foto_url, is_istruttore")
+    .order("nome");
 
   if (id !== "nuovo") {
     const { success, data, error } = await getEvent(id);
@@ -35,7 +41,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
         </p>
       </div>
 
-      <EventForm initialData={initialData} />
+      <EventForm initialData={initialData} initialPeople={people || []} />
     </div>
   );
 }

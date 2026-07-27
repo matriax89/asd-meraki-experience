@@ -4,15 +4,16 @@ import { CheckoutButton } from "../../eventi/[slug]/checkout-button";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { sanitizeRichText } from "@/lib/sanitize-rich-text";
+import { EventPeople } from "@/components/events/event-people";
 
 export default async function WorkshopDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const locale = await getLocale();
   const supabase = await createClient();
   
-  const { data: evento } = await supabase
+  const { data: evento } = await (supabase
     .from("events")
-    .select("*")
+    .select("*, instructor:team_members!events_instructor_id_fkey(id,nome,cognome,ruolo,bio,foto_url), event_guests(ordine_display, member:team_members(id,nome,cognome,ruolo,bio,foto_url))") as any)
     .eq("slug", slug)
     .in("tipo", ["workshop", "masterclass"])
     .eq("attivo", true)
@@ -41,6 +42,11 @@ export default async function WorkshopDetailPage({ params }: { params: Promise<{
           <img src={evento.copertina_url} alt={getLocalizedText(evento.titolo, locale)} className="object-cover w-full h-full" />
         </div>
       )}
+      {evento.logo_url && (
+        <div className="mb-8 flex justify-center">
+          <img src={evento.logo_url} alt={`Logo ${getLocalizedText(evento.titolo, locale)}`} className="max-h-24 max-w-64 object-contain" />
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div className="md:col-span-2 space-y-8">
@@ -61,6 +67,10 @@ export default async function WorkshopDetailPage({ params }: { params: Promise<{
           <div
             className="max-w-none text-base leading-8 text-slate-700 [&_a]:font-semibold [&_a]:text-indigo-600 [&_a]:underline [&_blockquote]:my-6 [&_blockquote]:border-l-2 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-5 [&_blockquote]:italic [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-slate-950 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:text-slate-950 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6"
             dangerouslySetInnerHTML={{ __html: sanitizeRichText(getLocalizedText(evento.descrizione, locale)) }}
+          />
+          <EventPeople
+            instructor={evento.instructor}
+            guests={(evento.event_guests || []).sort((a: any, b: any) => a.ordine_display - b.ordine_display).map((guest: any) => guest.member).filter(Boolean)}
           />
         </div>
         

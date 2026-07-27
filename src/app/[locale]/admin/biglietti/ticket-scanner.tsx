@@ -11,6 +11,7 @@ type ScannerEvent = {
   data_inizio: string;
   capacity: number | null;
   attivo: boolean | null;
+  logo_url?: string | null;
 };
 
 type Stats = { total: number; entered: number; missing: number };
@@ -178,8 +179,8 @@ export function TicketScanner({
           <div className="mx-auto flex min-h-full max-w-6xl flex-col">
             <header className="mb-5 flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
-                {logoUrl ? (
-                  <img src={logoUrl} alt="Meraki Experience" className="h-10 w-28 rounded-md bg-white object-contain p-1.5" />
+                {(selectedEvent?.logo_url || logoUrl) ? (
+                  <img src={selectedEvent?.logo_url || logoUrl} alt="Meraki Experience" className="h-10 w-28 rounded-md bg-white object-contain p-1.5" />
                 ) : (
                   <span className="grid size-10 place-items-center rounded-lg bg-white font-bold text-slate-950">M</span>
                 )}

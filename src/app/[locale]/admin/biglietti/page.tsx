@@ -25,7 +25,7 @@ export default async function AdminBigliettiPage() {
         registration_fields
       )
     `).order('created_at', { ascending: false }),
-    supabase.from("events").select("id, titolo, data_inizio, capacity, attivo").order("data_inizio", { ascending: false }),
+    supabase.from("events").select("id, titolo, data_inizio, capacity, attivo, logo_url").order("data_inizio", { ascending: false }),
     supabase.from("site_settings").select("value").eq("key", "homepage_content").single(),
   ]);
 

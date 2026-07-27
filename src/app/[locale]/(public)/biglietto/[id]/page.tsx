@@ -55,6 +55,7 @@ export default async function BigliettoPage({
       <div className="max-w-md w-full bg-card rounded-2xl shadow-xl overflow-hidden border border-border">
         {/* Ticket Header */}
         <div className="bg-primary p-6 text-primary-foreground text-center">
+          {event.logo_url && <img src={event.logo_url} alt="" className="mx-auto mb-4 max-h-16 max-w-44 object-contain" />}
           <div className="text-sm font-bold uppercase tracking-wider mb-2 opacity-80">
             {copy.ticket} {event.tipo}
           </div>

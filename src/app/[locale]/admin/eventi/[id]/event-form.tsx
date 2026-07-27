@@ -20,16 +20,20 @@ import { toast } from "sonner";
 import { normalizeRegistrationFields, type RegistrationField } from "@/lib/events/registration-fields";
 import { DateTimePicker } from "@/components/admin/date-time-picker";
 import { MultilingualRichTextEditor } from "@/components/admin/rich-text-editor";
+import { EventPeoplePicker, type EventPerson } from "@/components/admin/event-people-picker";
 
 interface EventFormProps {
   initialData: any;
+  initialPeople: EventPerson[];
 }
 
-export function EventForm({ initialData }: EventFormProps) {
+export function EventForm({ initialData, initialPeople }: EventFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [people, setPeople] = useState<EventPerson[]>(initialPeople);
   const [currentStep, setCurrentStep] = useState(1);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
@@ -55,6 +59,9 @@ export function EventForm({ initialData }: EventFormProps) {
     prezzo_euro: initialPriceEuro,
     capacity: initialData?.capacity || "",
     copertina_url: initialData?.copertina_url || "",
+    logo_url: initialData?.logo_url || "",
+    instructor_id: initialData?.instructor_id || "",
+    guest_ids: (initialData?.event_guests || []).map((guest: { member_id: string }) => guest.member_id),
     attivo: initialData?.attivo ?? true,
     in_evidenza: initialData?.in_evidenza ?? false,
     cta_tipo: initialData?.cta_tipo || "stripe",
@@ -146,6 +153,9 @@ export function EventForm({ initialData }: EventFormProps) {
       prezzo_cents,
       capacity: formData.capacity ? parseInt(formData.capacity as string) : null,
       copertina_url: formData.copertina_url,
+      logo_url: formData.logo_url || null,
+      instructor_id: formData.instructor_id || null,
+      guest_ids: formData.guest_ids,
       attivo: formData.attivo,
       in_evidenza: formData.in_evidenza,
       cta_tipo: formData.cta_tipo,
@@ -362,6 +372,25 @@ export function EventForm({ initialData }: EventFormProps) {
     }
   };
 
+  const handleLogoUpload = async (file?: File) => {
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const compressed = await compressImageToWebp(file, 1200, 0.9);
+      const uploadData = new FormData();
+      uploadData.append("file", compressed);
+      uploadData.append("folder", "events/logos");
+      const result = await uploadImageAction(uploadData);
+      if (!result.success || !result.url) throw new Error(result.error || "Upload non riuscito");
+      setFormData(current => ({ ...current, logo_url: result.url! }));
+      toast.success("Logo evento caricato");
+    } catch (error) {
+      toast.error("Caricamento logo non riuscito", { description: error instanceof Error ? error.message : undefined });
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   const handleCommunication = async (
     type: "reminder" | "update" | "cancelled" | "thank_you",
     label: string,
@@ -481,6 +510,15 @@ export function EventForm({ initialData }: EventFormProps) {
           label="Descrizione completa"
           value={formData.descrizione} 
           onChange={val => setFormData({...formData, descrizione: val})} 
+        />
+
+        <EventPeoplePicker
+          people={people}
+          instructorId={formData.instructor_id}
+          guestIds={formData.guest_ids}
+          onPeopleChange={setPeople}
+          onInstructorChange={instructor_id => setFormData({ ...formData, instructor_id })}
+          onGuestsChange={guest_ids => setFormData({ ...formData, guest_ids })}
         />
       </div>
 
@@ -689,6 +727,30 @@ export function EventForm({ initialData }: EventFormProps) {
           <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Passaggio 4 di 4</p>
           <h2 className="mt-1 text-xl font-bold">Anteprima e pubblicazione</h2>
           <p className="mt-1 text-sm text-slate-500">Completa l’aspetto e decidi quando rendere visibile l’evento.</p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-semibold">Logo specifico dell’evento</label>
+          <p className="text-xs text-slate-500">Facoltativo. Verrà usato nella pagina, nel biglietto, nelle email e nello scanner di questo evento.</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              value={formData.logo_url}
+              onChange={event => setFormData({ ...formData, logo_url: event.target.value })}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              placeholder="URL oppure carica un logo"
+            />
+            <label className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold hover:bg-slate-50">
+              {uploadingLogo ? <Loader2 className="size-4 animate-spin" /> : <ImageUp className="size-4" />}
+              {uploadingLogo ? "Caricamento…" : "Carica logo"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploadingLogo} onChange={event => handleLogoUpload(event.target.files?.[0])} />
+            </label>
+          </div>
+          {formData.logo_url && (
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <img src={formData.logo_url} alt="Logo evento" className="h-16 max-w-48 object-contain" />
+              <button type="button" onClick={() => setFormData({ ...formData, logo_url: "" })} className="text-xs font-semibold text-rose-600">Rimuovi</button>
+            </div>
+          )}
         </div>
         
         <div className="space-y-2">

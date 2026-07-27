@@ -14,7 +14,7 @@ export async function getEvent(id: string) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("events")
-    .select("*")
+    .select("*, event_guests(member_id)")
     .eq("id", id)
     .single();
 
@@ -35,7 +35,11 @@ export async function upsertEvent(eventData: any) {
     interval?: number;
     occurrences?: number;
   } | undefined;
-  const { recurrence: _recurrence, ...cleanEventData } = eventData;
+  const { recurrence: _recurrence, guest_ids: rawGuestIds, ...cleanEventData } = eventData;
+  const guestIds = Array.from(new Set(
+    (Array.isArray(rawGuestIds) ? rawGuestIds : [])
+      .filter((id): id is string => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)),
+  ));
   
   const start = new Date(cleanEventData.data_inizio);
   const end = cleanEventData.data_fine ? new Date(cleanEventData.data_fine) : null;
@@ -91,6 +95,7 @@ export async function upsertEvent(eventData: any) {
   }
 
   let occurrencesCreated = 1;
+  let affectedEventIds = [data.id];
   if (recurrence?.enabled && (recurrence.occurrences || 0) > 1) {
     const seriesId = crypto.randomUUID();
     const duration = end ? end.getTime() - start.getTime() : null;
@@ -111,15 +116,34 @@ export async function upsertEvent(eventData: any) {
         updated_at: new Date().toISOString(),
       });
     }
-    const { error: seriesError } = await Promise.all([
+    const [mainResult, copiesResult] = await Promise.all([
       supabase.from("events").update({ recurrence_series_id: seriesId, recurrence_index: 0 } as any).eq("id", data.id),
-      supabase.from("events").insert(copies as any),
-    ]).then((results) => ({ error: results.find((result) => result.error)?.error }));
+      supabase.from("events").insert(copies as any).select("id"),
+    ]);
+    const seriesError = mainResult.error || copiesResult.error;
     if (seriesError) {
       console.error("Recurring event creation failed:", seriesError);
       return { success: false, error: `Evento principale creato, ma la serie non è completa: ${seriesError.message}` };
     }
+    affectedEventIds = [data.id, ...(copiesResult.data || []).map((event) => event.id)];
     occurrencesCreated = recurrence.occurrences!;
+  }
+
+  const { error: clearGuestsError } = await supabase
+    .from("event_guests")
+    .delete()
+    .in("event_id", affectedEventIds);
+  if (clearGuestsError) return { success: false, error: "Evento salvato, ma non è stato possibile aggiornare gli ospiti." };
+  if (guestIds.length) {
+    const guestRows = affectedEventIds.flatMap((eventId) =>
+      guestIds.map((memberId, index) => ({
+        event_id: eventId,
+        member_id: memberId,
+        ordine_display: index,
+      })),
+    );
+    const { error: guestsError } = await supabase.from("event_guests").insert(guestRows);
+    if (guestsError) return { success: false, error: "Evento salvato, ma non è stato possibile collegare gli ospiti." };
   }
 
   revalidatePath("/[locale]/admin/eventi", "page");
@@ -227,7 +251,7 @@ export async function sendEventCommunicationToAttendees(
 export async function duplicateEvent(id: string) {
   await requireAdmin();
   const supabase = createAdminClient();
-  const { data: source } = await supabase.from("events").select("*").eq("id", id).single();
+  const { data: source } = await supabase.from("events").select("*, event_guests(member_id, ordine_display)").eq("id", id).single();
   if (!source) return { error: "Evento non trovato." };
   const sourceData = source as any;
   const start = new Date(sourceData.data_inizio);
@@ -242,6 +266,7 @@ export async function duplicateEvent(id: string) {
     : `${sourceData.titolo} — Copia`;
   const payload = {
     ...sourceData,
+    event_guests: undefined,
     id: undefined,
     titolo: title,
     slug: `${sourceData.slug}-copia-${Math.random().toString(36).slice(2, 6)}`,
@@ -257,6 +282,16 @@ export async function duplicateEvent(id: string) {
   };
   const { data, error } = await supabase.from("events").insert(payload).select("id").single();
   if (error || !data) return { error: error?.message || "Duplicazione non riuscita." };
+  if (sourceData.event_guests?.length) {
+    const { error: guestsError } = await supabase.from("event_guests").insert(
+      sourceData.event_guests.map((guest: { member_id: string; ordine_display: number }) => ({
+        event_id: data.id,
+        member_id: guest.member_id,
+        ordine_display: guest.ordine_display,
+      })),
+    );
+    if (guestsError) return { error: "Copia creata, ma gli ospiti non sono stati collegati." };
+  }
   revalidatePath("/[locale]/admin/eventi", "page");
   return { success: true, id: data.id };
 }

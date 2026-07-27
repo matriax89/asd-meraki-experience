@@ -600,6 +600,9 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
   const ticketUrl = `${siteUrl}/${language}/biglietto/${ticket.id}?token=${ticket.access_token}`;
   const eventDate = new Intl.DateTimeFormat(language, { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Rome" }).format(new Date(eventData.data_inizio));
   const answerRows = buildRegistrationAnswerRows(eventData.registration_fields, ticket.registration_answers);
+  const eventLogo = eventData.logo_url
+    ? `<img src="${escapeEmailText(eventData.logo_url)}" alt="${escapeEmailText(eventTitle)}" style="display:block;max-width:180px;max-height:80px;object-fit:contain;margin:0 auto 24px;" />`
+    : "";
   
   const htmlContent = `<!DOCTYPE html>
 <html lang="${language}">
@@ -607,6 +610,7 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
 <body style="margin: 0; padding: 40px 20px; font-family: -apple-system, sans-serif; background-color: #f5f5f7;">
   <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 40px; border:1px solid #e2e8f0; border-radius: 16px; text-align: center;">
     ${emailHeader("Biglietto digitale")}
+    ${eventLogo}
     <h1 style="color:#0f172a;margin:0 0 12px;font-size:24px;">${copy.title}</h1>
     <p style="color:#475569;margin:0 0 8px;">${copy.body}</p>
     <h2 style="color:#0f172a;margin:24px 0 8px;font-size:20px;">${eventTitle}</h2>

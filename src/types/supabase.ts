@@ -217,7 +217,9 @@ export type Database = {
           id: string
           in_evidenza: boolean | null
           indirizzo: string | null
+          instructor_id: string | null
           location: string | null
+          logo_url: string | null
           meta_description: Json | null
           meta_title: Json | null
           posti_venduti: number | null
@@ -248,7 +250,9 @@ export type Database = {
           id?: string
           in_evidenza?: boolean | null
           indirizzo?: string | null
+          instructor_id?: string | null
           location?: string | null
+          logo_url?: string | null
           meta_description?: Json | null
           meta_title?: Json | null
           posti_venduti?: number | null
@@ -279,7 +283,9 @@ export type Database = {
           id?: string
           in_evidenza?: boolean | null
           indirizzo?: string | null
+          instructor_id?: string | null
           location?: string | null
+          logo_url?: string | null
           meta_description?: Json | null
           meta_title?: Json | null
           posti_venduti?: number | null
@@ -295,7 +301,51 @@ export type Database = {
           titolo?: Json
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "events_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_guests: {
+        Row: {
+          created_at: string
+          event_id: string
+          member_id: string
+          ordine_display: number
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          member_id: string
+          ordine_display?: number
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          member_id?: string
+          ordine_display?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_guests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_guests_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leads: {
         Row: {

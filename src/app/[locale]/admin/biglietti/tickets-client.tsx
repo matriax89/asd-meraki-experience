@@ -42,6 +42,7 @@ type ScannerEvent = {
   data_inizio: string;
   capacity: number | null;
   attivo: boolean | null;
+  logo_url?: string | null;
 };
 
 export function TicketsClient({
