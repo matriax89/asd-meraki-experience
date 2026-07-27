@@ -45,13 +45,14 @@ export default async function BigliettoPage({
   const formattedDate = new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "Europe/Rome" }).format(date);
   const formattedTime = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(date);
   const copy = {
-    it: { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", footer: "Mostra questo QR code all’ingresso dell’evento." },
-    en: { ticket: "Ticket", holder: "Holder", date: "Date", time: "Time", place: "Venue", status: "Status", footer: "Show this QR code at the event entrance." },
-    de: { ticket: "Eintrittskarte", holder: "Inhaber", date: "Datum", time: "Uhrzeit", place: "Ort", status: "Status", footer: "Zeigen Sie diesen QR-Code am Eingang." },
-  }[locale as "it" | "en" | "de"] || { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", footer: "Mostra questo QR code all’ingresso dell’evento." };
+    it: { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", footer: "Mostra questo QR code all’ingresso dell’evento.", email: "Una copia del biglietto è stata inviata anche al tuo indirizzo email.", statuses: { pending: "In attesa", paid: "Valido", used: "Utilizzato", refunded: "Rimborsato" } },
+    en: { ticket: "Ticket", holder: "Holder", date: "Date", time: "Time", place: "Venue", status: "Status", footer: "Show this QR code at the event entrance.", email: "A copy of this ticket has also been sent to your email address.", statuses: { pending: "Pending", paid: "Valid", used: "Used", refunded: "Refunded" } },
+    de: { ticket: "Eintrittskarte", holder: "Inhaber", date: "Datum", time: "Uhrzeit", place: "Ort", status: "Status", footer: "Zeigen Sie diesen QR-Code am Eingang.", email: "Eine Kopie dieser Eintrittskarte wurde auch an Ihre E-Mail-Adresse gesendet.", statuses: { pending: "Ausstehend", paid: "Gültig", used: "Verwendet", refunded: "Erstattet" } },
+  }[locale as "it" | "en" | "de"] || { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", footer: "Mostra questo QR code all’ingresso dell’evento.", email: "Una copia del biglietto è stata inviata anche al tuo indirizzo email.", statuses: { pending: "In attesa", paid: "Valido", used: "Utilizzato", refunded: "Rimborsato" } };
+  const localizedStatus = copy.statuses[ticket.status as keyof typeof copy.statuses] || "Non disponibile";
 
   return (
-    <div className="container py-12 flex justify-center">
+    <main className="container flex justify-center pb-20 pt-24 sm:pt-28 md:pb-28 md:pt-36">
       <div className="max-w-md w-full bg-card rounded-2xl shadow-xl overflow-hidden border border-border">
         {/* Ticket Header */}
         <div className="bg-primary p-6 text-primary-foreground text-center">
@@ -99,9 +100,13 @@ export default async function BigliettoPage({
             <div className="flex justify-between pt-2">
               <span className="text-muted-foreground">{copy.status}</span>
               <span className={`font-bold ${ticket.status === 'paid' ? 'text-green-600' : 'text-primary'}`}>
-                {ticket.status?.toUpperCase() || 'UNKNOWN'}
+                {localizedStatus}
               </span>
             </div>
+          </div>
+
+          <div className="mt-7 w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm leading-5 text-emerald-800">
+            {copy.email}
           </div>
         </div>
 
@@ -111,6 +116,6 @@ export default async function BigliettoPage({
           <br />ID: {ticket.id}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

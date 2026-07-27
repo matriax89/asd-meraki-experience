@@ -591,35 +591,52 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
   const language = ["it", "en", "de"].includes(locale) ? locale : "it";
   const eventTitle = getLocalizedText(eventData.titolo, language) || "Meraki Experience";
   const copy = {
-    it: { subject: `Il tuo biglietto per ${eventTitle}`, title: "Il tuo biglietto è pronto", body: "Conserva questa email e mostra il QR code all’ingresso.", date: "Data e luogo" },
-    en: { subject: `Your ticket for ${eventTitle}`, title: "Your ticket is ready", body: "Keep this email and show the QR code at the entrance.", date: "Date and venue" },
-    de: { subject: `Ihre Eintrittskarte für ${eventTitle}`, title: "Ihre Eintrittskarte ist bereit", body: "Bewahren Sie diese E-Mail auf und zeigen Sie den QR-Code am Eingang.", date: "Datum und Ort" },
+    it: { subject: `Il tuo biglietto per ${eventTitle}`, ticket: "Biglietto evento", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", valid: "Valido", body: "Mostra questo QR code all’ingresso dell’evento.", cta: "Apri il biglietto online" },
+    en: { subject: `Your ticket for ${eventTitle}`, ticket: "Event ticket", holder: "Holder", date: "Date", time: "Time", place: "Venue", status: "Status", valid: "Valid", body: "Show this QR code at the event entrance.", cta: "Open ticket online" },
+    de: { subject: `Ihre Eintrittskarte für ${eventTitle}`, ticket: "Eintrittskarte", holder: "Inhaber", date: "Datum", time: "Uhrzeit", place: "Ort", status: "Status", valid: "Gültig", body: "Zeigen Sie diesen QR-Code am Eingang.", cta: "Ticket online öffnen" },
   }[language as "it" | "en" | "de"];
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.merakiexperience.org";
   const qrUrl = `${siteUrl}/api/tickets/qr?token=${ticket.access_token}`;
   const ticketUrl = `${siteUrl}/${language}/biglietto/${ticket.id}?token=${ticket.access_token}`;
-  const eventDate = new Intl.DateTimeFormat(language, { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Rome" }).format(new Date(eventData.data_inizio));
+  const eventStart = new Date(eventData.data_inizio);
+  const eventDate = new Intl.DateTimeFormat(language, { dateStyle: "long", timeZone: "Europe/Rome" }).format(eventStart);
+  const eventTime = new Intl.DateTimeFormat(language, { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(eventStart);
   const answerRows = buildRegistrationAnswerRows(eventData.registration_fields, ticket.registration_answers);
   const eventLogo = eventData.logo_url
-    ? `<img src="${escapeEmailText(eventData.logo_url)}" alt="${escapeEmailText(eventTitle)}" style="display:block;max-width:180px;max-height:80px;object-fit:contain;margin:0 auto 24px;" />`
+    ? `<img src="${escapeEmailText(eventData.logo_url)}" alt="${escapeEmailText(eventTitle)}" style="display:block;max-width:180px;max-height:72px;object-fit:contain;margin:0 auto 18px;" />`
     : "";
+  const venue = [eventData.location, eventData.indirizzo].filter(Boolean).map(escapeEmailText).join("<br>");
   
   const htmlContent = `<!DOCTYPE html>
 <html lang="${language}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin: 0; padding: 40px 20px; font-family: -apple-system, sans-serif; background-color: #f5f5f7;">
-  <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 40px; border:1px solid #e2e8f0; border-radius: 16px; text-align: center;">
-    ${emailHeader("Biglietto digitale")}
-    ${eventLogo}
-    <h1 style="color:#0f172a;margin:0 0 12px;font-size:24px;">${copy.title}</h1>
-    <p style="color:#475569;margin:0 0 8px;">${copy.body}</p>
-    <h2 style="color:#0f172a;margin:24px 0 8px;font-size:20px;">${eventTitle}</h2>
-    <p style="color:#64748b;font-size:14px;line-height:1.5;margin:0;">${copy.date}:<br><strong>${eventDate}</strong>${eventData.location ? `<br>${eventData.location}` : ""}</p>
-    ${answerRows}
-    <div style="margin:28px auto;padding:18px;border:2px dashed #cbd5e1;border-radius:16px;max-width:260px;">
-      <img src="${qrUrl}" width="220" height="220" alt="QR code" style="display:block;width:220px;height:220px;margin:auto;" />
+<body style="margin:0;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f7;">
+  <div style="max-width:420px;margin:0 auto;">
+    <div style="overflow:hidden;background:#ffffff;border:1px solid #e5e7eb;border-radius:20px;box-shadow:0 18px 45px rgba(15,23,42,.10);">
+      <div style="padding:28px 24px;text-align:center;background:#171717;color:#ffffff;">
+        ${eventLogo}
+        <div style="margin-bottom:8px;color:#a3a3a3;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">${copy.ticket}</div>
+        <h1 style="margin:0;color:#ffffff;font-size:22px;line-height:1.25;">${escapeEmailText(eventTitle)}</h1>
+      </div>
+      <div style="padding:26px 24px;text-align:center;">
+        <div style="display:inline-block;padding:10px;border:1px solid #e5e7eb;border-radius:14px;background:#ffffff;">
+          <img src="${qrUrl}" width="210" height="210" alt="QR code" style="display:block;width:210px;height:210px;margin:auto;" />
+        </div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;border-collapse:collapse;text-align:left;font-size:14px;">
+          <tr><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#737373;">${copy.holder}</td><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#171717;font-weight:600;text-align:right;">${escapeEmailText(ticket.buyer_email)}</td></tr>
+          <tr><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#737373;">${copy.date}</td><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#171717;font-weight:600;text-align:right;">${escapeEmailText(eventDate)}</td></tr>
+          <tr><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#737373;">${copy.time}</td><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#171717;font-weight:600;text-align:right;">${escapeEmailText(eventTime)}</td></tr>
+          ${venue ? `<tr><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#737373;vertical-align:top;">${copy.place}</td><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#171717;font-weight:600;text-align:right;line-height:1.45;">${venue}</td></tr>` : ""}
+          <tr><td style="padding:11px 0;color:#737373;">${copy.status}</td><td style="padding:11px 0;color:#16a34a;font-weight:700;text-align:right;">${copy.valid}</td></tr>
+        </table>
+        ${answerRows}
+        <p style="margin:22px 0 16px;color:#737373;font-size:13px;line-height:1.5;">${copy.body}</p>
+        <a href="${ticketUrl}" style="display:block;background:#171717;color:#ffffff;text-decoration:none;border-radius:10px;padding:13px 20px;font-size:14px;font-weight:700;">${copy.cta}</a>
+      </div>
+      <div style="padding:14px 20px;border-top:1px solid #e5e7eb;background:#f5f5f5;color:#737373;text-align:center;font-size:11px;">
+        ID: ${escapeEmailText(ticket.id)}
+      </div>
     </div>
-    <a href="${ticketUrl}" style="display:inline-block;background:#0f172a;color:#fff;text-decoration:none;border-radius:8px;padding:12px 20px;font-size:14px;font-weight:600;">Apri biglietto</a>
     ${emailFooter}
   </div>
 </body></html>`;
