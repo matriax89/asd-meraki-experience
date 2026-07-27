@@ -85,26 +85,24 @@ export default async function EventoDetailPage({ params }: { params: Promise<{ s
 
   return (
     <div className="container py-12 md:py-24 max-w-4xl">
-      {evento.copertina_url && (
-        <div className="relative mb-12 aspect-[21/9] overflow-hidden rounded-xl bg-muted">
-          <img src={evento.copertina_url} alt={getLocalizedText(evento.titolo, locale)} className="h-full w-full object-cover" />
-          {evento.logo_url && (
+      <section className="relative mb-12 flex min-h-64 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-black via-slate-950 to-zinc-800 px-8 py-12 sm:min-h-80">
+        <div className="absolute -left-20 -top-24 size-72 rounded-full bg-amber-400/15 blur-3xl" />
+        <div className="absolute -bottom-32 right-0 size-80 rounded-full bg-indigo-500/10 blur-3xl" />
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.16) 1px, transparent 1px)", backgroundSize: "32px 32px" }}
+        />
+        <div className="relative z-10 flex max-w-xl flex-col items-center text-center">
+          {evento.logo_url ? (
+            <img src={evento.logo_url} alt={`Logo ${getLocalizedText(evento.titolo, locale)}`} className="max-h-28 max-w-[min(78vw,420px)] object-contain drop-shadow-[0_14px_36px_rgba(0,0,0,.65)] sm:max-h-40" />
+          ) : (
             <>
-              <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/5 to-black/25" />
-              <div className="absolute inset-x-5 top-5 flex justify-center sm:inset-x-8 sm:top-8">
-                <div className="rounded-xl bg-white/92 px-5 py-3 shadow-xl backdrop-blur-sm sm:px-7 sm:py-4">
-                  <img src={evento.logo_url} alt={`Logo ${getLocalizedText(evento.titolo, locale)}`} className="max-h-16 max-w-52 object-contain sm:max-h-24 sm:max-w-72" />
-                </div>
-              </div>
+              <span className="text-xs font-bold uppercase tracking-[0.24em] text-white/55">{copy.badge}</span>
+              <span className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-5xl">{getLocalizedText(evento.titolo, locale)}</span>
             </>
           )}
         </div>
-      )}
-      {!evento.copertina_url && evento.logo_url && (
-        <div className="mb-12 flex min-h-44 items-center justify-center rounded-xl bg-slate-950 p-8">
-          <img src={evento.logo_url} alt={`Logo ${getLocalizedText(evento.titolo, locale)}`} className="max-h-24 max-w-64 object-contain" />
-        </div>
-      )}
+      </section>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div className="md:col-span-2 space-y-8">
