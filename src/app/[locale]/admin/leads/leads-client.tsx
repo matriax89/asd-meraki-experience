@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateLeadStatus } from "@/app/api/admin/leads/actions";
+import { deleteLead, updateLeadStatus } from "@/app/api/admin/leads/actions";
 import { DataTable } from "@/components/admin/data-table";
 import { toast } from "sonner";
-import { Eye, X } from "lucide-react";
-import { IconButton, Tooltip } from "@radix-ui/themes";
+import { Eye, Trash2, X } from "lucide-react";
+import { AlertDialog, Button, Flex, IconButton, Tooltip } from "@radix-ui/themes";
 
 interface Lead {
   id: string;
@@ -24,6 +24,7 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
   const [isPending, startTransition] = useTransition();
   const [optimisticLeads, setOptimisticLeads] = useState<Lead[]>(initialLeads);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
 
   const handleStatusChange = (id: string, newStatus: string) => {
     // Optimistic update
@@ -35,6 +36,24 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
       const result = await updateLeadStatus(id, newStatus as 'nuovo' | 'contattato' | 'convertito' | 'archiviato');
       if (result.error) toast.error("Stato non aggiornato", { description: result.error });
       else toast.success("Stato aggiornato");
+    });
+  };
+
+  const handleDelete = () => {
+    if (!leadToDelete) return;
+    const deletedLead = leadToDelete;
+    setOptimisticLeads(current => current.filter(lead => lead.id !== deletedLead.id));
+    setLeadToDelete(null);
+    if (selectedLead?.id === deletedLead.id) setSelectedLead(null);
+
+    startTransition(async () => {
+      const result = await deleteLead(deletedLead.id);
+      if (result.error) {
+        setOptimisticLeads(current => [deletedLead, ...current].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)));
+        toast.error("Lead non eliminato", { description: result.error });
+      } else {
+        toast.success("Lead eliminato", { description: "La prenotazione o il biglietto collegato restano validi." });
+      }
     });
   };
 
@@ -108,11 +127,18 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
     {
       header: "",
       cell: (lead: Lead) => (
-        <Tooltip content="Apri i dettagli">
-          <IconButton variant="ghost" color="gray" aria-label="Apri i dettagli" onClick={() => setSelectedLead(lead)}>
-            <Eye size={17} />
-          </IconButton>
-        </Tooltip>
+        <Flex gap="1" justify="end">
+          <Tooltip content="Apri i dettagli">
+            <IconButton variant="ghost" color="gray" aria-label="Apri i dettagli" onClick={() => setSelectedLead(lead)}>
+              <Eye size={17} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content="Elimina lead">
+            <IconButton variant="ghost" color="red" aria-label="Elimina lead" onClick={() => setLeadToDelete(lead)}>
+              <Trash2 size={17} />
+            </IconButton>
+          </Tooltip>
+        </Flex>
       )
     }
   ];
@@ -206,6 +232,23 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
           </div>
         </div>
       )}
+
+      <AlertDialog.Root open={Boolean(leadToDelete)} onOpenChange={(open) => !open && setLeadToDelete(null)}>
+        <AlertDialog.Content maxWidth="450px">
+          <AlertDialog.Title>Eliminare questo lead?</AlertDialog.Title>
+          <AlertDialog.Description size="2">
+            Verrà rimossa soltanto la richiesta di {leadToDelete?.nome} {leadToDelete?.cognome}. L’eventuale prenotazione e il biglietto collegato resteranno validi.
+          </AlertDialog.Description>
+          <Flex gap="3" mt="5" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">Annulla</Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button color="red" onClick={handleDelete} disabled={isPending}>Elimina lead</Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
     </div>
   );
 }

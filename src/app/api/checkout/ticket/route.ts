@@ -105,6 +105,31 @@ export async function POST(request: Request) {
           .from("tickets")
           .update({ registration_answers: answerValidation.answers } as any)
           .eq("id", ticket.id);
+      } else {
+        const eventTitle = getLocalizedText(event.titolo, "it");
+        const { data: existingLead } = await adminSupabase
+          .from("leads")
+          .select("id")
+          .eq("source", "prova_evento")
+          .ilike("email", buyerEmail.trim())
+          .eq("interesse", eventTitle)
+          .maybeSingle();
+
+        if (!existingLead) {
+          const { error: leadError } = await adminSupabase.from("leads").insert({
+            source: "prova_evento",
+            nome: buyerNome || null,
+            cognome: buyerCognome || null,
+            email: buyerEmail.trim().toLowerCase(),
+            telefono: "N/A",
+            interesse: eventTitle,
+            messaggio: "Iscrizione alla prima lezione di prova tramite evento.",
+            consenso_privacy: true,
+            consenso_marketing: false,
+            status: "convertito",
+          });
+          if (leadError) console.error("Trial event lead creation failed:", leadError);
+        }
       }
       await deliverTicketEmails({ ...ticket, registration_answers: answerValidation.answers }, event);
       return NextResponse.json({

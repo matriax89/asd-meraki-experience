@@ -38,3 +38,18 @@ export async function updateLeadStatus(id: string, status: 'nuovo' | 'contattato
   
   return { success: true };
 }
+
+export async function deleteLead(id: string) {
+  await requireAdmin();
+  const adminSupabase = createAdminClient();
+  const { error } = await adminSupabase.from("leads").delete().eq("id", id);
+
+  if (error) {
+    console.error("Delete lead error:", error);
+    return { error: "Non è stato possibile eliminare il lead." };
+  }
+
+  revalidatePath("/[locale]/admin/leads", "page");
+  revalidatePath("/[locale]/admin", "page");
+  return { success: true };
+}
