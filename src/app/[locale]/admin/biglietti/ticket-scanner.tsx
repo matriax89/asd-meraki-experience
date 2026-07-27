@@ -180,7 +180,11 @@ export function TicketScanner({
             <header className="mb-5 flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
                 {(selectedEvent?.logo_url || logoUrl) ? (
-                  <img src={selectedEvent?.logo_url || logoUrl} alt="Meraki Experience" className="h-10 w-28 rounded-md bg-white object-contain p-1.5" />
+                  <img
+                    src={selectedEvent?.logo_url || logoUrl}
+                    alt="Meraki Experience"
+                    className="h-11 w-auto max-w-32 object-contain drop-shadow-[0_6px_18px_rgba(0,0,0,.45)] sm:h-12 sm:max-w-40"
+                  />
                 ) : (
                   <span className="grid size-10 place-items-center rounded-lg bg-white font-bold text-slate-950">M</span>
                 )}
@@ -272,7 +276,7 @@ export function TicketScanner({
                 </div>
                 <form onSubmit={event => { event.preventDefault(); submitCode(code); }} className="space-y-2">
                   <label className="text-xs font-medium text-slate-400">Inserimento manuale</label>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                     <div className="relative min-w-0 flex-1">
                       <Keyboard className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
                       <input
@@ -282,10 +286,10 @@ export function TicketScanner({
                         placeholder="MK-7F4K9Q"
                         autoCapitalize="characters"
                         spellCheck={false}
-                        className="w-full rounded-lg border border-white/15 bg-slate-950 py-3 pl-9 pr-3 text-sm disabled:opacity-50"
+                        className="w-full min-w-0 rounded-lg border border-slate-300 bg-white py-3 pl-9 pr-3 font-mono text-base font-semibold uppercase tracking-wider text-slate-950 caret-slate-950 outline-none placeholder:font-sans placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-400 focus:border-slate-400 focus:ring-4 focus:ring-white/10 disabled:opacity-50"
                       />
                     </div>
-                    <button disabled={!code.trim() || scanState === "checking" || scanState === "success"} className="rounded-lg bg-white px-4 text-sm font-semibold text-slate-950 disabled:opacity-40">Valida</button>
+                    <button disabled={!code.trim() || scanState === "checking" || scanState === "success"} className="rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 disabled:opacity-40 sm:px-4">Valida</button>
                   </div>
                 </form>
 
