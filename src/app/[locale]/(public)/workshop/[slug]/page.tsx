@@ -38,12 +38,22 @@ export default async function WorkshopDetailPage({ params }: { params: Promise<{
   return (
     <div className="container py-12 md:py-24 max-w-4xl">
       {evento.copertina_url && (
-        <div className="aspect-[21/9] bg-muted rounded-xl overflow-hidden mb-12 relative">
-          <img src={evento.copertina_url} alt={getLocalizedText(evento.titolo, locale)} className="object-cover w-full h-full" />
+        <div className="relative mb-12 aspect-[21/9] overflow-hidden rounded-xl bg-muted">
+          <img src={evento.copertina_url} alt={getLocalizedText(evento.titolo, locale)} className="h-full w-full object-cover" />
+          {evento.logo_url && (
+            <>
+              <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/5 to-black/25" />
+              <div className="absolute inset-x-5 top-5 flex justify-center sm:inset-x-8 sm:top-8">
+                <div className="rounded-xl bg-white/92 px-5 py-3 shadow-xl backdrop-blur-sm sm:px-7 sm:py-4">
+                  <img src={evento.logo_url} alt={`Logo ${getLocalizedText(evento.titolo, locale)}`} className="max-h-16 max-w-52 object-contain sm:max-h-24 sm:max-w-72" />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
-      {evento.logo_url && (
-        <div className="mb-8 flex justify-center">
+      {!evento.copertina_url && evento.logo_url && (
+        <div className="mb-12 flex min-h-44 items-center justify-center rounded-xl bg-slate-950 p-8">
           <img src={evento.logo_url} alt={`Logo ${getLocalizedText(evento.titolo, locale)}`} className="max-h-24 max-w-64 object-contain" />
         </div>
       )}
@@ -74,8 +84,17 @@ export default async function WorkshopDetailPage({ params }: { params: Promise<{
           />
         </div>
         
-        <div className="space-y-6">
-          <div className="bg-card border border-border rounded-xl p-6 space-y-6 sticky top-24">
+        <aside className="space-y-4 md:sticky md:top-24 md:self-start">
+          {evento.copertina_url && (
+            <figure className="overflow-hidden rounded-xl border border-border bg-card p-2 shadow-sm">
+              <img
+                src={evento.copertina_url}
+                alt={`Locandina ${getLocalizedText(evento.titolo, locale)}`}
+                className="h-auto w-full rounded-lg object-contain"
+              />
+            </figure>
+          )}
+          <div className="bg-card border border-border rounded-xl p-6 space-y-6">
             <div className="space-y-4">
               <div className="flex flex-col">
                 <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">{copy.date}</span>
@@ -114,7 +133,7 @@ export default async function WorkshopDetailPage({ params }: { params: Promise<{
               )}
             </div>
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
