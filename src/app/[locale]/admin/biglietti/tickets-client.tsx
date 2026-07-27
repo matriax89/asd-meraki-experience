@@ -12,11 +12,12 @@ import {
   ScanLine,
   Search,
   TicketCheck,
+  Trash2,
   UserCheck,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { checkInTicket, resendTicketEmail, undoCheckInTicket } from "@/app/api/admin/biglietti/actions";
+import { cancelTicket, checkInTicket, resendTicketEmail, undoCheckInTicket } from "@/app/api/admin/biglietti/actions";
 import { useModal } from "@/components/ui/modal-provider";
 import { TicketScanner } from "./ticket-scanner";
 
@@ -29,6 +30,8 @@ interface Ticket {
   qr_code: string;
   status: "pending" | "paid" | "used" | "refunded";
   used_at: string | null;
+  amount_cents: number | null;
+  stripe_payment_intent: string | null;
   custom_answers?: Array<{ label: string; value: string | boolean }>;
   events: {
     titolo: string;
@@ -153,6 +156,31 @@ export function TicketsClient({
     });
   };
 
+  const handleCancel = async (ticket: Ticket) => {
+    const isPaid = (ticket.amount_cents || 0) > 0;
+    const confirmed = await showConfirm({
+      title: isPaid ? "Annullare e rimborsare il biglietto?" : "Annullare la prenotazione?",
+      message: isPaid
+        ? "Il pagamento verrà rimborsato tramite Stripe, il posto sarà liberato e il biglietto non sarà più valido."
+        : "Il posto sarà liberato e il biglietto non sarà più valido. Se era una prova gratuita, la persona potrà prenotarla nuovamente.",
+      confirmLabel: isPaid ? "Rimborsa e annulla" : "Annulla prenotazione",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    startTransition(async () => {
+      const result = await cancelTicket(ticket.id);
+      if (result.error) {
+        toast.error("Annullamento non riuscito", { description: result.error });
+      } else {
+        setTickets(current => current.map(item => item.id === ticket.id ? { ...item, status: "refunded" } : item));
+        toast.success(result.refunded ? "Biglietto rimborsato" : "Prenotazione annullata", {
+          description: "Il posto è stato nuovamente reso disponibile.",
+        });
+      }
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="admin-page-heading">
@@ -244,6 +272,7 @@ export function TicketsClient({
                           onCheckIn={() => handleCheckIn(ticket)}
                           onUndo={() => handleUndoCheckIn(ticket)}
                           onResend={() => handleResend(ticket)}
+                          onCancel={() => handleCancel(ticket)}
                         />
                       ))}
                     </div>
@@ -279,12 +308,14 @@ function ParticipantRow({
   onCheckIn,
   onUndo,
   onResend,
+  onCancel,
 }: {
   ticket: Ticket;
   pending: boolean;
   onCheckIn: () => void;
   onUndo: () => void;
   onResend: () => void;
+  onCancel: () => void;
 }) {
   const fullName = `${ticket.buyer_nome || ""} ${ticket.buyer_cognome || ""}`.trim() || "Partecipante";
   return (
@@ -326,6 +357,18 @@ function ParticipantRow({
             aria-label={`Invia nuovamente il biglietto a ${fullName}`}
           >
             <Mail className="size-4" />
+          </button>
+        )}
+        {ticket.status === "paid" && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={pending}
+            className="grid size-9 place-items-center rounded-lg border border-rose-200 text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
+            title={(ticket.amount_cents || 0) > 0 ? "Annulla e rimborsa biglietto" : "Annulla prenotazione"}
+            aria-label={`Annulla la prenotazione di ${fullName}`}
+          >
+            <Trash2 className="size-4" />
           </button>
         )}
         {ticket.status === "paid" && (

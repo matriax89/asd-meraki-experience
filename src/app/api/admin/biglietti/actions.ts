@@ -4,6 +4,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import { sendTicketConfirmation } from "@/lib/resend/client";
+import { stripe } from "@/lib/stripe/client";
 
 export async function checkInTicket(ticketId: string) {
   await requireAdmin();
@@ -138,4 +139,43 @@ export async function resendTicketEmail(ticketId: string) {
   if (!result?.success) return { error: "Invio email non riuscito. Controlla le impostazioni email." };
   await adminSupabase.from("tickets").update({ customer_email_sent_at: new Date().toISOString() }).eq("id", ticketId);
   return { success: true };
+}
+
+export async function cancelTicket(ticketId: string) {
+  const identity = await requireAdmin();
+  if (identity.role !== "admin") return { error: "Solo un amministratore può annullare una prenotazione." };
+
+  const adminSupabase = createAdminClient();
+  const { data: ticket, error: lookupError } = await adminSupabase
+    .from("tickets")
+    .select("id, event_id, status, amount_cents, stripe_payment_intent")
+    .eq("id", ticketId)
+    .single();
+
+  if (lookupError || !ticket) return { error: "Biglietto non trovato." };
+  if (ticket.status === "used") return { error: "Non puoi annullare un biglietto già utilizzato. Prima annulla il check-in." };
+  if (ticket.status !== "paid") return { error: "Questo biglietto è già stato annullato o non è ancora valido." };
+
+  try {
+    if ((ticket.amount_cents || 0) > 0) {
+      if (!ticket.stripe_payment_intent) return { error: "Pagamento Stripe non trovato: il rimborso non può essere eseguito automaticamente." };
+      await stripe.refunds.create(
+        { payment_intent: ticket.stripe_payment_intent },
+        { idempotencyKey: `cancel-ticket-${ticket.id}` },
+      );
+    }
+
+    const { error } = await (adminSupabase.rpc as any)("cancel_event_ticket", { p_ticket_id: ticket.id });
+    if (error) {
+      console.error("Cancel ticket database error:", error);
+      return { error: "Il pagamento è stato elaborato, ma lo stato del biglietto non è stato aggiornato. Contatta l’assistenza." };
+    }
+  } catch (error) {
+    console.error("Cancel ticket error:", error);
+    return { error: "Annullamento non riuscito. Nessuna modifica è stata applicata al biglietto." };
+  }
+
+  revalidatePath("/[locale]/admin/biglietti", "page");
+  revalidatePath("/[locale]/admin/eventi", "page");
+  return { success: true, refunded: (ticket.amount_cents || 0) > 0 };
 }
