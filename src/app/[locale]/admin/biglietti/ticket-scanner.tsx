@@ -175,9 +175,9 @@ export function TicketScanner({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950 p-3 text-white sm:p-6">
-          <div className="mx-auto flex min-h-full max-w-6xl flex-col">
-            <header className="mb-5 flex items-center justify-between gap-4">
+        <div className="fixed inset-0 z-[100] overflow-y-auto bg-[radial-gradient(circle_at_50%_-10%,#172554_0%,#020617_42%,#020617_100%)] p-3 text-white sm:p-6">
+          <div className="mx-auto flex min-h-full max-w-6xl flex-col pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <header className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-xl sm:mb-5 sm:p-4">
               <div className="flex min-w-0 items-center gap-3">
                 {(selectedEvent?.logo_url || logoUrl) ? (
                   <img
@@ -189,16 +189,16 @@ export function TicketScanner({
                   <span className="grid size-10 place-items-center rounded-lg bg-white font-bold text-slate-950">M</span>
                 )}
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Meraki Check-in</p>
-                  <h1 className="truncate text-lg font-semibold sm:text-xl">{selectedEvent?.titolo || "Seleziona evento"}</h1>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-indigo-300 sm:text-xs">Meraki Check-in</p>
+                  <h1 className="mt-0.5 truncate text-base font-semibold text-white sm:text-xl">{selectedEvent?.titolo || "Seleziona evento"}</h1>
                 </div>
               </div>
-              <button onClick={close} className="grid size-10 shrink-0 place-items-center rounded-lg border border-white/15 hover:bg-white/10" aria-label="Chiudi scanner">
+              <button onClick={close} className="grid size-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white transition hover:bg-white/10" aria-label="Chiudi scanner">
                 <X className="size-5" />
               </button>
             </header>
 
-            <div className="mb-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <div className="mb-4 grid gap-2 sm:mb-5 sm:grid-cols-[1fr_auto] sm:items-center">
               <select
                 value={selectedEventId}
                 onChange={event => {
@@ -207,7 +207,7 @@ export function TicketScanner({
                   setScanState("ready");
                   lockedRef.current = false;
                 }}
-                className="min-w-0 rounded-lg border border-white/15 bg-slate-900 px-3 py-3 text-sm text-white"
+                className="min-w-0 rounded-xl border border-white/15 bg-white/[0.07] px-3 py-3 text-sm font-medium text-white outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/15"
               >
                 <option value="">Seleziona un evento</option>
                 {eventOptions.map(event => (
@@ -216,29 +216,30 @@ export function TicketScanner({
                   </option>
                 ))}
               </select>
-              <div className="text-right text-xs text-slate-400">
+              <div className="px-1 text-left text-[11px] text-slate-400 sm:text-right sm:text-xs">
                 {selectedEvent?.capacity ? `Capienza massima: ${selectedEvent.capacity}` : "Capienza illimitata"}
               </div>
             </div>
 
-            <section className="mb-5 grid grid-cols-3 gap-2 sm:gap-4">
+            <section className="mb-4 grid grid-cols-3 gap-2 sm:mb-5 sm:gap-4">
               <StatCard icon={Users} label="Iscritti" value={stats.total} />
               <StatCard icon={UserCheck} label="Entrati" value={stats.entered} tone="green" />
               <StatCard icon={UserRoundMinus} label="Mancanti" value={stats.missing} tone="amber" />
             </section>
 
-            <div className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,.65fr)]">
-              <section className={`relative min-h-[360px] overflow-hidden rounded-2xl border transition-colors sm:min-h-[520px] ${
+            <div className="grid gap-4 lg:flex-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,.65fr)] lg:gap-5">
+              <section className={`relative h-[46svh] min-h-80 overflow-hidden rounded-3xl border shadow-2xl shadow-black/30 transition-colors sm:h-[58svh] sm:min-h-[480px] lg:h-auto ${
                 scanState === "success" ? "border-emerald-400 bg-emerald-500" :
                 scanState === "error" ? "border-red-400 bg-red-500" :
-                "border-white/15 bg-black"
+                "border-white/10 bg-gradient-to-b from-black to-slate-950"
               }`}>
                 <video ref={videoRef} playsInline muted className={`absolute inset-0 h-full w-full object-cover transition-opacity ${scanState === "scanning" ? "opacity-100" : "opacity-0"}`} />
                 {scanState === "scanning" && (
                   <>
-                    <div className="pointer-events-none absolute inset-[12%] rounded-3xl border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,.28)]" />
-                    <div className="absolute inset-x-0 top-1/2 h-0.5 animate-pulse bg-emerald-400 shadow-[0_0_18px_4px_rgba(52,211,153,.8)]" />
-                    <span className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-4 py-2 text-sm backdrop-blur">Inquadra il QR code</span>
+                    <div className="pointer-events-none absolute inset-[13%] rounded-[2rem] border border-white/30 shadow-[0_0_0_999px_rgba(0,0,0,.42)]" />
+                    <div className="pointer-events-none absolute inset-[13%] rounded-[2rem] bg-[linear-gradient(#34d399,#34d399)_left_top/42px_3px_no-repeat,linear-gradient(#34d399,#34d399)_left_top/3px_42px_no-repeat,linear-gradient(#34d399,#34d399)_right_top/42px_3px_no-repeat,linear-gradient(#34d399,#34d399)_right_top/3px_42px_no-repeat,linear-gradient(#34d399,#34d399)_left_bottom/42px_3px_no-repeat,linear-gradient(#34d399,#34d399)_left_bottom/3px_42px_no-repeat,linear-gradient(#34d399,#34d399)_right_bottom/42px_3px_no-repeat,linear-gradient(#34d399,#34d399)_right_bottom/3px_42px_no-repeat]" />
+                    <div className="absolute inset-x-[15%] top-1/2 h-px animate-pulse bg-emerald-300 shadow-[0_0_20px_4px_rgba(52,211,153,.8)]" />
+                    <span className="absolute bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-black/60 px-4 py-2 text-xs font-medium backdrop-blur-xl sm:text-sm">Centra il QR nel riquadro</span>
                   </>
                 )}
                 {scanState !== "scanning" && (
@@ -247,21 +248,21 @@ export function TicketScanner({
                       {scanState === "checking" ? <Loader2 className="mx-auto mb-5 size-16 animate-spin" /> :
                        scanState === "success" ? <Check className="mx-auto mb-5 size-20" strokeWidth={2.5} /> :
                        scanState === "error" ? <AlertTriangle className="mx-auto mb-5 size-20" /> :
-                       <Camera className="mx-auto mb-5 size-16 text-slate-500" />}
-                      <h2 className="text-2xl font-bold">{feedback?.title || "Scanner pronto"}</h2>
+                       <span className="mx-auto mb-5 grid size-20 place-items-center rounded-3xl border border-white/10 bg-white/5 text-indigo-300 shadow-inner"><Camera className="size-10" /></span>}
+                      <h2 className="text-xl font-bold text-white sm:text-2xl">{feedback?.title || "Scanner pronto"}</h2>
                       {feedback?.detail && <p className="mx-auto mt-2 max-w-md text-white/85">{feedback.detail}</p>}
                     </div>
                   </div>
                 )}
               </section>
 
-              <aside className="flex flex-col rounded-2xl border border-white/15 bg-slate-900 p-5">
-                <h2 className="font-semibold">Controlli scanner</h2>
-                <p className="mt-1 text-sm text-slate-400">La fotocamera si blocca alla prima lettura e può ripartire solo manualmente.</p>
+              <aside className="flex flex-col rounded-3xl border border-white/10 bg-white/[0.055] p-4 shadow-xl shadow-black/10 backdrop-blur-xl sm:p-5">
+                <h2 className="font-semibold text-white">Controlli scanner</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-400 sm:text-sm">Dopo una lettura la fotocamera si blocca, evitando check-in duplicati.</p>
 
                 {(scanState === "ready" || scanState === "success" || scanState === "error") && (
-                  <button onClick={startScanner} className={`mt-6 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-4 font-semibold ${
-                    scanState === "success" ? "bg-emerald-500 text-white hover:bg-emerald-400" : "bg-white text-slate-950 hover:bg-slate-100"
+                  <button onClick={startScanner} className={`mt-4 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 font-semibold shadow-lg transition active:scale-[.99] sm:mt-6 sm:py-4 ${
+                    scanState === "success" ? "bg-emerald-500 text-white shadow-emerald-950/20 hover:bg-emerald-400" : "bg-white text-slate-950 shadow-black/20 hover:bg-slate-100"
                   }`}>
                     <ScanLine className="size-5" />
                     {scanState === "ready" ? "Avvia scanner" : "Scansiona il prossimo"}
@@ -271,7 +272,7 @@ export function TicketScanner({
                   <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-center text-sm text-slate-300">Convalida protetta in corso…</div>
                 )}
 
-                <div className="my-6 flex items-center gap-3 text-xs text-slate-500">
+                <div className="my-4 flex items-center gap-3 text-xs text-slate-500 sm:my-6">
                   <span className="h-px flex-1 bg-white/10" /> oppure <span className="h-px flex-1 bg-white/10" />
                 </div>
                 <form onSubmit={event => { event.preventDefault(); submitCode(code); }} className="space-y-2">
@@ -293,7 +294,7 @@ export function TicketScanner({
                   </div>
                 </form>
 
-                <div className="mt-auto pt-7 text-xs leading-relaxed text-slate-500">
+                <div className="mt-auto pt-5 text-xs leading-relaxed text-slate-500 sm:pt-7">
                   Puoi scansionare il QR oppure inserire il codice breve MK. I controlli su evento, validità e doppio utilizzo sono identici.
                 </div>
               </aside>
@@ -339,11 +340,11 @@ function StatCard({
     amber: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   };
   return (
-    <div className={`rounded-xl border p-3 sm:p-4 ${colors[tone]}`}>
-      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] opacity-70 sm:text-xs">
-        <Icon className="size-4" /> {label}
+    <div className={`rounded-2xl border p-2.5 backdrop-blur sm:p-4 ${colors[tone]}`}>
+      <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] opacity-70 sm:gap-2 sm:text-xs sm:tracking-[0.12em]">
+        <Icon className="size-3.5 sm:size-4" /> {label}
       </div>
-      <div className="mt-2 text-2xl font-bold tabular-nums sm:text-3xl">{value}</div>
+      <div className="mt-1.5 text-xl font-bold tabular-nums sm:mt-2 sm:text-3xl">{value}</div>
     </div>
   );
 }
