@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Camera, Check, Keyboard, Loader2, ScanLine, Users, UserCheck, UserRoundMinus, X } from "lucide-react";
 import { checkInTicketByCode, getEventCheckInStats } from "@/app/api/admin/biglietti/actions";
 import { BrowserQRCodeReader } from "@zxing/browser";
+import { Select } from "@radix-ui/themes";
 
 type ScannerEvent = {
   id: string;
@@ -190,7 +191,9 @@ export function TicketScanner({
                 )}
                 <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-indigo-300 sm:text-xs">Meraki Check-in</p>
-                  <h1 className="mt-0.5 truncate text-base font-semibold text-white sm:text-xl">{selectedEvent?.titolo || "Seleziona evento"}</h1>
+                  <h1 className="mt-0.5 truncate !text-base font-semibold !text-white sm:!text-xl" style={{ color: "#ffffff" }}>
+                    {selectedEvent?.titolo || "Seleziona evento"}
+                  </h1>
                 </div>
               </div>
               <button onClick={close} className="grid size-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white transition hover:bg-white/10" aria-label="Chiudi scanner">
@@ -199,23 +202,29 @@ export function TicketScanner({
             </header>
 
             <div className="mb-4 grid gap-2 sm:mb-5 sm:grid-cols-[1fr_auto] sm:items-center">
-              <select
+              <Select.Root
                 value={selectedEventId}
-                onChange={event => {
+                size="3"
+                onValueChange={value => {
                   stopCamera();
-                  setSelectedEventId(event.target.value);
+                  setSelectedEventId(value);
                   setScanState("ready");
                   lockedRef.current = false;
                 }}
-                className="min-w-0 rounded-xl border border-white/15 bg-white/[0.07] px-3 py-3 text-sm font-medium text-white outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/15"
               >
-                <option value="">Seleziona un evento</option>
-                {eventOptions.map(event => (
-                  <option key={event.id} value={event.id}>
-                    {event.titolo} · {new Date(event.data_inizio).toLocaleDateString("it-IT")}
-                  </option>
-                ))}
-              </select>
+                <Select.Trigger
+                  aria-label="Seleziona evento"
+                  placeholder="Seleziona un evento"
+                  className="!h-12 !w-full !max-w-none !rounded-xl !border !border-white/15 !bg-white/[0.07] !px-3 !text-left !text-[16px] !font-medium !text-white !shadow-none backdrop-blur-xl hover:!bg-white/10 focus:!border-indigo-400"
+                />
+                <Select.Content position="popper" className="!max-h-80 !rounded-xl">
+                  {eventOptions.map(event => (
+                    <Select.Item key={event.id} value={event.id}>
+                      {event.titolo} · {new Date(event.data_inizio).toLocaleDateString("it-IT")}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
               <div className="px-1 text-left text-[11px] text-slate-400 sm:text-right sm:text-xs">
                 {selectedEvent?.capacity ? `Capienza massima: ${selectedEvent.capacity}` : "Capienza illimitata"}
               </div>
@@ -287,7 +296,7 @@ export function TicketScanner({
                         placeholder="MK-7F4K9Q"
                         autoCapitalize="characters"
                         spellCheck={false}
-                        className="w-full min-w-0 rounded-lg border border-slate-300 bg-white py-3 pl-9 pr-3 font-mono text-base font-semibold uppercase tracking-wider text-slate-950 caret-slate-950 outline-none placeholder:font-sans placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-400 focus:border-slate-400 focus:ring-4 focus:ring-white/10 disabled:opacity-50"
+                        className="w-full min-w-0 rounded-lg border border-slate-300 bg-white py-3 pl-9 pr-3 font-mono !text-[16px] font-semibold uppercase tracking-wider !text-slate-950 caret-slate-950 outline-none placeholder:font-sans placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:!text-slate-400 focus:border-slate-400 focus:ring-4 focus:ring-white/10 disabled:opacity-50"
                       />
                     </div>
                     <button disabled={!code.trim() || scanState === "checking" || scanState === "success"} className="rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 disabled:opacity-40 sm:px-4">Valida</button>
