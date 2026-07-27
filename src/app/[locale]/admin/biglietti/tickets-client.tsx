@@ -28,6 +28,7 @@ interface Ticket {
   buyer_cognome: string;
   buyer_email: string;
   qr_code: string;
+  short_code: string;
   status: "pending" | "paid" | "used" | "refunded";
   used_at: string | null;
   amount_cents: number | null;
@@ -81,6 +82,7 @@ export function TicketsClient({
           ticket.buyer_cognome,
           ticket.buyer_email,
           ticket.qr_code,
+          ticket.short_code,
         ].some(value => value?.toLocaleLowerCase("it").includes(normalizedQuery)))
       : eventTickets;
     return {
@@ -328,7 +330,7 @@ function ParticipantRow({
         <a href={`mailto:${ticket.buyer_email}`} className="mt-1 block truncate text-xs text-slate-500 hover:text-slate-900">
           {ticket.buyer_email}
         </a>
-        <p className="mt-1 truncate font-mono text-[10px] text-slate-400">{ticket.qr_code}</p>
+        <p className="mt-1 font-mono text-[11px] font-semibold tracking-wider text-slate-500">{ticket.short_code}</p>
       </div>
 
       <div>

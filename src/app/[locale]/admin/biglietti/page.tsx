@@ -16,6 +16,7 @@ export default async function AdminBigliettiPage() {
       buyer_cognome, 
       buyer_email, 
       qr_code, 
+      short_code,
       status, 
       used_at,
       amount_cents,

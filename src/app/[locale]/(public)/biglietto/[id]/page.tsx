@@ -45,10 +45,10 @@ export default async function BigliettoPage({
   const formattedDate = new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "Europe/Rome" }).format(date);
   const formattedTime = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(date);
   const copy = {
-    it: { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", footer: "Mostra questo QR code all’ingresso dell’evento.", email: "Una copia del biglietto è stata inviata anche al tuo indirizzo email.", statuses: { pending: "In attesa", paid: "Valido", used: "Utilizzato", refunded: "Rimborsato" } },
-    en: { ticket: "Ticket", holder: "Holder", date: "Date", time: "Time", place: "Venue", status: "Status", footer: "Show this QR code at the event entrance.", email: "A copy of this ticket has also been sent to your email address.", statuses: { pending: "Pending", paid: "Valid", used: "Used", refunded: "Refunded" } },
-    de: { ticket: "Eintrittskarte", holder: "Inhaber", date: "Datum", time: "Uhrzeit", place: "Ort", status: "Status", footer: "Zeigen Sie diesen QR-Code am Eingang.", email: "Eine Kopie dieser Eintrittskarte wurde auch an Ihre E-Mail-Adresse gesendet.", statuses: { pending: "Ausstehend", paid: "Gültig", used: "Verwendet", refunded: "Erstattet" } },
-  }[locale as "it" | "en" | "de"] || { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", footer: "Mostra questo QR code all’ingresso dell’evento.", email: "Una copia del biglietto è stata inviata anche al tuo indirizzo email.", statuses: { pending: "In attesa", paid: "Valido", used: "Utilizzato", refunded: "Rimborsato" } };
+    it: { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", code: "Codice manuale", footer: "Mostra il QR code oppure comunica il codice breve all’ingresso.", email: "Una copia del biglietto è stata inviata anche al tuo indirizzo email.", statuses: { pending: "In attesa", paid: "Valido", used: "Utilizzato", refunded: "Rimborsato" } },
+    en: { ticket: "Ticket", holder: "Holder", date: "Date", time: "Time", place: "Venue", status: "Status", code: "Manual code", footer: "Show the QR code or provide the short code at the entrance.", email: "A copy of this ticket has also been sent to your email address.", statuses: { pending: "Pending", paid: "Valid", used: "Used", refunded: "Refunded" } },
+    de: { ticket: "Eintrittskarte", holder: "Inhaber", date: "Datum", time: "Uhrzeit", place: "Ort", status: "Status", code: "Manueller Code", footer: "Zeigen Sie den QR-Code oder nennen Sie den Kurzcode am Eingang.", email: "Eine Kopie dieser Eintrittskarte wurde auch an Ihre E-Mail-Adresse gesendet.", statuses: { pending: "Ausstehend", paid: "Gültig", used: "Verwendet", refunded: "Erstattet" } },
+  }[locale as "it" | "en" | "de"] || { ticket: "Biglietto", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", code: "Codice manuale", footer: "Mostra il QR code oppure comunica il codice breve all’ingresso.", email: "Una copia del biglietto è stata inviata anche al tuo indirizzo email.", statuses: { pending: "In attesa", paid: "Valido", used: "Utilizzato", refunded: "Rimborsato" } };
   const localizedStatus = copy.statuses[ticket.status as keyof typeof copy.statuses] || "Non disponibile";
 
   return (
@@ -70,6 +70,10 @@ export default async function BigliettoPage({
             alt="QR Code Biglietto" 
             className="w-48 h-48 mb-8 border border-border rounded-lg p-2" 
           />
+          <div className="mb-7 rounded-xl bg-slate-100 px-5 py-3 text-center">
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">{copy.code}</span>
+            <strong className="mt-1 block font-mono text-xl tracking-[0.14em] text-slate-950">{ticket.short_code}</strong>
+          </div>
           
           <div className="w-full space-y-4">
             <div className="flex justify-between border-b border-border pb-2">
@@ -113,7 +117,7 @@ export default async function BigliettoPage({
         {/* Ticket Footer */}
         <div className="bg-muted p-4 text-center text-sm text-muted-foreground border-t border-border">
           {copy.footer}
-          <br />ID: {ticket.id}
+          <br /><strong>{ticket.short_code}</strong>
         </div>
       </div>
     </main>

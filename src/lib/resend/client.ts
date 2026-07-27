@@ -591,9 +591,9 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
   const language = ["it", "en", "de"].includes(locale) ? locale : "it";
   const eventTitle = getLocalizedText(eventData.titolo, language) || "Meraki Experience";
   const copy = {
-    it: { subject: `Il tuo biglietto per ${eventTitle}`, ticket: "Biglietto evento", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", valid: "Valido", body: "Mostra questo QR code all’ingresso dell’evento.", cta: "Apri il biglietto online" },
-    en: { subject: `Your ticket for ${eventTitle}`, ticket: "Event ticket", holder: "Holder", date: "Date", time: "Time", place: "Venue", status: "Status", valid: "Valid", body: "Show this QR code at the event entrance.", cta: "Open ticket online" },
-    de: { subject: `Ihre Eintrittskarte für ${eventTitle}`, ticket: "Eintrittskarte", holder: "Inhaber", date: "Datum", time: "Uhrzeit", place: "Ort", status: "Status", valid: "Gültig", body: "Zeigen Sie diesen QR-Code am Eingang.", cta: "Ticket online öffnen" },
+    it: { subject: `Il tuo biglietto per ${eventTitle}`, ticket: "Biglietto evento", holder: "Intestatario", date: "Data", time: "Ora", place: "Luogo", status: "Stato", code: "Codice manuale", valid: "Valido", body: "Mostra il QR code oppure comunica il codice breve all’ingresso.", cta: "Apri il biglietto online" },
+    en: { subject: `Your ticket for ${eventTitle}`, ticket: "Event ticket", holder: "Holder", date: "Date", time: "Time", place: "Venue", status: "Status", code: "Manual code", valid: "Valid", body: "Show the QR code or provide the short code at the entrance.", cta: "Open ticket online" },
+    de: { subject: `Ihre Eintrittskarte für ${eventTitle}`, ticket: "Eintrittskarte", holder: "Inhaber", date: "Datum", time: "Uhrzeit", place: "Ort", status: "Status", code: "Manueller Code", valid: "Gültig", body: "Zeigen Sie den QR-Code oder nennen Sie den Kurzcode am Eingang.", cta: "Ticket online öffnen" },
   }[language as "it" | "en" | "de"];
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.merakiexperience.org";
   const qrUrl = `${siteUrl}/api/tickets/qr?token=${ticket.access_token}`;
@@ -622,6 +622,10 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
         <div style="display:inline-block;padding:10px;border:1px solid #e5e7eb;border-radius:14px;background:#ffffff;">
           <img src="${qrUrl}" width="210" height="210" alt="QR code" style="display:block;width:210px;height:210px;margin:auto;" />
         </div>
+        <div style="margin:18px auto 0;padding:12px 18px;border-radius:12px;background:#f5f5f5;">
+          <div style="color:#737373;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">${copy.code}</div>
+          <div style="margin-top:5px;color:#171717;font-family:monospace;font-size:20px;font-weight:700;letter-spacing:.12em;">${escapeEmailText(ticket.short_code)}</div>
+        </div>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;border-collapse:collapse;text-align:left;font-size:14px;">
           <tr><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#737373;">${copy.holder}</td><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#171717;font-weight:600;text-align:right;">${escapeEmailText(ticket.buyer_email)}</td></tr>
           <tr><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#737373;">${copy.date}</td><td style="padding:11px 0;border-bottom:1px solid #e5e7eb;color:#171717;font-weight:600;text-align:right;">${escapeEmailText(eventDate)}</td></tr>
@@ -634,7 +638,7 @@ export async function sendTicketConfirmation(ticket: any, eventData: any, locale
         <a href="${ticketUrl}" style="display:block;background:#171717;color:#ffffff;text-decoration:none;border-radius:10px;padding:13px 20px;font-size:14px;font-weight:700;">${copy.cta}</a>
       </div>
       <div style="padding:14px 20px;border-top:1px solid #e5e7eb;background:#f5f5f5;color:#737373;text-align:center;font-size:11px;">
-        ID: ${escapeEmailText(ticket.id)}
+        ${copy.code}: <strong>${escapeEmailText(ticket.short_code)}</strong>
       </div>
     </div>
     ${emailFooter}

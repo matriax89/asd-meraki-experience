@@ -1042,6 +1042,7 @@ export type Database = {
           locale: string
           qr_code: string | null
           registration_answers: Json
+          short_code: string
           status: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent: string | null
           stripe_session_id: string | null
@@ -1062,6 +1063,7 @@ export type Database = {
           locale?: string
           qr_code?: string | null
           registration_answers?: Json
+          short_code?: string
           status?: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent?: string | null
           stripe_session_id?: string | null
@@ -1082,6 +1084,7 @@ export type Database = {
           locale?: string
           qr_code?: string | null
           registration_answers?: Json
+          short_code?: string
           status?: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent?: string | null
           stripe_session_id?: string | null

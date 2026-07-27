@@ -279,7 +279,9 @@ export function TicketScanner({
                         value={code}
                         onChange={event => setCode(event.target.value)}
                         disabled={scanState === "checking" || scanState === "success"}
-                        placeholder="ticket_…"
+                        placeholder="MK-7F4K9Q"
+                        autoCapitalize="characters"
+                        spellCheck={false}
                         className="w-full rounded-lg border border-white/15 bg-slate-950 py-3 pl-9 pr-3 text-sm disabled:opacity-50"
                       />
                     </div>
@@ -288,7 +290,7 @@ export function TicketScanner({
                 </form>
 
                 <div className="mt-auto pt-7 text-xs leading-relaxed text-slate-500">
-                  Controlli attivi: evento corretto, stato pagato, QR esistente, blocco doppia lettura locale e convalida atomica tra più dispositivi.
+                  Puoi scansionare il QR oppure inserire il codice breve MK. I controlli su evento, validità e doppio utilizzo sono identici.
                 </div>
               </aside>
             </div>

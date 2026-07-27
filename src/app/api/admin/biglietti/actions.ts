@@ -92,12 +92,27 @@ export async function getEventCheckInStats(eventId: string) {
 export async function checkInTicketByCode(qrCode: string, eventId: string) {
   await requireAdmin();
   const adminSupabase = createAdminClient();
-  const { data: ticket, error: lookupError } = await adminSupabase
+  const submittedCode = qrCode.trim();
+  if (!submittedCode || submittedCode.length > 100) return { error: "Codice non valido.", code: "invalid_code" };
+
+  const { data: qrTicket, error: qrLookupError } = await adminSupabase
     .from("tickets")
     .select("id, event_id, status, used_at, buyer_nome, buyer_cognome, buyer_email")
-    .eq("qr_code", qrCode.trim())
+    .eq("qr_code", submittedCode)
     .maybeSingle();
-  if (lookupError || !ticket) return { error: "Biglietto non trovato.", code: "not_found" };
+  if (qrLookupError) return { error: "Biglietto non trovato.", code: "not_found" };
+
+  let ticket = qrTicket;
+  if (!ticket && /^MK-[2-9A-HJ-NP-Z]{6}$/i.test(submittedCode)) {
+    const { data: shortTicket, error: shortLookupError } = await adminSupabase
+      .from("tickets")
+      .select("id, event_id, status, used_at, buyer_nome, buyer_cognome, buyer_email")
+      .eq("short_code", submittedCode.toUpperCase())
+      .maybeSingle();
+    if (shortLookupError) return { error: "Biglietto non trovato.", code: "not_found" };
+    ticket = shortTicket;
+  }
+  if (!ticket) return { error: "Biglietto non trovato.", code: "not_found" };
   if (ticket.event_id !== eventId) return { error: "Il biglietto appartiene a un altro evento.", code: "wrong_event" };
   if (ticket.status === "used") return { error: "Questo biglietto è già stato utilizzato.", code: "already_used", usedAt: ticket.used_at };
   if (ticket.status !== "paid") return { error: "Questo biglietto non è valido per il check-in.", code: "invalid_status" };
