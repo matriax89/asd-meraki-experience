@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
-import { createClient } from "@/lib/supabase/server";
 import { createTicketCheckoutSession } from "@/lib/stripe/checkout-ticket";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/server";
 import { deliverTicketEmails } from "@/lib/stripe/fulfill-ticket";
 import { validateRegistrationAnswers } from "@/lib/events/registration-fields";
+import { after } from "next/server";
 
 const requestSchema = z.object({
   eventId: z.string().uuid(),
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const buyerNome = nameParts.shift() || "";
     const buyerCognome = nameParts.join(" ");
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Fetch event details
     const { data: event, error } = await supabase
@@ -131,7 +131,12 @@ export async function POST(request: Request) {
           if (leadError) console.error("Trial event lead creation failed:", leadError);
         }
       }
-      await deliverTicketEmails({ ...ticket, registration_answers: answerValidation.answers }, event);
+      after(async () => {
+        const result = await deliverTicketEmails({ ...ticket, registration_answers: answerValidation.answers }, event);
+        if (!(result as any)?.customer_email_sent_at) {
+          console.error("Free ticket saved but customer email may not have been delivered", { ticketId: ticket.id });
+        }
+      });
       return NextResponse.json({
         url: `/${locale}/biglietto/${ticket.id}?token=${ticket.access_token}`,
         free: true,
