@@ -2,8 +2,10 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/admin/auth";
 
 export async function updateLeadStatus(id: string, status: 'nuovo' | 'contattato' | 'convertito' | 'archiviato') {
+  await requireAdmin();
   const supabase = await createClient();
   
   // Verify auth and role
@@ -34,5 +36,20 @@ export async function updateLeadStatus(id: string, status: 'nuovo' | 'contattato
   revalidatePath("/[locale]/admin/leads", "page");
   revalidatePath("/[locale]/admin", "page");
   
+  return { success: true };
+}
+
+export async function deleteLead(id: string) {
+  await requireAdmin();
+  const adminSupabase = createAdminClient();
+  const { error } = await adminSupabase.from("leads").delete().eq("id", id);
+
+  if (error) {
+    console.error("Delete lead error:", error);
+    return { error: "Non è stato possibile eliminare il lead." };
+  }
+
+  revalidatePath("/[locale]/admin/leads", "page");
+  revalidatePath("/[locale]/admin", "page");
   return { success: true };
 }

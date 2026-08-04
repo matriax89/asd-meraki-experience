@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const supabase = await createClient();
   const { data: settings } = await supabase
     .from("site_settings")
-    .select("value")
+    .select("value, updated_at")
     .eq("key", "homepage_content")
     .single();
 
@@ -26,7 +26,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
   const title = branding?.meta_title || "ASD Meraki Experience";
   const description = branding?.meta_description || "Benessere, fitness e cambiamento";
-  const favicon = branding?.favicon_url || "/favicon.ico";
+  const favicon = branding?.favicon_url
+    ? `/api/branding/favicon?v=${encodeURIComponent(settings?.updated_at || branding.favicon_url)}`
+    : "/favicon.ico";
 
   return {
     title,
@@ -115,9 +117,6 @@ export default async function LocaleLayout({
       className={`${inter.variable} h-full antialiased`}
     >
       <head>
-        {branding?.favicon_url && (
-          <link rel="icon" href={branding.favicon_url} />
-        )}
         <JsonLd schema={localBusinessSchema} />
         {themeColors && (
           <style dangerouslySetInnerHTML={{ __html: `

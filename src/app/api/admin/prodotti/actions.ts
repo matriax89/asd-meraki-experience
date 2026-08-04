@@ -2,6 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/admin/auth";
 
 interface ProductFormData {
   id?: string;
@@ -19,6 +20,7 @@ interface ProductFormData {
 }
 
 export async function upsertProduct(data: ProductFormData) {
+  await requireAdmin();
   const supabase = await createClient();
   
   const { data: { session } } = await supabase.auth.getSession();
@@ -109,4 +111,15 @@ export async function upsertProduct(data: ProductFormData) {
   revalidatePath(`/[locale]/shop/${savedProduct.slug}`, "page");
   
   return { success: true, id: savedProduct.id };
+}
+
+export async function deleteProduct(id: string) {
+  await requireAdmin();
+  const adminSupabase = createAdminClient();
+  const { error } = await adminSupabase.from("products").delete().eq("id", id);
+  if (error) {
+    return { success: false, error: "Il prodotto è collegato a ordini o varianti non eliminabili." };
+  }
+  revalidatePath("/[locale]/admin/prodotti", "page");
+  return { success: true };
 }

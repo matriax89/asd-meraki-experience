@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/admin/data-table";
-import { Link } from "@/i18n/routing";
+import { RowActions } from "@/components/admin/row-actions";
+import { syncPaidStripeOrders } from "@/app/api/admin/ordini/actions";
+import { RefreshCw } from "lucide-react";
 
 export default async function AdminOrdiniPage() {
   const supabase = await createClient();
@@ -21,7 +23,9 @@ export default async function AdminOrdiniPage() {
       case 'paid': return <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Pagato</span>;
       case 'processing': return <span className="px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">In lavorazione</span>;
       case 'shipped': return <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Spedito</span>;
+      case 'ready_for_pickup': return <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Pronto al ritiro</span>;
       case 'delivered': return <span className="px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Consegnato</span>;
+      case 'completed': return <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Completato</span>;
       case 'cancelled': return <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Cancellato</span>;
       case 'refunded': return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Rimborsato</span>;
       default: return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">{status}</span>;
@@ -63,21 +67,23 @@ export default async function AdminOrdiniPage() {
     },
     {
       header: "Azioni",
-      cell: (order: any) => (
-        <Link href={`/admin/ordini/${order.id}`} className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
-          Dettagli &rarr;
-        </Link>
-      )
+      align: "right" as const,
+      cell: (order: any) => <RowActions id={order.id} editHref={`/admin/ordini/${order.id}`} label="l’ordine" mode="view" />
     }
   ];
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-8">
+      <div className="admin-page-heading">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Ordini Shop</h1>
           <p className="text-slate-500 mt-2">Gestisci gli ordini e-commerce e le spedizioni.</p>
         </div>
+        <form action={syncPaidStripeOrders} className="w-full sm:w-auto">
+          <button type="submit" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto">
+            <RefreshCw size={16} /> Sincronizza Stripe
+          </button>
+        </form>
       </div>
 
       <DataTable 

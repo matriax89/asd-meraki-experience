@@ -10,6 +10,8 @@ export async function createTicketCheckoutSession({
   tipo,
   siteUrl,
   locale,
+  buyerNome,
+  buyerCognome,
 }: {
   eventId: string;
   eventSlug: string;
@@ -20,6 +22,8 @@ export async function createTicketCheckoutSession({
   tipo: "evento" | "workshop" | "masterclass";
   siteUrl: string;
   locale?: string;
+  buyerNome?: string;
+  buyerCognome?: string;
 }) {
 
   const session = await stripe.checkout.sessions.create({
@@ -46,6 +50,8 @@ export async function createTicketCheckoutSession({
       event_id: eventId,
       buyer_email: buyerEmail,
       locale: locale || "it",
+      buyer_nome: buyerNome || "",
+      buyer_cognome: buyerCognome || "",
     },
   });
 

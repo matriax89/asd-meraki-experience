@@ -2,6 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/admin/auth";
 
 interface TeamMemberData {
   id?: string;
@@ -20,6 +21,7 @@ const generateSlug = (nome: string, cognome: string) => {
 };
 
 export async function upsertTeamMember(data: TeamMemberData) {
+  await requireAdmin();
   const supabase = await createClient();
   
   const { data: { session } } = await supabase.auth.getSession();
@@ -65,6 +67,7 @@ export async function upsertTeamMember(data: TeamMemberData) {
 }
 
 export async function deleteTeamMember(id: string) {
+  await requireAdmin();
   const supabase = await createClient();
   
   const { data: { session } } = await supabase.auth.getSession();

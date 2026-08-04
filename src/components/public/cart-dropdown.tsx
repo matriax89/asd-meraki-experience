@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { Link, useRouter } from "@/i18n/routing";
-import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Loader2 } from "lucide-react";
+import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Loader2, X } from "lucide-react";
 import { getHydratedCart, updateCartItemQuantity, removeFromCart } from "@/lib/shop/cart-actions";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocale } from "next-intl";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { usePathname } from "next/navigation";
 
 export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }: { initialCount?: number; isTransparentAndHome?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,6 +16,7 @@ export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }:
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const locale = useLocale();
+  const pathname = usePathname();
 
   // Fetch dei dettagli ogni volta che initialCount cambia (es. quando l'utente aggiunge qualcosa e la pagina fa router.refresh)
   // Oppure la prima volta che apre il dropdown
@@ -25,6 +27,17 @@ export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }:
       setCartData({ items: [], subtotal: 0 });
     }
   }, [initialCount]);
+
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = (event: KeyboardEvent) => event.key === "Escape" && setIsOpen(false);
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [isOpen]);
 
   const fetchCartData = async () => {
     setIsLoading(true);
@@ -52,10 +65,10 @@ export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }:
   return (
     <div 
       className="relative"
-      onMouseEnter={() => setIsOpen(true)}
+      onMouseEnter={() => window.matchMedia("(hover: hover)").matches && setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
     >
-      <Link href="/carrello" className="relative p-2.5 rounded-full hover:bg-slate-100 hover:text-slate-900 transition-colors block">
+      <Link href="/carrello" onClick={() => setIsOpen(false)} className="relative p-2.5 rounded-full hover:bg-slate-100 hover:text-slate-900 transition-colors block">
         <ShoppingCart className="w-[18px] h-[18px]" />
         {initialCount > 0 && (
           <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white px-1 shadow-sm border-[1.5px] border-white">
@@ -79,6 +92,9 @@ export function CartDropdown({ initialCount = 0, isTransparentAndHome = false }:
               <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
                 {initialCount} {initialCount === 1 ? 'articolo' : 'articoli'}
               </span>
+              <button type="button" onClick={() => setIsOpen(false)} aria-label="Chiudi carrello" className="ml-1 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <X size={16} />
+              </button>
             </div>
 
             {/* Cart Items List */}

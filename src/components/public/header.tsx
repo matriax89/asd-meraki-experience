@@ -31,6 +31,7 @@ export function Header({ initialCartCount = 0, logoUrl, logoWhiteUrl }: { initia
     { key: "chi_siamo", href: "/#chi-siamo" },
     { key: "corsi", href: "/#corsi" },
     { key: "orario", href: "/#orario" },
+    { key: "eventi", href: "/eventi" },
     { key: "shop", href: "/shop" },
     { key: "contatti", href: "/contatti" },
   ] as const;

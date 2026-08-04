@@ -3,6 +3,8 @@ import { DataTable } from "@/components/admin/data-table";
 import { Link } from "@/i18n/routing";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { RowActions } from "@/components/admin/row-actions";
+import { Plus } from "lucide-react";
 
 export default async function AdminEventiPage() {
   const locale = await getLocale();
@@ -25,6 +27,11 @@ export default async function AdminEventiPage() {
         <div>
           <span className="block font-bold text-slate-900">{getLocalizedText(evento.titolo, locale)}</span>
           <span className="block text-[13px] text-slate-500 uppercase tracking-widest mt-0.5">{evento.tipo}</span>
+          {(evento as any).recurrence_series_id && (
+            <span className="mt-1 inline-flex rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+              Serie · appuntamento {((evento as any).recurrence_index || 0) + 1}
+            </span>
+          )}
         </div>
       )
     },
@@ -66,23 +73,20 @@ export default async function AdminEventiPage() {
     },
     {
       header: "Azioni",
-      cell: (evento: any) => (
-        <Link href={`/admin/eventi/${evento.id}`} className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
-          Modifica
-        </Link>
-      )
+      align: "right" as const,
+      cell: (evento: any) => <RowActions id={evento.id} editHref={`/admin/eventi/${evento.id}`} label="l’evento" deleteEntity="event" />
     }
   ];
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-8">
+      <div className="admin-page-heading">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Eventi & Workshop</h1>
           <p className="text-slate-500 mt-2">Gestisci il calendario di eventi speciali e ritiri.</p>
         </div>
-        <Link href="/admin/eventi/nuovo" className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-slate-800 hover:shadow-lg transition-all active:scale-95">
-          + Nuovo Evento
+        <Link href="/admin/eventi/nuovo" className="admin-primary-action">
+          <Plus className="size-4" /> Nuovo evento
         </Link>
       </div>
 

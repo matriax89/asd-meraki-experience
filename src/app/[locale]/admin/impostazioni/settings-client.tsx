@@ -1,15 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { saveHomepageContent } from "@/app/api/admin/impostazioni/actions";
+import { publishBrandingAsset, saveHomepageContent } from "@/app/api/admin/impostazioni/actions";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions";
-import { compressImageToWebp } from "@/lib/image-utils";
+import { compressImageToWebp, convertImageToPng } from "@/lib/image-utils";
 import { useModal } from "@/components/ui/modal-provider";
-import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail } from "lucide-react";
+import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail, Home, Users, Images, FileText, Plug, ShoppingBag, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
+import { Link } from "@/i18n/routing";
 
-export function SettingsClient({ initialData, initialIstruttori }: { initialData: any, initialIstruttori?: any[] }) {
+const settingsSections = [
+  { id: "base", label: "Identità", description: "Colori, logo e SEO", icon: Palette },
+  { id: "homepage", label: "Homepage", description: "Hero, testi e valori", icon: Home },
+  { id: "offerta", label: "Offerta", description: "Shop e prenotazioni", icon: ShoppingBag },
+  { id: "persone", label: "Persone", description: "Direttivo e istruttori", icon: Users },
+  { id: "media", label: "Media", description: "Immagini e video", icon: Images },
+  { id: "promo", label: "Promozione", description: "Partner reali e popup", icon: Megaphone },
+  { id: "organizzazione", label: "Organizzazione", description: "Contatti, documenti e sedi", icon: FileText },
+  { id: "integrazioni", label: "Integrazioni", description: "Email e tracciamenti", icon: Plug },
+] as const;
+
+type SettingsSection = (typeof settingsSections)[number]["id"];
+
+export function SettingsClient({ initialData, initialIstruttori, initialSponsors = [] }: { initialData: any, initialIstruttori?: any[], initialSponsors?: any[] }) {
   const [loading, setLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState<SettingsSection>("base");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const { showAlert, showConfirm } = useModal();
 
@@ -21,13 +37,6 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     { nome: "Matias Rafael Lisio", ruolo: "Presidente", foto_url: "/images/v2/yoga_moody.png" },
     { nome: "Martina Gallo", ruolo: "Vice Presidente", foto_url: "/images/v2/aerial_glow.png" },
     { nome: "Dajana Sessa", ruolo: "Tesoriere", foto_url: "/images/v2/salsation_glow.png" }
-  ]);
-  
-  const [sponsorsList, setSponsorsList] = useState<any[]>(initialData?.sponsors_list || [
-    { name: "Brand One", tier: "Main Sponsor", desc: "Supporto ufficiale attrezzature.", logo_url: "" },
-    { name: "Apex Sport", tier: "Gold Partner", desc: "Fornitura nutrizione sportiva.", logo_url: "" },
-    { name: "Global Fit", tier: "Silver Partner", desc: "Abbigliamento tecnico.", logo_url: "" },
-    { name: "Studio Plus", tier: "Bronze Partner", desc: "Consulenza e servizi.", logo_url: "" }
   ]);
   
   const [youtubeVideos, setYoutubeVideos] = useState<string[]>(initialData?.youtube_videos || [
@@ -147,6 +156,11 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
 
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | string | null>(null);
 
+  const sectionClass = (section: SettingsSection, className = "space-y-4") =>
+    `${className} ${activeSection === section ? "block" : "hidden"}`;
+
+  const activeSectionIndex = settingsSections.findIndex((section) => section.id === activeSection);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -163,7 +177,6 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       banner2_text: formData.get("banner2_text"),
       youtube_channel_url: formData.get("youtube_channel_url"),
       direttivo: direttivo,
-      sponsors_list: sponsorsList,
       values: values,
       footer_text: footerText,
       shop_text: shopText,
@@ -187,8 +200,10 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
 
     if (result.success) {
       setMessage({ type: "success", text: "Impostazioni salvate con successo!" });
+      toast.success("Impostazioni pubblicate", { description: "Le modifiche sono ora visibili sul sito." });
     } else {
       setMessage({ type: "error", text: "Errore durante il salvataggio: " + result.error });
+      toast.error("Salvataggio non riuscito", { description: result.error });
     }
     
     setLoading(false);
@@ -208,30 +223,36 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     setUploadingImageIndex(index);
     try {
       // 1. Convert and compress locally to WebP
-      const compressedFile = await compressImageToWebp(file);
+      const compressedFile = index === "branding_favicon"
+        ? await convertImageToPng(file)
+        : await compressImageToWebp(file);
       
       // 2. Upload via Server Action
       const uploadData = new FormData();
       uploadData.append("file", compressedFile);
+      if (typeof index === "string" && index.startsWith("branding_")) {
+        uploadData.append("folder", "branding");
+      }
       
       const res = await uploadImageAction(uploadData);
       
       if (res.success && res.url) {
+        let brandingField: "logo_url" | "logo_white_url" | "favicon_url" | null = null;
         if (typeof index === 'number') {
           updateDirettivo(index, "foto_url", res.url);
-        } else if (typeof index === 'string' && index.startsWith('sponsor_')) {
-          const idx = parseInt(index.split('_')[1], 10);
-          updateSponsor(idx, "logo_url", res.url);
         } else if (index === 'popup') {
           setPopup({ ...popup, foto_url: res.url });
         } else if (index === 'sportclubby_logo') {
           setSportclubbyBanner({ ...sportclubbyBanner, logo_url: res.url });
         } else if (index === 'branding_logo') {
           setBranding({ ...branding, logo_url: res.url });
+          brandingField = "logo_url";
         } else if (index === 'branding_logo_white') {
           setBranding({ ...branding, logo_white_url: res.url });
+          brandingField = "logo_white_url";
         } else if (index === 'branding_favicon') {
           setBranding({ ...branding, favicon_url: res.url });
+          brandingField = "favicon_url";
         } else if (index === 'media_hero') {
           setMedia({ ...media, hero_bg_url: res.url });
         } else if (index === 'media_chi_siamo') {
@@ -246,6 +267,15 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           setShopText({ ...shopText, merch_image_url: res.url });
         } else if (index === 'shop_donate_img') {
           setShopText({ ...shopText, donate_image_url: res.url });
+        }
+        if (brandingField) {
+          const publishResult = await publishBrandingAsset(brandingField, res.url);
+          if (!publishResult.success) throw new Error(publishResult.error);
+          toast.success("Branding pubblicato", {
+            description: brandingField === "favicon_url"
+              ? "La nuova icona della scheda è attiva."
+              : "Il nuovo logo è attivo sul sito e nel pannello.",
+          });
         }
       } else {
         showAlert({ title: "Errore", message: "Errore caricamento: " + res.error, type: "error" });
@@ -265,20 +295,6 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
 
   const addDirettivo = () => {
     setDirettivo([...direttivo, { nome: "", ruolo: "", foto_url: "" }]);
-  };
-
-  const updateSponsor = (index: number, field: string, value: string) => {
-    const newList = [...sponsorsList];
-    newList[index] = { ...newList[index], [field]: value };
-    setSponsorsList(newList);
-  };
-
-  const removeSponsor = (index: number) => {
-    setSponsorsList(sponsorsList.filter((_, i) => i !== index));
-  };
-
-  const addSponsor = () => {
-    setSponsorsList([...sponsorsList, { name: "", tier: "", desc: "", logo_url: "" }]);
   };
 
   const updateYoutube = (index: number, value: string) => {
@@ -391,23 +407,54 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 p-4 md:p-5">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Testi Homepage</h2>
-          <p className="text-sm text-slate-500">Modifica i testi principali della tua landing page.</p>
+          <h2 className="font-semibold text-slate-900">Cosa vuoi modificare?</h2>
+          <p className="mt-1 text-xs text-slate-500">Scegli una sezione. Le altre rimangono salvate mentre lavori.</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
+          {settingsSections.map((section) => {
+            const Icon = section.icon;
+            const selected = activeSection === section.id;
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setActiveSection(section.id)}
+                aria-pressed={selected}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  selected
+                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                }`}
+              >
+                <Icon className="mb-2 h-4 w-4" />
+                <span className="block text-xs font-semibold">{section.label}</span>
+                <span className="mt-0.5 hidden text-[10px] text-slate-500 xl:block">{section.description}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-8">
+      <form onSubmit={handleSubmit}>
         {message && (
-          <div className={`p-4 rounded-xl text-sm font-medium ${message.type === "success" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+          <div className={`m-4 rounded-lg p-3 text-sm font-medium md:mx-6 ${message.type === "success" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
             {message.text}
           </div>
         )}
+        <div className="space-y-10 p-4 md:p-6">
+          <div className="mb-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">
+              Sezione {activeSectionIndex + 1} di {settingsSections.length}
+            </p>
+            <h3 className="mt-1 text-xl font-semibold text-slate-900">{settingsSections[activeSectionIndex].label}</h3>
+            <p className="mt-1 text-sm text-slate-500">{settingsSections[activeSectionIndex].description}</p>
+          </div>
 
         {/* Theme Settings */}
-        <div className="space-y-4">
+        <div className={sectionClass("base")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
             <Palette className="w-5 h-5 text-indigo-500" /> Colori del Brand
           </h3>
@@ -485,7 +532,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Hero Section */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
             1. Sezione Hero (In alto)
           </h3>
@@ -511,7 +558,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Philosophy Section */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2 mt-8">
             2. La Nostra Filosofia
           </h3>
@@ -538,7 +585,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Banners */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2 mt-8">
             3. Banner Scorrevoli (Marquee)
           </h3>
@@ -563,7 +610,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Direttivo */}
-        <div className="space-y-4">
+        <div className={sectionClass("persone")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">4. Il Direttivo</h3>
             <button type="button" onClick={addDirettivo} className="flex items-center gap-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
@@ -642,85 +689,34 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Sponsors (Chi ci sostiene già) */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center border-b pb-2 mt-8">
-            <h3 className="text-lg font-semibold text-slate-800">5. Chi ci sostiene già (Pagina Diventa Sponsor)</h3>
-            <button type="button" onClick={addSponsor} className="flex items-center gap-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
-              <Plus className="w-4 h-4" /> Aggiungi Sponsor
-            </button>
+        <div className={sectionClass("promo")}>
+          <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-800">Partner pubblicati</h3>
+              <p className="mt-1 text-sm text-slate-500">Questi dati arrivano direttamente dall’archivio Partner usato dal sito.</p>
+            </div>
+            <Link href="/admin/sponsors" className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+              Gestisci partner
+            </Link>
           </div>
-          
-          <div className="space-y-4">
-            {sponsorsList.map((sponsor, i) => (
-              <div key={i} className="flex gap-4 items-start bg-slate-50 p-4 rounded-xl border border-slate-200 relative group">
-                <div className="flex-1 space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Nome Sponsor</label>
-                      <input 
-                        value={sponsor.name || ""}
-                        onChange={(e) => updateSponsor(i, "name", e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
-                        placeholder="Es. Apex Sport"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Livello (Tier)</label>
-                      <input 
-                        value={sponsor.tier || ""}
-                        onChange={(e) => updateSponsor(i, "tier", e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
-                        placeholder="Es. Gold Partner"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Descrizione</label>
-                    <textarea 
-                      value={sponsor.desc || ""}
-                      onChange={(e) => updateSponsor(i, "desc", e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm resize-y"
-                      placeholder="Breve descrizione..."
-                      rows={2}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Logo (URL o Upload)</label>
-                    <div className="flex gap-2 items-center">
-                      <input 
-                        value={sponsor.logo_url || ""}
-                        onChange={(e) => updateSponsor(i, "logo_url", e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
-                        placeholder="es. /images/logo_sponsor.png oppure URL"
-                      />
-                      <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === `sponsor_${i}` ? 'opacity-50 pointer-events-none' : ''}`}>
-                        {uploadingImageIndex === `sponsor_${i}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                        <span className="ml-2 text-sm font-medium">{uploadingImageIndex === `sponsor_${i}` ? 'Caricamento...' : 'Carica Logo'}</span>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={(e) => handleImageUpload(`sponsor_${i}`, e)} 
-                          className="hidden" 
-                        />
-                      </label>
-                    </div>
-                  </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {initialSponsors.map((sponsor) => (
+              <div key={sponsor.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white">
+                  {sponsor.logo_url ? <img src={sponsor.logo_url} alt="" className="h-full w-full object-contain p-1" /> : <Megaphone className="h-5 w-5 text-slate-300" />}
                 </div>
-                <button 
-                  type="button" 
-                  onClick={() => removeSponsor(i)}
-                  className="text-slate-400 hover:text-red-500 transition-colors p-2 mt-4"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900">{sponsor.nome}</p>
+                  <p className="text-xs text-slate-500">{sponsor.tier || "Partner"} · {sponsor.attivo ? "Visibile" : "Nascosto"}</p>
+                </div>
               </div>
             ))}
-            {sponsorsList.length === 0 && <p className="text-sm text-slate-500 italic">Nessun sponsor aggiunto.</p>}
+            {initialSponsors.length === 0 && <p className="text-sm italic text-slate-500">Nessun partner presente nell’archivio.</p>}
           </div>
         </div>
 
         {/* Istruttori */}
-        <div className="space-y-4">
+        <div className={sectionClass("persone")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <div>
               <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">Istruttori</h3>
@@ -819,7 +815,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Card Valori */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">5. Card Valori (Homepage)</h3>
           </div>
@@ -876,7 +872,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Footer */}
-        <div className="space-y-4">
+        <div className={sectionClass("homepage")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">6. Testi Footer</h3>
           </div>
@@ -902,7 +898,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Shop Texts */}
-        <div className="space-y-4">
+        <div className={sectionClass("offerta")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">7. Testi Sezione Novità & Shop</h3>
           </div>
@@ -1027,7 +1023,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* YouTube */}
-        <div className="space-y-4">
+        <div className={sectionClass("media")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">7. Video YouTube</h3>
             <button type="button" onClick={addYoutube} className="flex items-center gap-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
@@ -1069,7 +1065,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Sportclubby Banner */}
-        <div className="space-y-4">
+        <div className={sectionClass("offerta")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">7. Banner Sportclubby (App)</h3>
           </div>
@@ -1143,7 +1139,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Popup Promozionale */}
-        <div className="space-y-4">
+        <div className={sectionClass("promo")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">8. Popup Promozionale</h3>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -1237,13 +1233,18 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                     />
                   </label>
                 </div>
+                {branding.logo_url && (
+                  <div className="flex h-20 items-center rounded-lg border border-slate-200 bg-white p-3">
+                    <img src={branding.logo_url} alt="Anteprima logo principale" className="h-full max-w-full object-contain object-left" />
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
 
         {/* Branding e SEO */}
-        <div className="space-y-4">
+        <div className={sectionClass("base")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
             <h3 className="text-lg font-semibold text-slate-800">7. Branding e SEO</h3>
           </div>
@@ -1292,6 +1293,11 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                     />
                   </label>
                 </div>
+                {branding.logo_white_url && (
+                  <div className="flex h-20 items-center rounded-lg border border-slate-700 bg-slate-950 p-3">
+                    <img src={branding.logo_white_url} alt="Anteprima logo bianco" className="h-full max-w-full object-contain object-left" />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1314,6 +1320,12 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                     />
                   </label>
                 </div>
+                {branding.favicon_url && (
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500">
+                    <img src={branding.favicon_url} alt="Anteprima favicon" className="size-10 rounded-md border border-slate-200 object-contain" />
+                    Anteprima dell’icona della scheda
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1342,7 +1354,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Contatti & Social */}
-        <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm mt-8">
+        <div className={sectionClass("organizzazione", "rounded-xl border border-slate-200 bg-white p-5 md:p-6")}>
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
               <Mail className="w-6 h-6" />
@@ -1457,7 +1469,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Media Backgrounds */}
-        <div className="space-y-4">
+        <div className={sectionClass("media")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
             <Upload className="w-5 h-5 text-indigo-500" /> Sfondi e Immagini Sezioni
           </h3>
@@ -1502,7 +1514,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
         </div>
 
         {/* Documenti e Modulistica */}
-        <div className="space-y-4">
+        <div className={sectionClass("organizzazione")}>
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b pb-2">
             <Save className="w-5 h-5 text-indigo-500" /> Testi e Link Documenti (PDF / Pagine)
           </h3>
@@ -1590,7 +1602,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-8 shadow-sm">
+        <div className={sectionClass("organizzazione", "rounded-xl border border-slate-200 bg-white p-5 md:p-6")}>
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
             <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
               <Plus className="w-5 h-5" />
@@ -1651,7 +1663,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
-        <div className="pt-8 mt-8 border-t border-slate-200">
+        <div className={sectionClass("integrazioni")}>
           <div className="mb-6">
             <h2 className="text-xl font-bold text-slate-800">Integrazioni & Marketing</h2>
             <p className="text-sm text-slate-500">Configura Facebook Pixel, Email e altri servizi esterni.</p>
@@ -1777,15 +1789,36 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
-        <div className="pt-6 border-t border-slate-200">
+        </div>
+
+        <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:px-6">
           <button
-            type="submit"
-            disabled={loading}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            type="button"
+            disabled={activeSectionIndex === 0}
+            onClick={() => setActiveSection(settingsSections[activeSectionIndex - 1].id)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:invisible"
           >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            Salva Impostazioni
+            <ChevronLeft size={16} /> Indietro
           </button>
+          <div className="flex items-center gap-2">
+            {activeSectionIndex < settingsSections.length - 1 && (
+              <button
+                type="button"
+                onClick={() => setActiveSection(settingsSections[activeSectionIndex + 1].id)}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Avanti <ChevronRight size={16} />
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salva
+            </button>
+          </div>
         </div>
       </form>
     </div>

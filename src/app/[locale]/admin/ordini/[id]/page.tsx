@@ -74,7 +74,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               <div className="p-2.5 bg-slate-100 rounded-xl text-slate-600">
                 <Receipt className="w-5 h-5" />
               </div>
-              <h2 className="text-xl font-bold text-slate-900">Dati Cliente e Spedizione</h2>
+              <h2 className="text-xl font-bold text-slate-900">Cliente e consegna</h2>
             </div>
             
             <div className="grid grid-cols-2 gap-8">
@@ -93,12 +93,18 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                   <MapPin className="w-4 h-4 text-slate-400" />
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Destinazione</p>
                 </div>
-                <p className="text-sm text-slate-700 leading-relaxed font-medium">
-                  {order.ship_address_line1}<br/>
-                  {order.ship_address_line2 && <>{order.ship_address_line2}<br/></>}
-                  {order.ship_postal_code} {order.ship_city} ({order.ship_state})<br/>
-                  <span className="text-slate-500 mt-1 block">{order.ship_country}</span>
-                </p>
+                {order.delivery_method === "hand_delivery" ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                    Ritiro a mano — nessuna spedizione necessaria
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                    {order.ship_address_line1}<br/>
+                    {order.ship_address_line2 && <>{order.ship_address_line2}<br/></>}
+                    {order.ship_postal_code} {order.ship_city}{order.ship_state ? ` (${order.ship_state})` : ""}<br/>
+                    <span className="text-slate-500 mt-1 block">{order.ship_country}</span>
+                  </p>
+                )}
               </div>
             </div>
             
@@ -116,7 +122,8 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
         {/* Colonna Gestione (1/3) */}
         <div className="space-y-8">
           <div className="bg-white border border-slate-200 rounded-[24px] p-8 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 mb-6">Stato Spedizione</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-2">Gestione ordine</h2>
+            <p className="mb-6 text-sm text-slate-500">Completa l’ordine per rimuovere il badge dal menu.</p>
             <OrderStatusForm order={order} />
           </div>
 
@@ -143,6 +150,12 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                 <li className="flex flex-col gap-1">
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Spedito il</span>
                   <span className="font-medium text-slate-700">{new Date(order.shipped_at).toLocaleString('it-IT')}</span>
+                </li>
+              )}
+              {order.completed_at && (
+                <li className="flex flex-col gap-1">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Completato il</span>
+                  <span className="font-medium text-slate-700">{new Date(order.completed_at).toLocaleString('it-IT')}</span>
                 </li>
               )}
             </ul>

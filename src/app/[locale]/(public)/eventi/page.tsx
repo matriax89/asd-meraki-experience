@@ -19,6 +19,11 @@ export default async function EventiPage({ params }: { params: Promise<{ locale:
     .eq("attivo", true)
     .eq("tipo", "evento")
     .order("data_inizio", { ascending: true });
+  const now = Date.now();
+  const upcomingEvents = (eventi || []).filter((evento) => new Date(evento.data_fine || evento.data_inizio).getTime() >= now);
+  const pastEvents = (eventi || [])
+    .filter((evento) => new Date(evento.data_fine || evento.data_inizio).getTime() < now)
+    .reverse();
 
   return (
     <div className="pt-32 pb-20">
@@ -34,9 +39,9 @@ export default async function EventiPage({ params }: { params: Promise<{ locale:
           </p>
         </div>
 
-        {eventi && eventi.length > 0 ? (
+        {upcomingEvents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {eventi.map((evento) => (
+            {upcomingEvents.map((evento) => (
               <EventCard key={evento.id} {...evento} />
             ))}
           </div>
@@ -46,6 +51,19 @@ export default async function EventiPage({ params }: { params: Promise<{ locale:
             <p className="text-foreground font-bold text-lg mb-2">{t("empty_title")}</p>
             <p className="text-[15px] text-muted-foreground">{t("empty_desc")}</p>
           </div>
+        )}
+
+        {pastEvents.length > 0 && (
+          <section className="mt-20 border-t border-border/60 pt-12">
+            <div className="mb-8">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Archivio</p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight">Eventi passati</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Gli eventi conclusi rimangono consultabili, ma le iscrizioni sono chiuse.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-6 opacity-80 md:grid-cols-2 lg:grid-cols-3">
+              {pastEvents.map((evento) => <EventCard key={evento.id} {...evento} />)}
+            </div>
+          </section>
         )}
       </div>
     </div>

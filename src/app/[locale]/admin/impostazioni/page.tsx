@@ -18,14 +18,19 @@ export default async function ImpostazioniPage() {
     .eq("is_istruttore", true)
     .order("nome");
 
+  const { data: sponsors } = await adminSupabase
+    .from("sponsors")
+    .select("id, nome, tier, logo_url, attivo, ordine_display")
+    .order("ordine_display");
+
   return (
-    <div className="max-w-4xl mx-auto py-8">
-      <div className="mb-8">
+    <div className="mx-auto max-w-7xl">
+      <div className="mb-5 border-b border-slate-200 pb-5">
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Impostazioni Sito</h1>
-        <p className="text-slate-500 mt-2">Personalizza i testi e i contenuti pubblici mostrati ai visitatori.</p>
+        <p className="mt-1 text-slate-500">Segui le sezioni guidate. Le modifiche vengono pubblicate solo al salvataggio.</p>
       </div>
 
-      <SettingsClient initialData={initialData} initialIstruttori={istruttori || []} />
+      <SettingsClient initialData={initialData} initialIstruttori={istruttori || []} initialSponsors={sponsors || []} />
     </div>
   );
 }

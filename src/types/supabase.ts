@@ -83,6 +83,7 @@ export type Database = {
           copertina_url: string | null
           created_at: string | null
           cta_url: string | null
+          cancelled_at: string | null
           descrizione_breve: Json | null
           descrizione_lunga: Json | null
           disciplina: string
@@ -216,14 +217,20 @@ export type Database = {
           id: string
           in_evidenza: boolean | null
           indirizzo: string | null
+          instructor_id: string | null
           location: string | null
+          logo_url: string | null
           meta_description: Json | null
           meta_title: Json | null
           posti_venduti: number | null
           prezzo_cents: number | null
+          recurrence_index: number | null
+          recurrence_series_id: string | null
+          registration_fields: Json
           slug: string
           sottotitolo: Json | null
           stripe_price_id: string | null
+          trial_campaign_key: string | null
           tipo: Database["public"]["Enums"]["event_tipo_enum"]
           titolo: Json
           updated_at: string | null
@@ -235,6 +242,7 @@ export type Database = {
           created_at?: string | null
           cta_tipo?: string | null
           cta_url?: string | null
+          cancelled_at?: string | null
           data_fine?: string | null
           data_inizio: string
           descrizione?: Json | null
@@ -242,14 +250,20 @@ export type Database = {
           id?: string
           in_evidenza?: boolean | null
           indirizzo?: string | null
+          instructor_id?: string | null
           location?: string | null
+          logo_url?: string | null
           meta_description?: Json | null
           meta_title?: Json | null
           posti_venduti?: number | null
           prezzo_cents?: number | null
+          recurrence_index?: number | null
+          recurrence_series_id?: string | null
+          registration_fields?: Json
           slug: string
           sottotitolo?: Json | null
           stripe_price_id?: string | null
+          trial_campaign_key?: string | null
           tipo?: Database["public"]["Enums"]["event_tipo_enum"]
           titolo: Json
           updated_at?: string | null
@@ -261,6 +275,7 @@ export type Database = {
           created_at?: string | null
           cta_tipo?: string | null
           cta_url?: string | null
+          cancelled_at?: string | null
           data_fine?: string | null
           data_inizio?: string
           descrizione?: Json | null
@@ -268,19 +283,69 @@ export type Database = {
           id?: string
           in_evidenza?: boolean | null
           indirizzo?: string | null
+          instructor_id?: string | null
           location?: string | null
+          logo_url?: string | null
           meta_description?: Json | null
           meta_title?: Json | null
           posti_venduti?: number | null
           prezzo_cents?: number | null
+          recurrence_index?: number | null
+          recurrence_series_id?: string | null
+          registration_fields?: Json
           slug?: string
           sottotitolo?: Json | null
           stripe_price_id?: string | null
+          trial_campaign_key?: string | null
           tipo?: Database["public"]["Enums"]["event_tipo_enum"]
           titolo?: Json
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "events_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_guests: {
+        Row: {
+          created_at: string
+          event_id: string
+          member_id: string
+          ordine_display: number
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          member_id: string
+          ordine_display?: number
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          member_id?: string
+          ordine_display?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_guests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_guests_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leads: {
         Row: {
@@ -397,9 +462,14 @@ export type Database = {
           buyer_nome: string
           buyer_telefono: string | null
           consenso_marketing: boolean | null
+          admin_notification_sent_at: string | null
+          completed_at: string | null
           created_at: string | null
+          customer_confirmation_sent_at: string | null
+          delivery_method: string
           delivered_at: string | null
           id: string
+          locale: string
           note_cliente: string | null
           numero_ordine: string
           ship_address_line1: string
@@ -426,9 +496,14 @@ export type Database = {
           buyer_nome: string
           buyer_telefono?: string | null
           consenso_marketing?: boolean | null
+          admin_notification_sent_at?: string | null
+          completed_at?: string | null
           created_at?: string | null
+          customer_confirmation_sent_at?: string | null
+          delivery_method?: string
           delivered_at?: string | null
           id?: string
+          locale?: string
           note_cliente?: string | null
           numero_ordine: string
           ship_address_line1: string
@@ -455,9 +530,14 @@ export type Database = {
           buyer_nome?: string
           buyer_telefono?: string | null
           consenso_marketing?: boolean | null
+          admin_notification_sent_at?: string | null
+          completed_at?: string | null
           created_at?: string | null
+          customer_confirmation_sent_at?: string | null
+          delivery_method?: string
           delivered_at?: string | null
           id?: string
+          locale?: string
           note_cliente?: string | null
           numero_ordine?: string
           ship_address_line1?: string
@@ -948,45 +1028,63 @@ export type Database = {
       }
       tickets: {
         Row: {
+          access_token: string
+          admin_email_sent_at: string | null
           amount_cents: number | null
           buyer_cognome: string | null
           buyer_email: string
           buyer_nome: string | null
           buyer_telefono: string | null
           created_at: string | null
+          customer_email_sent_at: string | null
           event_id: string | null
           id: string
+          locale: string
           qr_code: string | null
+          registration_answers: Json
+          short_code: string
           status: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent: string | null
           stripe_session_id: string | null
           used_at: string | null
         }
         Insert: {
+          access_token?: string
+          admin_email_sent_at?: string | null
           amount_cents?: number | null
           buyer_cognome?: string | null
           buyer_email: string
           buyer_nome?: string | null
           buyer_telefono?: string | null
           created_at?: string | null
+          customer_email_sent_at?: string | null
           event_id?: string | null
           id?: string
+          locale?: string
           qr_code?: string | null
+          registration_answers?: Json
+          short_code?: string
           status?: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent?: string | null
           stripe_session_id?: string | null
           used_at?: string | null
         }
         Update: {
+          access_token?: string
+          admin_email_sent_at?: string | null
           amount_cents?: number | null
           buyer_cognome?: string | null
           buyer_email?: string
           buyer_nome?: string | null
           buyer_telefono?: string | null
           created_at?: string | null
+          customer_email_sent_at?: string | null
           event_id?: string | null
           id?: string
+          locale?: string
           qr_code?: string | null
+          registration_answers?: Json
+          short_code?: string
           status?: Database["public"]["Enums"]["ticket_status_enum"] | null
           stripe_payment_intent?: string | null
           stripe_session_id?: string | null
@@ -1029,7 +1127,9 @@ export type Database = {
         | "paid"
         | "processing"
         | "shipped"
+        | "ready_for_pickup"
         | "delivered"
+        | "completed"
         | "cancelled"
         | "refunded"
       product_categoria_enum: "abbigliamento" | "accessori" | "altro"
@@ -1180,7 +1280,9 @@ const Constants = {
         "paid",
         "processing",
         "shipped",
+        "ready_for_pickup",
         "delivered",
+        "completed",
         "cancelled",
         "refunded",
       ],
@@ -1191,4 +1293,3 @@ const Constants = {
     },
   },
 } as const
-

@@ -1,113 +1,222 @@
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Package,
+  ShoppingBag,
+  Ticket,
+  Users,
+} from "lucide-react";
+import { Link } from "@/i18n/routing";
 import { createClient } from "@/lib/supabase/server";
-import { Users, ShoppingBag, Ticket, AlertTriangle, BarChart3, Activity } from "lucide-react";
+import { getLocalizedText } from "@/lib/i18n-utils";
+
+const euro = new Intl.NumberFormat("it-IT", {
+  style: "currency",
+  currency: "EUR",
+  maximumFractionDigits: 0,
+});
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
-
-  // Fetches in parallelo per i KPI
   const [
     { count: leadsCount },
-    { count: ordiniCount },
-    { count: ticketCount },
-    { count: stockBassoCount }
+    { count: ordersCount },
+    { count: ticketsCount },
+    { count: lowStockCount },
+    { data: recentOrders },
+    { data: nextEvents },
   ] = await Promise.all([
-    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'nuovo'),
-    supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
-    supabase.from('tickets').select('*', { count: 'exact', head: true }),
-    supabase.from('product_variants').select('*', { count: 'exact', head: true }).lte('stock', 3).eq('attivo', true)
+    supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "nuovo"),
+    supabase.from("orders").select("*", { count: "exact", head: true }).eq("status", "paid"),
+    supabase.from("tickets").select("*", { count: "exact", head: true }),
+    supabase.from("product_variants").select("*", { count: "exact", head: true }).lte("stock", 3).eq("attivo", true),
+    supabase
+      .from("orders")
+      .select("id, numero_ordine, buyer_nome, buyer_cognome, total_cents, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("events")
+      .select("id, titolo, data_inizio, location, attivo")
+      .gte("data_inizio", new Date().toISOString())
+      .order("data_inizio", { ascending: true })
+      .limit(4),
   ]);
 
+  const kpis = [
+    {
+      label: "Nuovi lead",
+      value: leadsCount || 0,
+      note: "richieste da gestire",
+      icon: Users,
+      href: "/admin/leads",
+      tone: "bg-blue-50 text-blue-700",
+    },
+    {
+      label: "Da spedire",
+      value: ordersCount || 0,
+      note: "ordini già pagati",
+      icon: ShoppingBag,
+      href: "/admin/ordini",
+      tone: "bg-green-50 text-green-700",
+    },
+    {
+      label: "Biglietti",
+      value: ticketsCount || 0,
+      note: "emessi in totale",
+      icon: Ticket,
+      href: "/admin/biglietti",
+      tone: "bg-purple-50 text-purple-700",
+    },
+    {
+      label: "Stock critico",
+      value: lowStockCount || 0,
+      note: "varianti da riordinare",
+      icon: AlertTriangle,
+      href: "/admin/prodotti",
+      tone: "bg-red-50 text-red-700",
+    },
+  ] as const;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
+      <section className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-end">
+        <div>
+          <span className="admin-eyebrow">Venerdì, 24 luglio</span>
+          <h2 className="mt-1 max-w-3xl text-xl font-semibold tracking-[-0.025em] text-slate-950 sm:text-2xl">
+            Panoramica operativa
+          </h2>
+          <p className="mt-1 max-w-2xl text-[13px] leading-5 text-slate-500">
+            Una vista operativa su vendite, community, attività e contenuti Meraki.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/admin/eventi/nuovo" className="admin-button admin-button-secondary">
+            <CalendarDays className="size-4" />
+            Nuovo evento
+          </Link>
+          <Link href="/admin/prodotti/nuovo" className="admin-button admin-button-primary">
+            <Package className="size-4" />
+            Nuovo prodotto
+          </Link>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((kpi) => {
+          const Icon = kpi.icon;
+          return (
+            <Link key={kpi.label} href={kpi.href} className="admin-kpi group">
+              <div className={`grid size-8 place-items-center rounded-[5px] ${kpi.tone}`}>
+                <Icon className="size-4" strokeWidth={1.8} />
+              </div>
+              <ArrowUpRight className="absolute right-5 top-5 size-4 text-black/20 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-black/60" />
+              <p className="mt-5 text-[11px] font-medium text-slate-500">{kpi.label}</p>
+              <div className="mt-1 flex items-end justify-between gap-3">
+                <strong className="text-2xl font-semibold tracking-[-0.04em]">{kpi.value}</strong>
+                <span className="pb-0.5 text-right text-[10px] leading-4 text-slate-400">{kpi.note}</span>
+              </div>
+            </Link>
+          );
+        })}
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.35fr_.85fr]">
+        <div className="admin-panel overflow-hidden">
+          <div className="admin-panel-header">
+            <div>
+              <span className="admin-eyebrow">Operazioni</span>
+              <h3 className="admin-panel-title">Ordini recenti</h3>
+            </div>
+            <Link href="/admin/ordini" className="admin-text-link">
+              Vedi tutti <ArrowUpRight className="size-3.5" />
+            </Link>
+          </div>
+          <div className="divide-y divide-black/[0.06]">
+            {(recentOrders || []).length > 0 ? (
+              recentOrders?.map((order) => (
+                <Link
+                  key={order.id}
+                  href={`/admin/ordini/${order.id}`}
+                  className="grid grid-cols-[1fr_auto] items-center gap-4 px-5 py-4 transition hover:bg-black/[0.025] sm:grid-cols-[1fr_130px_100px]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-extrabold">{order.buyer_nome} {order.buyer_cognome}</p>
+                    <p className="mt-1 text-[11px] font-semibold text-black/35">{order.numero_ordine}</p>
+                  </div>
+                  <span className="hidden text-xs font-bold text-black/45 sm:block">
+                    {order.created_at ? new Date(order.created_at).toLocaleDateString("it-IT") : "—"}
+                  </span>
+                  <span className="text-right text-sm font-black">
+                    {euro.format((order.total_cents || 0) / 100)}
+                  </span>
+                </Link>
+              ))
+            ) : (
+              <EmptyState icon={ShoppingBag} text="Nessun ordine recente" />
+            )}
+          </div>
+        </div>
+
+        <div className="admin-panel overflow-hidden">
+          <div className="admin-panel-header">
+            <div>
+              <span className="admin-eyebrow">Calendario</span>
+              <h3 className="admin-panel-title">Prossimi eventi</h3>
+            </div>
+            <Link href="/admin/eventi" className="admin-text-link">
+              Gestisci <ArrowUpRight className="size-3.5" />
+            </Link>
+          </div>
+          <div className="space-y-2 p-3">
+            {(nextEvents || []).length > 0 ? (
+              nextEvents?.map((event) => {
+                const date = event.data_inizio ? new Date(event.data_inizio) : null;
+                return (
+                  <Link
+                    key={event.id}
+                    href={`/admin/eventi/${event.id}`}
+                    className="flex items-center gap-3 rounded-[6px] p-2.5 transition hover:bg-slate-50"
+                  >
+                    <span className="grid size-10 shrink-0 place-items-center rounded-[5px] bg-slate-100 text-center">
+                      <span>
+                        <span className="block text-[9px] font-black uppercase leading-none">
+                          {date?.toLocaleDateString("it-IT", { month: "short" }) || "—"}
+                        </span>
+                        <span className="mt-1 block text-lg font-black leading-none">{date?.getDate() || "—"}</span>
+                      </span>
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-extrabold">{getLocalizedText(event.titolo, "it")}</span>
+                      <span className="mt-1 flex items-center gap-1 text-[11px] text-black/38">
+                        <Clock3 className="size-3" />
+                        {date?.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) || "Orario da definire"}
+                        {event.location ? ` · ${event.location}` : ""}
+                      </span>
+                    </span>
+                    <CheckCircle2 className="size-4 text-emerald-600/55" />
+                  </Link>
+                );
+              })
+            ) : (
+              <EmptyState icon={CalendarDays} text="Nessun evento in programma" />
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, text }: { icon: typeof ShoppingBag; text: string }) {
+  return (
+    <div className="grid min-h-44 place-items-center p-6 text-center">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard Overview</h1>
-        <p className="text-slate-500 mt-2">Benvenuto nel pannello di controllo Meraki Experience.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* KPI Card 1 */}
-        <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Nuovi Leads</p>
-              <h3 className="text-4xl font-extrabold text-slate-900 mt-2">{leadsCount || 0}</h3>
-            </div>
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-[14px]">
-              <Users className="w-6 h-6" />
-            </div>
-          </div>
-          <p className="text-xs font-semibold text-slate-400">Richieste da gestire</p>
-        </div>
-
-        {/* KPI Card 2 */}
-        <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Ordini da Spedire</p>
-              <h3 className="text-4xl font-extrabold text-slate-900 mt-2">{ordiniCount || 0}</h3>
-            </div>
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-[14px]">
-              <ShoppingBag className="w-6 h-6" />
-            </div>
-          </div>
-          <p className="text-xs font-semibold text-slate-400">Ordini pagati in attesa</p>
-        </div>
-
-        {/* KPI Card 3 */}
-        <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Biglietti Emessi</p>
-              <h3 className="text-4xl font-extrabold text-slate-900 mt-2">{ticketCount || 0}</h3>
-            </div>
-            <div className="p-3 bg-purple-50 text-purple-600 rounded-[14px]">
-              <Ticket className="w-6 h-6" />
-            </div>
-          </div>
-          <p className="text-xs font-semibold text-slate-400">Totale storico</p>
-        </div>
-
-        {/* KPI Card 4 */}
-        <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Allerte Stock</p>
-              <h3 className="text-4xl font-extrabold text-slate-900 mt-2">{stockBassoCount || 0}</h3>
-            </div>
-            <div className="p-3 bg-rose-50 text-rose-600 rounded-[14px]">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-          </div>
-          <p className="text-xs font-semibold text-slate-400">Varianti in esaurimento</p>
-        </div>
-
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white rounded-[24px] border border-slate-200 p-8 shadow-sm min-h-[400px] flex flex-col">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2.5 bg-slate-100 rounded-xl text-slate-600">
-              <BarChart3 className="w-5 h-5" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900">Andamento Vendite</h3>
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-[20px] bg-slate-50/50">
-            <p className="text-slate-400 text-sm font-medium">Grafico in elaborazione...</p>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-[24px] border border-slate-200 p-8 shadow-sm min-h-[400px] flex flex-col">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2.5 bg-slate-100 rounded-xl text-slate-600">
-              <Activity className="w-5 h-5" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900">Attività Recenti</h3>
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-[20px] bg-slate-50/50">
-            <p className="text-slate-400 text-sm font-medium">Feed attività in elaborazione...</p>
-          </div>
-        </div>
+        <Icon className="mx-auto size-6 text-black/20" />
+        <p className="mt-3 text-xs font-bold text-black/35">{text}</p>
       </div>
     </div>
   );

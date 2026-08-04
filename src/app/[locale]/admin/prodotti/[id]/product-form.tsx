@@ -205,7 +205,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
       </div>
 
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
-        <div className="flex justify-between items-center border-b border-border pb-2">
+        <div className="flex flex-col items-stretch gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-bold">Varianti e Magazzino</h2>
           <button 
             type="button" 

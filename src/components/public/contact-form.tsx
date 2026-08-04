@@ -8,15 +8,19 @@ export function ContactForm() {
   const t = useTranslations("Contact");
   const locale = useLocale();
   const [isPending, startTransition] = useTransition();
-  const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null);
+  const [result, setResult] = useState<{ success?: boolean; error?: string; reference?: string } | null>(null);
 
   async function action(formData: FormData) {
     setResult(null);
     startTransition(async () => {
-      const res = await submitContact(formData);
-      setResult(res);
-      if (res.success) {
-        (document.getElementById("contact-form") as HTMLFormElement)?.reset();
+      try {
+        const res = await submitContact(formData);
+        setResult(res);
+        if (res.success) {
+          (document.getElementById("contact-form") as HTMLFormElement)?.reset();
+        }
+      } catch {
+        setResult({ error: "Connessione interrotta. Controlla la rete e riprova: i dati inseriti sono ancora nel modulo." });
       }
     });
   }
@@ -28,6 +32,7 @@ export function ContactForm() {
         <p className="text-green-700 dark:text-green-400">
           {t("success_desc")}
         </p>
+        {result.reference && <p className="mt-3 text-xs font-medium text-green-700">Riferimento: {result.reference}</p>}
       </div>
     );
   }
@@ -36,23 +41,23 @@ export function ContactForm() {
     <form id="contact-form" action={action} className="space-y-6">
       <div className="space-y-2.5">
         <label htmlFor="nome" className="text-sm font-bold text-slate-700">{t("form_name")}</label>
-        <input type="text" id="nome" name="nome" required placeholder={t("form_name_placeholder")} className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all duration-300" />
+        <input type="text" id="nome" name="nome" required maxLength={160} autoComplete="name" placeholder={t("form_name_placeholder")} className="w-full px-5 py-4 text-base rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all duration-300" />
       </div>
       
       <div className="space-y-2.5">
         <label htmlFor="email" className="text-sm font-bold text-slate-700">{t("form_email")}</label>
-        <input type="email" id="email" name="email" required placeholder={t("form_email_placeholder")} className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all duration-300" />
+        <input type="email" id="email" name="email" required maxLength={254} autoComplete="email" inputMode="email" placeholder={t("form_email_placeholder")} className="w-full px-5 py-4 text-base rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all duration-300" />
       </div>
 
       <div className="space-y-2.5">
         <label htmlFor="messaggio" className="text-sm font-bold text-slate-700">{t("form_message")}</label>
-        <textarea id="messaggio" name="messaggio" required rows={5} placeholder={t("form_message_placeholder")} className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all duration-300 resize-none"></textarea>
+        <textarea id="messaggio" name="messaggio" required rows={5} maxLength={3000} placeholder={t("form_message_placeholder")} className="w-full px-5 py-4 text-base rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all duration-300 resize-none"></textarea>
       </div>
 
       <input type="hidden" name="locale" value={locale} />
 
       {result?.error && (
-        <div className="p-4 bg-red-50 text-red-700 text-sm font-medium rounded-xl border border-red-200">
+        <div role="alert" aria-live="assertive" className="p-4 bg-red-50 text-red-700 text-sm font-medium rounded-xl border border-red-200">
           {result.error}
         </div>
       )}

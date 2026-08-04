@@ -37,10 +37,7 @@ export default async function ContattiPage({ params }: { params: Promise<{ local
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-12 items-start">
           {/* Info Card */}
-          <div className="lg:col-span-2 bg-slate-900 rounded-[32px] md:rounded-[40px] p-6 sm:p-8 md:p-12 text-white shadow-[0_20px_40px_rgb(0,0,0,0.2)] relative overflow-hidden h-full flex flex-col justify-between">
-            {/* Background decoration */}
-            <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-slate-800 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
-            
+          <div className="lg:col-span-2 rounded-[32px] md:rounded-[40px] p-6 sm:p-8 md:p-12 text-white shadow-[0_18px_45px_-24px_rgba(15,23,42,0.55)] relative overflow-hidden h-full flex flex-col justify-between [background:radial-gradient(circle_at_100%_0%,#1e293b_0%,#0f172a_44%)]">
             <div className="relative z-10 space-y-10">
               <div>
                 <h3 className="text-2xl font-bold mb-8">{t("details_title")}</h3>

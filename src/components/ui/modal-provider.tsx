@@ -15,6 +15,8 @@ interface AlertOptions {
 interface ConfirmOptions {
   title?: string;
   message: string;
+  confirmLabel?: string;
+  destructive?: boolean;
 }
 
 interface PromptOptions {
@@ -196,9 +198,13 @@ export function ModalProvider({ children }: { children: ReactNode }) {
                   </button>
                   <button
                     onClick={() => handleConfirm(true)}
-                    className="flex-1 py-3.5 px-4 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 shadow-[0_4px_14px_0_rgba(79,70,229,0.39)] transition-all active:scale-[0.98]"
+                    className={`flex-1 rounded-xl px-4 py-3.5 font-medium text-white transition-all active:scale-[0.98] ${
+                      confirmConfig.destructive
+                        ? "bg-rose-600 shadow-[0_4px_14px_0_rgba(225,29,72,0.28)] hover:bg-rose-700"
+                        : "bg-indigo-600 shadow-[0_4px_14px_0_rgba(79,70,229,0.39)] hover:bg-indigo-700"
+                    }`}
                   >
-                    Conferma
+                    {confirmConfig.confirmLabel || "Conferma"}
                   </button>
                 </div>
               </div>
