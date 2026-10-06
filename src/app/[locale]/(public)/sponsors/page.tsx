@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 
-export async function generateMetadata({ params: { locale } }: { params: { locale: string } }) {
+export async function generateMetadata() {
   return {
     title: "Diventa Sponsor | ASD Meraki Experience",
     description: "Scopri come supportare il nostro progetto sportivo e i vantaggi di diventare un nostro partner ufficiale.",

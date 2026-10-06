@@ -3,7 +3,8 @@ import { Link } from "@/i18n/routing";
 import { ArrowLeft, Globe, Mail } from "lucide-react";
 import Image from "next/image";
 
-export async function generateMetadata({ params: { locale, slug } }: { params: { locale: string; slug: string } }) {
+export async function generateMetadata({ params }: { params: Promise<{ locale: string; slug: string }> }) {
+  const { slug } = await params;
   // In a real app, fetch the sponsor name by slug.
   const name = slug.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
   return {
@@ -12,7 +13,8 @@ export async function generateMetadata({ params: { locale, slug } }: { params: {
   };
 }
 
-export default async function SponsorDetailPage({ params: { slug } }: { params: { slug: string } }) {
+export default async function SponsorDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
   const name = slug.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
 
   return (
