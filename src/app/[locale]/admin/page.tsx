@@ -1,10 +1,8 @@
 import {
-  AlertTriangle,
   ArrowUpRight,
   CalendarDays,
   CheckCircle2,
   Clock3,
-  Package,
   ShoppingBag,
   Ticket,
   Users,
@@ -25,14 +23,12 @@ export default async function AdminDashboardPage() {
     { count: leadsCount },
     { count: ordersCount },
     { count: ticketsCount },
-    { count: lowStockCount },
     { data: recentOrders },
     { data: nextEvents },
   ] = await Promise.all([
     supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "nuovo"),
     supabase.from("orders").select("*", { count: "exact", head: true }).eq("status", "paid"),
     supabase.from("tickets").select("*", { count: "exact", head: true }),
-    supabase.from("product_variants").select("*", { count: "exact", head: true }).lte("stock", 3).eq("attivo", true),
     supabase
       .from("orders")
       .select("id, numero_ordine, buyer_nome, buyer_cognome, total_cents, status, created_at")
@@ -56,9 +52,9 @@ export default async function AdminDashboardPage() {
       tone: "bg-blue-50 text-blue-700",
     },
     {
-      label: "Da spedire",
+      label: "Ordini da completare",
       value: ordersCount || 0,
-      note: "ordini già pagati",
+      note: "dallo storico, già pagati",
       icon: ShoppingBag,
       href: "/admin/ordini",
       tone: "bg-green-50 text-green-700",
@@ -71,14 +67,6 @@ export default async function AdminDashboardPage() {
       href: "/admin/biglietti",
       tone: "bg-purple-50 text-purple-700",
     },
-    {
-      label: "Stock critico",
-      value: lowStockCount || 0,
-      note: "varianti da riordinare",
-      icon: AlertTriangle,
-      href: "/admin/prodotti",
-      tone: "bg-red-50 text-red-700",
-    },
   ] as const;
 
   return (
@@ -90,7 +78,7 @@ export default async function AdminDashboardPage() {
             Panoramica operativa
           </h2>
           <p className="mt-1 max-w-2xl text-[13px] leading-5 text-slate-500">
-            Una vista operativa su vendite, community, attività e contenuti Meraki.
+            Una vista operativa su community, attività, contenuti e ordini pregressi Meraki.
           </p>
         </div>
         <div className="flex gap-2">
@@ -98,14 +86,10 @@ export default async function AdminDashboardPage() {
             <CalendarDays className="size-4" />
             Nuovo evento
           </Link>
-          <Link href="/admin/prodotti/nuovo" className="admin-button admin-button-primary">
-            <Package className="size-4" />
-            Nuovo prodotto
-          </Link>
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
@@ -129,7 +113,7 @@ export default async function AdminDashboardPage() {
           <div className="admin-panel-header">
             <div>
               <span className="admin-eyebrow">Operazioni</span>
-              <h3 className="admin-panel-title">Ordini recenti</h3>
+              <h3 className="admin-panel-title">Storico ordini</h3>
             </div>
             <Link href="/admin/ordini" className="admin-text-link">
               Vedi tutti <ArrowUpRight className="size-3.5" />

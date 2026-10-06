@@ -10,13 +10,11 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Package,
   PanelLeftClose,
   Search,
   Settings,
   ShoppingBag,
   Sparkles,
-  Tag,
   Ticket,
   Users,
   X,
@@ -49,14 +47,13 @@ const sections: { label: string; items: NavItem[] }[] = [
     items: [
       { name: "Panoramica", href: "/admin", icon: LayoutDashboard },
       { name: "Lead e richieste", href: "/admin/leads", icon: Users },
-      { name: "Ordini", href: "/admin/ordini", icon: ShoppingBag },
+      { name: "Storico ordini", href: "/admin/ordini", icon: ShoppingBag },
       { name: "Biglietti", href: "/admin/biglietti", icon: Ticket },
     ],
   },
   {
     label: "Contenuti",
     items: [
-      { name: "Prodotti", href: "/admin/prodotti", icon: Package },
       { name: "Corsi", href: "/admin/corsi", icon: Dumbbell },
       { name: "Eventi", href: "/admin/eventi", icon: CalendarDays },
       { name: "Partner", href: "/admin/sponsors", icon: Handshake },
@@ -65,7 +62,6 @@ const sections: { label: string; items: NavItem[] }[] = [
   {
     label: "Crescita",
     items: [
-      { name: "Coupon", href: "/admin/coupon", icon: Tag },
       { name: "Prova gratuita", href: "/admin/prova-gratuita", icon: Sparkles },
       { name: "Impostazioni sito", href: "/admin/impostazioni", icon: Settings },
     ],

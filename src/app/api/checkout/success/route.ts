@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { clearCart } from "@/lib/shop/cart-actions";
+import { cookies } from "next/headers";
 import { stripe } from "@/lib/stripe/client";
 import { fulfillShopOrder } from "@/lib/stripe/fulfill-shop-order";
 import { fulfillTicket } from "@/lib/stripe/fulfill-ticket";
@@ -22,9 +22,9 @@ export async function GET(request: Request) {
 
     const locale = session.metadata?.locale || "it";
     if (type === "shop") {
-      // The Stripe session is the source of truth for payment. Clear the
-      // browser cart immediately, independently from webhook timing.
-      await clearCart();
+      // Retain confirmation for payments started before the shop was removed.
+      const cookieStore = await cookies();
+      cookieStore.delete("meraki_cart");
       await fulfillShopOrder(session);
     } else if (type === "ticket") {
       const ticket = await fulfillTicket(session);

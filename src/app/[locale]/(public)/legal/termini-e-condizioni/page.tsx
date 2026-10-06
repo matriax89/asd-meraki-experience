@@ -15,9 +15,6 @@ export default async function TerminiECondizioniPage({ params }: { params: Promi
       <h2>{t("sec2_title")}</h2>
       <p dangerouslySetInnerHTML={{ __html: t("sec2_desc") }} />
 
-      <h2>{t("sec3_title")}</h2>
-      <p dangerouslySetInnerHTML={{ __html: t("sec3_desc") }} />
-
       <h2>{t("sec4_title")}</h2>
       <p dangerouslySetInnerHTML={{ __html: t("sec4_desc") }} />
 

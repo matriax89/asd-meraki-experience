@@ -76,8 +76,8 @@ export default async function AdminOrdiniPage() {
     <div className="space-y-6">
       <div className="admin-page-heading">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Ordini Shop</h1>
-          <p className="text-slate-500 mt-2">Gestisci gli ordini e-commerce e le spedizioni.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Storico ordini</h1>
+          <p className="text-slate-500 mt-2">Consulta gli ordini precedenti e completa le consegne ancora in sospeso.</p>
         </div>
         <form action={syncPaidStripeOrders} className="w-full sm:w-auto">
           <button type="submit" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto">

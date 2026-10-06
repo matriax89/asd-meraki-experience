@@ -2,7 +2,6 @@ import { Header } from "@/components/public/header";
 import { Footer } from "@/components/public/footer";
 import { CookieBanner } from "@/components/public/cookie-banner";
 import { GlobalPopup } from "@/components/public/global-popup";
-import { getCart } from "@/lib/shop/cart-actions";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function PublicLayout({
@@ -10,10 +9,6 @@ export default async function PublicLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Get initial cart count
-  const cart = await getCart();
-  const initialCartCount = cart.items.reduce((acc, item) => acc + item.quantity, 0);
-
   // Fetch popup settings
   const supabase = await createClient();
   const { data: settings } = await supabase
@@ -23,6 +18,8 @@ export default async function PublicLayout({
     .single();
     
   const popupData = (settings?.value as any)?.popup || null;
+  // Suppress saved promotions that still point to the retired storefront.
+  const popupTargetsRemovedShop = /^(?:https?:\/\/(?:www\.)?merakiexperience\.org)?\/(?:(?:it|en|de)\/)?(?:shop|carrello)(?:[/?#]|$)/i.test(popupData?.link_bottone || "");
   const brandingData = (settings?.value as any)?.branding || null;
   const contactsData = (settings?.value as any)?.contacts || null;
   const footerData = (settings?.value as any)?.footer_text || null;
@@ -30,11 +27,11 @@ export default async function PublicLayout({
 
   return (
     <>
-      <Header initialCartCount={initialCartCount} logoUrl={brandingData?.logo_url} logoWhiteUrl={brandingData?.logo_white_url} />
+      <Header logoUrl={brandingData?.logo_url} logoWhiteUrl={brandingData?.logo_white_url} />
       {children}
       <Footer logoUrl={brandingData?.logo_url} locations={locations} branding={brandingData} contacts={contactsData} footerData={footerData} />
       <CookieBanner />
-      <GlobalPopup data={popupData} />
+      <GlobalPopup data={popupTargetsRemovedShop ? null : popupData} />
     </>
   );
 }

@@ -48,18 +48,13 @@
         "dom": "SO"
       }
     },
-    "shop": {
-      "badge": "Veranstaltungen & Merchandising",
-      "title": "Neuigkeiten & Shop",
-      "view_all": "Alles ansehen",
+    "initiatives": {
+      "badge": "Veranstaltungen & Solidarität",
+      "title": "Veranstaltungen und Initiativen",
       "workshop_badge": "Neuer Workshop",
       "workshop_title": "Masterclass",
       "workshop_desc": "Buche deinen Platz für das nächste exklusive Event.",
       "workshop_cta": "Ticket kaufen",
-      "merch_badge": "Bekleidung",
-      "merch_title": "Meraki Official Merch",
-      "merch_desc": "Entdecke die neue Kollektion von Sportbekleidung und Meraki-Accessoires.",
-      "merch_cta": "Shop erkunden",
       "donate_badge": "Unterstütze uns",
       "donate_title": "Meraki unterstützen",
       "donate_desc": "Hilf uns, unsere Community zu vergrößern. Jede Spende ermöglicht es uns, neue Veranstaltungen zu organisieren und die Ausrüstung zu verbessern.",
@@ -70,7 +65,6 @@
     "chi_siamo": "Über uns",
     "corsi": "Kurse",
     "orario": "Stundenplan",
-    "shop": "Shop",
     "eventi": "Veranstaltungen",
     "contatti": "Kontakt",
     "eventi": "Events",
@@ -122,12 +116,6 @@
     "area_admin": "Admin-Bereich",
     "location_bz": "Bozen (BZ)",
     "location_ap": "Eppan (BZ)"
-  },
-  "ShopPage": {
-    "title": "Shop",
-    "badge": "Meraki Shop",
-    "headline": "Offizieller Shop",
-    "subheadline": "Entdecke unsere Kollektion an technischer Bekleidung, Accessoires und exklusivem Merchandising von Meraki Experience."
   },
   "EventsPage": {
     "title": "Events",
@@ -187,7 +175,7 @@
       "sec1_desc": "Cookies sind kleine Textdateien, die von den vom Benutzer besuchten Websites an sein Endgerät gesendet werden, wo sie gespeichert und bei jedem weiteren Besuch an dieselben Websites zurückgesendet werden.",
       "sec2_title": "2. Von dieser Website verwendete Cookies",
       "sec2_desc": "Diese Website verwendet folgende Arten von Cookies:",
-      "sec2_li1": "<strong>Unbedingt erforderliche Cookies:</strong> Unerlässlich für das ordnungsgemäße Funktionieren der Website, die Navigation, die Warenkorbverwaltung und die Sicherheit. Sie können nicht deaktiviert werden.",
+      "sec2_li1": "<strong>Unbedingt erforderliche Cookies:</strong> Unerlässlich für das ordnungsgemäße Funktionieren der Website, die Navigation und die Sicherheit. Sie können nicht deaktiviert werden.",
       "sec2_li2": "<strong>Statistische Cookies (Analytics):</strong> Helfen uns zu verstehen, wie Besucher mit der Website interagieren, indem Informationen anonym und in aggregierter Form gesammelt werden.",
       "sec2_li3": "<strong>Marketing-Cookies:</strong> Werden verwendet, um Besucher über Websites hinweg zu verfolgen, mit der Absicht, dem einzelnen Benutzer relevante und ansprechende Anzeigen zu präsentieren.",
       "sec3_title": "3. Verwaltung der Einstellungen",
@@ -204,11 +192,9 @@
       "sec1_desc": "Diese Allgemeinen Geschäftsbedingungen regeln die Nutzung der Webplattform \"Meraki Experience\" und der von der Amateursportvereinigung Meraki Experience angebotenen Dienste. Der Zugriff auf und die Nutzung der Website setzt die vollständige Akzeptanz der folgenden Bedingungen voraus.",
       "sec2_title": "2. Mitgliedschaft und Anmeldung",
       "sec2_desc": "Die Teilnahme an den von ASD Meraki Experience organisierten Aktivitäten ist den ordnungsgemäß angemeldeten Mitgliedern mit gültiger Jahresmitgliedschaft vorbehalten. Der Kauf von Paketen oder Kursen über die Website ersetzt nicht die Verpflichtung zur Vorlage der erforderlichen medizinischen Unterlagen (ärztliches Attest für Nicht-Leistungssport).",
-      "sec3_title": "3. E-Commerce-Käufe",
-      "sec3_desc": "Produkte, die im Online-Shop verkauft werden, unterliegen der Verfügbarkeit. Die angegebenen Preise enthalten die gesetzliche Mehrwertsteuer. Die Zahlung erfolgt sicher über die Stripe-Plattform. Im Falle eines defekten Produkts oder einer falschen Größe hat der Benutzer das Recht, dieses innerhalb von 14 Werktagen nach Erhalt zurückzugeben, sofern der Artikel nicht benutzt wurde.",
-      "sec4_title": "4. Rückerstattungen und Stornierungen von Veranstaltungen",
+      "sec4_title": "3. Rückerstattungen und Stornierungen von Veranstaltungen",
       "sec4_desc": "Tickets für Workshops oder Sonderveranstaltungen sind nicht erstattungsfähig, es sei denn, die Veranstaltung wird von der Organisation abgesagt. In einem solchen Fall wird eine vollständige Rückerstattung oder ein Gutschein in gleichem Wert ausgestellt.",
-      "sec5_title": "5. Änderungen der Bedingungen",
+      "sec5_title": "4. Änderungen der Bedingungen",
       "sec5_desc": "ASD Meraki Experience behält sich das Recht vor, diese Allgemeinen Geschäftsbedingungen jederzeit zu ändern. Änderungen treten sofort nach Veröffentlichung auf der Website in Kraft."
     }
   }

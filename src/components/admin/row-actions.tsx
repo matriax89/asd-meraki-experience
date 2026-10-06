@@ -5,12 +5,11 @@ import { useRouter } from "@/i18n/routing";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import { AlertDialog, Button, Flex, IconButton, Tooltip } from "@radix-ui/themes";
 import { toast } from "sonner";
-import { deleteProduct } from "@/app/api/admin/prodotti/actions";
 import { deleteCourse } from "@/app/api/admin/corsi/actions";
 import { deleteEvent } from "@/app/api/admin/eventi/actions";
 import { deleteSponsor } from "@/app/api/admin/sponsors/actions";
 
-type DeletableEntity = "product" | "course" | "event" | "sponsor";
+type DeletableEntity = "course" | "event" | "sponsor";
 
 type RowActionsProps = {
   id: string;
@@ -28,7 +27,6 @@ export function RowActions({ id, editHref, label, mode = "edit", deleteEntity }:
     if (!deleteEntity) return;
     setPending(true);
     const result =
-      deleteEntity === "product" ? await deleteProduct(id) :
       deleteEntity === "course" ? await deleteCourse(id) :
       deleteEntity === "event" ? await deleteEvent(id) :
       await deleteSponsor(id);

@@ -48,18 +48,13 @@
         "dom": "DOM"
       }
     },
-    "shop": {
-      "badge": "Eventi & Merchandising",
-      "title": "Novità & Shop",
-      "view_all": "Vedi tutto",
+    "initiatives": {
+      "badge": "Eventi & Solidarietà",
+      "title": "Eventi e iniziative",
       "workshop_badge": "Nuovo Workshop",
       "workshop_title": "Masterclass",
       "workshop_desc": "Prenota il tuo posto per il prossimo evento esclusivo.",
       "workshop_cta": "Acquista biglietto",
-      "merch_badge": "Abbigliamento",
-      "merch_title": "Meraki Official Merch",
-      "merch_desc": "Scopri la nuova collezione di abbigliamento sportivo e accessori logati Meraki.",
-      "merch_cta": "Esplora lo shop",
       "donate_badge": "Sostienici",
       "donate_title": "Supporta Meraki",
       "donate_desc": "Aiutaci a far crescere la nostra community. Ogni donazione ci permette di organizzare nuovi eventi e migliorare le attrezzature.",
@@ -70,7 +65,6 @@
     "chi_siamo": "Chi siamo",
     "corsi": "Corsi",
     "orario": "Orario",
-    "shop": "Shop",
     "eventi": "Eventi",
     "contatti": "Contatti",
     "eventi": "Eventi",
@@ -122,12 +116,6 @@
     "area_admin": "Area Admin",
     "location_bz": "Bolzano (BZ)",
     "location_ap": "Appiano (BZ)"
-  },
-  "ShopPage": {
-    "title": "Shop",
-    "badge": "Meraki Shop",
-    "headline": "Shop Ufficiale",
-    "subheadline": "Scopri la nostra collezione di abbigliamento tecnico, accessori e merchandising esclusivo firmato Meraki Experience."
   },
   "EventsPage": {
     "title": "Eventi",
@@ -187,7 +175,7 @@
       "sec1_desc": "I cookie sono piccoli file di testo che i siti visitati dall'utente inviano al suo terminale, dove vengono memorizzati per essere poi ritrasmessi agli stessi siti alla successiva visita.",
       "sec2_title": "2. Cookie Utilizzati da questo Sito",
       "sec2_desc": "Questo sito utilizza le seguenti tipologie di cookie:",
-      "sec2_li1": "<strong>Cookie Strettamente Necessari:</strong> Indispensabili per il corretto funzionamento del sito, la navigazione, la gestione del carrello e la sicurezza. Non possono essere disabilitati.",
+      "sec2_li1": "<strong>Cookie Strettamente Necessari:</strong> Indispensabili per il corretto funzionamento del sito, la navigazione e la sicurezza. Non possono essere disabilitati.",
       "sec2_li2": "<strong>Cookie Statistici (Analytics):</strong> Ci aiutano a capire come i visitatori interagiscono con il sito, raccogliendo informazioni in forma anonima e aggregata.",
       "sec2_li3": "<strong>Cookie di Marketing:</strong> Utilizzati per tracciare i visitatori attraverso i siti web con l'intento di mostrare annunci pertinenti e coinvolgenti per il singolo utente.",
       "sec3_title": "3. Gestione delle Preferenze",
@@ -204,11 +192,9 @@
       "sec1_desc": "I presenti Termini e Condizioni disciplinano l'utilizzo della piattaforma web \"Meraki Experience\" e i servizi offerti dall'Associazione Sportiva Dilettantistica Meraki Experience. L'accesso e l'utilizzo del sito implicano l'accettazione integrale dei seguenti termini.",
       "sec2_title": "2. Adesione e Tesseramento",
       "sec2_desc": "La partecipazione alle attività organizzate da ASD Meraki Experience è riservata ai soci regolarmente iscritti e in regola con il tesseramento annuale. L'acquisto di pacchetti o corsi tramite il sito non sostituisce l'obbligo di presentare la documentazione medica richiesta (certificato medico non agonistico).",
-      "sec3_title": "3. Acquisti E-Commerce",
-      "sec3_desc": "I prodotti in vendita nello shop online sono soggetti a disponibilità. I prezzi indicati sono comprensivi di IVA. Il pagamento avviene in forma sicura tramite la piattaforma Stripe. In caso di prodotto difettoso o taglia errata, l'utente ha diritto al reso entro 14 giorni lavorativi dalla ricezione, a condizione che l'articolo non sia stato utilizzato.",
-      "sec4_title": "4. Rimborsi e Cancellazioni Eventi",
+      "sec4_title": "3. Rimborsi e Cancellazioni Eventi",
       "sec4_desc": "I biglietti per workshop o eventi speciali non sono rimborsabili, salvo cancellazione dell'evento da parte dell'organizzazione. In tal caso, sarà emesso un rimborso integrale o un voucher di pari valore.",
-      "sec5_title": "5. Modifiche ai Termini",
+      "sec5_title": "4. Modifiche ai Termini",
       "sec5_desc": "ASD Meraki Experience si riserva il diritto di modificare i presenti Termini e Condizioni in qualsiasi momento. Le modifiche avranno effetto immediato dalla pubblicazione sul sito."
     }
   }

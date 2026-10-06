@@ -1,4 +1,4 @@
-import { Check, ShoppingBag } from "lucide-react";
+import { Check } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { stripe } from "@/lib/stripe/client";
 import { notFound } from "next/navigation";
@@ -23,12 +23,9 @@ export default async function ConfermaPagamentoPage({
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">Pagamento confermato</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Grazie per il tuo ordine</h1>
         <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
-          Stiamo completando il riepilogo. Riceverai la conferma via email; il tuo carrello è già stato svuotato.
+          Stiamo completando il riepilogo. Riceverai la conferma via email.
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link href="/shop" className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-            <ShoppingBag size={17} /> Torna allo shop
-          </Link>
           <Link href="/" className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Vai alla homepage
           </Link>

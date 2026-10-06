@@ -6,14 +6,14 @@ import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions";
 import { compressImageToWebp, convertImageToPng } from "@/lib/image-utils";
 import { useModal } from "@/components/ui/modal-provider";
-import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail, Home, Users, Images, FileText, Plug, ShoppingBag, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
+import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail, Home, Users, Images, FileText, Plug, CalendarDays, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "@/i18n/routing";
 
 const settingsSections = [
   { id: "base", label: "Identità", description: "Colori, logo e SEO", icon: Palette },
   { id: "homepage", label: "Homepage", description: "Hero, testi e valori", icon: Home },
-  { id: "offerta", label: "Offerta", description: "Shop e prenotazioni", icon: ShoppingBag },
+  { id: "offerta", label: "Iniziative", description: "Eventi, sostegno e prenotazioni", icon: CalendarDays },
   { id: "persone", label: "Persone", description: "Direttivo e istruttori", icon: Users },
   { id: "media", label: "Media", description: "Immagini e video", icon: Images },
   { id: "promo", label: "Promozione", description: "Partner reali e popup", icon: Megaphone },
@@ -99,25 +99,23 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
     copyright: "Tutti i diritti riservati."
   });
 
-  const [shopText, setShopText] = useState(initialData?.shop_text || {
-    badge: "Novità & Shop",
-    title: "Esplora le nostre collezioni",
-    workshop_badge: "Workshop",
-    workshop_title: "Masterclass & Eventi",
-    workshop_desc: "Partecipa a sessioni speciali, approfondimenti tematici ed eventi esclusivi organizzati dalla nostra associazione per arricchire la tua pratica.",
-    workshop_cta: "Scopri i prossimi eventi",
-    merch_badge: "Merchandising",
-    merch_title: "Abbigliamento & Accessori",
-    merch_desc: "Indossa i valori di Meraki. Scopri la nostra linea esclusiva di abbigliamento sportivo e accessori pensati per il tuo benessere.",
-    merch_cta: "Vai allo shop online",
-    donate_badge: "Sostieni",
-    donate_title: "Supporta l'Associazione",
-    donate_desc: "Aiutaci a promuovere il benessere e a migliorare costantemente i nostri servizi e la nostra struttura per tutti gli associati.",
-    donate_cta: "Fai una donazione",
-    donate_link: "https://www.retedeldono.it/progetto/aiutaci-portare-il-fitness-dove-conta",
-    workshop_image_url: "",
-    merch_image_url: "",
-    donate_image_url: ""
+  const initiativeCardText = (field: string, fallback: string) =>
+    initialData?.initiatives_text?.[field] ?? initialData?.shop_text?.[field] ?? fallback;
+
+  const [initiativesText, setInitiativesText] = useState({
+    badge: initialData?.initiatives_text?.badge ?? "Iniziative",
+    title: initialData?.initiatives_text?.title ?? "Eventi e sostegno",
+    workshop_badge: initiativeCardText("workshop_badge", "Workshop"),
+    workshop_title: initiativeCardText("workshop_title", "Masterclass & Eventi"),
+    workshop_desc: initiativeCardText("workshop_desc", "Partecipa a sessioni speciali, approfondimenti tematici ed eventi esclusivi organizzati dalla nostra associazione per arricchire la tua pratica."),
+    workshop_cta: initiativeCardText("workshop_cta", "Scopri i prossimi eventi"),
+    donate_badge: initiativeCardText("donate_badge", "Sostieni"),
+    donate_title: initiativeCardText("donate_title", "Supporta l'Associazione"),
+    donate_desc: initiativeCardText("donate_desc", "Aiutaci a promuovere il benessere e a migliorare costantemente i nostri servizi e la nostra struttura per tutti gli associati."),
+    donate_cta: initiativeCardText("donate_cta", "Fai una donazione"),
+    donate_link: initiativeCardText("donate_link", "https://www.retedeldono.it/progetto/aiutaci-portare-il-fitness-dove-conta"),
+    workshop_image_url: initiativeCardText("workshop_image_url", ""),
+    donate_image_url: initiativeCardText("donate_image_url", "")
   });
 
   const [documenti, setDocumenti] = useState(initialData?.documenti || {
@@ -179,7 +177,7 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
       direttivo: direttivo,
       values: values,
       footer_text: footerText,
-      shop_text: shopText,
+      initiatives_text: initiativesText,
       youtube_videos: youtubeVideos,
       theme_colors: themeColors,
       popup: popup,
@@ -261,12 +259,10 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
           setMedia({ ...media, documenti_bg_url: res.url });
         } else if (index === 'media_masterclass') {
           setMedia({ ...media, masterclass_bg_url: res.url });
-        } else if (index === 'shop_workshop_img') {
-          setShopText({ ...shopText, workshop_image_url: res.url });
-        } else if (index === 'shop_merch_img') {
-          setShopText({ ...shopText, merch_image_url: res.url });
-        } else if (index === 'shop_donate_img') {
-          setShopText({ ...shopText, donate_image_url: res.url });
+        } else if (index === 'initiatives_workshop_img') {
+          setInitiativesText((current) => ({ ...current, workshop_image_url: res.url }));
+        } else if (index === 'initiatives_donate_img') {
+          setInitiativesText((current) => ({ ...current, donate_image_url: res.url }));
         }
         if (brandingField) {
           const publishResult = await publishBrandingAsset(brandingField, res.url);
@@ -897,20 +893,20 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
           </div>
         </div>
 
-        {/* Shop Texts */}
+        {/* Testi iniziative */}
         <div className={sectionClass("offerta")}>
           <div className="flex justify-between items-center border-b pb-2 mt-8">
-            <h3 className="text-lg font-semibold text-slate-800">7. Testi Sezione Novità & Shop</h3>
+            <h3 className="text-lg font-semibold text-slate-800">7. Testi Sezione Iniziative</h3>
           </div>
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Badge (Sopratitolo)</label>
-                <input value={shopText.badge} onChange={(e) => setShopText({...shopText, badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                <input value={initiativesText.badge} onChange={(e) => setInitiativesText({...initiativesText, badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo Principale</label>
-                <input value={shopText.title} onChange={(e) => setShopText({...shopText, title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                <input value={initiativesText.title} onChange={(e) => setInitiativesText({...initiativesText, title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
               </div>
             </div>
             
@@ -920,62 +916,28 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Badge</label>
-                  <input value={shopText.workshop_badge} onChange={(e) => setShopText({...shopText, workshop_badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                  <input value={initiativesText.workshop_badge} onChange={(e) => setInitiativesText({...initiativesText, workshop_badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
-                  <input value={shopText.workshop_title} onChange={(e) => setShopText({...shopText, workshop_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                  <input value={initiativesText.workshop_title} onChange={(e) => setInitiativesText({...initiativesText, workshop_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
-                  <textarea value={shopText.workshop_desc} onChange={(e) => setShopText({...shopText, workshop_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
+                  <textarea value={initiativesText.workshop_desc} onChange={(e) => setInitiativesText({...initiativesText, workshop_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
-                  <input value={shopText.workshop_cta} onChange={(e) => setShopText({...shopText, workshop_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                  <input value={initiativesText.workshop_cta} onChange={(e) => setInitiativesText({...initiativesText, workshop_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Sfondo Card (URL o Upload)</label>
                   <div className="flex gap-2 items-center">
-                    <input value={shopText.workshop_image_url || ""} onChange={(e) => setShopText({...shopText, workshop_image_url: e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="URL immagine" />
-                    <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'shop_workshop_img' ? 'opacity-50 pointer-events-none' : ''}`}>
-                      {uploadingImageIndex === 'shop_workshop_img' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    <input value={initiativesText.workshop_image_url || ""} onChange={(e) => setInitiativesText({...initiativesText, workshop_image_url: e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="URL immagine" />
+                    <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'initiatives_workshop_img' ? 'opacity-50 pointer-events-none' : ''}`}>
+                      {uploadingImageIndex === 'initiatives_workshop_img' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                       <span className="ml-2 text-sm font-medium hidden sm:inline">Upload</span>
-                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('shop_workshop_img', e)} className="hidden" />
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card Merchandising */}
-            <div className="pt-4 border-t border-slate-200">
-              <h4 className="font-semibold text-slate-700 mb-3">Card 2: Merchandising</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Badge</label>
-                  <input value={shopText.merch_badge} onChange={(e) => setShopText({...shopText, merch_badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
-                  <input value={shopText.merch_title} onChange={(e) => setShopText({...shopText, merch_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
-                  <textarea value={shopText.merch_desc} onChange={(e) => setShopText({...shopText, merch_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
-                  <input value={shopText.merch_cta} onChange={(e) => setShopText({...shopText, merch_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Sfondo Card (URL o Upload)</label>
-                  <div className="flex gap-2 items-center">
-                    <input value={shopText.merch_image_url || ""} onChange={(e) => setShopText({...shopText, merch_image_url: e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="URL immagine (opzionale)" />
-                    <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'shop_merch_img' ? 'opacity-50 pointer-events-none' : ''}`}>
-                      {uploadingImageIndex === 'shop_merch_img' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      <span className="ml-2 text-sm font-medium hidden sm:inline">Upload</span>
-                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('shop_merch_img', e)} className="hidden" />
+                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('initiatives_workshop_img', e)} className="hidden" />
                     </label>
                   </div>
                 </div>
@@ -984,36 +946,36 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
 
             {/* Card Donazione */}
             <div className="pt-4 border-t border-slate-200">
-              <h4 className="font-semibold text-slate-700 mb-3">Card 3: Donazione</h4>
+              <h4 className="font-semibold text-slate-700 mb-3">Card 2: Donazione</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Badge</label>
-                  <input value={shopText.donate_badge} onChange={(e) => setShopText({...shopText, donate_badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                  <input value={initiativesText.donate_badge} onChange={(e) => setInitiativesText({...initiativesText, donate_badge: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Titolo</label>
-                  <input value={shopText.donate_title} onChange={(e) => setShopText({...shopText, donate_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                  <input value={initiativesText.donate_title} onChange={(e) => setInitiativesText({...initiativesText, donate_title: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Descrizione</label>
-                  <textarea value={shopText.donate_desc} onChange={(e) => setShopText({...shopText, donate_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
+                  <textarea value={initiativesText.donate_desc} onChange={(e) => setInitiativesText({...initiativesText, donate_desc: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" rows={2} />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Bottone</label>
-                  <input value={shopText.donate_cta} onChange={(e) => setShopText({...shopText, donate_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                  <input value={initiativesText.donate_cta} onChange={(e) => setInitiativesText({...initiativesText, donate_cta: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Link Destinazione Bottone</label>
-                  <input value={shopText.donate_link || ""} onChange={(e) => setShopText({...shopText, donate_link: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="https://..." />
+                  <input value={initiativesText.donate_link || ""} onChange={(e) => setInitiativesText({...initiativesText, donate_link: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="https://..." />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Sfondo Card (URL o Upload)</label>
                   <div className="flex gap-2 items-center">
-                    <input value={shopText.donate_image_url || ""} onChange={(e) => setShopText({...shopText, donate_image_url: e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="URL immagine (opzionale)" />
-                    <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'shop_donate_img' ? 'opacity-50 pointer-events-none' : ''}`}>
-                      {uploadingImageIndex === 'shop_donate_img' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    <input value={initiativesText.donate_image_url || ""} onChange={(e) => setInitiativesText({...initiativesText, donate_image_url: e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" placeholder="URL immagine (opzionale)" />
+                    <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'initiatives_donate_img' ? 'opacity-50 pointer-events-none' : ''}`}>
+                      {uploadingImageIndex === 'initiatives_donate_img' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                       <span className="ml-2 text-sm font-medium hidden sm:inline">Upload</span>
-                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('shop_donate_img', e)} className="hidden" />
+                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('initiatives_donate_img', e)} className="hidden" />
                     </label>
                   </div>
                 </div>
@@ -1208,7 +1170,7 @@ export function SettingsClient({ initialData, initialIstruttori, initialSponsors
                     value={popup.link_bottone}
                     onChange={(e) => setPopup({...popup, link_bottone: e.target.value})}
                     className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
-                    placeholder="Es. /shop oppure https://..."
+                    placeholder="Es. /eventi oppure https://..."
                   />
                 </div>
               </div>

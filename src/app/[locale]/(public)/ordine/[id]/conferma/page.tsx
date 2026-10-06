@@ -98,8 +98,8 @@ export default async function ConfermaOrdinePage({
           </div>
           
           <div className="mt-8 pt-8 border-t border-border flex justify-center">
-            <Link href="/shop" className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold py-3 px-6 rounded-lg transition-colors">
-              Torna allo Shop
+            <Link href="/" className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold py-3 px-6 rounded-lg transition-colors">
+              Vai alla homepage
             </Link>
           </div>
         </div>
