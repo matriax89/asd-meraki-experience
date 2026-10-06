@@ -93,6 +93,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const documenti = content.documenti || {};
   const locations = content.locations || ["Bolzano", "Appiano", "Altro"];
   const branding = content.branding || {};
+  const initiatives = { ...content.shop_text, ...content.initiatives_text };
 
   return (
     <main className="flex flex-col min-h-[100dvh]">
@@ -434,76 +435,40 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         </div>
       </section>
 
-      {/* ═══════ NOVITÀ & SHOP ═══════ */}
+      {/* ═══════ EVENTI E INIZIATIVE ═══════ */}
       <section className="py-24 md:py-32">
         <div className="container">
           <FadeIn className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-14">
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-3">{content.shop_text?.badge || t("shop.badge")}</p>
-              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">{content.shop_text?.title || t("shop.title")}</h2>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-3">{content.initiatives_text?.badge || t("initiatives.badge")}</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">{content.initiatives_text?.title || t("initiatives.title")}</h2>
             </div>
-            <Link href="/shop" className="text-sm font-semibold text-foreground hover:underline inline-flex items-center gap-1">
-              {t("shop.view_all")} <ArrowRight className="w-4 h-4" />
-            </Link>
           </FadeIn>
 
-          <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <StaggerItem className="h-full">
               <Link href="/eventi" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-900 text-white">
                 {/* Background Image that sits behind the white card */}
                 <div className="absolute top-0 left-0 w-full h-[65%] flex items-center justify-center overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-transparent to-slate-800 z-10 pointer-events-none" />
-                  <Image src={content.shop_text?.workshop_image_url || media.masterclass_bg_url || "/images/v2/aerial_glow.png"} alt="Workshop" fill className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out z-0" />
+                  <Image src={initiatives.workshop_image_url || media.masterclass_bg_url || "/images/v2/aerial_glow.png"} alt="Workshop" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out z-0" />
                 </div>
                 
                 {/* Top Spacer */}
                 <div className="h-56 shrink-0 relative z-10">
                   <div className="absolute top-6 left-6 z-20 bg-white/10 backdrop-blur-md text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                    {content.shop_text?.workshop_badge || t("shop.workshop_badge")}
+                    {initiatives.workshop_badge || t("initiatives.workshop_badge")}
                   </div>
                 </div>
 
                 {/* Content Section overlapping with rounded top corners */}
                 <div className="relative z-20 flex flex-col flex-1 p-8 bg-slate-800 rounded-t-[32px] mt-auto border-t border-slate-700/50">
-                  <h3 className="text-2xl font-bold tracking-tight text-white mb-3 group-hover:text-slate-200 transition-colors">{content.shop_text?.workshop_title || t("shop.workshop_title")}</h3>
-                  <p className="text-[15px] text-slate-300 mb-6 leading-relaxed flex-1 whitespace-pre-line">{content.shop_text?.workshop_desc || t("shop.workshop_desc")}</p>
+                  <h3 className="text-2xl font-bold tracking-tight text-white mb-3 group-hover:text-slate-200 transition-colors">{initiatives.workshop_title || t("initiatives.workshop_title")}</h3>
+                  <p className="text-[15px] text-slate-300 mb-6 leading-relaxed flex-1 whitespace-pre-line">{initiatives.workshop_desc || t("initiatives.workshop_desc")}</p>
                   
                   <div className="mt-auto">
                     <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white text-slate-900 px-5 text-[13px] font-bold tracking-wide transition-all group-hover:bg-slate-100">
-                      {content.shop_text?.workshop_cta || t("shop.workshop_cta")} <ArrowRight className="w-4 h-4" />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            </StaggerItem>
-
-            <StaggerItem className="h-full">
-              <Link href="/shop" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-900 text-white">
-                {/* Background Pattern / Icon / Image */}
-                <div className="absolute top-0 left-0 w-full h-[65%] flex items-center justify-center overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-transparent to-slate-800 z-10 pointer-events-none" />
-                  {content.shop_text?.merch_image_url ? (
-                    <Image src={content.shop_text.merch_image_url} alt="Merchandising" fill className="object-cover group-hover:scale-105 group-hover:rotate-1 transition-all duration-700 ease-out z-0" />
-                  ) : (
-                    <svg className="absolute w-56 h-56 text-white/20 group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 ease-out z-0" viewBox="0 0 24 24" fill="currentColor"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" /></svg>
-                  )}
-                </div>
-
-                {/* Top Spacer */}
-                <div className="h-56 shrink-0 relative z-10">
-                  <div className="absolute top-6 left-6 z-20 bg-white/10 backdrop-blur-md text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                    {content.shop_text?.merch_badge || t("shop.merch_badge")}
-                  </div>
-                </div>
-
-                {/* Content Section overlapping with rounded top corners */}
-                <div className="relative z-20 flex flex-col flex-1 p-8 bg-slate-800 rounded-t-[32px] mt-auto border-t border-slate-700/50">
-                  <h3 className="text-2xl font-bold tracking-tight text-white mb-3 group-hover:text-slate-200 transition-colors">{content.shop_text?.merch_title || t("shop.merch_title")}</h3>
-                  <p className="text-[15px] text-slate-300 mb-6 leading-relaxed flex-1 whitespace-pre-line">{content.shop_text?.merch_desc || t("shop.merch_desc")}</p>
-                  
-                  <div className="mt-auto">
-                    <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white text-slate-900 px-5 text-[13px] font-bold tracking-wide transition-all group-hover:bg-slate-100">
-                      {content.shop_text?.merch_cta || t("shop.merch_cta")} <ArrowRight className="w-4 h-4" />
+                      {initiatives.workshop_cta || t("initiatives.workshop_cta")} <ArrowRight className="w-4 h-4" />
                     </span>
                   </div>
                 </div>
@@ -512,12 +477,12 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 
             {/* Nuova Card Donazioni */}
             <StaggerItem className="h-full">
-              <a href={content.shop_text?.donate_link || "https://www.retedeldono.it/progetto/aiutaci-portare-il-fitness-dove-conta"} target="_blank" rel="noopener noreferrer" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-gradient-to-br from-amber-50 to-orange-50">
+              <a href={initiatives.donate_link || "https://www.retedeldono.it/progetto/aiutaci-portare-il-fitness-dove-conta"} target="_blank" rel="noopener noreferrer" className="group relative flex flex-col h-full rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-gradient-to-br from-amber-50 to-orange-50">
                 {/* Background Pattern / Icon / Image */}
                 <div className="absolute top-0 left-0 w-full h-[65%] flex items-center justify-center overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-b from-amber-100/50 to-amber-50/10 z-10" />
-                  {content.shop_text?.donate_image_url ? (
-                    <Image src={content.shop_text.donate_image_url} alt="Donazione" fill className="object-cover opacity-70 group-hover:scale-105 transition-all duration-700 ease-out z-0" />
+                  {initiatives.donate_image_url ? (
+                    <Image src={initiatives.donate_image_url} alt="Donazione" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover opacity-70 group-hover:scale-105 transition-all duration-700 ease-out z-0" />
                   ) : (
                     <svg className="absolute w-56 h-56 text-amber-500/30 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-700 ease-out z-0" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -528,18 +493,18 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                 {/* Top Spacer */}
                 <div className="h-56 shrink-0 relative z-10">
                   <div className="absolute top-6 left-6 z-20 bg-amber-500/10 backdrop-blur-md text-amber-700 text-[11px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                    {content.shop_text?.donate_badge || t("shop.donate_badge")}
+                    {initiatives.donate_badge || t("initiatives.donate_badge")}
                   </div>
                 </div>
 
                 {/* Content Section overlapping with rounded top corners */}
                 <div className="relative z-20 flex flex-col flex-1 p-8 bg-white/80 backdrop-blur-sm rounded-t-[32px] mt-auto border-t border-amber-100">
-                  <h3 className="text-2xl font-bold tracking-tight text-slate-900 mb-3 group-hover:text-amber-700 transition-colors">{content.shop_text?.donate_title || t("shop.donate_title")}</h3>
-                  <p className="text-[15px] text-slate-500 mb-6 leading-relaxed flex-1 whitespace-pre-line">{content.shop_text?.donate_desc || t("shop.donate_desc")}</p>
+                  <h3 className="text-2xl font-bold tracking-tight text-slate-900 mb-3 group-hover:text-amber-700 transition-colors">{initiatives.donate_title || t("initiatives.donate_title")}</h3>
+                  <p className="text-[15px] text-slate-500 mb-6 leading-relaxed flex-1 whitespace-pre-line">{initiatives.donate_desc || t("initiatives.donate_desc")}</p>
                   
                   <div className="mt-auto">
                     <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-amber-500 text-white px-5 text-[13px] font-bold tracking-wide transition-all group-hover:bg-amber-600">
-                      {content.shop_text?.donate_cta || t("shop.donate_cta")} <ArrowRight className="w-4 h-4" />
+                      {initiatives.donate_cta || t("initiatives.donate_cta")} <ArrowRight className="w-4 h-4" />
                     </span>
                   </div>
                 </div>

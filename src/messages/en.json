@@ -48,18 +48,13 @@
         "dom": "SUN"
       }
     },
-    "shop": {
-      "badge": "Events & Merchandising",
-      "title": "News & Shop",
-      "view_all": "View all",
+    "initiatives": {
+      "badge": "Events & Solidarity",
+      "title": "Events and initiatives",
       "workshop_badge": "New Workshop",
       "workshop_title": "Masterclass",
       "workshop_desc": "Book your spot for the next exclusive event.",
       "workshop_cta": "Buy ticket",
-      "merch_badge": "Apparel",
-      "merch_title": "Meraki Official Merch",
-      "merch_desc": "Discover the new collection of sports apparel and Meraki branded accessories.",
-      "merch_cta": "Explore the shop",
       "donate_badge": "Support us",
       "donate_title": "Support Meraki",
       "donate_desc": "Help us grow our community. Every donation allows us to organize new events and improve equipment.",
@@ -70,7 +65,6 @@
     "chi_siamo": "About Us",
     "corsi": "Courses",
     "orario": "Schedule",
-    "shop": "Shop",
     "eventi": "Events",
     "contatti": "Contact",
     "sponsor": "Become a Sponsor"
@@ -121,12 +115,6 @@
     "area_admin": "Admin Area",
     "location_bz": "Bolzano (BZ)",
     "location_ap": "Appiano (BZ)"
-  },
-  "ShopPage": {
-    "title": "Shop",
-    "badge": "Meraki Shop",
-    "headline": "Official Shop",
-    "subheadline": "Discover our collection of technical apparel, accessories, and exclusive merchandise signed by Meraki Experience."
   },
   "EventsPage": {
     "title": "Events",
@@ -186,7 +174,7 @@
       "sec1_desc": "Cookies are small text files that websites visited by the user send to their terminal, where they are stored and then transmitted back to the same sites on the next visit.",
       "sec2_title": "2. Cookies Used by this Website",
       "sec2_desc": "This website uses the following types of cookies:",
-      "sec2_li1": "<strong>Strictly Necessary Cookies:</strong> Essential for the proper functioning of the site, navigation, cart management, and security. They cannot be disabled.",
+      "sec2_li1": "<strong>Strictly Necessary Cookies:</strong> Essential for the proper functioning of the site, navigation, and security. They cannot be disabled.",
       "sec2_li2": "<strong>Statistical Cookies (Analytics):</strong> Help us understand how visitors interact with the site by collecting information anonymously and in aggregate form.",
       "sec2_li3": "<strong>Marketing Cookies:</strong> Used to track visitors across websites with the intention of displaying relevant and engaging ads for the individual user.",
       "sec3_title": "3. Preference Management",
@@ -203,11 +191,9 @@
       "sec1_desc": "These Terms and Conditions govern the use of the \"Meraki Experience\" web platform and the services offered by the amateur sports association Meraki Experience. Access to and use of the site implies full acceptance of the following terms.",
       "sec2_title": "2. Membership and Enrollment",
       "sec2_desc": "Participation in the activities organized by ASD Meraki Experience is reserved for regularly enrolled members in good standing with the annual membership. The purchase of packages or courses through the site does not replace the obligation to present the required medical documentation (non-competitive medical certificate).",
-      "sec3_title": "3. E-Commerce Purchases",
-      "sec3_desc": "Products on sale in the online shop are subject to availability. The prices indicated include VAT. Payment is made securely through the Stripe platform. In case of a defective product or wrong size, the user has the right to return it within 14 working days of receipt, provided the item has not been used.",
-      "sec4_title": "4. Event Refunds and Cancellations",
+      "sec4_title": "3. Event Refunds and Cancellations",
       "sec4_desc": "Tickets for workshops or special events are non-refundable unless the event is canceled by the organization. In such a case, a full refund or a voucher of equal value will be issued.",
-      "sec5_title": "5. Changes to the Terms",
+      "sec5_title": "4. Changes to the Terms",
       "sec5_desc": "ASD Meraki Experience reserves the right to modify these Terms and Conditions at any time. Changes will take effect immediately upon publication on the site."
     }
   }

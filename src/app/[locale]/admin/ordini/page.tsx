@@ -75,8 +75,8 @@ export default async function AdminOrdiniPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Ordini Shop</h1>
-          <p className="text-slate-500 mt-2">Gestisci gli ordini e-commerce e le spedizioni.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Storico ordini</h1>
+          <p className="text-slate-500 mt-2">Consulta gli ordini precedenti e completa le consegne ancora in sospeso.</p>
         </div>
       </div>
 

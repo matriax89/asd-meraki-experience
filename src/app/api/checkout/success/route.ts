@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/client";
 import { createClient } from "@/lib/supabase/server";
-import { clearCart } from "@/lib/shop/cart-actions";
+import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 
       if (order && !error) {
         // Clear the cart
-        await clearCart();
+        (await cookies()).delete("meraki_cart");
         return NextResponse.redirect(new URL(`/it/ordine/${order.id}/conferma`, request.url));
       }
     }
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     } else if (type === "shop") {
       const { data: order } = await supabase.from("orders").select("id").eq("stripe_session_id", sessionId).single();
       if (order) {
-        await clearCart();
+        (await cookies()).delete("meraki_cart");
         return NextResponse.redirect(new URL(`/it/ordine/${order.id}/conferma`, request.url));
       }
     }

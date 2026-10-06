@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { Link } from "@/i18n/routing";
 import { 
-  LayoutDashboard, Users, ShoppingBag, Package, 
-  Dumbbell, CalendarDays, Ticket, Settings, LogOut, Handshake, Sparkles, Tag
+  LayoutDashboard, Users, ShoppingBag,
+  Dumbbell, CalendarDays, Ticket, Settings, LogOut, Handshake, Sparkles
 } from "lucide-react";
 
 export default async function AdminLayout({
@@ -33,9 +33,7 @@ export default async function AdminLayout({
   const menuItems = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Leads & Richieste", href: "/admin/leads", icon: Users },
-    { name: "Ordini Shop", href: "/admin/ordini", icon: ShoppingBag },
-    { name: "Sconti / Coupon", href: "/admin/coupon", icon: Tag },
-    { name: "Prodotti", href: "/admin/prodotti", icon: Package },
+    { name: "Storico ordini", href: "/admin/ordini", icon: ShoppingBag },
     { name: "Corsi", href: "/admin/corsi", icon: Dumbbell },
     { name: "Eventi", href: "/admin/eventi", icon: CalendarDays },
     { name: "Biglietti", href: "/admin/biglietti", icon: Ticket },

@@ -92,7 +92,6 @@ export function Footer({ logoUrl, locations = [], branding, contacts, footerData
               <li><a href="/#chi-siamo" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("chi_siamo")}</a></li>
               <li><a href="/#corsi" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("corsi")}</a></li>
               <li><a href="/#orario" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("orario")}</a></li>
-              <li><Link href="/shop" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("shop")}</Link></li>
               <li><Link href="/contatti" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("contatti")}</Link></li>
             </ul>
           </div>

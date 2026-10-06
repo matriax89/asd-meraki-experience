@@ -98,7 +98,7 @@ export function CookieBanner() {
                 <div className="space-y-3">
                   <CookieToggle 
                     title="Strettamente Necessari" 
-                    description="Cookie indispensabili per il funzionamento del sito (carrello, login, sicurezza)."
+                    description="Cookie indispensabili per il funzionamento del sito (navigazione, login, sicurezza)."
                     checked={true}
                     disabled={true}
                     onChange={() => {}}

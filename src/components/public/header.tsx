@@ -2,17 +2,16 @@
 
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
-import { ShoppingCart, Menu, X, ArrowRight } from "lucide-react";
+import { Menu, X, ArrowRight } from "lucide-react";
 import { LanguageSwitcher } from "./language-switcher";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { usePathname } from "next/navigation";
 
-import { CartDropdown } from "./cart-dropdown";
 import Image from "next/image";
 
-export function Header({ initialCartCount = 0, logoUrl, logoWhiteUrl }: { initialCartCount?: number, logoUrl?: string, logoWhiteUrl?: string }) {
+export function Header({ logoUrl, logoWhiteUrl }: { logoUrl?: string, logoWhiteUrl?: string }) {
   const t = useTranslations("Navigation");
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -31,14 +30,12 @@ export function Header({ initialCartCount = 0, logoUrl, logoWhiteUrl }: { initia
     { key: "chi_siamo", href: "/#chi-siamo" },
     { key: "corsi", href: "/#corsi" },
     { key: "orario", href: "/#orario" },
-    { key: "shop", href: "/shop" },
     { key: "contatti", href: "/contatti" },
   ] as const;
 
   const isTransparentAndHome = isHome && !scrolled;
   const textColorClass = isTransparentAndHome ? "text-white" : "text-foreground";
   const mutedTextColorClass = isTransparentAndHome ? "text-white/80" : "text-muted-foreground";
-  const logoFillClass = isTransparentAndHome ? "fill-white text-black" : "fill-foreground text-white";
 
   return (
     <>
@@ -98,8 +95,6 @@ export function Header({ initialCartCount = 0, logoUrl, logoWhiteUrl }: { initia
               <div className="hidden sm:flex items-center">
                 <LanguageSwitcher />
               </div>
-
-              <CartDropdown initialCount={initialCartCount} isTransparentAndHome={isTransparentAndHome} />
 
               <Link
                 href="/sponsors"
