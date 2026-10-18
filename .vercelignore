@@ -1,17 +1,17 @@
 # Local state and credentials
-.git
-.env*
-.vercel
-.next
-node_modules
+/.git/
+/.env*
+/.vercel/
+/.next/
+/node_modules/
 **/._*
 **/.DS_Store
-*.tsbuildinfo
+/*.tsbuildinfo
 
 # Verification fixtures and database sources are versioned, not build inputs.
-scripts
-tests
-supabase
-coverage
-public/pixel-test*.html
-AGENTS.md
+/scripts/
+/tests/
+/supabase/
+/coverage/
+/public/pixel-test*.html
+/AGENTS.md
