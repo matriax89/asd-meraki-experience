@@ -946,6 +946,74 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_payment_refunds: {
+        Row: { payment_intent: string; refunded_at: string }
+        Insert: { payment_intent: string; refunded_at?: string }
+        Update: { payment_intent?: string; refunded_at?: string }
+        Relationships: []
+      }
+      ticket_reservations: {
+        Row: {
+          amount_cents: number
+          buyer_cognome: string
+          buyer_email: string
+          buyer_nome: string
+          created_at: string
+          event_id: string
+          event_snapshot: Json
+          expires_at: string
+          failure_reason: string | null
+          id: string
+          locale: string
+          refund_id: string | null
+          refund_status: string | null
+          state: string
+          stripe_session_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          buyer_cognome?: string
+          buyer_email: string
+          buyer_nome?: string
+          created_at?: string
+          event_id: string
+          event_snapshot: Json
+          expires_at: string
+          failure_reason?: string | null
+          id?: string
+          locale?: string
+          refund_id?: string | null
+          refund_status?: string | null
+          state?: string
+          stripe_session_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          buyer_cognome?: string
+          buyer_email?: string
+          buyer_nome?: string
+          created_at?: string
+          event_id?: string
+          event_snapshot?: Json
+          expires_at?: string
+          failure_reason?: string | null
+          id?: string
+          locale?: string
+          refund_id?: string | null
+          refund_status?: string | null
+          state?: string
+          stripe_session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_reservations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tickets: {
         Row: {
           amount_cents: number | null
@@ -954,6 +1022,8 @@ export type Database = {
           buyer_nome: string | null
           buyer_telefono: string | null
           created_at: string | null
+          email_claimed_at: string | null
+          email_sent_at: string | null
           event_id: string | null
           id: string
           qr_code: string | null
@@ -963,6 +1033,8 @@ export type Database = {
           used_at: string | null
         }
         Insert: {
+          email_claimed_at?: string | null
+          email_sent_at?: string | null
           amount_cents?: number | null
           buyer_cognome?: string | null
           buyer_email: string
@@ -978,6 +1050,8 @@ export type Database = {
           used_at?: string | null
         }
         Update: {
+          email_claimed_at?: string | null
+          email_sent_at?: string | null
           amount_cents?: number | null
           buyer_cognome?: string | null
           buyer_email?: string
@@ -1007,6 +1081,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_ticket_email: {
+        Args: { p_ticket_id: string }
+        Returns: boolean
+      }
+      reserve_event_ticket: {
+        Args: { p_request_id: string; p_event_id: string; p_buyer_email: string; p_buyer_nome: string; p_buyer_cognome: string; p_locale: string }
+        Returns: Json
+      }
+      transition_ticket_reservation: {
+        Args: { p_reservation_id: string; p_session_id: string | null; p_state: string }
+        Returns: undefined
+      }
+      fulfill_event_ticket: {
+        Args: { p_reservation_id: string | null; p_event_id: string; p_session_id: string; p_payment_intent: string | null; p_buyer_email: string; p_amount_cents: number }
+        Returns: Json
+      }
+      revoke_event_ticket: {
+        Args: { p_payment_intent: string }
+        Returns: undefined
+      }
       decrement_stock: {
         Args: { quantity_to_subtract: number; variant_id: string }
         Returns: undefined

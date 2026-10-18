@@ -1,6 +1,10 @@
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
+import QRCode from "qrcode";
+import { getLocalizedText } from "@/lib/i18n-utils";
+import type { Database } from "@/types/supabase";
 import { createAdminClient } from "@/lib/supabase/server";
+import { emailLocale, escapeEmailHtml, marketingEmailSection, renderMerakiEmail } from "@/lib/email/meraki-template";
 
 const defaultResendApiKey = process.env.RESEND_API_KEY;
 const FROM_EMAIL = "noreply@merakiexperience.org";
@@ -400,42 +404,68 @@ export async function sendOrderNotification(order: any, items: any[]) {
   }
 }
 
-export async function sendTicketConfirmation(ticket: any, eventData: any, locale: string = "it") {
-  const supabase = createAdminClient();
-  const { data: settings } = await supabase.from("site_settings").select("value").eq("key", "homepage_content").single();
-  const integrations = (settings?.value as any)?.integrations;
-  const emailProvider = integrations?.email_provider || "resend";
-  const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
+type TicketEmail = Pick<Database["public"]["Tables"]["tickets"]["Row"], "id" | "qr_code" | "buyer_email" | "buyer_nome" | "buyer_cognome">;
+type TicketEventEmail = Pick<Database["public"]["Tables"]["events"]["Row"], "titolo" | "data_inizio" | "location" | "indirizzo">;
 
-  const subject = locale === 'it' ? "Il tuo biglietto - ASD Meraki Experience" : "Your Ticket - ASD Meraki Experience";
-  
-  const htmlContent = `<!DOCTYPE html>
-<html lang="\${locale}">
-<head><meta charset="utf-8"></head>
-<body style="margin: 0; padding: 40px 20px; font-family: -apple-system, sans-serif; background-color: #f5f5f7;">
-  <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 16px; text-align: center;">
-    <h1 style="margin: 0 0 16px; font-size: 24px;">\${locale === 'it' ? 'Ecco il tuo biglietto!' : 'Here is your ticket!'}</h1>
-    <p>\${eventData.titolo}</p>
-    <div style="margin: 32px 0; padding: 24px; border: 2px dashed #e5e5ea; border-radius: 16px;">
-      <h2 style="font-size: 32px; font-family: monospace; letter-spacing: 2px; margin: 0;">\${ticket.qr_code}</h2>
-    </div>
-    <p style="color: #86868b; font-size: 14px;">\${locale === 'it' ? 'Mostra questo codice all\\'ingresso.' : 'Show this code at the entrance.'}</p>
-  </div>
-</body></html>`;
-
+export async function sendTicketConfirmation(ticket: TicketEmail, eventData: TicketEventEmail, locale = "it", options?: {
+  deliveryId: string; accessNames: string[]; marketing?: { confirmUrl?: string; unsubscribeUrl: string };
+}) {
+  const escapeHtml = escapeEmailHtml;
   try {
-    if (emailProvider === "smtp") {
-      const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
-      if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
-      const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: `"Meraki Experience" <\${smtp_user}>`, to: ticket.buyer_email, subject, html: htmlContent });
+    if (!ticket.qr_code) return { success: false };
+    const supabase = createAdminClient();
+    const { data: settings } = await supabase.from("site_settings").select("value").eq("key", "homepage_content").single();
+    const rawSettings = settings?.value;
+    const integrations = rawSettings && typeof rawSettings === "object" && !Array.isArray(rawSettings)
+      && rawSettings.integrations && typeof rawSettings.integrations === "object" && !Array.isArray(rawSettings.integrations)
+      ? rawSettings.integrations : {};
+    const readSetting = (name: string) => typeof integrations[name] === "string" ? integrations[name] as string : "";
+    const language = emailLocale(locale);
+    const copy = {
+      it: { subject: "Il tuo biglietto Meraki", heading: "Ci vediamo all’evento!", instruction: "Mostra questo QR code all’ingresso. Ogni biglietto consente un solo accesso.", activities: "Un solo QR personale: ogni attività acquistata consente un ingresso separato.", open: "Apri e salva il biglietto", attachment: "Il QR code è disponibile anche nell’allegato.", date: "Data", place: "Luogo", guest: "Hai acquistato senza registrazione. Conserva questa email: il link ti permette di aprire il biglietto in qualsiasi momento.", footer: "Email di servizio relativa al tuo acquisto. L’invio del biglietto è indipendente dalla scelta sulle comunicazioni promozionali." },
+      en: { subject: "Your Meraki ticket", heading: "See you at the event!", instruction: "Show this QR code at the entrance. Each ticket allows one admission.", activities: "One personal QR: each purchased activity has its own admission.", open: "Open and save your ticket", attachment: "The QR code is also attached to this email.", date: "Date", place: "Venue", guest: "You purchased without an account. Keep this email: the link lets you open your ticket at any time.", footer: "Service email about your purchase. Ticket delivery is independent of your choice about promotional messages." },
+      de: { subject: "Dein Meraki-Ticket", heading: "Wir sehen uns beim Event!", instruction: "Zeige diesen QR-Code am Eingang. Jedes Ticket erlaubt einen einmaligen Eintritt.", activities: "Ein persönlicher QR-Code: jede gebuchte Aktivität hat einen eigenen Eintritt.", open: "Ticket öffnen und speichern", attachment: "Der QR-Code ist dieser E-Mail auch als Anhang beigefügt.", date: "Datum", place: "Ort", guest: "Du hast ohne Registrierung gekauft. Bewahre diese E-Mail auf: Über den Link kannst du dein Ticket jederzeit öffnen.", footer: "Service-E-Mail zu deinem Kauf. Die Ticketzustellung ist unabhängig von deiner Wahl zu Werbemitteilungen." },
+      es: { subject: "Tu entrada Meraki", heading: "¡Nos vemos en el evento!", instruction: "Muestra este código QR en la entrada. Cada entrada permite un solo acceso.", activities: "Un único QR personal: cada actividad comprada tiene su propio acceso.", open: "Abrir y guardar la entrada", attachment: "El código QR también está adjunto a este email.", date: "Fecha", place: "Lugar", guest: "Has comprado sin registrarte. Guarda este email: el enlace te permite abrir tu entrada en cualquier momento.", footer: "Email de servicio sobre tu compra. El envío de la entrada es independiente de tu elección sobre las comunicaciones promocionales." },
+    }[language];
+    const siteUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.merakiexperience.org").origin;
+    const url = `${siteUrl}/${language}/biglietto/${ticket.id}?token=${encodeURIComponent(ticket.qr_code)}`;
+    const title = getLocalizedText(eventData.titolo, language);
+    const when = new Intl.DateTimeFormat(language, { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Rome" }).format(new Date(eventData.data_inizio));
+    const venue = [eventData.location, eventData.indirizzo].filter(Boolean).join(", ");
+    const accessCopy = options ? copy.activities : copy.instruction;
+    const deliveryId = options?.deliveryId || ticket.id;
+    const qr = await QRCode.toBuffer(ticket.qr_code, { width: 512, margin: 3, errorCorrectionLevel: "M" });
+    const marketing = marketingEmailSection(language, options?.marketing);
+    const htmlContent = renderMerakiEmail({ locale: language, title: copy.heading, preheader: `${copy.subject} · ${title}`,
+      bodyHtml: `<h2 style="margin:0 0 16px;font-size:21px;line-height:1.35;">${escapeHtml(title)}</h2><p>${escapeHtml(copy.date)}: ${escapeHtml(when)}</p>${venue ? `<p>${escapeHtml(copy.place)}: ${escapeHtml(venue)}</p>` : ""}<img src="cid:meraki-ticket" width="256" height="256" alt="QR" style="display:block;margin:24px auto;max-width:100%;height:auto;"/><p>${escapeHtml(accessCopy)}</p>${options ? `<p>${escapeHtml([ticket.buyer_nome, ticket.buyer_cognome].filter(Boolean).join(" "))}</p><p>${options.accessNames.map(escapeHtml).join(" · ")}</p>` : ""}<p style="font-size:13px;color:#626d63;">${escapeHtml(copy.attachment)}</p><p style="font-size:13px;color:#626d63;">${escapeHtml(copy.guest)}</p>`,
+      cta: { label: copy.open, url }, footerHtml: `${escapeHtml(copy.footer)}<br/>Meraki Experience · ID: ${escapeHtml(ticket.id)}${marketing.html}`,
+    });
+    const text = `${copy.subject}\n${title}\n${when}\n${venue}\n\n${accessCopy}\n${options?.accessNames.join(" · ") || ""}\n${url}\n\n${copy.guest}\n${copy.footer}${marketing.text}`;
+    if (readSetting("email_provider") === "smtp") {
+      const host = readSetting("smtp_host");
+      const user = readSetting("smtp_user");
+      const pass = readSetting("smtp_pass");
+      const port = Number(readSetting("smtp_port")) || 587;
+      if (!host || !user || !pass) return { success: false };
+      const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
+      await transporter.sendMail({
+        from: `Meraki <${user}>`, to: ticket.buyer_email, subject: copy.subject,
+        html: htmlContent, text, messageId: `<ticket-${deliveryId}@merakiexperience.org>`,
+        attachments: [{ filename: "biglietto-meraki.png", content: qr, cid: "meraki-ticket" }],
+      });
     } else {
-      if (!activeApiKey) return { success: false };
-      const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: `Meraki Experience <\${FROM_EMAIL}>`, to: ticket.buyer_email, subject, html: htmlContent });
+      const key = readSetting("resend_api_key") || defaultResendApiKey;
+      if (!key) return { success: false };
+      const { error } = await new Resend(key).emails.send({
+        from: `Meraki <${FROM_EMAIL}>`, to: ticket.buyer_email, subject: copy.subject,
+        html: htmlContent, text,
+        attachments: [{ filename: "biglietto-meraki.png", content: qr, contentId: "meraki-ticket" }],
+      }, { idempotencyKey: `meraki-ticket-${deliveryId}` });
+      if (error) return { success: false };
     }
-  } catch (error) {
-    console.error("Failed to send ticket:", error);
+    return { success: true };
+  } catch {
+    console.error("Ticket email delivery failed.");
+    return { success: false };
   }
 }
-

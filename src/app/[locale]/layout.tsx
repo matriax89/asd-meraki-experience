@@ -1,18 +1,20 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
-import Script from "next/script";
 import { Suspense } from "react";
 import { FacebookPixelEvents } from "@/components/public/facebook-pixel-events";
+import { InstallProvider } from "@/components/pwa/install-provider";
 import "../globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = { themeColor: "#f5f4f0", viewportFit: "cover" };
 
 export async function generateMetadata(): Promise<Metadata> {
   const supabase = await createClient();
@@ -31,9 +33,16 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description,
+    applicationName: "Meraki",
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      title: "Meraki",
+      statusBarStyle: "default",
+    },
     icons: {
       icon: favicon,
-      apple: favicon,
+      apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
       shortcut: favicon,
     },
     openGraph: {
@@ -111,6 +120,7 @@ export default async function LocaleLayout({
   return (
     <html
       lang={locale}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
       className={`${inter.variable} h-full antialiased`}
     >
@@ -131,42 +141,17 @@ export default async function LocaleLayout({
             .bg-slate-900 { background-color: ${themeColors.cardBackground} !important; }
           `}} />
         )}
-        <Script
-          id="fb-pixel-init"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              !function(f,b,e,v,n,t,s)
-              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-              n.queue=[];t=b.createElement(e);t.async=!0;
-              t.src=v;s=b.getElementsByTagName(e)[0];
-              s.parentNode.insertBefore(t,s)}(window, document,'script',
-              'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('consent', 'revoke');
-              fbq('init', '4287498058183493');
-            `,
-          }}
-        />
-        <noscript>
-          <img
-            height="1"
-            width="1"
-            style={{ display: "none" }}
-            src="https://www.facebook.com/tr?id=4287498058183493&ev=PageView&noscript=1"
-            alt=""
-          />
-        </noscript>
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <NextIntlClientProvider messages={messages}>
-          <ModalProvider>
-            <Suspense fallback={null}>
-              <FacebookPixelEvents />
-            </Suspense>
-            {children}
-          </ModalProvider>
+          <InstallProvider>
+            <ModalProvider>
+              <Suspense fallback={null}>
+                <FacebookPixelEvents />
+              </Suspense>
+              {children}
+            </ModalProvider>
+          </InstallProvider>
         </NextIntlClientProvider>
       </body>
     </html>

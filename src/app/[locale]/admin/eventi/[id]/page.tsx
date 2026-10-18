@@ -35,6 +35,8 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
         </p>
       </div>
 
+      {id !== "nuovo" && <Link href={`/admin/eventi/${id}/commerce`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 text-indigo-900"><span><strong className="block">Formule, scaglioni e cross-selling</strong><span className="mt-1 block text-sm">Configura workshop, masterclass, cena e consulta vendite e lista d’attesa.</span></span><span aria-hidden="true">→</span></Link>}
+
       <EventForm initialData={initialData} />
     </div>
   );

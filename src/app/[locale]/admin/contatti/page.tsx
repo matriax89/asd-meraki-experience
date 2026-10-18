@@ -1,0 +1,15 @@
+import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
+import { Download, MailCheck, ShieldCheck } from "lucide-react";
+import { Link } from "@/i18n/routing";
+
+export const dynamic = "force-dynamic";
+export default async function MarketingContactsPage() {
+  const db = await requireCommerceStaff();
+  const results = await Promise.all(["subscribed", "pending", "unsubscribed"].map((status) => db.from("marketing_contacts").select("id", { count: "exact", head: true }).eq("status", status)));
+  const unavailable = results.some((result) => result.error);
+  return <div className="space-y-7"><div><p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">Meraki · Comunicazioni</p><h1 className="text-3xl font-bold tracking-tight text-slate-900">Contatti e consensi</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">L’acquisto avviene senza account. I dati necessari alla gestione dei biglietti rimangono separati dall’elenco per novità, eventi e offerte via email.</p></div>
+    <Link href="/admin/contatti/partecipanti" className="inline-flex min-h-12 items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold">Consulta dati dei partecipanti</Link>
+    {unavailable ? <p role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">Contatti non disponibili: applica prima la migrazione dei dati partecipante e dei consensi.</p> : <><div className="grid gap-4 sm:grid-cols-3">{["Confermati", "Da confermare", "Revocati"].map((label, index) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-6"><p className="text-sm text-slate-500">{label}</p><p className="mt-3 text-3xl font-bold">{results[index].count || 0}</p></div>)}</div><section className="rounded-2xl border border-slate-200 bg-white p-6"><MailCheck className="mb-4 h-7 w-7 text-emerald-700" aria-hidden="true"/><h2 className="text-lg font-semibold">Elenco per le campagne email</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Il CSV comprende esclusivamente contatti con consenso confermato tramite link personale. Una scelta effettuata durante un acquisto di gruppo richiede la conferma del titolare di ciascun indirizzo. Sono esclusi i contatti in attesa o che hanno revocato il consenso.</p><a href="/api/marketing/export" download="meraki-contatti-consenso-confermato.csv" className="mt-5 inline-flex min-h-12 items-center gap-3 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white"><Download className="h-4 w-4" aria-hidden="true"/>Scarica contatti confermati</a></section></>}
+    <div className="flex max-w-3xl items-start gap-3 rounded-2xl bg-slate-100 p-5 text-sm leading-7 text-slate-600"><ShieldCheck className="mt-1 h-5 w-5 shrink-0" aria-hidden="true"/><p>Il CSV contiene email, nome, cognome, lingua e data di conferma. Telefono e codice fiscale/documento non vengono esportati per le campagne. Prima di ogni invio genera un nuovo elenco: un file scaricato in precedenza può includere persone che nel frattempo hanno revocato il consenso.</p></div>
+  </div>;
+}

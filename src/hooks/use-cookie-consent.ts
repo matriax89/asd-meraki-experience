@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { COOKIE_CONSENT_CHANGED_EVENT, COOKIE_CONSENT_KEY } from "@/lib/facebook-pixel";
 
 export type CookiePreferences = {
   necessary: boolean; // Always true
@@ -8,7 +9,7 @@ export type CookiePreferences = {
   marketing: boolean;
 };
 
-const CONSENT_KEY = "meraki_cookie_consent";
+const CONSENT_KEY = COOKIE_CONSENT_KEY;
 
 export function useCookieConsent() {
   const [hasConsented, setHasConsented] = useState<boolean>(true); // Default true server-side to prevent hydration mismatch, set false in useEffect
@@ -19,36 +20,32 @@ export function useCookieConsent() {
   });
 
   useEffect(() => {
-    const storedConsent = localStorage.getItem(CONSENT_KEY);
-    if (storedConsent) {
-      try {
-        const parsed = JSON.parse(storedConsent);
-        setPreferences(parsed);
-        setHasConsented(true);
-      } catch (e) {
+    const timer = window.setTimeout(() => {
+      let storedConsent: string | null = null;
+      try { storedConsent = localStorage.getItem(CONSENT_KEY); } catch { /* Storage can be unavailable in private browsing. */ }
+      if (storedConsent) {
+        try {
+          const parsed = JSON.parse(storedConsent);
+          setPreferences(parsed);
+          setHasConsented(true);
+        } catch {
+          setHasConsented(false);
+        }
+      } else {
         setHasConsented(false);
       }
-    } else {
-      setHasConsented(false);
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const savePreferences = (newPreferences: CookiePreferences) => {
     // Ensure necessary is always true
     const toSave = { ...newPreferences, necessary: true };
-    localStorage.setItem(CONSENT_KEY, JSON.stringify(toSave));
+    try { localStorage.setItem(CONSENT_KEY, JSON.stringify(toSave)); } catch { /* The current tab still honours the user's choice. */ }
     setPreferences(toSave);
     setHasConsented(true);
 
-    // Sync Facebook Pixel consent
-    if (typeof window !== "undefined" && typeof (window as any).fbq === "function") {
-      if (toSave.marketing) {
-        (window as any).fbq("consent", "grant");
-        (window as any).fbq("track", "PageView");
-      } else {
-        (window as any).fbq("consent", "revoke");
-      }
-    }
+    window.dispatchEvent(new CustomEvent(COOKIE_CONSENT_CHANGED_EVENT, { detail: toSave }));
   };
 
   const acceptAll = () => {

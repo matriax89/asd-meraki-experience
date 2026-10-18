@@ -1,3 +1,5 @@
+import { getLocale } from "next-intl/server";
+import { PublicSurface } from "@/components/meraki/public-surface";
 import { Header } from "@/components/public/header";
 import { Footer } from "@/components/public/footer";
 import { CookieBanner } from "@/components/public/cookie-banner";
@@ -10,6 +12,7 @@ export default async function PublicLayout({
   children: React.ReactNode;
 }) {
   // Fetch popup settings
+  const locale = await getLocale();
   const supabase = await createClient();
   const { data: settings } = await supabase
     .from("site_settings")
@@ -27,11 +30,15 @@ export default async function PublicLayout({
 
   return (
     <>
-      <Header logoUrl={brandingData?.logo_url} logoWhiteUrl={brandingData?.logo_white_url} />
-      {children}
-      <Footer logoUrl={brandingData?.logo_url} locations={locations} branding={brandingData} contacts={contactsData} footerData={footerData} />
+      <PublicSurface
+        locale={locale}
+        header={<Header logoUrl={brandingData?.logo_url} logoWhiteUrl={brandingData?.logo_white_url} />}
+        footer={<Footer logoUrl={brandingData?.logo_url} locations={locations} branding={brandingData} contacts={contactsData} footerData={footerData} />}
+        popup={<GlobalPopup data={popupTargetsRemovedShop ? null : popupData} />}
+      >
+        {children}
+      </PublicSurface>
       <CookieBanner />
-      <GlobalPopup data={popupTargetsRemovedShop ? null : popupData} />
     </>
   );
 }

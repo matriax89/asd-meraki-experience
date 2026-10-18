@@ -28,12 +28,12 @@ export default async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
   const isTargetingAdmin = path.includes('/admin');
 
-  if (isTargetingAdmin && !session) {
+  if (isTargetingAdmin && !user) {
     const url = request.nextUrl.clone();
     const pathParts = path.split('/');
     const locale = routing.locales.find(l => pathParts[1] === l) || routing.defaultLocale;

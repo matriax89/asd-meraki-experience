@@ -104,12 +104,12 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
 );
 Checkbox.displayName = "Checkbox";
 
-export const LOCALES = ["it", "en", "de"] as const;
+export const LOCALES = ["it", "en", "de", "es"] as const;
 export type Locale = typeof LOCALES[number];
 
 interface MultilingualProps {
   label: string;
-  value: any; // { it: '', en: '', de: '' } or string
+  value: any; // { it: '', en: '', de: '', es: '' } or string
   onChange: (value: any) => void;
   error?: string;
   required?: boolean;

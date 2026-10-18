@@ -13,9 +13,9 @@ export default async function AdminLayout({
 }) {
   const supabase = await createClient();
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
   
-  if (!session) {
+  if (!user) {
     redirect("/login");
   }
 
@@ -23,7 +23,7 @@ export default async function AdminLayout({
   const { data: profile } = await adminSupabase
     .from("profiles")
     .select("role, full_name, email")
-    .eq("id", session.user.id)
+    .eq("id", user.id)
     .single();
 
   if (!profile || (profile.role !== "admin" && profile.role !== "editor")) {
@@ -37,6 +37,7 @@ export default async function AdminLayout({
     { name: "Corsi", href: "/admin/corsi", icon: Dumbbell },
     { name: "Eventi", href: "/admin/eventi", icon: CalendarDays },
     { name: "Biglietti", href: "/admin/biglietti", icon: Ticket },
+    { name: "Contatti e consensi", href: "/admin/contatti", icon: Users },
     { name: "Impostazioni", href: "/admin/impostazioni", icon: Settings },
     { name: "Prova Gratuita", href: "/admin/prova-gratuita", icon: Sparkles },
     { name: "Partner / Sponsor", href: "/admin/sponsors", icon: Handshake },
@@ -95,12 +96,12 @@ export default async function AdminLayout({
         {/* Topbar Mobile */}
         <header className="md:hidden bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center z-20">
           <Link href="/admin" className="font-bold text-white">Meraki Admin</Link>
-          <button className="text-slate-400 p-2">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          <Link href="/admin/biglietti" className="flex min-h-11 items-center gap-2 rounded-xl bg-indigo-500 px-3 text-sm font-semibold text-white"><Ticket className="h-4 w-4" /> Check-in</Link>
         </header>
+
+        <nav aria-label="Navigazione amministrazione mobile" className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-200 bg-white p-3 md:hidden">
+          {menuItems.map((item) => <Link key={item.href} href={item.href} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-slate-50 px-3 text-sm font-medium text-slate-700"><item.icon className="h-4 w-4" />{item.name}</Link>)}
+        </nav>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8 xl:p-10">
           <div className="max-w-7xl mx-auto">

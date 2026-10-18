@@ -1,69 +1,82 @@
 import { NextResponse } from "next/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
-import { stripe } from "@/lib/stripe/client";
+import Stripe from "stripe";
+import { getStripe, getVerifiedStripe } from "@/lib/stripe/client";
+import { fulfillTicketSession, transitionTicketSession, updateTicketRefund, revokeRefundedTicket } from "@/lib/stripe/fulfill-ticket";
+import { isTicketSession } from "@/lib/stripe/ticket-status";
 import { createAdminClient } from "@/lib/supabase/server";
-import { sendOrderConfirmation, sendOrderNotification, sendTicketConfirmation } from "@/lib/resend/client";
+import { sendOrderConfirmation, sendOrderNotification } from "@/lib/resend/client";
 
 export async function POST(request: Request) {
   const body = await request.text();
   const sig = request.headers.get("stripe-signature");
 
-  let event;
+  let event: Stripe.Event;
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
+  if (!sig) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       body,
-      sig!,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      sig,
+      secret
     );
-  } catch (err: any) {
-    console.error("Webhook signature verification failed.", err.message);
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  } catch {
+    return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
   }
 
-  const supabase = createAdminClient();
+  try {
+    if (event.type === "charge.refunded") {
+      await revokeRefundedTicket(event.data.object);
+      const charge = event.data.object;
+      const paymentIntent = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+      if (charge.refunded && paymentIntent) await (await import("@/lib/stripe/commerce")).revokeCommercePayment(paymentIntent);
+      return NextResponse.json({ received: true });
+    }
+    if (event.type === "refund.created" || event.type === "refund.updated" || event.type === "refund.failed") {
+      if (event.data.object.metadata?.meraki_commerce_order_id) await (await import("@/lib/stripe/commerce")).updateCommerceRefund(event.data.object);
+      else await updateTicketRefund(event.data.object);
+      return NextResponse.json({ received: true });
+    }
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded"
+      || event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
+      const session = event.data.object;
+      if (session.metadata?.flow_type === "event_commerce") {
+        const commerce = await import("@/lib/stripe/commerce");
+        const current = await (await getVerifiedStripe()).checkout.sessions.retrieve(session.id);
+        if (!commerce.isCommerceSession(current)) throw new Error("Unexpected commerce Checkout flow.");
+        if (current.payment_status !== "unpaid") await commerce.fulfillCommerceSession(current);
+        else if (event.type === "checkout.session.expired" && current.status === "expired") await commerce.transitionCommerceSession(current, "expired");
+        else if (event.type === "checkout.session.async_payment_failed") await commerce.transitionCommerceSession(current, "payment_failed");
+        else await commerce.transitionCommerceSession(current, "awaiting_payment");
+        return NextResponse.json({ received: true });
+      }
+      if (isTicketSession(session)) {
+        // Fetch from the explicitly authorized account. This also avoids acting
+        // on stale unpaid payloads delivered after payment has already succeeded.
+        const current = await (await getVerifiedStripe()).checkout.sessions.retrieve(session.id);
+        if (!isTicketSession(current)) throw new Error("Unexpected Checkout flow.");
+        if (current.payment_status !== "unpaid") await fulfillTicketSession(current);
+        else if (event.type === "checkout.session.expired" && current.status === "expired") await transitionTicketSession(current, "expired");
+        else if (event.type === "checkout.session.async_payment_failed") await transitionTicketSession(current, "payment_failed");
+        else await transitionTicketSession(current, "awaiting_payment");
+        return NextResponse.json({ received: true });
+      }
+    }
+  } catch {
+    console.error("Meraki payment webhook processing failed; Stripe should retry.");
+    return NextResponse.json({ error: "Payment processing temporarily unavailable" }, { status: 500 });
+  }
 
+  // Preserve the existing merchandise flow separately from event ticket fulfillment.
+  const supabase = createAdminClient();
   if (event.type === "checkout.session.completed") {
+    // Legacy merchandise payload is retained while tickets use the typed flow above.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const session = event.data.object as any;
     const metadata = session.metadata;
-
-    if (metadata?.flow_type === "ticket_event" || metadata?.flow_type === "ticket_workshop") {
-      const eventId = metadata.event_id;
-      const buyerEmail = metadata.buyer_email;
-
-      // Generiamo un id fittizio per il qr code in questo step (nella realtà usiamo uuid)
-      const qrCode = `ticket_${session.id}`;
-
-      // Inseriamo il record ticket
-      const { data: ticket, error: ticketError } = await supabase
-        .from("tickets")
-        .insert({
-          event_id: eventId,
-          buyer_email: buyerEmail,
-          stripe_session_id: session.id,
-          stripe_payment_intent: session.payment_intent,
-          amount_cents: session.amount_total,
-          status: "paid",
-          qr_code: qrCode,
-        })
-        .select()
-        .single();
-
-      if (ticketError) {
-        console.error("Error creating ticket:", ticketError);
-        return NextResponse.json({ error: "Database error" }, { status: 500 });
-      }
-
-      // Incrementa i posti venduti
-      await supabase.rpc('increment_ticket_count', { row_id: eventId });
-
-      // Invia il biglietto
-      const { data: eventData } = await supabase.from('events').select('titolo').eq('id', eventId).single();
-      const locale = metadata?.locale || 'it';
-      await sendTicketConfirmation(ticket, eventData || { titolo: 'Evento' }, locale);
-
-      console.log(`Ticket ${ticket.id} created successfully for ${buyerEmail}`);
-    } else if (metadata?.flow_type === "shop_order") {
+    if (metadata?.flow_type === "shop_order") {
       const cartItems = JSON.parse(metadata.cart_data || "[]");
       const customerDetails = session.customer_details;
       const shippingDetails = session.shipping_details;

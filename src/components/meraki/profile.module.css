@@ -1,0 +1,39 @@
+.page { max-width: 640px; margin: 0 auto; padding: 27px 22px 10px; }
+.intro { margin-bottom: 27px; }
+.eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 2.1px; color: #7b6949; }
+.intro h1 { margin-top: 9px; font-size: clamp(29px, 5vw, 39px); line-height: 1.12; font-weight: 750; letter-spacing: -1.4px; }
+.intro p { margin-top: 11px; font-size: 14px; line-height: 1.6; color: #737b73; }
+.ticketCard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 15px; background: #20362b; color: #fff; border-radius: 25px; padding: 23px 20px; text-decoration: none; box-shadow: 0 5px 18px rgb(24 37 31 / 8%); }
+.ticketIcon { display: flex; align-items: center; justify-content: center; width: 49px; height: 55px; border-radius: 16px; background: rgb(215 188 142 / 12%); color: #dec18e; }
+.ticketCard strong { display: block; font-size: 17px; font-weight: 650; letter-spacing: -.35px; }
+.ticketCard small { display: block; margin-top: 6px; color: #c6d0c8; font-size: 12px; line-height: 1.5; }
+.ticketCard > svg { color: #dec18e; }
+.section { margin-top: 30px; }
+.section h2 { margin: 0 0 12px 3px; font-size: 17px; font-weight: 700; letter-spacing: -.5px; }
+.card, .linkGroup { border: 1px solid #e5e6df; background: #fffefa; border-radius: 22px; }
+.card { padding: 19px; margin-top: 10px; }
+.cardTitle { display: flex; align-items: center; gap: 10px; color: #556654; }
+.cardTitle h3 { color: #263b2d; font-size: 14px; font-weight: 650; }
+.languages { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; padding-top: 18px; }
+.languages button { min-width: 0; flex: 1; padding: 8px 6px; overflow-wrap: anywhere; display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 45px; border: 1px solid #e1e4da; border-radius: 12px; color: #697166; font-size: 12px; font-weight: 550; cursor: pointer; transition: background 140ms; }
+.languages button[aria-pressed="true"] { color: #263b2d; background: #eeefe6; border-color: #ccd3bf; }
+.languages button:disabled { opacity: .6; cursor: wait; }
+.status { font-size: 12px; line-height: 1.5; color: #67716b; }
+.status:not(:empty) { display: block; padding-top: 10px; }
+.installCard p { font-size: 12px; color: #737b73; line-height: 1.6; margin-top: 10px; }
+.installCard > section { background: transparent; border: 0; padding: 0; margin: 16px 0 0; }
+.installCard > section > div { gap: 0; }
+.installCard > section > div > span { display: none; }
+.installCard > section h2, .installCard > section h2 + p { display: none; }
+.installCard > section summary { color: #263b2d; }
+.row { min-height: 80px; padding: 17px 19px; display: flex; align-items: center; gap: 14px; text-decoration: none; color: #536450; }
+.row + .row { border-top: 1px solid #eeeee7; }
+.row > span { flex: 1; min-width: 0; }
+.row strong { display: block; font-size: 14px; color: #263b2d; font-weight: 600; }
+.row small { display: block; margin-top: 5px; font-size: 12px; line-height: 1.5; color: #737b73; }
+.row > svg { flex-shrink: 0; }
+.legalRow { min-height: 55px; font-size: 13px; gap: 12px; }
+.signoff { margin: 34px 0 14px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #8a8c7e; font-size: 11px; line-height: 1.5; text-align: center; }
+@media (min-width: 420px) { .languages { grid-template-columns: repeat(4,minmax(0,1fr)); } }
+@media (min-width: 768px) { .page { padding-top: 42px; } .ticketCard { padding: 27px 26px; } }
+@media (prefers-reduced-motion: reduce) { .languages button { transition: none; } }

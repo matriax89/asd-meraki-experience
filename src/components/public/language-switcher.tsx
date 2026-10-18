@@ -10,6 +10,7 @@ const localeLabels: Record<string, string> = {
   it: "Italiano",
   en: "English",
   de: "Deutsch",
+  es: "Español",
 };
 
 export function LanguageSwitcher() {

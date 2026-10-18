@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <title>Meraki</title>
+  <rect width="512" height="512" fill="#171717"/>
+  <path d="M144 352V160h42l70 112 70-112h42v192h-44V237l-68 106-68-106v115z" fill="#C69A59"/>
+</svg>

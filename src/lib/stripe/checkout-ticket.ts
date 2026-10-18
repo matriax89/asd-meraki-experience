@@ -1,53 +1,42 @@
-import { stripe } from "./client";
+import { getVerifiedStripe } from "./client";
 
 export async function createTicketCheckoutSession({
-  eventId,
-  eventSlug,
-  title,
-  priceCents,
-  capacity,
-  buyerEmail,
-  tipo,
-  siteUrl,
-  locale,
+  reservationId, eventId, eventSlug, title, priceCents, buyerEmail, tipo,
+  siteUrl, locale, expiresAt,
 }: {
+  reservationId: string;
   eventId: string;
   eventSlug: string;
   title: string;
   priceCents: number;
-  capacity: number;
   buyerEmail: string;
   tipo: "evento" | "workshop" | "masterclass";
   siteUrl: string;
-  locale?: string;
+  locale: string;
+  expiresAt: string;
 }) {
-
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+  const stripe = await getVerifiedStripe();
+  return stripe.checkout.sessions.create({
     customer_email: buyerEmail,
-    line_items: [
-      {
-        price_data: {
-          currency: "eur",
-          product_data: {
-            name: title,
-            description: `Biglietto per ${tipo}: ${title}`,
-          },
-          unit_amount: priceCents,
-        },
-        quantity: 1,
+    line_items: [{
+      price_data: {
+        currency: "eur",
+        product_data: { name: title, description: `Biglietto Meraki: ${title}` },
+        unit_amount: priceCents,
       },
-    ],
+      quantity: 1,
+    }],
     mode: "payment",
+    integration_identifier: `meraki-events-${reservationId.replace(/[^a-z]/g, (char) => String.fromCharCode(97 + (parseInt(char, 16) || 0))).slice(0, 8)}`,
+    expires_at: Math.floor(new Date(expiresAt).getTime() / 1000),
     success_url: `${siteUrl}/api/checkout/success?session_id={CHECKOUT_SESSION_ID}&type=ticket`,
-    cancel_url: `${siteUrl}/${tipo === 'evento' ? 'eventi' : 'workshop'}/${eventSlug}`,
+    cancel_url: `${siteUrl}/${locale}/${tipo === "evento" ? "eventi" : "workshop"}/${encodeURIComponent(eventSlug)}?checkout=cancelled`,
     metadata: {
       flow_type: tipo === "evento" ? "ticket_event" : "ticket_workshop",
+      reservation_id: reservationId,
       event_id: eventId,
       buyer_email: buyerEmail,
-      locale: locale || "it",
+      locale,
     },
-  });
-
-  return session;
+  }, { idempotencyKey: `meraki-ticket-${reservationId}` });
 }

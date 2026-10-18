@@ -1,10 +1,23 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
+import { z } from "zod";
+
+const localized = z.union([z.string().max(200_000), z.record(z.string(), z.string().max(200_000))]);
+const eventSchema = z.object({
+  id: z.string().uuid().optional(), slug: z.string().trim().max(160).optional(), titolo: localized,
+  sottotitolo: localized.nullable().optional(), descrizione: localized.nullable().optional(),
+  tipo: z.enum(["evento", "workshop", "masterclass"]), data_inizio: z.iso.datetime({ offset: true }),
+  data_fine: z.iso.datetime({ offset: true }).nullable().optional(),
+  location: z.string().max(500).nullable().optional(), indirizzo: z.string().max(1000).nullable().optional(),
+  copertina_url: z.string().max(2048).nullable().optional(),
+  prezzo_cents: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  capacity: z.number().int().min(0).max(100_000).nullable().optional(), attivo: z.boolean().optional(),
+});
 
 export async function getEvent(id: string) {
-  const supabase = createAdminClient();
+  const supabase = await requireCommerceStaff();
   const { data, error } = await supabase
     .from("events")
     .select("*")
@@ -19,13 +32,18 @@ export async function getEvent(id: string) {
   return { success: true, data };
 }
 
-export async function upsertEvent(eventData: any) {
-  const supabase = createAdminClient();
+export async function upsertEvent(raw: unknown) {
+  const supabase = await requireCommerceStaff();
+  const validation = eventSchema.safeParse(raw);
+  if (!validation.success) return { success: false, error: "Controlla date, prezzo, capienza e dettagli dell’evento." };
+  // Configurations, counters and Stripe IDs have dedicated transactional paths.
+  const eventData = validation.data;
   
   // Create slug if new
   let slug = eventData.slug;
   if (!eventData.id && !slug && eventData.titolo) {
-    slug = eventData.titolo
+    const title = typeof eventData.titolo === "string" ? eventData.titolo : eventData.titolo.it || Object.values(eventData.titolo)[0] || "evento";
+    slug = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)+/g, "");
@@ -57,7 +75,8 @@ export async function upsertEvent(eventData: any) {
 }
 
 export async function deleteEvent(id: string) {
-  const supabase = createAdminClient();
+  const supabase = await requireCommerceStaff();
+  if (!z.string().uuid().safeParse(id).success) return { success: false, error: "Evento non valido." };
   
   // Check if there are tickets
   const { count, error: countError } = await supabase

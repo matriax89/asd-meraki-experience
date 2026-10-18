@@ -1,0 +1,75 @@
+import { CalendarDays, Check, Clock3, Info, MapPin, ShieldCheck, Ticket } from "lucide-react";
+import Image from "next/image";
+import { Link } from "@/i18n/routing";
+import { EventDescription } from "@/components/public/event-description";
+import { getEventAvailability } from "@/lib/tickets/event-availability";
+import { CheckoutButton } from "@/app/[locale]/(public)/eventi/[slug]/checkout-button";
+import { CommercePurchase } from "./commerce-purchase";
+import { availablePlaces, eventDate, eventPrice, eventLabels, type MerakiEvent } from "./event-model";
+
+export type MerakiEventDetail = MerakiEvent & { description: string; ctaType: string | null; ctaUrl: string | null };
+
+export function EventDetail({ event, locale }: { event: MerakiEventDetail; locale: string }) {
+  const text = eventLabels(locale);
+  const { isEnded, salesClosed } = getEventAvailability(event.startsAt, event.endsAt);
+  const remaining = availablePlaces(event);
+  const soldOut = remaining === 0;
+  const external = event.ctaType === "external_url" && event.ctaUrl && /^https?:\/\//i.test(event.ctaUrl);
+  const infoOnly = event.ctaType === "info_only" || !event.price;
+  const category = event.type === "evento" ? text.event : event.type === "masterclass" ? "Masterclass" : "Workshop";
+  const date = eventDate(event.startsAt, locale, { weekday: "long", day: "numeric", month: "long" });
+  const time = eventDate(event.startsAt, locale, { hour: "2-digit", minute: "2-digit" });
+  const state = salesClosed ? (isEnded ? text.ended : text.salesClosed) : soldOut ? text.soldOut : null;
+
+  return (
+    <article className="mx-auto w-full max-w-[1120px] px-5 pb-36 pt-3 text-[#18251f] sm:px-8 md:pb-8 md:pt-6">
+      <div className="relative isolate h-[320px] overflow-hidden rounded-[28px] bg-[#daddd0] sm:h-[430px]">
+        {event.cover ? <Image unoptimized src={event.cover} alt={event.title} fill sizes="(min-width: 1120px) 1056px, 100vw" loading="eager" fetchPriority="high" className="object-cover" /> : <CalendarDays className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 text-[#8b967b]" aria-hidden="true" />}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#12231a]/75 via-transparent to-[#12231a]/5" />
+        <div className="absolute left-5 top-5 rounded-full border border-white/40 bg-white/90 px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#30412f] backdrop-blur-md">{category}</div>
+        <div className="absolute right-5 top-5 flex min-w-14 flex-col items-center rounded-[18px] bg-white/95 px-3 py-2 text-[#18251f] shadow-sm"><span className="text-[23px] leading-7 font-semibold">{eventDate(event.startsAt, locale, { day: "2-digit" })}</span><span className="text-[10px] font-bold uppercase tracking-wider">{eventDate(event.startsAt, locale, { month: "short" }).replace(".", "")}</span></div>
+        <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between gap-4 text-white"><p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#e0ccaa]">Meraki moments</p>{isEnded ? <span className="rounded-full border border-white/35 px-3 py-1.5 text-[10px] font-medium">{text.remember}</span> : null}</div>
+      </div>
+
+      <div className="mt-7 grid gap-7 md:mt-9 md:grid-cols-[minmax(0,1fr)_300px] md:gap-10">
+        <div className="min-w-0">
+          <header>
+            <h1 className="text-[30px] font-semibold leading-[1.13] tracking-[-0.045em] sm:text-[38px]">{event.title}</h1>
+            {event.subtitle ? <p className="mt-3 text-[15px] leading-7 text-[#7a8272]">{event.subtitle}</p> : null}
+          </header>
+
+          <div className="my-7 divide-y divide-[#e9e9e0] overflow-hidden rounded-[22px] border border-[#18251f]/5 bg-white px-5">
+            <div className="flex items-center gap-4 py-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] bg-[#f0ede4]"><CalendarDays className="h-5 w-5 text-[#9e885d]" aria-hidden="true" /></span><div><p className="text-sm font-semibold capitalize">{date}</p><p className="mt-1 flex items-center gap-1.5 text-xs text-[#7f8777]"><Clock3 className="h-3 w-3" aria-hidden="true" />{time} <span className="px-0.5 text-[#b7bdaf]">·</span> {eventDate(event.startsAt, locale, { year: "numeric" })}</p></div></div>
+            {event.location || event.address ? <div className="flex items-center gap-4 py-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] bg-[#eaf0e5]"><MapPin className="h-5 w-5 text-[#738463]" aria-hidden="true" /></span><div className="min-w-0"><p className="text-sm font-semibold leading-6">{event.location || event.address}</p>{event.location && event.address ? <p className="mt-0.5 text-xs leading-5 text-[#7f8777]">{event.address}</p> : null}</div></div> : null}
+          </div>
+
+          {event.description ? <section aria-labelledby="about-experience"><h2 id="about-experience" className="mb-4 text-xl font-semibold tracking-[-0.035em]">{text.experience}</h2><div className="text-[14px] [&>div]:text-[#727b6a] [&_h2]:text-[#18251f] [&_h3]:text-[#18251f] [&_h4]:text-[#18251f]"><EventDescription description={event.description} /></div></section> : null}
+
+          {!external && !infoOnly ? <section className="mt-8 flex items-start gap-3 rounded-[22px] border border-[#dedfd3] p-5" aria-label={text.digitalTicket}>
+            <Ticket className="mt-0.5 h-5 w-5 shrink-0 text-[#a38a59]" aria-hidden="true" />
+            <div><h2 className="text-sm font-semibold">{text.qrTitle}</h2><p className="mt-1.5 text-xs leading-6 text-[#7d8672]">{text.qrBody}</p></div>
+          </section> : null}
+          <Link href="/eventi" className="mt-7 inline-flex min-h-11 items-center gap-2 text-[13px] font-semibold text-[#758367]">{text.discover}<span aria-hidden="true">↗</span></Link>
+        </div>
+
+        <aside className="fixed inset-x-0 bottom-[var(--meraki-nav-height,86px)] z-30 rounded-t-[24px] border-t border-[#e7e7dd] bg-[#fdfdfb]/95 px-5 py-4 shadow-[0_-8px_30px_#18251f08] backdrop-blur-xl md:sticky md:inset-x-auto md:bottom-auto md:top-24 md:z-auto md:self-start md:rounded-[24px] md:border md:bg-white md:p-6 md:shadow-none">
+          <CommercePurchase eventId={event.id} locale={locale} ended={isEnded} fallback={<>
+          <p className="mb-5 hidden text-[10px] font-semibold uppercase tracking-[0.15em] text-[#9b855c] md:block">{text.makeMoment}</p>
+          <div className="flex items-center gap-5 md:block">
+            <div className="shrink-0 md:mb-6"><p className="mb-1 text-[10px] text-[#8a917f]">{text.perPerson}</p><p className="text-[23px] font-semibold leading-7 tracking-[-0.04em] md:text-[30px]">{eventPrice(event.price, locale)}</p></div>
+            <div className="min-w-0 flex-1">
+              {state ? <div className={`flex min-h-12 items-center justify-center gap-2 rounded-[16px] px-4 py-3 text-center text-xs font-semibold ${soldOut && !salesClosed ? "bg-[#f4e8df] text-[#9a6143]" : "bg-[#edf0e7] text-[#738065]"}`}>{isEnded ? <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> : <Info className="h-4 w-4 shrink-0" aria-hidden="true" />}{state}</div>
+                : external ? <a href={event.ctaUrl!} rel="noopener noreferrer" target="_blank" className="flex min-h-[52px] items-center justify-center rounded-[16px] bg-[#263a2c] px-4 py-3 text-center text-xs font-semibold text-white">{text.book}<span className="ml-2" aria-hidden="true">↗</span></a>
+                : infoOnly ? <Link href="/profilo/assistenza" className="flex min-h-[52px] items-center justify-center rounded-[16px] bg-[#263a2c] px-4 py-3 text-center text-xs font-semibold text-white">{text.contact}</Link>
+                : <CheckoutButton eventId={event.id} />}
+            </div>
+          </div>
+          {!salesClosed && remaining !== null && !soldOut ? <p className="mt-3 text-center text-[10px] leading-5 text-[#7f8972]">{`${remaining} ${remaining === 1 ? text.place : text.places}`}</p> : null}
+          {!salesClosed && !infoOnly && !external && !soldOut ? <p className="mt-5 hidden items-center gap-2 text-[10px] leading-5 text-[#89917e] md:flex"><ShieldCheck className="h-4 w-4 shrink-0 text-[#a08b61]" aria-hidden="true" />{text.secure}</p> : null}
+          {salesClosed ? <p className="mt-4 hidden text-xs leading-6 text-[#858d7b] md:block">{isEnded ? text.endedBody : text.closedBody}</p> : null}
+          </>} />
+        </aside>
+      </div>
+    </article>
+  );
+}
