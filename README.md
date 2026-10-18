@@ -71,7 +71,7 @@ Configurare nell'ambiente server (senza inserire segreti nel repository):
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` del sito esistente.
 - `NEXT_PUBLIC_SITE_URL` con l'origine HTTPS pubblica corretta.
 - `STRIPE_SECRET_KEY` dell'account scelto. In sviluppo usare un ambiente di test separato. Quando possibile usare una chiave con permessi limitati per leggere il proprio account, creare/leggere/scadere Checkout Sessions e gestire i rimborsi previsti dal flusso.
-- `STRIPE_EXPECTED_ACCOUNT_ID=acct_1UDprNJvhGysD0TP` per l'account **Matias Rafael Lisio**. L'app confronta l'ID restituito da Stripe e blocca Checkout se l'account differisce. Per una sandbox separata impostare l'ID specifico della sandbox verificata; non riutilizzare credenziali di SportClubby.
+- Il conto autorizzato predefinito è `acct_1UDprNJvhGysD0TP`, **Matias Rafael Lisio**, verificato tramite il collegamento Stripe. L'app confronta l'ID restituito da Stripe e blocca Checkout se l'account differisce. `STRIPE_EXPECTED_ACCOUNT_ID` permette di impostare esplicitamente un diverso ID per una sandbox separata verificata; non riutilizzare credenziali di SportClubby.
 - `STRIPE_WEBHOOK_SECRET` dell'endpoint di quell'ambiente, destinazione `/api/webhook/stripe`.
 - Configurazione email esistente nelle impostazioni del sito (SMTP oppure Resend); in alternativa `RESEND_API_KEY` server. Verificare il mittente `noreply@merakiexperience.org` per Resend. Il biglietto resta disponibile dopo il pagamento anche se l'email deve essere ritentata.
 

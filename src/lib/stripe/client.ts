@@ -16,10 +16,8 @@ export function getStripe() {
 }
 
 export async function getVerifiedStripe() {
-  const expectedAccountId = process.env.STRIPE_EXPECTED_ACCOUNT_ID;
-  if (!expectedAccountId) {
-    throw new PaymentConfigurationError("Il conto Stripe di Meraki deve ancora essere verificato.");
-  }
+  // Meraki has one authorized merchant. An explicit override supports isolated sandboxes.
+  const expectedAccountId = process.env.STRIPE_EXPECTED_ACCOUNT_ID || "acct_1UDprNJvhGysD0TP";
   verifiedAccount ??= (async () => {
     const stripe = getStripe();
     const account = await stripe.accounts.retrieve(null);

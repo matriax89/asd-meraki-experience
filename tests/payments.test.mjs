@@ -44,6 +44,15 @@ test("Stripe account mismatch blocks payment; successful account is cached", asy
   assert.equal(reads, 2);
 });
 
+test("the default merchant is the authorized Meraki account and still rejects a different secret's account", async () => {
+  let account = "acct_sportclubby";
+  class StripeMock { accounts = { retrieve: async () => ({ id: account }) }; }
+  const client = load("src/lib/stripe/client.ts", { stripe: StripeMock }, { STRIPE_SECRET_KEY: "test-only" });
+  await assert.rejects(client.getVerifiedStripe(), /non corrisponde/);
+  account = "acct_1UDprNJvhGysD0TP";
+  assert.ok(await client.getVerifiedStripe());
+});
+
 test("Checkout uses server price, an expiring hold, locale and stable request idempotency", async () => {
   const calls = [];
   const payment = load("src/lib/stripe/checkout-ticket.ts", {
