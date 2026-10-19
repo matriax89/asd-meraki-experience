@@ -8,21 +8,45 @@ export function escapeEmailHtml(value: string) {
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 }
 
-/** All content interpolated into bodyHtml must already be escaped. */
-export function renderMerakiEmail({ locale, title, preheader, bodyHtml, cta, footerHtml }: {
+/** HTML content blocks must already be escaped by their caller. */
+export function renderMerakiEmail({ locale, title, preheader, bodyHtml, cta, ctaAtTop = false, afterCtaHtml, footerHtml, siteUrl }: {
   locale: EmailLocale; title: string; preheader: string; bodyHtml: string;
-  cta?: { label: string; url: string }; footerHtml?: string;
+  cta?: { label: string; url: string }; ctaAtTop?: boolean; afterCtaHtml?: string; footerHtml?: string; siteUrl?: string;
 }) {
   const escape = escapeEmailHtml;
+  let origin = "https://www.merakiexperience.org";
+  if (siteUrl) {
+    try {
+      const parsed = new URL(siteUrl);
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") origin = parsed.origin;
+    } catch { /* Keep the public Meraki origin for malformed optional settings. */ }
+  }
+  const logoUrl = `${origin}/images/logo-meraki-email.png`;
+  const eventsUrl = `${origin}/${locale}/eventi`;
+  const primaryCtaHtml = cta ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;margin-top:22px;border-spacing:0;"><tr><td align="center" bgcolor="#18251f" style="background:#18251f;border-radius:16px;mso-padding-alt:16px 16px;"><a href="${escape(cta.url)}" style="display:block;padding:16px;color:#ffffff;text-align:center;text-decoration:none;font-size:15px;line-height:22px;font-weight:700;border-radius:16px;overflow-wrap:anywhere;">${escape(cta.label)}</a></td></tr></table>` : "";
   return `<!DOCTYPE html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escape(title)}</title></head>
-<body style="margin:0;padding:0;background:#f5f4f0;color:#18251f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escape(preheader)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f4f0;"><tr><td align="center" style="padding:24px 12px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#fff;border:1px solid #e4e6dc;border-radius:24px;overflow:hidden;">
-<tr><td style="padding:28px 24px;border-bottom:1px solid #e4e6dc;"><p style="margin:0;font-size:30px;line-height:1.1;font-weight:750;letter-spacing:-1.5px;color:#18251f;">meraki<span style="color:#c2a36b;">.</span></p></td></tr>
-<tr><td style="padding:28px 24px;font-size:15px;line-height:1.65;"><h1 style="margin:0 0 20px;font-size:26px;line-height:1.2;letter-spacing:-.6px;">${escape(title)}</h1>${bodyHtml}
-${cta ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px 0;"><tr><td style="border-radius:14px;background:#18251f;"><a href="${escape(cta.url)}" style="display:inline-block;padding:15px 22px;color:#fff;text-decoration:none;font-size:15px;font-weight:650;border-radius:14px;">${escape(cta.label)}</a></td></tr></table>` : ""}
-</td></tr><tr><td style="padding:22px 24px;background:#fbfbf8;border-top:1px solid #e4e6dc;font-size:12px;line-height:1.65;color:#626d63;">${footerHtml || "Meraki Experience"}</td></tr></table>
+<body style="margin:0;padding:0;width:100%;background:#f5f4f0;color:#18251f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+<div style="display:none!important;visibility:hidden;mso-hide:all;max-height:0;max-width:0;overflow:hidden;font-size:1px;line-height:1px;opacity:0;">${escape(preheader)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f5f4f0" style="width:100%;background:#f5f4f0;border-collapse:collapse;"><tr><td align="center" style="padding:24px 10px 32px;">
+<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="meraki-email-shell" style="width:100%;max-width:600px;table-layout:fixed;background:#f5f4f0;border:1px solid #e3e5dd;border-radius:28px;border-spacing:0;overflow:hidden;">
+<tr><td align="center" bgcolor="#ffffff" style="padding:28px 24px 25px;background:#ffffff;border-radius:27px 27px 0 0;border-bottom:1px solid #e3e5dd;">
+<a href="${escape(eventsUrl)}" style="display:inline-block;max-width:100%;text-decoration:none;"><img src="${escape(logoUrl)}" width="220" height="58" alt="Meraki Experience" style="display:block;width:220px;max-width:100%;height:auto;border:0;color:#18251f;font-size:18px;line-height:58px;" /></a>
+</td></tr>
+<tr><td class="meraki-email-main" style="padding:24px 20px 28px;font-size:15px;line-height:1.65;overflow-wrap:anywhere;word-break:break-word;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#18251f" style="width:100%;table-layout:fixed;background:#18251f;border-radius:22px;border-spacing:0;">
+<tr><td style="padding:25px 22px 26px;">
+<p style="margin:0 0 12px;color:#c2a36b;font-size:10px;line-height:16px;font-weight:700;letter-spacing:2.2px;">MERAKI MOMENTS</p>
+<h1 style="margin:0;color:#ffffff;font-size:28px;line-height:1.18;font-weight:650;letter-spacing:-.8px;">${escape(title)}</h1>
+</td></tr></table>
+${ctaAtTop ? primaryCtaHtml : ""}
+<div style="padding-top:22px;">${bodyHtml}</div>
+${primaryCtaHtml}
+${afterCtaHtml ? `<div style="padding-top:22px;">${afterCtaHtml}</div>` : ""}
+</td></tr>
+<tr><td bgcolor="#fffefa" style="padding:23px 22px 25px;background:#fffefa;border-radius:0 0 27px 27px;border-top:1px solid #e3e5dd;font-size:12px;line-height:1.7;color:#626d63;overflow-wrap:anywhere;word-break:break-word;">${footerHtml || "Meraki Experience"}</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table></body></html>`;
 }
 

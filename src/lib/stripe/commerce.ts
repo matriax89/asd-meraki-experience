@@ -36,13 +36,13 @@ export async function deliverCommerceOrder(order: CommerceOrder, passes?: Commer
   if (!claimed) throw new Error("Commerce email delivery is already being processed; retry later.");
   try {
     const [eventResult, passResult] = await Promise.all([
-      db.from("events").select("titolo,data_inizio,location,indirizzo").eq("id", order.event_id).single(),
+      db.from("events").select("titolo,data_inizio,location,indirizzo,copertina_url").eq("id", order.event_id).single(),
       passes ? Promise.resolve({ data: passes, error: null }) : db.from("commerce_passes").select("*").eq("order_id", order.id),
     ]);
     const issued = passResult.data as CommercePass[] | null;
     if (eventResult.error || !eventResult.data || passResult.error || !issued?.length) throw new Error("Order delivery data missing.");
     for (const pass of issued) {
-      const { data: rights, error } = await db.from("commerce_entitlements").select("activity_name").eq("pass_id", pass.id).in("status", ["valid", "used"]);
+      const { data: rights, error } = await db.from("commerce_entitlements").select("activity_name,menu_choice").eq("pass_id", pass.id).in("status", ["valid", "used"]);
       if (error) throw error;
       const { data: contact, error: contactError } = await db.from("commerce_attendee_contacts")
         .select("email,order_id,participant_index").eq("pass_id", pass.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -51,6 +51,8 @@ export async function deliverCommerceOrder(order: CommerceOrder, passes?: Commer
       const marketing = contact ? await (await import("@/lib/email/marketing")).prepareMarketingEmailLinks(contact.order_id, contact.participant_index, order.locale) : undefined;
       const sent = await sendTicketConfirmation({ id: pass.id, qr_code: pass.qr_code, buyer_email: contact?.email || order.buyer_email, buyer_nome: pass.first_name, buyer_cognome: pass.last_name }, eventResult.data, order.locale, {
         deliveryId: `${order.id}-${pass.id}`, accessNames: (rights || []).map(right => right.activity_name as string),
+        packageName: pass.package_name,
+        accessDetails: (rights || []).map(right => ({ name: right.activity_name as string, menuChoice: right.menu_choice as string | null })),
         marketing,
       });
       if (!sent.success) throw new Error("Commerce email delivery pending.");

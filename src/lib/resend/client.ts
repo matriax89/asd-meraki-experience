@@ -405,10 +405,12 @@ export async function sendOrderNotification(order: any, items: any[]) {
 }
 
 type TicketEmail = Pick<Database["public"]["Tables"]["tickets"]["Row"], "id" | "qr_code" | "buyer_email" | "buyer_nome" | "buyer_cognome">;
-type TicketEventEmail = Pick<Database["public"]["Tables"]["events"]["Row"], "titolo" | "data_inizio" | "location" | "indirizzo">;
+type TicketEventEmail = Pick<Database["public"]["Tables"]["events"]["Row"], "titolo" | "data_inizio" | "location" | "indirizzo"> & { copertina_url?: string | null };
+type TicketEmailAccess = { name: string; menuChoice?: string | null };
 
 export async function sendTicketConfirmation(ticket: TicketEmail, eventData: TicketEventEmail, locale = "it", options?: {
-  deliveryId: string; accessNames: string[]; marketing?: { confirmUrl?: string; unsubscribeUrl: string };
+  deliveryId: string; accessNames: string[]; packageName?: string; accessDetails?: TicketEmailAccess[];
+  marketing?: { confirmUrl?: string; unsubscribeUrl: string };
 }) {
   const escapeHtml = escapeEmailHtml;
   try {
@@ -422,25 +424,70 @@ export async function sendTicketConfirmation(ticket: TicketEmail, eventData: Tic
     const readSetting = (name: string) => typeof integrations[name] === "string" ? integrations[name] as string : "";
     const language = emailLocale(locale);
     const copy = {
-      it: { subject: "Il tuo biglietto Meraki", heading: "Ci vediamo all’evento!", instruction: "Mostra questo QR code all’ingresso. Ogni biglietto consente un solo accesso.", activities: "Un solo QR personale: ogni attività acquistata consente un ingresso separato.", open: "Apri e salva il biglietto", attachment: "Il QR code è disponibile anche nell’allegato.", date: "Data", place: "Luogo", guest: "Hai acquistato senza registrazione. Conserva questa email: il link ti permette di aprire il biglietto in qualsiasi momento.", footer: "Email di servizio relativa al tuo acquisto. L’invio del biglietto è indipendente dalla scelta sulle comunicazioni promozionali." },
-      en: { subject: "Your Meraki ticket", heading: "See you at the event!", instruction: "Show this QR code at the entrance. Each ticket allows one admission.", activities: "One personal QR: each purchased activity has its own admission.", open: "Open and save your ticket", attachment: "The QR code is also attached to this email.", date: "Date", place: "Venue", guest: "You purchased without an account. Keep this email: the link lets you open your ticket at any time.", footer: "Service email about your purchase. Ticket delivery is independent of your choice about promotional messages." },
-      de: { subject: "Dein Meraki-Ticket", heading: "Wir sehen uns beim Event!", instruction: "Zeige diesen QR-Code am Eingang. Jedes Ticket erlaubt einen einmaligen Eintritt.", activities: "Ein persönlicher QR-Code: jede gebuchte Aktivität hat einen eigenen Eintritt.", open: "Ticket öffnen und speichern", attachment: "Der QR-Code ist dieser E-Mail auch als Anhang beigefügt.", date: "Datum", place: "Ort", guest: "Du hast ohne Registrierung gekauft. Bewahre diese E-Mail auf: Über den Link kannst du dein Ticket jederzeit öffnen.", footer: "Service-E-Mail zu deinem Kauf. Die Ticketzustellung ist unabhängig von deiner Wahl zu Werbemitteilungen." },
-      es: { subject: "Tu entrada Meraki", heading: "¡Nos vemos en el evento!", instruction: "Muestra este código QR en la entrada. Cada entrada permite un solo acceso.", activities: "Un único QR personal: cada actividad comprada tiene su propio acceso.", open: "Abrir y guardar la entrada", attachment: "El código QR también está adjunto a este email.", date: "Fecha", place: "Lugar", guest: "Has comprado sin registrarte. Guarda este email: el enlace te permite abrir tu entrada en cualquier momento.", footer: "Email de servicio sobre tu compra. El envío de la entrada es independiente de tu elección sobre las comunicaciones promocionales." },
+      it: {
+        subject: "Il tuo biglietto Meraki", heading: "Il tuo biglietto è pronto", intro: "Il prossimo momento Meraki ti aspetta. Qui trovi tutti i dettagli per partecipare.",
+        event: "La tua esperienza", participant: "Partecipante", date: "Data", time: "Ora", timezone: "ora italiana", place: "Luogo", package: "Formula", includes: "Il tuo biglietto include", menu: "Menu scelto",
+        qr: "Il tuo QR personale", qrHint: "Mostralo allo staff all’ingresso, direttamente dal telefono.", instruction: "Questo biglietto consente un solo ingresso.", activities: "Usa lo stesso QR per le attività incluse. Ogni attività ha un ingresso separato.",
+        open: "Apri e salva il biglietto", attachment: "Trovi lo stesso QR anche nell’allegato biglietto-meraki.png.", how: "Come usarlo", stepOne: "Apri e salva", stepOneBody: "Apri il biglietto dal pulsante qui sopra e salvalo sul telefono.", stepTwo: "Mostra il QR all’ingresso", stepTwoBody: "Tieni il codice ben visibile: lo staff lo leggerà per confermare il tuo accesso.",
+        guest: "Non serve creare un account. Conserva questa email: puoi riaprire il biglietto dal pulsante quando vuoi.", help: "Hai bisogno di una mano?", contact: "Contattaci", reference: "Riferimento biglietto", footer: "Email di servizio relativa al tuo acquisto. L’invio del biglietto è indipendente dalla scelta sulle comunicazioni promozionali.",
+      },
+      en: {
+        subject: "Your Meraki ticket", heading: "Your ticket is ready", intro: "Your next Meraki moment awaits. Here are all the details for your visit.",
+        event: "Your experience", participant: "Participant", date: "Date", time: "Time", timezone: "Italian time", place: "Venue", package: "Package", includes: "Your ticket includes", menu: "Selected menu",
+        qr: "Your personal QR code", qrHint: "Show it to the staff at the entrance, straight from your phone.", instruction: "This ticket allows one admission.", activities: "Use the same QR for the included activities. Each activity has its own admission.",
+        open: "Open and save your ticket", attachment: "The same QR is also attached as biglietto-meraki.png.", how: "How to use it", stepOne: "Open and save", stepOneBody: "Open your ticket using the button above and save it on your phone.", stepTwo: "Show your QR at the entrance", stepTwoBody: "Keep the code clearly visible: the staff will scan it to confirm your admission.",
+        guest: "No account is needed. Keep this email: you can reopen your ticket using the button at any time.", help: "Need a hand?", contact: "Contact us", reference: "Ticket reference", footer: "Service email about your purchase. Ticket delivery is independent of your choice about promotional messages.",
+      },
+      de: {
+        subject: "Dein Meraki-Ticket", heading: "Dein Ticket ist bereit", intro: "Dein nächster Meraki-Moment wartet auf dich. Hier findest du alle Details für deine Teilnahme.",
+        event: "Dein Erlebnis", participant: "Teilnehmende Person", date: "Datum", time: "Uhrzeit", timezone: "italienische Zeit", place: "Ort", package: "Paket", includes: "In deinem Ticket enthalten", menu: "Gewähltes Menü",
+        qr: "Dein persönlicher QR-Code", qrHint: "Zeige ihn dem Team am Eingang direkt auf deinem Handy.", instruction: "Dieses Ticket erlaubt einen einmaligen Eintritt.", activities: "Nutze denselben QR-Code für die enthaltenen Aktivitäten. Jede Aktivität hat einen eigenen Eintritt.",
+        open: "Ticket öffnen und speichern", attachment: "Derselbe QR-Code ist auch als biglietto-meraki.png angehängt.", how: "So funktioniert es", stepOne: "Öffnen und speichern", stepOneBody: "Öffne dein Ticket über den Button oben und speichere es auf deinem Handy.", stepTwo: "QR-Code am Eingang zeigen", stepTwoBody: "Halte den Code gut sichtbar bereit: Das Team scannt ihn, um deinen Eintritt zu bestätigen.",
+        guest: "Du brauchst kein Konto. Bewahre diese E-Mail auf: Über den Button kannst du dein Ticket jederzeit wieder öffnen.", help: "Brauchst du Hilfe?", contact: "Kontaktiere uns", reference: "Ticketreferenz", footer: "Service-E-Mail zu deinem Kauf. Die Ticketzustellung ist unabhängig von deiner Wahl zu Werbemitteilungen.",
+      },
+      es: {
+        subject: "Tu entrada Meraki", heading: "Tu entrada está lista", intro: "Tu próximo momento Meraki te espera. Aquí tienes todos los detalles para participar.",
+        event: "Tu experiencia", participant: "Participante", date: "Fecha", time: "Hora", timezone: "hora de Italia", place: "Lugar", package: "Paquete", includes: "Tu entrada incluye", menu: "Menú elegido",
+        qr: "Tu código QR personal", qrHint: "Muéstralo al equipo en la entrada, directamente desde tu teléfono.", instruction: "Esta entrada permite un solo acceso.", activities: "Usa el mismo QR para las actividades incluidas. Cada actividad tiene su propio acceso.",
+        open: "Abrir y guardar la entrada", attachment: "El mismo QR también está adjunto como biglietto-meraki.png.", how: "Cómo usarla", stepOne: "Abrir y guardar", stepOneBody: "Abre tu entrada con el botón de arriba y guárdala en tu teléfono.", stepTwo: "Mostrar el QR en la entrada", stepTwoBody: "Mantén el código bien visible: el equipo lo escaneará para confirmar tu acceso.",
+        guest: "No necesitas crear una cuenta. Guarda este email: puedes volver a abrir tu entrada con el botón cuando quieras.", help: "¿Necesitas ayuda?", contact: "Contáctanos", reference: "Referencia de la entrada", footer: "Email de servicio sobre tu compra. El envío de la entrada es independiente de tu elección sobre las comunicaciones promocionales.",
+      },
     }[language];
     const siteUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.merakiexperience.org").origin;
     const url = `${siteUrl}/${language}/biglietto/${ticket.id}?token=${encodeURIComponent(ticket.qr_code)}`;
+    const contactUrl = `${siteUrl}/${language}/contatti`;
     const title = getLocalizedText(eventData.titolo, language);
-    const when = new Intl.DateTimeFormat(language, { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Rome" }).format(new Date(eventData.data_inizio));
+    const participantName = [ticket.buyer_nome, ticket.buyer_cognome].filter(Boolean).join(" ");
+    const eventDate = new Date(eventData.data_inizio);
+    const date = new Intl.DateTimeFormat(language, { dateStyle: "full", timeZone: "Europe/Rome" }).format(eventDate);
+    const time = new Intl.DateTimeFormat(language, { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Rome" }).format(eventDate);
     const venue = [eventData.location, eventData.indirizzo].filter(Boolean).join(", ");
-    const accessCopy = options ? copy.activities : copy.instruction;
+    const packageName = options?.packageName?.trim();
+    const purchasedAccesses: TicketEmailAccess[] = options?.accessDetails?.length ? options.accessDetails : (options?.accessNames || []).map(name => ({ name }));
+    const accessDetails = purchasedAccesses.filter(access => access.name.trim()).map(access => ({ name: access.name.trim(), menuChoice: access.menuChoice?.trim() }));
+    const accessCopy = accessDetails.length ? copy.activities : copy.instruction;
+    let coverUrl: string | undefined;
+    if (eventData.copertina_url) {
+      try {
+        const cover = new URL(eventData.copertina_url, siteUrl);
+        if (cover.protocol === "https:" || cover.protocol === "http:") coverUrl = cover.href;
+      } catch { /* An unavailable cover must not prevent delivery of the ticket. */ }
+    }
     const deliveryId = options?.deliveryId || ticket.id;
     const qr = await QRCode.toBuffer(ticket.qr_code, { width: 512, margin: 3, errorCorrectionLevel: "M" });
     const marketing = marketingEmailSection(language, options?.marketing);
-    const htmlContent = renderMerakiEmail({ locale: language, title: copy.heading, preheader: `${copy.subject} · ${title}`,
-      bodyHtml: `<h2 style="margin:0 0 16px;font-size:21px;line-height:1.35;">${escapeHtml(title)}</h2><p>${escapeHtml(copy.date)}: ${escapeHtml(when)}</p>${venue ? `<p>${escapeHtml(copy.place)}: ${escapeHtml(venue)}</p>` : ""}<img src="cid:meraki-ticket" width="256" height="256" alt="QR" style="display:block;margin:24px auto;max-width:100%;height:auto;"/><p>${escapeHtml(accessCopy)}</p>${options ? `<p>${escapeHtml([ticket.buyer_nome, ticket.buyer_cognome].filter(Boolean).join(" "))}</p><p>${options.accessNames.map(escapeHtml).join(" · ")}</p>` : ""}<p style="font-size:13px;color:#626d63;">${escapeHtml(copy.attachment)}</p><p style="font-size:13px;color:#626d63;">${escapeHtml(copy.guest)}</p>`,
-      cta: { label: copy.open, url }, footerHtml: `${escapeHtml(copy.footer)}<br/>Meraki Experience · ID: ${escapeHtml(ticket.id)}${marketing.html}`,
+    const labelStyle = "margin:0 0 4px;color:#73806f;font-size:11px;line-height:1.4;font-weight:650;letter-spacing:1px;text-transform:uppercase;";
+    const valueStyle = "margin:0;color:#18251f;font-size:15px;line-height:1.6;font-weight:600;overflow-wrap:anywhere;";
+    const information = (label: string, value: string) => `<p style="${labelStyle}">${escapeHtml(label)}</p><p style="${valueStyle}">${escapeHtml(value)}</p>`;
+    const includedHtml = accessDetails.length ? `<div style="margin-top:22px;padding-top:18px;border-top:1px solid #e0e2d8;"><p style="${labelStyle}">${escapeHtml(copy.includes)}</p><ul style="margin:10px 0 0;padding-left:20px;color:#18251f;font-size:15px;line-height:1.7;">${accessDetails.map(access => `<li style="margin:0 0 7px;padding-left:2px;"><strong>${escapeHtml(access.name)}</strong>${access.menuChoice ? `<br/><span style="color:#626d63;font-size:13px;">${escapeHtml(copy.menu)}: ${escapeHtml(access.menuChoice)}</span>` : ""}</li>`).join("")}</ul></div>` : "";
+    const afterCtaHtml = `<div style="margin-top:26px;padding-top:24px;border-top:1px solid #e4e6dc;"><h2 style="margin:0 0 18px;color:#18251f;font-size:19px;line-height:1.35;">${escapeHtml(copy.how)}</h2><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${[["1", copy.stepOne, copy.stepOneBody], ["2", copy.stepTwo, copy.stepTwoBody]].map(([number, heading, body]) => `<tr><td width="34" valign="top" style="padding:0 10px 18px 0;"><span style="display:inline-block;width:26px;height:26px;border-radius:50%;background:#eee9df;color:#826435;text-align:center;font-size:13px;font-weight:700;line-height:26px;">${number}</span></td><td valign="top" style="padding:0 0 18px;"><p style="margin:0 0 4px;color:#18251f;font-size:15px;line-height:1.5;font-weight:650;">${escapeHtml(heading)}</p><p style="margin:0;color:#626d63;font-size:14px;line-height:1.6;">${escapeHtml(body)}</p></td></tr>`).join("")}</table><p style="margin:2px 0 18px;color:#626d63;font-size:13px;line-height:1.65;">${escapeHtml(copy.guest)}</p><p style="margin:0;color:#626d63;font-size:13px;line-height:1.65;">${escapeHtml(copy.help)} <a href="${escapeHtml(contactUrl)}" style="color:#826435;text-decoration:underline;font-weight:650;">${escapeHtml(copy.contact)}</a></p></div>`;
+    const htmlContent = renderMerakiEmail({ locale: language, siteUrl, title: copy.heading, preheader: `${copy.subject} · ${title}`,
+      bodyHtml: `<p style="margin:0 0 22px;color:#626d63;font-size:15px;line-height:1.65;">${escapeHtml(copy.intro)}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e4db;border-radius:20px;background:#f5f4f0;overflow:hidden;">${coverUrl ? `<tr><td><img src="${escapeHtml(coverUrl)}" alt="" width="532" style="display:block;width:100%;height:auto;max-height:220px;object-fit:cover;border-radius:19px 19px 0 0;"/></td></tr>` : ""}<tr><td style="padding:22px;"><p style="margin:0 0 9px;color:#826435;font-size:10px;font-weight:700;line-height:1.5;letter-spacing:1.8px;text-transform:uppercase;">${escapeHtml(copy.event)}</p><h2 style="margin:0 0 24px;color:#18251f;font-size:26px;line-height:1.22;font-weight:750;letter-spacing:-.6px;overflow-wrap:anywhere;">${escapeHtml(title)}</h2>${participantName ? `<div style="margin-bottom:20px;">${information(copy.participant, participantName)}</div>` : ""}<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td width="62%" valign="top" style="padding:0 14px 20px 0;">${information(copy.date, date)}</td><td width="38%" valign="top" style="padding:0 0 20px;">${information(copy.time, time)}<p style="margin:3px 0 0;color:#73806f;font-size:11px;line-height:1.5;">${escapeHtml(copy.timezone)}</p></td></tr></table>${venue ? `<div style="margin-bottom:${packageName ? "20px" : "0"};">${information(copy.place, venue)}</div>` : ""}${packageName ? information(copy.package, packageName) : ""}${includedHtml}</td></tr></table><div style="padding:27px 0 0;text-align:center;"><h2 style="margin:0 0 8px;color:#18251f;font-size:19px;line-height:1.35;">${escapeHtml(copy.qr)}</h2><p style="margin:0 0 14px;color:#626d63;font-size:13px;line-height:1.6;">${escapeHtml(copy.qrHint)}</p><img src="cid:meraki-ticket" width="256" height="256" alt="QR" style="display:block;width:256px;max-width:100%;height:auto;margin:0 auto;background:#fff;border:1px solid #e4e6dc;border-radius:14px;"/><p style="margin:16px 0 0;color:#626d63;font-size:13px;line-height:1.6;">${escapeHtml(accessCopy)}</p><p style="margin:9px 0 0;color:#73806f;font-size:12px;line-height:1.6;">${escapeHtml(copy.attachment)}</p></div>`,
+      cta: { label: copy.open, url }, ctaAtTop: true, afterCtaHtml,
+      footerHtml: `${escapeHtml(copy.footer)}<br/><span style="font-size:11px;">${escapeHtml(copy.reference)}: ${escapeHtml(ticket.id)}</span>${marketing.html}`,
     });
-    const text = `${copy.subject}\n${title}\n${when}\n${venue}\n\n${accessCopy}\n${options?.accessNames.join(" · ") || ""}\n${url}\n\n${copy.guest}\n${copy.footer}${marketing.text}`;
+    const accessText = accessDetails.map(access => `• ${access.name}${access.menuChoice ? ` — ${copy.menu}: ${access.menuChoice}` : ""}`).join("\n");
+    const text = `${copy.heading}\n${copy.intro}\n\n${title}\n${participantName ? `${copy.participant}: ${participantName}\n` : ""}${copy.date}: ${date}\n${copy.time}: ${time} (${copy.timezone})\n${venue ? `${copy.place}: ${venue}\n` : ""}${packageName ? `${copy.package}: ${packageName}\n` : ""}${accessText ? `\n${copy.includes}\n${accessText}\n` : ""}\n${copy.qr}\n${accessCopy}\n${copy.attachment}\n\n${copy.open}: ${url}\n\n${copy.how}\n1. ${copy.stepOne}: ${copy.stepOneBody}\n2. ${copy.stepTwo}: ${copy.stepTwoBody}\n\n${copy.guest}\n${copy.help} ${copy.contact}: ${contactUrl}\n\n${copy.footer}\n${copy.reference}: ${ticket.id}${marketing.text}`;
     if (readSetting("email_provider") === "smtp") {
       const host = readSetting("smtp_host");
       const user = readSetting("smtp_user");

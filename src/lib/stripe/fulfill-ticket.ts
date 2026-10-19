@@ -53,7 +53,7 @@ export async function fulfillTicketSession(session: Stripe.Checkout.Session) {
   if (claimError || !claimed) throw new Error("Ticket email delivery is pending.");
   try {
     const { data: eventData, error: eventError } = await supabase.from("events")
-      .select("titolo, data_inizio, location, indirizzo").eq("id", ticket.event_id!).single();
+      .select("titolo, data_inizio, location, indirizzo, copertina_url").eq("id", ticket.event_id!).single();
     if (eventError || !eventData) throw new Error("Ticket event could not be loaded.");
     const marketing = metadata.reservation_id
       ? await (await import("@/lib/email/marketing")).prepareLegacyMarketingEmailLinks(metadata.reservation_id, metadata.locale || "it") : undefined;

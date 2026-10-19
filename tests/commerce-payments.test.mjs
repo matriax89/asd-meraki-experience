@@ -194,7 +194,7 @@ function deliveryFixture(contacts) {
         order(column,options) { assert.equal(column,"created_at");assert.equal(options.ascending,false);return this; },
         limit(number) { assert.equal(number,1);return this; },
         single: async () => ({ data: { titolo:{it:"Meraki Day"},data_inizio:"2027-08-01T10:00:00Z",location:"Merano",indirizzo:null } }),
-        in: async () => ({ data:[{activity_name:filters.pass_id === "pass-luca" ? "Masterclass" : "Workshop"}],error:null }),
+        in: async () => ({ data:filters.pass_id === "pass-luca" ? [{activity_name:"Masterclass",menu_choice:null}] : [{activity_name:"Workshop",menu_choice:null},{activity_name:"Cena",menu_choice:"Vegetariano"}],error:null }),
         maybeSingle: async () => ({ data:contacts[filters.pass_id] || null,error:null }),
       };
     },
@@ -214,16 +214,19 @@ test("group ticket delivery uses each verified private recipient even when pass 
     "pass-luca":{...privateDetails,email:"luca@example.test",order_id:orderId,participant_index:1},
     "pass-ada":{...privateDetails,email:contact.email,order_id:orderId,participant_index:0},
   });
-  const passes=[{id:"pass-luca",qr_code:"qr-luca",first_name:"Luca",last_name:"Bianchi",participant_index:1},{id:"pass-ada",qr_code:"qr-ada",first_name:"Ada",last_name:"Rossi",participant_index:0}];
+  const passes=[{id:"pass-luca",qr_code:"qr-luca",first_name:"Luca",last_name:"Bianchi",participant_index:1,package_name:"Solo Masterclass"},{id:"pass-ada",qr_code:"qr-ada",first_name:"Ada",last_name:"Rossi",participant_index:0,package_name:"Workshop + Cena"}];
   await fixture.mod.deliverCommerceOrder({...order,attendees:[contact,{...contact,firstName:"Luca",lastName:"Bianchi",email:"luca@example.test"}]},passes);
   assert.deepEqual(plain(fixture.deliveries.map(args=>[args[0].buyer_email,args[0].qr_code])),[["luca@example.test","qr-luca"],[contact.email,"qr-ada"]]);
-  assert.deepEqual(plain(fixture.deliveries.map(args=>args[3].accessNames)),[["Masterclass"],["Workshop"]]);
+  assert.deepEqual(plain(fixture.deliveries.map(args=>args[3].accessNames)),[["Masterclass"],["Workshop","Cena"]]);
+  assert.deepEqual(plain(fixture.deliveries.map(args=>args[3].packageName)),["Solo Masterclass","Workshop + Cena"]);
+  assert.deepEqual(plain(fixture.deliveries.map(args=>args[3].accessDetails)),[[{name:"Masterclass",menuChoice:null}],[{name:"Workshop",menuChoice:null},{name:"Cena",menuChoice:"Vegetariano"}]]);
   assert.equal(fixture.deliveries[0][3].marketing,undefined);
   assert.match(fixture.deliveries[1][3].marketing.confirmUrl,/token=opaque$/);
   assert.deepEqual(plain(fixture.marketingCalls),[[orderId,1,"it"],[orderId,0,"it"]]);
   assert.equal(JSON.stringify(fixture.deliveries).includes(contact.documentNumber),false);
   assert.equal(JSON.stringify(fixture.deliveries).includes(contact.phone),false);
   assert.ok(fixture.selected.filter(([table])=>table==="commerce_attendee_contacts").every(([,columns])=>columns==="email,order_id,participant_index"));
+  assert.ok(fixture.selected.filter(([table])=>table==="commerce_entitlements").every(([,columns])=>columns.split(",").map(column=>column.trim()).sort().join(",")==="activity_name,menu_choice"));
   assert.equal(fixture.calls.at(-1)[0],"complete_commerce_email");
   assert.equal(fixture.calls.at(-1)[1].p_success,true);
 });
