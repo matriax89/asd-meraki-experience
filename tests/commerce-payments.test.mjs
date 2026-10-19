@@ -15,6 +15,7 @@ function load(path, mocks = {}, env = {}) {
   return compiledModule.exports;
 }
 const config = load("src/lib/commerce/config.ts");
+const logistics = load("src/lib/events/logistics.ts");
 const attendee = load("src/lib/commerce/attendee.ts");
 const http = load("src/lib/commerce/http.ts", { "./config": config });
 const eventId = "12345678-1111-4111-8111-123456789abc";
@@ -252,6 +253,7 @@ test("existing event editor cannot bypass transactional commerce configuration o
   const actions = load("src/app/api/admin/eventi/actions.ts", {
     "next/cache": { revalidatePath() {} },
     "@/lib/commerce/config": config,
+    "@/lib/events/logistics": logistics,
     "@/lib/commerce/admin-auth": { requireCommerceStaff: async () => ({ from: () => ({ upsert: data => { saved = data; return { select: () => ({ single: async () => ({ data: { id: eventId } }) }) }; } }) }) },
   });
   const result = await actions.upsertEvent({ id: eventId, titolo: { it: "Evento" }, tipo: "evento", data_inizio: "2027-01-01T12:00:00Z", capacity: 50,
@@ -260,6 +262,6 @@ test("existing event editor cannot bypass transactional commerce configuration o
   assert.equal(saved.commerce_config, undefined);
   assert.equal(saved.posti_venduti, undefined);
   assert.equal(saved.stripe_price_id, undefined);
-  const unauthorized = load("src/app/api/admin/eventi/actions.ts", { "next/cache": {}, "@/lib/commerce/config": config, "@/lib/commerce/admin-auth": { requireCommerceStaff: async () => { throw Error("Unauthorized"); } } });
+  const unauthorized = load("src/app/api/admin/eventi/actions.ts", { "next/cache": {}, "@/lib/commerce/config": config, "@/lib/events/logistics": logistics, "@/lib/commerce/admin-auth": { requireCommerceStaff: async () => { throw Error("Unauthorized"); } } });
   await assert.rejects(unauthorized.upsertEvent({}), /Unauthorized/);
 });

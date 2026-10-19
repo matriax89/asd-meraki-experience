@@ -10,6 +10,7 @@ import { RegisterTicket } from "@/components/meraki/register-ticket";
 import { CommercePurchase } from "@/components/meraki/commerce-purchase";
 import { getCommercePass } from "@/lib/commerce/server";
 import { ticketViewCopy } from "@/lib/tickets/view-copy";
+import { eventTravelCopy, eventTravelPath } from "@/lib/events/travel-link";
 
 export const metadata: Metadata = {
   title: "Il tuo biglietto · Meraki",
@@ -30,7 +31,7 @@ export default async function BigliettoPage({ params, searchParams }: {
   // SELECT policy or retrieve a ticket by its ID alone.
   const { data: legacyTicket } = await createAdminClient()
     .from("tickets")
-    .select("id,buyer_nome,buyer_cognome,qr_code,status,used_at,event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at)")
+    .select("id,buyer_nome,buyer_cognome,qr_code,status,used_at,event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at,slug,tipo,logistics,attivo)")
     .eq("id", id)
     .eq("qr_code", token)
     .single();
@@ -45,6 +46,8 @@ export default async function BigliettoPage({ params, searchParams }: {
   if (!ticket?.event || !ticket.qr_code) notFound();
 
   const event = ticket.event;
+  const travelPath = eventTravelPath(event, locale);
+  const travelCopy = eventTravelCopy[locale as keyof typeof eventTravelCopy] || eventTravelCopy.it;
   const title = getLocalizedText(event.titolo, locale);
   const date = new Date(event.data_inizio);
   const opening = event.check_in_starts_at ? new Date(event.check_in_starts_at) : null;
@@ -86,6 +89,7 @@ export default async function BigliettoPage({ params, searchParams }: {
         {commerce && <section className="border-t border-[#eeeee5] px-6 pb-6 pt-5" aria-labelledby="ticket-accesses"><h3 id="ticket-accesses" className="mb-4 text-sm font-semibold">{t.accesses}</h3><ul className="space-y-3">{rights.map((right) => <li key={right.activity_id} className="flex items-start justify-between gap-3 rounded-2xl bg-[#f5f5ef] p-3.5"><div className="min-w-0"><p className="text-sm font-semibold">{right.activity_name}</p>{right.menu_choice && <p className="mt-1 text-xs text-[#73806d]">{t.menu}: {right.menu_choice}</p>}{right.used_at && <p className="mt-1 text-[11px] text-[#73806d]">{t.checkedIn}: {new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date(right.used_at))}</p>}</div><span className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold ${right.status === "available" ? "bg-[#e5edde] text-[#41663d]" : "bg-[#e9e7df] text-[#777b70]"}`}>{right.status === "available" ? t.available : right.status === "used" ? t.accessUsed : t.revoked}</span></li>)}</ul></section>}
       </article>
       <div className="mt-6 space-y-3">
+        {travelPath && <a href={travelPath} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b5a07c] bg-[#f5f4f0] px-5 text-center text-sm font-semibold text-[#263a2c]"><MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />{travelCopy.action}</a>}
         <RegisterTicket locale={locale} ticket={{ id: ticket.id, token: ticket.qr_code, title, date: event.data_inizio, checkInStartsAt: event.check_in_starts_at || undefined, location: [event.location, event.indirizzo].filter(Boolean).join(" · "), status: valid ? "paid" : ticket.status === "used" ? "used" : ticket.status === "refunded" ? "refunded" : "pending" }} />
         {valid && <a href={qr!} download={`Meraki-${id}.png`} className="flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-[#18251f] px-5 font-semibold text-white active:scale-[0.98]"><Download className="h-4 w-4" /> {t.download}</a>}
         <Link href="/biglietti" className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#dedfd5] px-4 text-sm font-semibold text-[#18251f]">{t.all}</Link>

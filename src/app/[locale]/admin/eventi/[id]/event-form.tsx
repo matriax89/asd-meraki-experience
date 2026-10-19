@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Input, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
 import { DateTimeField } from "@/components/admin/date-time-field";
 import { WizardSteps } from "@/components/admin/wizard-steps";
+import { EventLogisticsEditor } from "@/components/admin/event-logistics-editor";
+import { PosterUpload } from "@/components/admin/poster-upload";
+import { emptyEventLogistics, eventLogisticsSchema, hasEventLogistics, parseEventLogistics } from "@/lib/events/logistics";
 import { upsertEvent, deleteEvent } from "@/app/api/admin/eventi/actions";
 import { useModal } from "@/components/ui/modal-provider";
 import { Link } from "@/i18n/routing";
@@ -19,9 +22,18 @@ const eventSteps = [
   { title: "Dettagli", description: "Titolo e descrizione" },
   { title: "Data e luogo", description: "Orari, check-in e capienza" },
   { title: "Biglietteria e media", description: "Vendita e copertina" },
+  { title: "Viaggio e soggiorno", description: "Facoltativo · hotel e arrivo" },
   { title: "Riepilogo", description: "Controlla e conferma" },
 ] as const;
+const reviewStep = eventSteps.length - 1;
 const languageNames = { it: "Italiano", en: "Inglese", de: "Tedesco", es: "Spagnolo" };
+const logisticsFieldLabels: Record<string, string> = {
+  name: "Nome struttura", address: "Indirizzo struttura", mapUrl: "Link mappa", bookingUrl: "Link prenotazione",
+  phone: "Telefono struttura", email: "Email struttura", validUntil: "Data di validità", distance: "Distanza dall’evento",
+  rate: "Tariffa o prezzo indicativo", benefits: "Servizi e vantaggi", bookingInstructions: "Come prenotare la struttura",
+  title: "Titolo percorso", description: "Indicazioni per arrivare", linkUrl: "Link informazioni sul percorso",
+  accessibility: "Accessibilità e necessità specifiche", contact: "Contatto per viaggio e soggiorno",
+};
 function localizedCopy(value: unknown, language = "it") {
   if (typeof value === "string") return language === "it" ? value : "";
   const text = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>)[language] : "";
@@ -47,8 +59,11 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
   const progress = useRef<HTMLDivElement>(null);
   const previousStep = useRef(0);
   const saving = useRef(false);
+  const posterPending = useRef(false);
+  const [posterUploading, setPosterUploading] = useState(false);
+  const [logistics, setLogistics] = useState(() => parseEventLogistics(initialData?.logistics) || emptyEventLogistics());
   const [isPending, startTransition] = useTransition();
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string; target?: string; language?: string } | null>(null);
   const { showConfirm } = useModal();
   const initialCommerceConfig = parseCommerceConfig(initialData?.commerce_config);
   const [ticketingMode, setTicketingMode] = useState<"single" | "advanced">(initialCommerceConfig || initialTicketingMode === "advanced" ? "advanced" : "single");
@@ -114,6 +129,8 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
   };
 
   const validateStep = (step: number) => {
+    let target: string | undefined;
+    let language: string | undefined;
     try {
       if (step === 0) {
         if (!localizedCopy(formData.titolo).trim()) throw new Error("Inserisci il titolo in italiano.");
@@ -124,6 +141,26 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         if (formData.capacity !== "" && (!Number.isInteger(Number(formData.capacity)) || Number(formData.capacity) < 0 || Number(formData.capacity) > 100_000)) throw new Error("La capienza deve essere un numero intero tra 0 e 100.000, oppure vuota per posti illimitati.");
       }
       if (step === 2) ticketPrice();
+      if (step === 3) {
+        const unnamed = logistics.accommodations.find((item) => !item.name.trim());
+        if (unnamed) { target = `[data-accommodation="${unnamed.id}"] input`; throw new Error("Inserisci il nome di ogni struttura oppure rimuovi la voce vuota."); }
+        const untitled = logistics.arrivals.find((item) => !item.title.it.trim());
+        if (untitled) { target = `[data-arrival="${untitled.id}"] [data-arrival-title] input`; throw new Error("Inserisci il titolo del percorso in italiano oppure rimuovi la voce vuota."); }
+        const parsed = eventLogisticsSchema.safeParse(logistics);
+        if (!parsed.success) {
+          const issue = parsed.error.issues[0];
+          const path = issue.path.map(String);
+          if (["it", "en", "de", "es"].includes(path.at(-1) || "")) language = path.pop();
+          const field = path.at(-1) || "";
+          const label = logisticsFieldLabels[field];
+          target = `[data-logistics-path="${path.join(".")}"]`;
+          if (field.endsWith("Url")) throw new Error(`Inserisci un link http o https valido nel campo «${label}».`);
+          if (field === "email") throw new Error("Inserisci un indirizzo email valido per la struttura.");
+          if (field === "validUntil") throw new Error("Inserisci una data di validità nel formato gg/mm/aaaa.");
+          if (label && issue.code === "too_big") throw new Error(`Il testo nel campo «${label}» è troppo lungo.`);
+          throw new Error(label ? `Controlla il campo «${label}».` : "Controlla i dati di viaggio e soggiorno.");
+        }
+      }
       // Inactive panels stay mounted and enabled. This checks their local
       // incomplete drafts too, without native validation on hidden steps.
       const controls = panels.current[step]?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea");
@@ -131,7 +168,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       return true;
     } catch (error) {
       setCurrentStep(step);
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "Controlla i dati inseriti." });
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Controlla i dati inseriti.", target, language });
       return false;
     }
   };
@@ -153,21 +190,26 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       return;
     }
     const controls = panel?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea");
-    const invalid = controls && [...controls].find((control) => !control.checkValidity());
+    const specified = message.target ? panel?.querySelector<HTMLInputElement | HTMLTextAreaElement>(message.target) : null;
+    const invalid = specified || (controls && [...controls].find((control) => !control.checkValidity()));
+    let details = invalid?.closest("details");
+    while (details) { details.open = true; details = details.parentElement?.closest("details"); }
+    if (message.language) [...(invalid?.parentElement?.querySelectorAll("button") || [])].find((button) => button.textContent === message.language)?.click();
+    else if (invalid?.closest("[data-arrival-title]")) [...(invalid.closest("[data-arrival-title]")?.querySelectorAll("button") || [])].find((button) => button.textContent === "it")?.click();
     const target = invalid || panel?.querySelector<HTMLElement>("input,textarea,button");
     target?.focus();
     invalid?.reportValidity();
   }, [currentStep, message]);
 
   const changeStep = (next: number) => {
-    if (isPending || saving.current || next < 0 || next > maxStep || next === currentStep) return;
+    if (isPending || saving.current || posterPending.current || next < 0 || next > maxStep || next === currentStep) return;
     if (next > currentStep) for (let step = currentStep; step < next; step += 1) if (!validateStep(step)) return;
     setMessage(null);
     setCurrentStep(next);
   };
 
   const advanceStep = () => {
-    if (isPending || saving.current || currentStep >= 3) return;
+    if (isPending || saving.current || posterPending.current || currentStep >= reviewStep) return;
     setMessage(null);
     if (!validateStep(currentStep)) return;
     const next = currentStep + 1;
@@ -177,12 +219,12 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isPending || saving.current) return;
-    if (currentStep < 3) { advanceStep(); return; }
+    if (isPending || saving.current || posterPending.current) return;
+    if (currentStep < reviewStep) { advanceStep(); return; }
     setMessage(null);
     // Review is the only step allowed to save. Recheck every panel in case an
     // organizer returned to an earlier step and changed a completed field.
-    for (let step = 0; step < 3; step += 1) if (!validateStep(step)) return;
+    for (let step = 0; step < reviewStep; step += 1) if (!validateStep(step)) return;
     const { startsAt, endsAt, checkInStartsAt } = eventDates();
     const payload = {
       id: formData.id === "nuovo" ? undefined : formData.id,
@@ -193,6 +235,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       prezzo_cents: ticketPrice(),
       capacity: formData.capacity === "" ? null : Number(formData.capacity),
       copertina_url: formData.copertina_url,
+      logistics: hasEventLogistics(logistics) ? eventLogisticsSchema.parse(logistics) : null,
       attivo: requiresTicketSetup ? false : formData.attivo,
       ticketing_mode: ticketingMode,
     };
@@ -213,7 +256,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
   };
 
   const handleDelete = async () => {
-    if (isPending || saving.current) return;
+    if (isPending || saving.current || posterPending.current) return;
     const isConfirmed = await showConfirm({
       title: "Elimina Evento",
       message: "Sei sicuro di voler eliminare questo evento? Se ha dei biglietti venduti, l'operazione non sarà consentita. Considera di disattivarlo invece."
@@ -234,14 +277,14 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
   return (
     <form onSubmit={handleSubmit} onKeyDown={(event) => {
       const target = event.target as HTMLElement;
-      if (currentStep < 3 && event.key === "Enter" && !event.defaultPrevented && !event.nativeEvent.isComposing && target.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes((target as HTMLInputElement).type)) {
+      if (currentStep < reviewStep && event.key === "Enter" && !event.defaultPrevented && !event.nativeEvent.isComposing && target.tagName === "INPUT" && !["checkbox", "radio", "button", "submit", "file"].includes((target as HTMLInputElement).type)) {
         event.preventDefault();
         advanceStep();
       }
     }} noValidate className="max-w-4xl space-y-6 pb-6">
       <div ref={progress} tabIndex={-1} data-wizard-progress className="scroll-mt-40 space-y-4 outline-none md:scroll-mt-24">
-        <WizardSteps steps={eventSteps} currentStep={currentStep} onStepChange={changeStep} maxStep={maxStep} disabled={isPending} label={formData.id === "nuovo" ? "Creazione evento" : "Modifica evento"} />
-        <p aria-live="polite" className="text-sm text-[#7a8272]">Passaggio {currentStep + 1} di 4 · {eventSteps[currentStep].title}</p>
+        <WizardSteps steps={eventSteps} currentStep={currentStep} onStepChange={changeStep} maxStep={maxStep} disabled={isPending || posterUploading} label={formData.id === "nuovo" ? "Creazione evento" : "Modifica evento"} />
+        <p aria-live="polite" className="text-sm text-[#7a8272]">Passaggio {currentStep + 1} di {eventSteps.length} · {eventSteps[currentStep].title}</p>
       </div>
       {message && (
         <div role={message.type === 'error' ? "alert" : "status"} className={`p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -358,26 +401,14 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         </div>}
       </fieldset>
 
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
-        <h2 className="text-xl font-bold border-b border-border pb-2">Immagine di copertina</h2>
-        
-        <Input 
-          label="URL Immagine di Copertina" 
-          placeholder="https://..."
-          value={formData.copertina_url} 
-          onChange={e => setFormData({...formData, copertina_url: e.target.value})} 
-        />
-        {formData.copertina_url && (
-          <div className="mt-2 w-full max-w-sm rounded-lg overflow-hidden border border-border bg-white p-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={formData.copertina_url} alt="Anteprima" className="w-full h-auto object-contain aspect-video" />
-          </div>
-        )}
-
-      </div>
+      <PosterUpload value={formData.copertina_url} onChange={(copertina_url) => setFormData((current) => ({ ...current, copertina_url }))} onUploadingChange={(uploading) => { posterPending.current = uploading; setPosterUploading(uploading); }} disabled={isPending} />
       </fieldset>
 
-      <fieldset ref={(node) => { panels.current[3] = node; }} hidden={currentStep !== 3} disabled={isPending} data-event-step="3" aria-label={eventSteps[3].title} className="min-w-0 space-y-6 rounded-2xl border border-[#dedfd4] bg-[#fffefa] p-5 sm:p-6">
+      <fieldset ref={(node) => { panels.current[3] = node; }} hidden={currentStep !== 3} disabled={isPending} data-event-step="3" aria-label={eventSteps[3].title} className="min-w-0 border-0 p-0">
+        <EventLogisticsEditor value={logistics} onChange={setLogistics} />
+      </fieldset>
+
+      <fieldset ref={(node) => { panels.current[4] = node; }} hidden={currentStep !== reviewStep} disabled={isPending} data-event-step="4" aria-label={eventSteps[4].title} className="min-w-0 space-y-6 rounded-2xl border border-[#dedfd4] bg-[#fffefa] p-5 sm:p-6">
         <div><h2 className="text-xl font-semibold text-[#18251f]">Controlla prima di confermare</h2><p className="mt-2 text-sm leading-6 text-[#7a8272]">I dati vengono salvati solo con il pulsante finale. Puoi tornare ai passaggi precedenti per modificarli.</p></div>
         <section className="space-y-3" aria-label="Riepilogo dettagli"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Dettagli</h3><button type="button" onClick={() => changeStep(0)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica dettagli</button></div>
           <dl className="grid gap-3 sm:grid-cols-2">{Object.entries(languageNames).map(([language, name]) => <div key={language} className="rounded-xl bg-[#f3f2ed] p-3"><dt className="text-xs text-[#7a8272]">{name}</dt><dd className="mt-1 break-words text-sm font-semibold">{localizedCopy(formData.titolo, language) || "Titolo non inserito"}</dd>{localizedCopy(formData.sottotitolo, language) && <dd className="mt-1 text-sm text-[#7a8272]">{localizedCopy(formData.sottotitolo, language)}</dd>}</div>)}</dl>
@@ -393,6 +424,9 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
           <p className="text-sm text-[#7a8272]">{formData.copertina_url ? "Immagine di copertina inserita." : "Nessuna immagine di copertina."}</p>
           {requiresTicketSetup && <p className="rounded-xl bg-[#f2efe6] p-4 text-sm leading-6">Alla conferma salvi una bozza e apri la configurazione di attività, formule e prezzi. Pubblicherai l’evento dopo aver completato la biglietteria.</p>}
         </section>
+        <section className="space-y-3 border-t border-[#e4e5dc] pt-4" aria-label="Riepilogo viaggio e soggiorno"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Viaggio e soggiorno</h3><button type="button" onClick={() => changeStep(3)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica viaggio e soggiorno</button></div>
+          {hasEventLogistics(logistics) ? <><p className="text-sm">{logistics.accommodations.length} {logistics.accommodations.length === 1 ? "struttura" : "strutture"} · {logistics.arrivals.length} {logistics.arrivals.length === 1 ? "percorso di arrivo" : "percorsi di arrivo"}</p>{logistics.accommodations.length > 0 && <ul className="list-inside list-disc text-sm text-[#7a8272]">{logistics.accommodations.map((item) => <li key={item.id}>{item.name} · {item.kind === "partner" ? "Convenzionata" : "Consigliata"}{item.validUntil ? ` · fino al ${item.validUntil.split("-").reverse().join("/")}` : ""}</li>)}</ul>}{logistics.arrivals.length > 0 && <ul className="list-inside list-disc text-sm text-[#7a8272]">{logistics.arrivals.map((item) => <li key={item.id}>{item.title.it}</li>)}</ul>}<p className="text-xs text-[#7a8272]">{Object.values(logistics.accessibility).some(Boolean) ? "Informazioni sull’accessibilità inserite." : "Accessibilità non specificata."} {Object.values(logistics.contact).some(Boolean) ? "Contatto organizzativo inserito." : "Contatto organizzativo non specificato."}</p></> : <p className="text-sm text-[#7a8272]">Nessuna informazione aggiunta. Questo passaggio è facoltativo.</p>}
+        </section>
         <div className="pt-4">
           <Checkbox 
             label="Pubblica sul sito" 
@@ -405,9 +439,9 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       </fieldset>
 
       <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 rounded-2xl border border-[#dedfd4] bg-[#f8f7f2]/95 p-3 shadow-sm backdrop-blur sm:p-4">
-        <button type="button" disabled={isPending || currentStep === 0} onClick={() => changeStep(currentStep - 1)} className="min-h-12 rounded-xl border border-[#d9ddcf] px-4 text-sm font-semibold text-[#52604f] disabled:opacity-40">Indietro</button>
-        {currentStep < 3 ? <button key="event-next" type="button" data-event-advance disabled={isPending} onClick={(event) => { event.preventDefault(); advanceStep(); }} className="min-h-12 rounded-xl bg-[#263a2c] px-5 text-sm font-semibold text-white disabled:opacity-50 sm:px-7">Avanti</button>
-          : <button key="event-confirm" type="submit" data-event-confirm disabled={isPending} className="min-h-12 rounded-xl bg-[#263a2c] px-5 text-sm font-semibold text-white disabled:opacity-50 sm:px-7">
+        <button type="button" disabled={isPending || posterUploading || currentStep === 0} onClick={() => changeStep(currentStep - 1)} className="min-h-12 rounded-xl border border-[#d9ddcf] px-4 text-sm font-semibold text-[#52604f] disabled:opacity-40">Indietro</button>
+        {currentStep < reviewStep ? <button key="event-next" type="button" data-event-advance disabled={isPending || posterUploading} onClick={(event) => { event.preventDefault(); advanceStep(); }} className="min-h-12 rounded-xl bg-[#263a2c] px-5 text-sm font-semibold text-white disabled:opacity-50 sm:px-7">Avanti</button>
+          : <button key="event-confirm" type="submit" data-event-confirm disabled={isPending || posterUploading} className="min-h-12 rounded-xl bg-[#263a2c] px-5 text-sm font-semibold text-white disabled:opacity-50 sm:px-7">
             {isPending ? "Salvataggio…" : ticketingMode === "advanced" ? (formData.id === "nuovo" ? "Crea bozza e configura biglietti" : "Salva e configura biglietti") : (formData.id === "nuovo" ? "Crea evento" : "Salva modifiche")}
           </button>}
       </div>

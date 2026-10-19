@@ -41,7 +41,7 @@ export async function getCommercePass(id: string, token: string) {
   if (!data) return null;
   const pass = data as CommercePass;
   const [eventResult, rightsResult] = await Promise.all([
-    db.from("events").select("titolo,data_inizio,location,indirizzo,check_in_starts_at,commerce_config").eq("id", pass.event_id).single(),
+    db.from("events").select("titolo,data_inizio,location,indirizzo,check_in_starts_at,commerce_config,slug,tipo,logistics,attivo").eq("id", pass.event_id).single(),
     db.from("commerce_entitlements").select("*").eq("pass_id", id).order("created_at"),
   ]);
   if (eventResult.error || rightsResult.error || !eventResult.data) throw new Error("Impossibile leggere gli accessi del biglietto.");
@@ -52,7 +52,7 @@ export async function getCommercePass(id: string, token: string) {
       ...right, status: right.status === "valid" ? "available" : right.status === "used" ? "used" : "revoked",
       used_at: right.checked_in_at,
     })),
-    event: { titolo: event.titolo, data_inizio: event.data_inizio as string, check_in_starts_at: event.check_in_starts_at as string | null, location: event.location as string | null, indirizzo: event.indirizzo as string | null },
+    event: { slug: event.slug as string, tipo: event.tipo as string, logistics: event.logistics, attivo: event.attivo as boolean, titolo: event.titolo, data_inizio: event.data_inizio as string, check_in_starts_at: event.check_in_starts_at as string | null, location: event.location as string | null, indirizzo: event.indirizzo as string | null },
     config: parseCommerceConfig(event.commerce_config),
   };
 }

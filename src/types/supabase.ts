@@ -218,6 +218,7 @@ export type Database = {
           in_evidenza: boolean | null
           indirizzo: string | null
           location: string | null
+          logistics: Json | null
           meta_description: Json | null
           meta_title: Json | null
           posti_venduti: number | null
@@ -245,6 +246,7 @@ export type Database = {
           in_evidenza?: boolean | null
           indirizzo?: string | null
           location?: string | null
+          logistics?: Json | null
           meta_description?: Json | null
           meta_title?: Json | null
           posti_venduti?: number | null
@@ -272,6 +274,7 @@ export type Database = {
           in_evidenza?: boolean | null
           indirizzo?: string | null
           location?: string | null
+          logistics?: Json | null
           meta_description?: Json | null
           meta_title?: Json | null
           posti_venduti?: number | null

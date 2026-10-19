@@ -20,7 +20,7 @@ export function WizardSteps({ steps, currentStep, onStepChange, maxStep, disable
       <p role="status" className="text-xs font-medium text-[#73806d]">Passaggio {currentStep + 1} di {steps.length}</p>
     </div>
     <nav aria-label={label}>
-      <ol className="grid min-w-0 grid-cols-2 gap-2 lg:grid-cols-4">
+      <ol className={`grid min-w-0 grid-cols-2 gap-2 ${steps.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         {steps.map((step, index) => <li key={step.title} className="min-w-0">
           <button type="button" disabled={disabled || index > maxStep} onClick={() => onStepChange(index)} aria-current={index === currentStep ? "step" : undefined}
             className={`flex min-h-14 w-full min-w-0 items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left text-xs font-semibold leading-5 outline-none transition focus-visible:ring-2 focus-visible:ring-[#a38a59] focus-visible:ring-offset-2 disabled:cursor-not-allowed ${index === currentStep ? "border-[#263b2d] bg-[#263b2d] text-[#fff9ec]" : index < currentStep ? "border-[#dedbce] bg-[#f1eee5] text-[#47583e]" : "border-[#e5e6df] bg-white text-[#7c8476] disabled:opacity-55"}`}>

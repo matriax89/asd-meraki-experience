@@ -31,7 +31,7 @@ export default async function AdminEventPage({ params, searchParams }: { params:
         </h1>
         <p className="text-slate-500 mt-2">
           {id === "nuovo" 
-            ? "Quattro passaggi: dettagli, data e luogo, biglietteria e media, poi riepilogo e conferma. I dati vengono salvati solo alla fine."
+            ? "Cinque passaggi: dettagli, data e luogo, biglietteria e locandina, viaggio e soggiorno facoltativo, poi riepilogo e conferma. I dati vengono salvati solo alla fine."
             : initialData?.attivo ? "Aggiorna i dettagli pubblicati oppure apri Formule e prezzi per gestire la biglietteria." : "Questo evento non è pubblicato. Completa i dettagli e la biglietteria prima di renderlo visibile."}
         </p>
       </div>

@@ -12,9 +12,11 @@ const require = createRequire(import.meta.url);
 function load(file, mocks = {}) {
   const compiled = ts.transpileModule(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : require(name), process: { env: {} }, URL, Buffer, console });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : require(name), process: { env: {} }, URL, Buffer, console });
   return compiledModule.exports;
 }
+const logistics = load("src/lib/events/logistics.ts");
+const travel = load("src/lib/events/travel-link.ts", { "@/lib/events/logistics": logistics });
 const id = "79bb5f6a-2f35-40d6-9ad5-1d54dc109076";
 const token = "private-fixture-ticket-token";
 const event = { titolo: { it: "Meraki prova", en: "Meraki test", de: "Meraki Test", es: "Meraki prueba" }, data_inizio: "2026-11-18T23:30:00Z", check_in_starts_at: "2026-11-18T22:00:00Z", location: "Bolzano", indirizzo: null };
@@ -25,10 +27,11 @@ function value(document, label) {
   assert.ok(term, `Missing ticket detail: ${label}`);
   return term.nextElementSibling.textContent;
 }
-async function renderTicket(locale, { commerce = false, opening = true, used = false } = {}) {
+async function renderTicket(locale, { commerce = false, opening = true, used = false, guide = false } = {}) {
   const selected = [], filters = [];
   let registered;
-  const details = { ...event, check_in_starts_at: opening ? event.check_in_starts_at : null };
+  const information = logistics.emptyEventLogistics(); information.accessibility.it = "Ingresso accessibile";
+  const details = { ...event, check_in_starts_at: opening ? event.check_in_starts_at : null, ...(guide ? { slug: "esperienza-meraki", tipo: "evento", attivo: true, logistics: information } : {}) };
   const query = { select(fields) { selected.push(fields); return this; }, eq(...args) { filters.push(args); return this; }, single: async () => ({ data: commerce ? null : { id, qr_code: token, buyer_nome: "Ada", buyer_cognome: "Prova", status: used ? "used" : "paid", used_at: used ? "2026-11-18T22:20:00Z" : null, event: details } }) };
   const page = load("src/app/[locale]/(public)/biglietto/[id]/page.tsx", {
     "@/lib/supabase/server": { createAdminClient: () => ({ from: () => query }) },
@@ -80,6 +83,17 @@ test("older tickets without an opening schedule remain complete and do not inven
   assert.equal(registered.status, "paid");
   assert.ok(dom.window.document.querySelector('img[alt="Código QR personal para mostrar al personal en el control de acceso"]'));
   dom.window.close();
+});
+
+test("legacy and commerce tickets link to public trip information in every language without a bearer token", async () => {
+  for (const commerce of [false, true]) for (const locale of ["it", "en", "de", "es"]) {
+    const { dom } = await renderTicket(locale, { commerce, guide: true });
+    const link = dom.window.document.querySelector('a[href$="#viaggio-soggiorno"]');
+    assert.ok(link); assert.equal(link.textContent, travel.eventTravelCopy[locale].action);
+    assert.equal(link.getAttribute("href"), `/${locale}/eventi/esperienza-meraki#viaggio-soggiorno`);
+    assert.equal(link.getAttribute("href").includes(token), false);
+    dom.window.close();
+  }
 });
 
 test("commerce pass loading and verified wallet refresh preserve the actual event opening", async () => {

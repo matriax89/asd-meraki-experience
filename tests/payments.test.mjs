@@ -231,6 +231,7 @@ test("ticket email contains escaped content, secure link and attached QR", async
   class ResendMock { emails = { send: async (...args) => { delivered = args; return { error: null }; } }; }
   const mail = load("src/lib/resend/client.ts", {
     "@/lib/email/meraki-template": load("src/lib/email/meraki-template.ts"),
+    "@/lib/events/travel-link": load("src/lib/events/travel-link.ts", { "@/lib/events/logistics": load("src/lib/events/logistics.ts") }),
     resend: { Resend: ResendMock }, nodemailer: {}, qrcode: { toBuffer: async () => Buffer.from("png") },
     "@/lib/i18n-utils": { getLocalizedText: (value, locale) => value[locale] || value.it },
     "@/lib/supabase/server": { createAdminClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: null }) }) }) }) }) },

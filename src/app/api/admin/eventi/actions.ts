@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
 import { z } from "zod";
 import { parseCommerceConfig } from "@/lib/commerce/config";
+import { eventLogisticsSchema } from "@/lib/events/logistics";
 
 const localized = z.union([z.string().max(200_000), z.record(z.string(), z.string().max(200_000))]);
 const eventSchema = z.object({
@@ -14,6 +15,7 @@ const eventSchema = z.object({
   check_in_starts_at: z.iso.datetime({ offset: true }).nullable().optional(),
   location: z.string().max(500).nullable().optional(), indirizzo: z.string().max(1000).nullable().optional(),
   copertina_url: z.string().max(2048).nullable().optional(),
+  logistics: eventLogisticsSchema.optional(),
   prezzo_cents: z.number().int().min(0).max(10_000_000).nullable().optional(),
   capacity: z.number().int().min(0).max(100_000).nullable().optional(), attivo: z.boolean().optional(),
   ticketing_mode: z.enum(["single", "advanced"]).optional(),
@@ -40,6 +42,9 @@ export async function upsertEvent(raw: unknown) {
   const supabase = await requireCommerceStaff();
   const validation = eventSchema.safeParse(raw);
   if (!validation.success) {
+    if (validation.error.issues.some((issue) => issue.path[0] === "logistics")) {
+      return { success: false, error: "Controlla Viaggio e soggiorno: nomi, titoli in italiano, link, email e date delle convenzioni." };
+    }
     const openingError = validation.error.issues.find((issue) => issue.path[0] === "check_in_starts_at");
     return { success: false, error: openingError ? openingError.code === "custom" ? openingError.message : "Controlla data e orario dell’apertura check-in." : "Controlla date, prezzo, capienza e dettagli dell’evento." };
   }

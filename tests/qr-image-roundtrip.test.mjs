@@ -36,6 +36,7 @@ test("actual ticket email PNGs decode with the scanner library for both transpor
       } : { email_provider: "resend" } };
       const mail = load("lib/resend/client.ts", {
         "@/lib/email/meraki-template": template,
+        "@/lib/events/travel-link": load("lib/events/travel-link.ts", { "@/lib/events/logistics": load("lib/events/logistics.ts") }),
         "@/lib/i18n-utils": i18n,
         "@/lib/supabase/server": { createAdminClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { value: settings } }) }) }) }) }) },
         nodemailer: { createTransport: () => ({ sendMail: async (value) => { delivered = value; return { accepted: [value.to] }; } }) },

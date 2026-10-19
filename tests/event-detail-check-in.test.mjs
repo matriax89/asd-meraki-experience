@@ -20,6 +20,9 @@ function load(file, mocks = {}) {
 const model = load("components/meraki/event-model.ts");
 const i18n = load("lib/i18n-utils.ts");
 const data = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n });
+const logistics = load("lib/events/logistics.ts");
+const poster = load("components/meraki/event-poster.tsx", { "next/image": { __esModule: true, default: () => null } });
+const travel = load("components/meraki/event-logistics-section.tsx", { "@/lib/events/logistics": logistics });
 const { EventDetail } = load("components/meraki/event-detail.tsx", {
   "./event-model": model,
   "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) },
@@ -28,6 +31,9 @@ const { EventDetail } = load("components/meraki/event-detail.tsx", {
   "@/lib/tickets/event-availability": load("lib/tickets/event-availability.ts"),
   "@/app/[locale]/(public)/eventi/[slug]/checkout-button": { CheckoutButton: () => React.createElement("button", null, "Checkout") },
   "./commerce-purchase": { CommercePurchase: ({ fallback }) => fallback },
+  "./event-poster": poster,
+  "./event-logistics-section": travel,
+  "@/lib/events/logistics": logistics,
 });
 const base = {
   id: "event", slug: "meraki-qa", type: "evento", title: "Meraki QA", subtitle: "", startsAt: "2027-08-01T08:30:00Z", endsAt: null,

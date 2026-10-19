@@ -2,13 +2,14 @@ import { Link } from "@/i18n/routing";
 
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { EventPoster } from "@/components/meraki/event-poster";
 
 type EventCardProps = {
   id: string;
   slug: string;
   tipo: "evento" | "workshop" | "masterclass";
-  titolo: any;
-  sottotitolo?: any | null;
+  titolo: unknown;
+  sottotitolo?: unknown;
   data_inizio: string;
   copertina_url?: string | null;
   capacity?: number | null;
@@ -33,25 +34,18 @@ export async function EventCard({
   const formattedTime = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Rome" }).format(date);
   
   const venduti = posti_venduti || 0;
-  const postiDisponibili = capacity ? capacity - venduti : null;
+  const postiDisponibili = capacity == null ? null : Math.max(0, capacity - venduti);
   const isEsaurito = postiDisponibili !== null && postiDisponibili <= 0;
   
   const href = tipo === "evento" ? `/eventi/${slug}` : `/workshop/${slug}`;
+  const subtitle = getLocalizedText(sottotitolo, locale);
 
   return (
-    <Link href={href} className="group relative flex flex-col h-full rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-background border border-border/40">
-      <div className="aspect-[16/9] relative overflow-hidden bg-secondary/50">
-        {copertina_url ? (
-          <img src={copertina_url} alt={getLocalizedText(titolo, locale)} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-700 ease-out" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-tr from-secondary to-secondary/50" />
-        )}
-        <div className="absolute top-4 left-4 z-20 bg-background/90 backdrop-blur-md text-foreground text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-          {tipo}
-        </div>
-      </div>
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-[24px] border border-border/40 bg-background shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+      <div className="mx-auto w-full max-w-[420px] p-4"><EventPoster src={copertina_url || null} title={getLocalizedText(titolo, locale)} locale={locale} /></div>
       
       <div className="p-6 md:p-8 flex flex-col flex-1 relative z-20 bg-background">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{tipo}</p>
         <div className="flex items-center text-[12px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 gap-2">
           <span>{formattedDate}</span>
           <span className="text-border">•</span>
@@ -59,12 +53,12 @@ export async function EventCard({
         </div>
         
         <h3 className="font-bold text-[22px] text-foreground mb-3 leading-tight group-hover:text-slate-600 transition-colors">
-          {getLocalizedText(titolo, locale)}
+          <Link href={href} className="outline-offset-4 hover:underline">{getLocalizedText(titolo, locale)}</Link>
         </h3>
         
-        {sottotitolo && (
+        {subtitle && (
           <p className="text-slate-500 text-[15px] leading-relaxed mb-6 line-clamp-2">
-            {getLocalizedText(sottotitolo, locale)}
+            {subtitle}
           </p>
         )}
         
@@ -72,7 +66,7 @@ export async function EventCard({
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Prezzo</span>
             <span className="text-xl font-extrabold text-foreground tracking-tight">
-              {prezzo_cents ? `€${(prezzo_cents / 100).toFixed(2)}` : "Gratis"}
+              {prezzo_cents ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(prezzo_cents / 100) : "Gratis"}
             </span>
           </div>
           
@@ -87,6 +81,6 @@ export async function EventCard({
           </div>
         </div>
       </div>
-    </Link>
+    </article>
   );
 }

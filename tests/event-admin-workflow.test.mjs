@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { webcrypto } from "node:crypto";
 import test, { after } from "node:test";
 import vm from "node:vm";
 import { JSDOM } from "jsdom";
@@ -9,7 +10,9 @@ import ts from "typescript";
 const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://meraki.test/de/admin/eventi/nuovo", pretendToBeVisual: true });
 const original = new Map();
-for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, Node: dom.window.Node, Document: dom.window.Document, Event: dom.window.Event, FormData: dom.window.FormData, IS_REACT_ACT_ENVIRONMENT: true })) {
+class ResizeObserverFixture { observe() {} unobserve() {} disconnect() {} }
+dom.window.ResizeObserver = ResizeObserverFixture;
+for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, Node: dom.window.Node, Document: dom.window.Document, Event: dom.window.Event, FormData: dom.window.FormData, MutationObserver: dom.window.MutationObserver, ResizeObserver: ResizeObserverFixture, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window), cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })) {
   original.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
   Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
 }
@@ -22,10 +25,11 @@ function load(file, mocks = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : require(id), Date, Intl, Error, console: { error() {} } });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : require(id), Date, Intl, Error, URL, crypto: webcrypto, FormData: dom.window.FormData, console: { error() {} } });
   return compiledModule.exports;
 }
 const config = load("lib/commerce/config.ts");
+const logistics = load("lib/events/logistics.ts");
 const rome = load("lib/commerce/rome-time.ts");
 const customSelect = load("components/ui/custom-select.tsx", { "./custom-select.module.css": {} });
 const elements = load("components/admin/form-elements.tsx", { "@/components/ui/custom-select": customSelect });
@@ -43,7 +47,7 @@ function serverFixture(existing = baseEvent) {
     let patch;
     return { select() { return this; }, eq() { return this; }, upsert(value) { patch = value; saved.push(value); return this; }, async single() { return { data: patch ? { ...patch, id: eventId } : existing, error: null }; } };
   } };
-  const actions = load("app/api/admin/eventi/actions.ts", { "@/lib/commerce/config": config, "@/lib/commerce/admin-auth": { requireCommerceStaff: async () => db }, "next/cache": { revalidatePath() {} } });
+  const actions = load("app/api/admin/eventi/actions.ts", { "@/lib/events/logistics": logistics, "@/lib/commerce/config": config, "@/lib/commerce/admin-auth": { requireCommerceStaff: async () => db }, "next/cache": { revalidatePath() {} } });
   return { saved, actions };
 }
 
@@ -100,13 +104,21 @@ test("the server rejects a malformed or timezone-less check-in opening before an
 });
 
 async function mount(context, initialData = null, result = { success: true, id: eventId }, initialTicketingMode, options = {}) {
-  const saved = []; const navigations = []; const confirmations = []; const deleted = [];
+  const saved = []; const navigations = []; const confirmations = []; const deleted = []; const uploads = [];
   const dateTime = load("components/admin/date-time-field.tsx");
   const wizard = load("components/admin/wizard-steps.tsx");
+  const logisticsEditor = load("components/admin/event-logistics-editor.tsx", { "@/components/admin/form-elements": elements });
+  const poster = load("components/admin/poster-upload.tsx", {
+    "@/components/admin/form-elements": elements,
+    "@/app/api/admin/upload/actions": { uploadImageAction: async (data) => { uploads.push({ file: data.get("file"), folder: data.get("folder") }); return typeof options.uploadResult === "function" ? options.uploadResult(data) : options.uploadResult || { success: true, url: "https://assets.example.test/poster.png" }; } },
+  });
   const { EventForm } = load("app/[locale]/admin/eventi/[id]/event-form.tsx", {
     "@/components/admin/form-elements": elements, "@/i18n/routing": routing,
     "@/components/admin/date-time-field": dateTime,
     "@/components/admin/wizard-steps": wizard,
+    "@/components/admin/event-logistics-editor": logisticsEditor,
+    "@/components/admin/poster-upload": poster,
+    "@/lib/events/logistics": logistics,
     "@/lib/commerce/config": config, "@/lib/commerce/rome-time": rome,
     "next/navigation": { useRouter: () => ({ push: (url) => navigations.push(url) }) },
     "@/components/ui/modal-provider": { useModal: () => ({ showConfirm: async (value) => { confirmations.push(value); return Boolean(options.confirmDelete); } }) },
@@ -139,21 +151,225 @@ async function mount(context, initialData = null, result = { success: true, id: 
   const advance = () => act(async () => host.querySelector('button[data-event-advance],button[data-event-confirm]').click());
   const enter = () => act(async () => host.querySelector("form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
   const review = async () => {
-    for (let index = 0; index < 3 && currentStep() < 3; index += 1) {
+    for (let index = 0; index < 4 && currentStep() < 4; index += 1) {
       const previous = currentStep();
       await advance();
       if (currentStep() === previous) return;
     }
   };
-  const submit = async () => { await review(); if (currentStep() === 3) await advance(); };
+  const submit = async () => { await review(); if (currentStep() === 4) await advance(); };
   const back = () => act(async () => [...host.querySelectorAll("button")].find((button) => button.textContent === "Indietro").click());
-  return { host, field, change, language, dateFields, changeDateTime, currentStep, advance, enter, review, back, submit, saved, navigations, confirmations, deleted };
+  const upload = async (file) => {
+    const input = field("Carica locandina");
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    await act(async () => input.dispatchEvent(new dom.window.Event("change", { bubbles: true })));
+  };
+  const click = async (text, scope = host) => {
+    const button = [...scope.querySelectorAll("button")].find((candidate) => candidate.textContent.trim() === text);
+    assert.ok(button, `Button not found: ${text}`);
+    await act(async () => button.click());
+  };
+  return { host, field, change, language, dateFields, changeDateTime, currentStep, advance, enter, review, back, submit, upload, click, saved, navigations, confirmations, deleted, uploads };
 }
+
+const withinField = (scope, text) => [...scope.querySelectorAll("label")].find((label) => label.textContent.startsWith(text))?.control;
+async function localizedField(screen, scope, labelText, language, value) {
+  const label = [...scope.querySelectorAll("label")].find((candidate) => candidate.textContent.startsWith(labelText));
+  await screen.click(language, label.parentElement);
+  await screen.change(label.control, value);
+}
+
+test("the optional fifth-step wizard has no invented travel data and saves an empty logistics step as null", async (context) => {
+  const screen = await mount(context, baseEvent);
+  await screen.review();
+  assert.equal(screen.currentStep(), 4);
+  assert.equal(screen.host.querySelectorAll("[data-accommodation]").length, 0);
+  assert.equal(screen.host.querySelectorAll("[data-arrival]").length, 0);
+  assert.match(screen.host.querySelector('[data-event-step="4"]').textContent, /Nessuna informazione aggiunta/);
+  assert.equal(screen.saved.length, 0);
+  await screen.advance();
+  assert.equal(screen.saved[0].logistics, null);
+});
+
+test("repeatable accommodation and arrival data preserves all four languages and appears in the final summary", async (context) => {
+  const screen = await mount(context, baseEvent);
+  await screen.advance(); await screen.advance(); await screen.advance();
+  assert.equal(screen.currentStep(), 3);
+  await screen.click("Aggiungi struttura");
+  const first = screen.host.querySelector("[data-accommodation]");
+  await screen.change(withinField(first, "Nome struttura"), "Hotel di collaudo");
+  await screen.change(withinField(first, "Link prenotazione"), "https://hotel.example.test/book");
+  const kind = first.querySelector("select");
+  await act(async () => { kind.value = "partner"; kind.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  await screen.change(withinField(first, "Convenzione valida"), "30/11/2027");
+  for (const language of ["it", "en", "de", "es"]) await localizedField(screen, first, "Vantaggi della convenzione", language, `Vantaggio ${language}`);
+  await screen.click("Aggiungi struttura");
+  const second = screen.host.querySelectorAll("[data-accommodation]")[1];
+  await screen.change(withinField(second, "Nome struttura"), "Seconda struttura");
+  await screen.click("Aggiungi percorso");
+  const arrival = screen.host.querySelector("[data-arrival]");
+  for (const language of ["it", "en", "de", "es"]) {
+    await localizedField(screen, arrival, "Titolo percorso", language, `Percorso ${language}`);
+    await localizedField(screen, arrival, "Indicazioni per arrivare", language, `Indicazioni ${language}`);
+    await screen.language("Accessibilità e necessità specifiche", language);
+    await screen.change(screen.field("Accessibilità e necessità specifiche"), `Accessibilità ${language}`);
+    await screen.language("Contatto per viaggio e soggiorno", language);
+    await screen.change(screen.field("Contatto per viaggio e soggiorno"), `Contatto ${language}`);
+  }
+  await screen.advance();
+  assert.equal(screen.currentStep(), 4);
+  assert.match(screen.host.querySelector('[aria-label="Riepilogo viaggio e soggiorno"]').textContent, /2 strutture.*1 percors/);
+  assert.ok(screen.host.querySelector('[data-event-step="4"]').textContent.includes("Hotel di collaudo"));
+  await screen.advance();
+  const stored = screen.saved[0].logistics;
+  assert.equal(stored.accommodations.length, 2);
+  assert.equal(stored.accommodations[0].kind, "partner");
+  assert.equal(stored.accommodations[0].validUntil, "2027-11-30");
+  assert.equal(stored.accommodations[0].bookingUrl, "https://hotel.example.test/book");
+  for (const language of ["it", "en", "de", "es"]) {
+    assert.equal(stored.accommodations[0].benefits[language], `Vantaggio ${language}`);
+    assert.equal(stored.arrivals[0].description[language], `Indicazioni ${language}`);
+    assert.equal(stored.accessibility[language], `Accessibilità ${language}`);
+    assert.equal(stored.contact[language], `Contatto ${language}`);
+  }
+});
+
+test("blank rows require names or an Italian arrival title and removal preserves the remaining rows", async (context) => {
+  const screen = await mount(context, baseEvent);
+  await screen.advance(); await screen.advance(); await screen.advance();
+  await screen.click("Aggiungi struttura");
+  const first = screen.host.querySelector("[data-accommodation]");
+  await screen.advance();
+  assert.equal(screen.currentStep(), 3);
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /nome di ogni struttura/);
+  await screen.change(withinField(first, "Nome struttura"), "Struttura da conservare");
+  await screen.click("Aggiungi struttura");
+  const second = screen.host.querySelectorAll("[data-accommodation]")[1];
+  await screen.click("Rimuovi struttura", second);
+  await screen.click("Aggiungi percorso");
+  const arrival = screen.host.querySelector("[data-arrival]");
+  await localizedField(screen, arrival, "Titolo percorso", "en", "English arrival");
+  await screen.advance();
+  assert.equal(screen.currentStep(), 3);
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /titolo del percorso in italiano/);
+  assert.equal(withinField(arrival, "Titolo percorso").value, "");
+  await screen.click("Rimuovi percorso", arrival);
+  await screen.advance(); await screen.advance();
+  assert.equal(screen.saved[0].logistics.accommodations.length, 1);
+  assert.equal(screen.saved[0].logistics.accommodations[0].name, "Struttura da conservare");
+  assert.equal(screen.saved[0].logistics.arrivals.length, 0);
+});
+
+test("an invalid link or partial agreement date cannot silently become empty optional logistics", async (context) => {
+  const screen = await mount(context, baseEvent);
+  await screen.advance(); await screen.advance(); await screen.advance();
+  await screen.click("Aggiungi struttura");
+  const hotel = screen.host.querySelector("[data-accommodation]");
+  await screen.change(withinField(hotel, "Nome struttura"), "Struttura verificata");
+  await screen.change(withinField(hotel, "Link prenotazione"), "javascript:alert(1)");
+  await screen.advance();
+  assert.equal(screen.currentStep(), 3);
+  assert.equal(screen.saved.length, 0);
+  assert.equal(withinField(hotel, "Link prenotazione").value, "javascript:alert(1)");
+  assert.equal(document.activeElement, withinField(hotel, "Link prenotazione"));
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /http o https.*Link prenotazione/);
+  await screen.change(withinField(hotel, "Link prenotazione"), "https://hotel.example.test");
+  const date = withinField(hotel, "Informazioni valide");
+  await screen.change(date, "31/02/2027");
+  await screen.back(); await screen.advance();
+  assert.equal(withinField(hotel, "Informazioni valide"), date);
+  assert.equal(date.value, "31/02/2027");
+  await screen.advance();
+  assert.equal(screen.currentStep(), 3);
+  assert.equal(screen.saved.length, 0);
+  await screen.change(date, "28/02/2027");
+  await screen.click("Aggiungi percorso");
+  const arrival = screen.host.querySelector("[data-arrival]");
+  await localizedField(screen, arrival, "Titolo percorso", "it", "Dalla stazione");
+  const link = withinField(arrival, "Link informazioni sul percorso");
+  await screen.change(link, "javascript:alert(2)");
+  await act(async () => { arrival.open = false; });
+  await screen.advance();
+  assert.equal(screen.currentStep(), 3);
+  assert.equal(arrival.open, true);
+  assert.equal(document.activeElement, link);
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /http o https.*Link informazioni sul percorso/);
+  await screen.change(link, "https://travel.example.test");
+  const email = withinField(hotel, "Email struttura");
+  await screen.change(email, "not-an-email");
+  await screen.advance();
+  assert.equal(document.activeElement, email);
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /indirizzo email valido/);
+  await screen.change(email, "hotel@example.test");
+  await screen.advance(); await screen.advance();
+  assert.equal(screen.saved[0].logistics.accommodations[0].validUntil, "2027-02-28");
+});
+
+test("poster upload uses the real action interface and the full image preview accepts a non-4:5 ratio", async (context) => {
+  const screen = await mount(context, baseEvent);
+  await screen.advance(); await screen.advance();
+  await screen.upload(new dom.window.File(["PNG fixture"], "locandina.png", { type: "image/png" }));
+  assert.equal(screen.uploads.length, 1);
+  assert.equal(screen.uploads[0].folder, "events");
+  assert.equal(screen.uploads[0].file.name, "locandina.png");
+  assert.equal(screen.field("URL Immagine").value, "https://assets.example.test/poster.png");
+  const image = screen.host.querySelector("[data-poster-preview] img");
+  assert.match(image.className, /object-contain/);
+  assert.match(image.parentElement.className, /aspect-\[4\/5\]/);
+  Object.defineProperties(image, { naturalWidth: { value: 1200 }, naturalHeight: { value: 1200 } });
+  await act(async () => image.dispatchEvent(new dom.window.Event("load")));
+  assert.match(screen.host.textContent, /1200 × 1200 px.*Rapporto diverso da 4:5/);
+  assert.equal(screen.saved.length, 0);
+  await screen.submit();
+  assert.equal(screen.saved[0].copertina_url, "https://assets.example.test/poster.png");
+});
+
+test("poster validation, upload failure and broken preview keep the existing URL and form data", async (context) => {
+  const originalUrl = "https://assets.example.test/original.jpg";
+  const screen = await mount(context, { ...baseEvent, copertina_url: originalUrl }, undefined, undefined, { uploadResult: { success: false, error: "Storage non disponibile" } });
+  await screen.advance(); await screen.advance();
+  await screen.upload(new dom.window.File(["gif"], "invalid.gif", { type: "image/gif" }));
+  assert.equal(screen.uploads.length, 0);
+  assert.equal(screen.field("URL Immagine").value, originalUrl);
+  const large = new dom.window.File(["png"], "large.png", { type: "image/png" });
+  Object.defineProperty(large, "size", { value: 8 * 1024 * 1024 + 1 });
+  await screen.upload(large);
+  assert.equal(screen.uploads.length, 0);
+  assert.match(screen.host.textContent, /massimo 8 MB/);
+  await screen.upload(new dom.window.File(["png"], "valid.png", { type: "image/png" }));
+  assert.equal(screen.uploads.length, 1);
+  assert.match(screen.host.textContent, /Storage non disponibile/);
+  assert.equal(screen.field("URL Immagine").value, originalUrl);
+  const image = screen.host.querySelector("[data-poster-preview] img");
+  await act(async () => image.dispatchEvent(new dom.window.Event("error")));
+  assert.match(screen.host.textContent, /L’URL inserito è conservato/);
+  assert.equal(screen.field("URL Immagine").value, originalUrl);
+  await screen.click("Riprova anteprima");
+  assert.equal(screen.host.querySelector("[data-poster-preview] img").getAttribute("src"), originalUrl);
+  assert.equal(screen.field("Titolo").value, "Evento di prova");
+  assert.equal(screen.saved.length, 0);
+});
+
+test("navigation and early submits wait for an unfinished poster upload", async (context) => {
+  let complete;
+  const pending = new Promise((resolve) => { complete = resolve; });
+  const screen = await mount(context, baseEvent, undefined, undefined, { uploadResult: () => pending });
+  await screen.advance(); await screen.advance();
+  await screen.upload(new dom.window.File(["png"], "upload.png", { type: "image/png" }));
+  assert.equal(screen.host.querySelector("[data-event-advance]").disabled, true);
+  await screen.enter();
+  assert.equal(screen.currentStep(), 2);
+  assert.equal(screen.saved.length, 0);
+  await act(async () => complete({ success: true, url: "https://assets.example.test/finished.png" }));
+  assert.equal(screen.host.querySelector("[data-event-advance]").disabled, false);
+  await screen.submit();
+  assert.equal(screen.saved[0].copertina_url, "https://assets.example.test/finished.png");
+});
 
 test("the wizard validates only the current step and Enter cannot create an event before the final review", async (context) => {
   const screen = await mount(context);
   assert.equal(screen.currentStep(), 0);
-  assert.equal(screen.host.querySelectorAll("[data-event-step]").length, 4);
+  assert.equal(screen.host.querySelectorAll("[data-event-step]").length, 5);
   assert.equal([...screen.host.querySelectorAll('[data-event-step]')].filter((panel) => !panel.hidden).length, 1);
   assert.equal(screen.host.querySelector('nav button[aria-current="step"]').textContent.trim(), "1Dettagli");
   assert.ok([...screen.host.querySelectorAll("nav button")].slice(1).every((button) => button.disabled));
@@ -180,7 +396,10 @@ test("the wizard validates only the current step and Enter cannot create an even
   await screen.enter();
   assert.equal(screen.currentStep(), 3);
   assert.equal(screen.saved.length, 0);
-  assert.match(screen.host.querySelector('[data-event-step="3"]').textContent, /Controlla prima di confermare/);
+  await screen.enter();
+  assert.equal(screen.currentStep(), 4);
+  assert.equal(screen.saved.length, 0);
+  assert.match(screen.host.querySelector('[data-event-step="4"]').textContent, /Controlla prima di confermare/);
   await screen.advance();
   assert.equal(screen.saved.length, 1);
   assert.deepEqual(screen.navigations, [`/de/admin/eventi/${eventId}`]);
@@ -190,13 +409,14 @@ test("the native last Next click is canceled and mounts a distinct confirmation 
   const screen = await mount(context, baseEvent);
   await screen.advance();
   await screen.advance();
+  await screen.advance();
   const next = screen.host.querySelector("[data-event-advance]");
   assert.equal(next.type, "button");
   let nativeClick;
   next.addEventListener("click", (event) => { nativeClick = event; });
   await act(async () => next.click());
   assert.equal(nativeClick.defaultPrevented, true);
-  assert.equal(screen.currentStep(), 3);
+  assert.equal(screen.currentStep(), 4);
   assert.equal(screen.saved.length, 0);
   const confirm = screen.host.querySelector("[data-event-confirm]");
   assert.equal(confirm.type, "submit");
@@ -259,9 +479,9 @@ test("back and next preserve every translation and do not save until the organiz
     assert.equal(screen.field("Titolo").value, `Titolo ${language}`);
   }
   await screen.review();
-  assert.equal(screen.currentStep(), 3);
+  assert.equal(screen.currentStep(), 4);
   assert.equal(screen.saved.length, 0);
-  for (const language of ["it", "en", "de", "es"]) assert.ok(screen.host.querySelector('[data-event-step="3"]').textContent.includes(`Titolo ${language}`));
+  for (const language of ["it", "en", "de", "es"]) assert.ok(screen.host.querySelector('[data-event-step="4"]').textContent.includes(`Titolo ${language}`));
   await screen.advance();
   assert.deepEqual({ ...screen.saved[0].titolo }, { it: "Titolo it", en: "Titolo en", de: "Titolo de", es: "Titolo es" });
   assert.deepEqual({ ...screen.saved[0].descrizione }, { it: "Descrizione it", en: "Descrizione en", de: "Descrizione de", es: "Descrizione es" });
@@ -270,6 +490,7 @@ test("back and next preserve every translation and do not save until the organiz
 test("an incomplete date draft survives backward navigation and prevents jumping back to review", async (context) => {
   const screen = await mount(context, baseEvent);
   await screen.review();
+  await screen.back();
   await screen.back();
   await screen.back();
   const input = screen.dateFields("Apertura check-in").date;
@@ -288,7 +509,7 @@ test("the final confirmation rechecks incomplete local drafts inside hidden step
   const screen = await mount(context, baseEvent);
   await screen.review();
   await screen.change(screen.dateFields("Fine Evento").time, "12:");
-  assert.equal(screen.currentStep(), 3);
+  assert.equal(screen.currentStep(), 4);
   await screen.advance();
   assert.equal(screen.saved.length, 0);
   assert.equal(screen.currentStep(), 1);

@@ -1,39 +1,34 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
+import { MAX_IMAGE_BYTES, rasterImageType } from "@/lib/uploads/images";
 
 export async function uploadImageAction(formData: FormData) {
   try {
-    const file = formData.get("file") as File | null;
-    const folder = formData.get("folder") as string || "uploads";
-    
-    if (!file) {
-      return { success: false, error: "Nessun file fornito" };
-    }
-
-    const adminSupabase = createAdminClient();
-    
-    // Generate a unique file name
-    const fileExtension = file.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExtension}`;
+    const adminSupabase = await requireCommerceStaff();
+    const file = formData.get("file");
+    const folder = formData.get("folder") || "uploads";
+    if (!(file instanceof File) || !file.size) return { success: false, error: "Scegli un’immagine da caricare." };
+    if (file.size > MAX_IMAGE_BYTES) return { success: false, error: "L’immagine può pesare al massimo 8 MB." };
+    if (typeof folder !== "string" || !/^[a-z0-9][a-z0-9/_-]{0,100}$/i.test(folder)) return { success: false, error: "Destinazione immagine non valida." };
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const type = rasterImageType(buffer);
+    if (!type || (file.type && file.type !== type.mime)) return { success: false, error: "Usa un’immagine JPEG, PNG, WebP o GIF valida." };
+    const fileName = `${crypto.randomUUID()}.${type.extension}`;
     const filePath = `${folder}/${fileName}`;
 
-    // Convert File to ArrayBuffer for Supabase
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
     // Upload to 'public-assets' bucket
-    const { data, error } = await adminSupabase
+    const { error } = await adminSupabase
       .storage
       .from("public-assets")
       .upload(filePath, buffer, {
-        contentType: file.type,
+        contentType: type.mime,
         upsert: false
       });
 
     if (error) {
-      console.error("Supabase storage error:", error);
-      return { success: false, error: error.message };
+      console.error("Image upload failed.");
+      return { success: false, error: "Caricamento non riuscito. Riprova tra poco." };
     }
 
     // Get public URL
@@ -44,8 +39,7 @@ export async function uploadImageAction(formData: FormData) {
 
     return { success: true, url: publicUrl };
     
-  } catch (error: any) {
-    console.error("Upload server action error:", error);
-    return { success: false, error: error.message || "Errore sconosciuto durante l'upload" };
+  } catch {
+    return { success: false, error: "Impossibile caricare l’immagine. Verifica l’accesso amministratore e riprova." };
   }
 }

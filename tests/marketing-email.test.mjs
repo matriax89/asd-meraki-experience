@@ -9,9 +9,11 @@ const require = createRequire(import.meta.url);
 function load(path, mocks = {}, env = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : require(name), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : require(name), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
   return compiledModule.exports;
 }
+const logistics = load("src/lib/events/logistics.ts");
+const travel = load("src/lib/events/travel-link.ts", { "@/lib/events/logistics": logistics });
 const templates = load('src/lib/email/meraki-template.ts');
 const guestCopy = {
   it: /senza (?:creare )?(?:un )?account|senza registrazione|non (?:devi|serve).*account/i,
@@ -136,6 +138,37 @@ test('legacy tickets show their actual participant while omitting unknown packag
     assert.equal(`${sent.html}${sent.text}`.includes('ES-PRIVATE-TEST-12345'), false);
     dom.window.close();
   }
+});
+
+test('ticket emails keep the whole poster and link to current travel information without sharing QR credentials', async () => {
+  const guide = logistics.emptyEventLogistics();
+  guide.contact.it = 'Contatta l’organizzazione per informazioni.';
+  for (const locale of ['it', 'en', 'de', 'es']) {
+    let sent;
+    const mail = load('src/lib/resend/client.ts', {
+      '@/lib/email/meraki-template': templates,
+      '@/lib/i18n-utils': { getLocalizedText: () => 'Meraki Workshop' },
+      '@/lib/supabase/server': { createAdminClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: null }) }) }) }) }) },
+      resend: { Resend: class { emails = { send: async value => { sent = value; return { error: null }; } }; } }, nodemailer: {}, qrcode: { toBuffer: async () => Buffer.from('png') },
+    }, { RESEND_API_KEY: 'test-only', NEXT_PUBLIC_SITE_URL: 'https://meraki.example' });
+    const result = await mail.sendTicketConfirmation({ id: 'private-ticket', qr_code: 'private-qr', buyer_email: 'participant@example.test', buyer_nome: 'Ada', buyer_cognome: 'Prova' }, {
+      titolo: 'Meraki Workshop', data_inizio: '2026-11-18T19:00:00Z', location: 'Bolzano', indirizzo: null,
+      copertina_url: 'https://meraki.example/poster.png', slug: 'workshop-meraki', tipo: 'workshop', logistics: guide,
+    }, locale);
+    assert.equal(result.success, true);
+    const dom = new JSDOM(sent.html); const document = dom.window.document;
+    const poster = document.querySelector('img[src="https://meraki.example/poster.png"]');
+    assert.ok(poster); assert.equal(poster.style.height, 'auto'); assert.equal(poster.style.maxHeight, '');
+    assert.notEqual(poster.style.objectFit, 'cover');
+    const link = [...document.querySelectorAll('a')].find(a => a.hash === '#viaggio-soggiorno');
+    assert.equal(link?.textContent, travel.eventTravelCopy[locale].action);
+    assert.equal(link.href, `https://meraki.example/${locale}/workshop/workshop-meraki#viaggio-soggiorno`);
+    assert.equal(link.search, ''); assert.equal(link.href.includes('private-qr'), false);
+    assert.ok(sent.text.includes(link.href));
+    dom.window.close();
+  }
+  assert.equal(travel.eventTravelPath({ slug: 'evento', logistics: guide, attivo: false }, 'it'), null);
+  assert.equal(travel.eventTravelPath({ slug: 'evento', logistics: null }, 'it'), null);
 });
 
 test('the email shell uses absolute PNG artwork and keeps follow-up instructions after the primary action', () => {
