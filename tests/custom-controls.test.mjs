@@ -170,11 +170,13 @@ test("an unchanged commerce date preserves an existing repeated-hour instant wit
   const { DateTimeField } = compile("../src/components/admin/date-time-field.tsx");
   const rome = compile("../src/lib/commerce/rome-time.ts");
   const config = compile("../src/lib/commerce/config.ts");
+  const wizard = compile("../src/components/admin/wizard-steps.tsx");
   const saved = [];
   const { CommerceConfigEditor } = compile("../src/components/admin/commerce-config-editor.tsx", {
     "@/components/ui/custom-select": { CustomSelect },
     "@/components/admin/euro-input": { EuroInput },
     "@/components/admin/date-time-field": { DateTimeField },
+    "@/components/admin/wizard-steps": wizard,
     "@/lib/commerce/rome-time": rome,
     "@/lib/commerce/config": config,
     "@/app/api/admin/commerce/actions": { saveCommerceAdmin: async (_id, value) => { saved.push(value); return { success: true }; }, updateCommerceWaitlist: async () => ({ success: true }) },
@@ -189,7 +191,12 @@ test("an unchanged commerce date preserves an existing repeated-hour instant wit
   await act(async () => date.blur());
   assert.equal(container.querySelector("form").checkValidity(), true);
   assert.equal(container.querySelector('[role="alert"]'), null);
-  await act(async () => container.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  for (let step = 0; step < 3; step++) {
+    await click([...container.querySelectorAll("button")].find((button) => button.textContent.trim() === "Avanti"));
+    assert.equal(saved.length, 0, "Advancing through the wizard does not save");
+  }
+  assert.equal(container.querySelector('[data-commerce-step="3"]').hidden, false);
+  await click([...container.querySelectorAll("button")].find((button) => button.textContent.trim() === "Salva configurazione"));
   assert.equal(saved.length, 1);
   assert.equal(saved[0].activities[0].startsAt, instant);
 });

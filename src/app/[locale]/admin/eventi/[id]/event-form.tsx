@@ -1,9 +1,10 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
 import { DateTimeField } from "@/components/admin/date-time-field";
+import { WizardSteps } from "@/components/admin/wizard-steps";
 import { upsertEvent, deleteEvent } from "@/app/api/admin/eventi/actions";
 import { useModal } from "@/components/ui/modal-provider";
 import { Link } from "@/i18n/routing";
@@ -14,6 +15,23 @@ import type { Database } from "@/types/supabase";
 type EventRow = Database["public"]["Tables"]["events"]["Row"] & { commerce_config?: unknown };
 type LocalizedValue = string | Record<string, string>;
 
+const eventSteps = [
+  { title: "Dettagli", description: "Titolo e descrizione" },
+  { title: "Data e luogo", description: "Orari, check-in e capienza" },
+  { title: "Biglietteria e media", description: "Vendita e copertina" },
+  { title: "Riepilogo", description: "Controlla e conferma" },
+] as const;
+const languageNames = { it: "Italiano", en: "Inglese", de: "Tedesco", es: "Spagnolo" };
+function localizedCopy(value: unknown, language = "it") {
+  if (typeof value === "string") return language === "it" ? value : "";
+  const text = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>)[language] : "";
+  return typeof text === "string" ? text : "";
+}
+function summaryDate(value: string) {
+  const [date, time] = value.split("T");
+  return date && time ? `${date.split("-").reverse().join("/")} · ${time}` : "Non specificata";
+}
+
 interface EventFormProps {
   initialData: EventRow | null;
   locale?: string;
@@ -23,6 +41,12 @@ interface EventFormProps {
 export function EventForm({ initialData, locale = "it", initialTicketingMode }: EventFormProps) {
   const router = useRouter();
   const dateFieldId = useId();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [maxStep, setMaxStep] = useState(0);
+  const panels = useRef<(HTMLFieldSetElement | null)[]>([]);
+  const progress = useRef<HTMLDivElement>(null);
+  const previousStep = useRef(0);
+  const saving = useRef(false);
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const { showConfirm } = useModal();
@@ -66,73 +90,130 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage(null);
-    
-    // Parse euro to cents
-    let prezzo_cents = ticketingMode === "advanced" ? initialData?.prezzo_cents ?? null : null;
-    if (ticketingMode === "single" && formData.prezzo_euro) {
-      const parsedEuro = Number(formData.prezzo_euro.replace(',', '.'));
-      if (!Number.isFinite(parsedEuro) || parsedEuro < 0) {
-        setMessage({ type: 'error', text: "Il prezzo deve essere un numero valido, positivo o zero. Lascia vuoto per un evento gratuito." });
-        return;
-      }
-      prezzo_cents = Math.round(parsedEuro * 100);
-    }
+  const eventDates = () => {
+    // Keep the stored instant when its wall time did not change, including the
+    // seconds and the known offset during the repeated autumn hour.
+    const startsAt = initialData?.data_inizio && formData.data_inizio === toRomeInput(initialData.data_inizio)
+      ? initialData.data_inizio : fromRomeInput(formData.data_inizio);
+    const endsAt = initialData?.data_fine && formData.data_fine === toRomeInput(initialData.data_fine)
+      ? initialData.data_fine : fromRomeInput(formData.data_fine);
+    const checkInStartsAt = initialData?.check_in_starts_at && formData.check_in_starts_at === toRomeInput(initialData.check_in_starts_at)
+      ? initialData.check_in_starts_at : fromRomeInput(formData.check_in_starts_at);
+    if (!startsAt) throw new Error("Inserisci la data e l’orario di inizio dell’evento.");
+    if (endsAt && Date.parse(endsAt) < Date.parse(startsAt)) throw new Error("La fine dell’evento non può precedere l’inizio.");
+    if (checkInStartsAt && Date.parse(checkInStartsAt) > Date.parse(startsAt)) throw new Error("L’apertura del check-in non può essere successiva all’inizio dell’evento.");
+    return { startsAt, endsAt, checkInStartsAt };
+  };
 
-    let startsAt: string; let endsAt: string | null; let checkInStartsAt: string | null;
+  const ticketPrice = () => {
+    if (ticketingMode === "advanced") return initialData?.prezzo_cents ?? null;
+    if (!formData.prezzo_euro.trim()) return null;
+    const value = Number(formData.prezzo_euro.replace(",", "."));
+    if (!Number.isFinite(value) || value < 0 || value > 100_000) throw new Error("Il prezzo deve essere un numero valido, positivo o zero, fino a 100.000 €. Lascia vuoto per un evento gratuito.");
+    return Math.round(value * 100);
+  };
+
+  const validateStep = (step: number) => {
     try {
-      // Unchanged fields keep their exact stored instant, including seconds
-      // and an already unambiguous offset during the repeated autumn hour.
-      startsAt = initialData?.data_inizio && formData.data_inizio === toRomeInput(initialData.data_inizio)
-        ? initialData.data_inizio : fromRomeInput(formData.data_inizio)!;
-      endsAt = initialData?.data_fine && formData.data_fine === toRomeInput(initialData.data_fine)
-        ? initialData.data_fine : fromRomeInput(formData.data_fine);
-      checkInStartsAt = initialData?.check_in_starts_at && formData.check_in_starts_at === toRomeInput(initialData.check_in_starts_at)
-        ? initialData.check_in_starts_at : fromRomeInput(formData.check_in_starts_at);
-      if (!startsAt || (endsAt && Date.parse(endsAt) < Date.parse(startsAt))) throw new Error("La fine dell’evento non può precedere l’inizio.");
-      if (checkInStartsAt && Date.parse(checkInStartsAt) > Date.parse(startsAt)) throw new Error("L’apertura del check-in non può essere successiva all’inizio dell’evento.");
+      if (step === 0) {
+        if (!localizedCopy(formData.titolo).trim()) throw new Error("Inserisci il titolo in italiano.");
+        if (!formData.slug.trim()) throw new Error("Inserisci lo slug dell’evento.");
+      }
+      if (step === 1) {
+        eventDates();
+        if (formData.capacity !== "" && (!Number.isInteger(Number(formData.capacity)) || Number(formData.capacity) < 0 || Number(formData.capacity) > 100_000)) throw new Error("La capienza deve essere un numero intero tra 0 e 100.000, oppure vuota per posti illimitati.");
+      }
+      if (step === 2) ticketPrice();
+      // Inactive panels stay mounted and enabled. This checks their local
+      // incomplete drafts too, without native validation on hidden steps.
+      const controls = panels.current[step]?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea");
+      if (controls && [...controls].some((control) => !control.checkValidity())) throw new Error("Controlla i campi di questo passaggio prima di continuare.");
+      return true;
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : "Controlla data e orario dell’evento." });
+      setCurrentStep(step);
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Controlla i dati inseriti." });
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    if (previousStep.current === currentStep) return;
+    previousStep.current = currentStep;
+    progress.current?.focus({ preventScroll: true });
+    progress.current?.scrollIntoView?.({ block: "start", behavior: "auto" });
+  }, [currentStep]);
+
+  useEffect(() => {
+    if (message?.type !== "error") return;
+    const panel = panels.current[currentStep];
+    if (currentStep === 0 && message.text === "Inserisci il titolo in italiano.") {
+      const title = panel?.querySelector<HTMLElement>("[data-event-title]");
+      [...(title?.querySelectorAll("button") || [])].find((button) => button.textContent === "it")?.click();
+      title?.querySelector<HTMLInputElement>("input")?.focus();
       return;
     }
+    const controls = panel?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea");
+    const invalid = controls && [...controls].find((control) => !control.checkValidity());
+    const target = invalid || panel?.querySelector<HTMLElement>("input,textarea,button");
+    target?.focus();
+    invalid?.reportValidity();
+  }, [currentStep, message]);
 
+  const changeStep = (next: number) => {
+    if (isPending || saving.current || next < 0 || next > maxStep || next === currentStep) return;
+    if (next > currentStep) for (let step = currentStep; step < next; step += 1) if (!validateStep(step)) return;
+    setMessage(null);
+    setCurrentStep(next);
+  };
+
+  const advanceStep = () => {
+    if (isPending || saving.current || currentStep >= 3) return;
+    setMessage(null);
+    if (!validateStep(currentStep)) return;
+    const next = currentStep + 1;
+    setMaxStep((previous) => Math.max(previous, next));
+    setCurrentStep(next);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isPending || saving.current) return;
+    if (currentStep < 3) { advanceStep(); return; }
+    setMessage(null);
+    // Review is the only step allowed to save. Recheck every panel in case an
+    // organizer returned to an earlier step and changed a completed field.
+    for (let step = 0; step < 3; step += 1) if (!validateStep(step)) return;
+    const { startsAt, endsAt, checkInStartsAt } = eventDates();
     const payload = {
       id: formData.id === "nuovo" ? undefined : formData.id,
-      titolo: formData.titolo,
-      sottotitolo: formData.sottotitolo,
-      slug: formData.slug,
-      tipo: formData.tipo,
-      descrizione: formData.descrizione,
-      data_inizio: startsAt,
-      data_fine: endsAt,
-      check_in_starts_at: checkInStartsAt,
-      location: formData.location,
-      indirizzo: formData.indirizzo,
-      prezzo_cents,
+      titolo: formData.titolo, sottotitolo: formData.sottotitolo,
+      slug: formData.slug, tipo: formData.tipo, descrizione: formData.descrizione,
+      data_inizio: startsAt, data_fine: endsAt, check_in_starts_at: checkInStartsAt,
+      location: formData.location, indirizzo: formData.indirizzo,
+      prezzo_cents: ticketPrice(),
       capacity: formData.capacity === "" ? null : Number(formData.capacity),
       copertina_url: formData.copertina_url,
       attivo: requiresTicketSetup ? false : formData.attivo,
       ticketing_mode: ticketingMode,
     };
-
+    saving.current = true;
     startTransition(async () => {
-      const result = await upsertEvent(payload);
-      if (result.error) {
-        setMessage({ type: 'error', text: result.error });
-      } else {
-        setMessage({ type: 'success', text: 'Evento salvato con successo!' });
-        if (ticketingMode === "advanced") {
-          router.push(`/${locale}/admin/eventi/${result.id}/commerce`);
-        } else if (formData.id === "nuovo") {
-          router.push(`/${locale}/admin/eventi/${result.id}`);
+      try {
+        const result = await upsertEvent(payload);
+        if (result.error) setMessage({ type: "error", text: result.error });
+        else {
+          setMessage({ type: "success", text: "Evento salvato con successo!" });
+          if (ticketingMode === "advanced") router.push(`/${locale}/admin/eventi/${result.id}/commerce`);
+          else if (formData.id === "nuovo") router.push(`/${locale}/admin/eventi/${result.id}`);
         }
-      }
+      } catch {
+        setMessage({ type: "error", text: "Salvataggio interrotto. Controlla la connessione e riprova." });
+      } finally { saving.current = false; }
     });
   };
 
   const handleDelete = async () => {
+    if (isPending || saving.current) return;
     const isConfirmed = await showConfirm({
       title: "Elimina Evento",
       message: "Sei sicuro di voler eliminare questo evento? Se ha dei biglietti venduti, l'operazione non sarà consentita. Considera di disattivarlo invece."
@@ -151,13 +232,24 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl pb-12">
+    <form onSubmit={handleSubmit} onKeyDown={(event) => {
+      const target = event.target as HTMLElement;
+      if (currentStep < 3 && event.key === "Enter" && !event.defaultPrevented && !event.nativeEvent.isComposing && target.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes((target as HTMLInputElement).type)) {
+        event.preventDefault();
+        advanceStep();
+      }
+    }} noValidate className="max-w-4xl space-y-6 pb-6">
+      <div ref={progress} tabIndex={-1} data-wizard-progress className="scroll-mt-40 space-y-4 outline-none md:scroll-mt-24">
+        <WizardSteps steps={eventSteps} currentStep={currentStep} onStepChange={changeStep} maxStep={maxStep} disabled={isPending} label={formData.id === "nuovo" ? "Creazione evento" : "Modifica evento"} />
+        <p aria-live="polite" className="text-sm text-[#7a8272]">Passaggio {currentStep + 1} di 4 · {eventSteps[currentStep].title}</p>
+      </div>
       {message && (
         <div role={message.type === 'error' ? "alert" : "status"} className={`p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
           {message.text}
         </div>
       )}
 
+      <fieldset ref={(node) => { panels.current[0] = node; }} hidden={currentStep !== 0} disabled={isPending} data-event-step="0" aria-label={eventSteps[0].title} className="min-w-0 border-0 p-0">
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h2 className="text-xl font-bold">Dati Principali</h2>
@@ -173,12 +265,12 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <MultilingualInput 
-            label="Titolo"
-            required 
+          <div data-event-title><MultilingualInput
+            label="Titolo *"
             value={formData.titolo} 
             onChange={handleTitoloChange} 
-          />
+            aria-describedby={`${dateFieldId}-title-help`}
+          /><p id={`${dateFieldId}-title-help`} className="mt-2 text-xs leading-5 text-muted-foreground">Il titolo in italiano è obbligatorio. Le traduzioni nelle altre lingue sono facoltative.</p></div>
           <MultilingualInput 
             label="Sottotitolo" 
             value={formData.sottotitolo} 
@@ -211,6 +303,8 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         />
       </div>
 
+      </fieldset>
+      <fieldset ref={(node) => { panels.current[1] = node; }} hidden={currentStep !== 1} disabled={isPending} data-event-step="1" aria-label={eventSteps[1].title} className="min-w-0 border-0 p-0">
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
         <h2 className="text-xl font-bold border-b border-border pb-2">Data e luogo</h2>
         <p className="text-sm text-muted-foreground">Gli orari sono riferiti all’Italia (Europe/Rome).</p>
@@ -241,6 +335,8 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         </div>
       </div>
 
+      </fieldset>
+      <fieldset ref={(node) => { panels.current[2] = node; }} hidden={currentStep !== 2} disabled={isPending} data-event-step="2" aria-label={eventSteps[2].title} className="min-w-0 space-y-6 border-0 p-0">
       <fieldset className="space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm">
         <legend className="px-2 text-xl font-bold">Come vuoi vendere i biglietti?</legend>
         <div className="grid gap-3 md:grid-cols-2">
@@ -263,7 +359,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       </fieldset>
 
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
-        <h2 className="text-xl font-bold border-b border-border pb-2">Media e Visibilità</h2>
+        <h2 className="text-xl font-bold border-b border-border pb-2">Immagine di copertina</h2>
         
         <Input 
           label="URL Immagine di Copertina" 
@@ -278,6 +374,25 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
           </div>
         )}
 
+      </div>
+      </fieldset>
+
+      <fieldset ref={(node) => { panels.current[3] = node; }} hidden={currentStep !== 3} disabled={isPending} data-event-step="3" aria-label={eventSteps[3].title} className="min-w-0 space-y-6 rounded-2xl border border-[#dedfd4] bg-[#fffefa] p-5 sm:p-6">
+        <div><h2 className="text-xl font-semibold text-[#18251f]">Controlla prima di confermare</h2><p className="mt-2 text-sm leading-6 text-[#7a8272]">I dati vengono salvati solo con il pulsante finale. Puoi tornare ai passaggi precedenti per modificarli.</p></div>
+        <section className="space-y-3" aria-label="Riepilogo dettagli"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Dettagli</h3><button type="button" onClick={() => changeStep(0)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica dettagli</button></div>
+          <dl className="grid gap-3 sm:grid-cols-2">{Object.entries(languageNames).map(([language, name]) => <div key={language} className="rounded-xl bg-[#f3f2ed] p-3"><dt className="text-xs text-[#7a8272]">{name}</dt><dd className="mt-1 break-words text-sm font-semibold">{localizedCopy(formData.titolo, language) || "Titolo non inserito"}</dd>{localizedCopy(formData.sottotitolo, language) && <dd className="mt-1 text-sm text-[#7a8272]">{localizedCopy(formData.sottotitolo, language)}</dd>}</div>)}</dl>
+          <details className="rounded-xl border border-[#e4e5dc] p-3"><summary className="cursor-pointer text-sm font-semibold text-[#52604f]">Rivedi le descrizioni</summary><div className="mt-3 space-y-4">{Object.entries(languageNames).map(([language, name]) => <div key={language}><h4 className="text-xs font-semibold text-[#7a8272]">{name}</h4><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">{localizedCopy(formData.descrizione, language).replace(/<[^>]*>/g, " ").trim() || "Descrizione non inserita"}</p></div>)}</div></details>
+          <p className="break-all text-xs text-[#7a8272]">{formData.tipo === "evento" ? "/eventi/" : "/workshop/"}{formData.slug}</p>
+        </section>
+        <section className="space-y-3 border-t border-[#e4e5dc] pt-4" aria-label="Riepilogo data e luogo"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Data e luogo</h3><button type="button" onClick={() => changeStep(1)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica data e luogo</button></div>
+          <dl className="grid gap-4 text-sm sm:grid-cols-2">{[["Inizio evento", summaryDate(formData.data_inizio)], ["Fine evento", summaryDate(formData.data_fine)], ["Apertura check-in", summaryDate(formData.check_in_starts_at)], ["Luogo", [formData.location, formData.indirizzo].filter(Boolean).join(" · ") || "Non specificato"], ["Capienza", formData.capacity === "" ? "Illimitata" : `${formData.capacity} posti`]].map(([label, value]) => <div key={label}><dt className="text-xs text-[#7a8272]">{label}</dt><dd className="mt-1 font-medium">{value}</dd></div>)}</dl>
+          <p className="text-xs text-[#7a8272]">Tutti gli orari sono in orario italiano (Europe/Rome).</p>
+        </section>
+        <section className="space-y-3 border-t border-[#e4e5dc] pt-4" aria-label="Riepilogo biglietteria"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Biglietteria e media</h3><button type="button" onClick={() => changeStep(2)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica biglietteria e media</button></div>
+          <p className="text-sm">{ticketingMode === "advanced" ? "Formule, scaglioni e cena" : formData.prezzo_euro && Number(formData.prezzo_euro.replace(",", ".")) > 0 ? `Prezzo unico · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(formData.prezzo_euro.replace(",", ".")))}` : "Prezzo unico · Gratuito"}</p>
+          <p className="text-sm text-[#7a8272]">{formData.copertina_url ? "Immagine di copertina inserita." : "Nessuna immagine di copertina."}</p>
+          {requiresTicketSetup && <p className="rounded-xl bg-[#f2efe6] p-4 text-sm leading-6">Alla conferma salvi una bozza e apri la configurazione di attività, formule e prezzi. Pubblicherai l’evento dopo aver completato la biglietteria.</p>}
+        </section>
         <div className="pt-4">
           <Checkbox 
             label="Pubblica sul sito" 
@@ -287,16 +402,14 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
             onChange={e => setFormData({...formData, attivo: e.target.checked})}
           />
         </div>
-      </div>
+      </fieldset>
 
-      <div className="flex justify-end pt-4 sticky bottom-6 z-10">
-        <button 
-          type="submit" 
-          disabled={isPending}
-          className="bg-primary text-primary-foreground font-bold px-8 py-4 rounded-xl shadow-lg hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-black/20 hover:shadow-black/30"
-        >
-          {isPending ? "Salvataggio..." : ticketingMode === "advanced" ? (formData.id === "nuovo" ? "Crea e configura biglietti" : "Salva e configura biglietti") : (formData.id === "nuovo" ? "Crea evento" : "Salva modifiche")}
-        </button>
+      <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 rounded-2xl border border-[#dedfd4] bg-[#f8f7f2]/95 p-3 shadow-sm backdrop-blur sm:p-4">
+        <button type="button" disabled={isPending || currentStep === 0} onClick={() => changeStep(currentStep - 1)} className="min-h-12 rounded-xl border border-[#d9ddcf] px-4 text-sm font-semibold text-[#52604f] disabled:opacity-40">Indietro</button>
+        {currentStep < 3 ? <button key="event-next" type="button" data-event-advance disabled={isPending} onClick={(event) => { event.preventDefault(); advanceStep(); }} className="min-h-12 rounded-xl bg-[#263a2c] px-5 text-sm font-semibold text-white disabled:opacity-50 sm:px-7">Avanti</button>
+          : <button key="event-confirm" type="submit" data-event-confirm disabled={isPending} className="min-h-12 rounded-xl bg-[#263a2c] px-5 text-sm font-semibold text-white disabled:opacity-50 sm:px-7">
+            {isPending ? "Salvataggio…" : ticketingMode === "advanced" ? (formData.id === "nuovo" ? "Crea bozza e configura biglietti" : "Salva e configura biglietti") : (formData.id === "nuovo" ? "Crea evento" : "Salva modifiche")}
+          </button>}
       </div>
     </form>
   );

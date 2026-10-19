@@ -15,5 +15,5 @@ export function EuroInput({ cents, onCentsChange, ...props }: Omit<InputHTMLAttr
       event.target.setCustomValidity(valid || !next ? "" : "Inserisci un importo da 0 a 100.000 euro, con massimo due decimali.");
       if (valid) onCentsChange(Math.round(Number(next.replace(",", ".")) * 100));
     }}
-    onBlur={(event) => { if (event.target.checkValidity()) setFocused(false); props.onBlur?.(event); }} />;
+    onBlur={(event) => { if (event.target.validity.valid) setFocused(false); props.onBlur?.(event); }} />;
 }

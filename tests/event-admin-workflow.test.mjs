@@ -99,27 +99,35 @@ test("the server rejects a malformed or timezone-less check-in opening before an
   }
 });
 
-async function mount(context, initialData = null, result = { success: true, id: eventId }, initialTicketingMode) {
-  const saved = []; const navigations = [];
+async function mount(context, initialData = null, result = { success: true, id: eventId }, initialTicketingMode, options = {}) {
+  const saved = []; const navigations = []; const confirmations = []; const deleted = [];
   const dateTime = load("components/admin/date-time-field.tsx");
+  const wizard = load("components/admin/wizard-steps.tsx");
   const { EventForm } = load("app/[locale]/admin/eventi/[id]/event-form.tsx", {
     "@/components/admin/form-elements": elements, "@/i18n/routing": routing,
     "@/components/admin/date-time-field": dateTime,
+    "@/components/admin/wizard-steps": wizard,
     "@/lib/commerce/config": config, "@/lib/commerce/rome-time": rome,
     "next/navigation": { useRouter: () => ({ push: (url) => navigations.push(url) }) },
-    "@/components/ui/modal-provider": { useModal: () => ({ showConfirm: async () => false }) },
-    "@/app/api/admin/eventi/actions": { upsertEvent: async (payload) => { saved.push(payload); return result; }, deleteEvent: async () => ({}) },
+    "@/components/ui/modal-provider": { useModal: () => ({ showConfirm: async (value) => { confirmations.push(value); return Boolean(options.confirmDelete); } }) },
+    "@/app/api/admin/eventi/actions": { upsertEvent: async (payload) => { saved.push(payload); return typeof result === "function" ? result(payload) : result; }, deleteEvent: async (id) => { deleted.push(id); return options.deleteResult || { success: true }; } },
   });
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
   context.after(async () => { await act(async () => root.unmount()); host.remove(); });
   await act(async () => root.render(React.createElement(EventForm, { initialData, locale: "de", initialTicketingMode })));
   const field = (text) => {
     const label = [...host.querySelectorAll("label")].find((candidate) => candidate.textContent.startsWith(text));
+    if (label?.control) return label.control;
     let container = label?.parentElement;
     while (container && !container.querySelector("input")) container = container.parentElement;
     return container?.querySelector("input");
   };
-  const change = async (input, value) => act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(input, value); input.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
+  const change = async (input, value) => act(async () => { Object.getOwnPropertyDescriptor(input.tagName === "TEXTAREA" ? dom.window.HTMLTextAreaElement.prototype : dom.window.HTMLInputElement.prototype, "value").set.call(input, value); input.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
+  const language = async (labelText, locale) => {
+    const label = [...host.querySelectorAll("label")].find((candidate) => candidate.textContent.startsWith(labelText));
+    const button = [...label.parentElement.querySelectorAll("button")].find((candidate) => candidate.textContent === locale);
+    await act(async () => button.click());
+  };
   const dateFields = (label) => ({ date: host.querySelector(`[aria-label="Data · ${label}"]`), time: host.querySelector(`[aria-label="Ora · ${label}"]`) });
   const changeDateTime = async (label, wallTime) => {
     const fields = dateFields(label);
@@ -127,20 +135,206 @@ async function mount(context, initialData = null, result = { success: true, id: 
     await change(fields.date, date ? date.split("-").reverse().join("/") : "");
     await change(fields.time, time);
   };
-  const submit = () => act(async () => host.querySelector("form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
-  return { host, field, change, dateFields, changeDateTime, submit, saved, navigations };
+  const currentStep = () => Number([...host.querySelectorAll("[data-event-step]")].find((panel) => !panel.hidden).getAttribute("data-event-step"));
+  const advance = () => act(async () => host.querySelector('button[data-event-advance],button[data-event-confirm]').click());
+  const enter = () => act(async () => host.querySelector("form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
+  const review = async () => {
+    for (let index = 0; index < 3 && currentStep() < 3; index += 1) {
+      const previous = currentStep();
+      await advance();
+      if (currentStep() === previous) return;
+    }
+  };
+  const submit = async () => { await review(); if (currentStep() === 3) await advance(); };
+  const back = () => act(async () => [...host.querySelectorAll("button")].find((button) => button.textContent === "Indietro").click());
+  return { host, field, change, language, dateFields, changeDateTime, currentStep, advance, enter, review, back, submit, saved, navigations, confirmations, deleted };
 }
+
+test("the wizard validates only the current step and Enter cannot create an event before the final review", async (context) => {
+  const screen = await mount(context);
+  assert.equal(screen.currentStep(), 0);
+  assert.equal(screen.host.querySelectorAll("[data-event-step]").length, 4);
+  assert.equal([...screen.host.querySelectorAll('[data-event-step]')].filter((panel) => !panel.hidden).length, 1);
+  assert.equal(screen.host.querySelector('nav button[aria-current="step"]').textContent.trim(), "1Dettagli");
+  assert.ok([...screen.host.querySelectorAll("nav button")].slice(1).every((button) => button.disabled));
+  assert.equal(screen.host.querySelector("form").noValidate, true);
+  await screen.enter();
+  assert.equal(screen.currentStep(), 0);
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /titolo in italiano/);
+  assert.equal(screen.saved.length, 0);
+  await screen.change(screen.field("Titolo"), "Evento guidato");
+  await screen.enter();
+  assert.equal(screen.currentStep(), 1, "unfilled dates cannot block the details step");
+  assert.equal(document.activeElement, screen.host.querySelector("[data-wizard-progress]"));
+  assert.equal(document.activeElement.tagName, "DIV");
+  assert.ok(document.activeElement.contains(screen.host.querySelector("nav")), "focus and scrolling keep the entire step bar in view");
+  assert.match(document.activeElement.className, /scroll-mt-40/);
+  assert.equal(screen.saved.length, 0);
+  await screen.enter();
+  assert.equal(screen.currentStep(), 1);
+  assert.equal(screen.saved.length, 0);
+  await screen.changeDateTime("Inizio Evento", "2027-08-01T10:30");
+  await screen.enter();
+  assert.equal(screen.currentStep(), 2);
+  assert.equal(screen.saved.length, 0);
+  await screen.enter();
+  assert.equal(screen.currentStep(), 3);
+  assert.equal(screen.saved.length, 0);
+  assert.match(screen.host.querySelector('[data-event-step="3"]').textContent, /Controlla prima di confermare/);
+  await screen.advance();
+  assert.equal(screen.saved.length, 1);
+  assert.deepEqual(screen.navigations, [`/de/admin/eventi/${eventId}`]);
+});
+
+test("the native last Next click is canceled and mounts a distinct confirmation button without saving", async (context) => {
+  const screen = await mount(context, baseEvent);
+  await screen.advance();
+  await screen.advance();
+  const next = screen.host.querySelector("[data-event-advance]");
+  assert.equal(next.type, "button");
+  let nativeClick;
+  next.addEventListener("click", (event) => { nativeClick = event; });
+  await act(async () => next.click());
+  assert.equal(nativeClick.defaultPrevented, true);
+  assert.equal(screen.currentStep(), 3);
+  assert.equal(screen.saved.length, 0);
+  const confirm = screen.host.querySelector("[data-event-confirm]");
+  assert.equal(confirm.type, "submit");
+  assert.notEqual(confirm, next);
+  assert.equal(next.isConnected, false);
+  await act(async () => next.click());
+  assert.equal(screen.saved.length, 0, "a stale navigation target cannot submit the review form");
+  await act(async () => confirm.click());
+  assert.equal(screen.saved.length, 1);
+});
+
+test("native Enter in a text field advances without saving, while Enter in a description remains a newline", async (context) => {
+  const screen = await mount(context, baseEvent);
+  const description = screen.field("Descrizione Completa");
+  const newline = new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+  await act(async () => description.dispatchEvent(newline));
+  assert.equal(newline.defaultPrevented, false);
+  assert.equal(screen.currentStep(), 0);
+  const key = new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+  await act(async () => screen.field("Titolo").dispatchEvent(key));
+  assert.equal(key.defaultPrevented, true);
+  assert.equal(screen.currentStep(), 1);
+  assert.equal(screen.saved.length, 0);
+});
+
+test("an Italian title remains mandatory with English active, while empty optional translation tabs never block next", async (context) => {
+  const englishOnly = await mount(context);
+  await englishOnly.language("Titolo", "en");
+  await englishOnly.change(englishOnly.field("Titolo"), "English title");
+  await englishOnly.advance();
+  assert.equal(englishOnly.currentStep(), 0);
+  assert.match(englishOnly.host.querySelector('[role="alert"]').textContent, /titolo in italiano/);
+  assert.equal(englishOnly.field("Titolo").value, "");
+  assert.equal(document.activeElement, englishOnly.field("Titolo"));
+  await englishOnly.language("Titolo", "en");
+  assert.equal(englishOnly.field("Titolo").value, "English title");
+  assert.equal(englishOnly.saved.length, 0);
+  const italian = await mount(context);
+  await italian.change(italian.field("Titolo"), "Titolo italiano");
+  await italian.language("Titolo", "en");
+  assert.equal(italian.field("Titolo").value, "");
+  await italian.advance();
+  assert.equal(italian.currentStep(), 1);
+  assert.equal(italian.saved.length, 0);
+});
+
+test("back and next preserve every translation and do not save until the organizer confirms the review", async (context) => {
+  const screen = await mount(context, baseEvent);
+  for (const language of ["it", "en", "de", "es"]) {
+    for (const [label, value] of [["Titolo", `Titolo ${language}`], ["Sottotitolo", `Sottotitolo ${language}`], ["Descrizione Completa", `Descrizione ${language}`]]) {
+      await screen.language(label, language);
+      await screen.change(screen.field(label), value);
+    }
+  }
+  await screen.advance();
+  await screen.back();
+  assert.equal(screen.field("Titolo").value, "Titolo es", "the active tab also survives navigation");
+  for (const language of ["it", "en", "de", "es"]) {
+    await screen.language("Titolo", language);
+    assert.equal(screen.field("Titolo").value, `Titolo ${language}`);
+  }
+  await screen.review();
+  assert.equal(screen.currentStep(), 3);
+  assert.equal(screen.saved.length, 0);
+  for (const language of ["it", "en", "de", "es"]) assert.ok(screen.host.querySelector('[data-event-step="3"]').textContent.includes(`Titolo ${language}`));
+  await screen.advance();
+  assert.deepEqual({ ...screen.saved[0].titolo }, { it: "Titolo it", en: "Titolo en", de: "Titolo de", es: "Titolo es" });
+  assert.deepEqual({ ...screen.saved[0].descrizione }, { it: "Descrizione it", en: "Descrizione en", de: "Descrizione de", es: "Descrizione es" });
+});
+
+test("an incomplete date draft survives backward navigation and prevents jumping back to review", async (context) => {
+  const screen = await mount(context, baseEvent);
+  await screen.review();
+  await screen.back();
+  await screen.back();
+  const input = screen.dateFields("Apertura check-in").date;
+  await screen.change(input, "31/07/");
+  await screen.back();
+  const review = [...screen.host.querySelectorAll("nav button")].find((button) => button.textContent.includes("Riepilogo"));
+  await act(async () => review.click());
+  assert.equal(screen.currentStep(), 1);
+  assert.equal(screen.dateFields("Apertura check-in").date, input, "panels must stay mounted");
+  assert.equal(input.value, "31/07/");
+  assert.equal(screen.saved.length, 0);
+  assert.ok(screen.host.querySelector('[role="alert"]'));
+});
+
+test("the final confirmation rechecks incomplete local drafts inside hidden steps", async (context) => {
+  const screen = await mount(context, baseEvent);
+  await screen.review();
+  await screen.change(screen.dateFields("Fine Evento").time, "12:");
+  assert.equal(screen.currentStep(), 3);
+  await screen.advance();
+  assert.equal(screen.saved.length, 0);
+  assert.equal(screen.currentStep(), 1);
+  assert.equal(screen.dateFields("Fine Evento").time.value, "12:");
+});
+
+test("a double click on the final button sends only one pending creation", async (context) => {
+  let complete;
+  const pending = new Promise((resolve) => { complete = resolve; });
+  const screen = await mount(context, baseEvent, () => pending);
+  await screen.review();
+  const final = screen.host.querySelector('button[type="submit"]');
+  await act(async () => { final.click(); final.click(); });
+  assert.equal(screen.saved.length, 1);
+  assert.equal(final.disabled, true);
+  await act(async () => complete({ success: true, id: eventId }));
+  assert.equal(screen.saved.length, 1);
+});
+
+test("event deletion still requires confirmation and preserves the server's sold-ticket protection", async (context) => {
+  const canceled = await mount(context, baseEvent);
+  await act(async () => [...canceled.host.querySelectorAll("button")].find((button) => button.textContent.trim() === "Elimina Evento").click());
+  assert.equal(canceled.confirmations.length, 1);
+  assert.equal(canceled.deleted.length, 0);
+  const protectedEvent = await mount(context, baseEvent, undefined, undefined, { confirmDelete: true, deleteResult: { error: "Non puoi eliminare un evento che ha dei biglietti venduti." } });
+  await act(async () => [...protectedEvent.host.querySelectorAll("button")].find((button) => button.textContent.trim() === "Elimina Evento").click());
+  assert.deepEqual(protectedEvent.deleted, [eventId]);
+  assert.equal(protectedEvent.saved.length, 0);
+  assert.match(protectedEvent.host.querySelector('[role="alert"]').textContent, /biglietti venduti/);
+  assert.deepEqual(protectedEvent.navigations, []);
+});
 
 test("new advanced event workflow creates a draft and opens package setup in the current locale", async (context) => {
   const screen = await mount(context);
   await screen.change(screen.field("Titolo"), "Evento guidato");
+  await screen.advance();
   await screen.changeDateTime("Inizio Evento", "2027-08-01T10:30");
+  await screen.advance();
   await act(async () => screen.host.querySelector('input[value="advanced"]').click());
   assert.equal(screen.field("Prezzo del biglietto"), undefined);
   assert.equal(screen.host.querySelector('input[type="checkbox"]').disabled, true);
   assert.equal(screen.host.querySelector('input[type="checkbox"]').checked, false);
-  assert.match(screen.host.textContent, /Crea e configura biglietti/);
   assert.match(screen.host.textContent, /Crea la bozza → 2. Configura i biglietti → 3. Pubblica/);
+  await screen.review();
+  assert.equal(screen.saved.length, 0);
+  assert.match(screen.host.querySelector('button[type="submit"]').textContent, /Crea bozza e configura biglietti/);
   await screen.submit();
   assert.equal(screen.saved[0].attivo, false);
   assert.equal(screen.saved[0].ticketing_mode, "advanced");

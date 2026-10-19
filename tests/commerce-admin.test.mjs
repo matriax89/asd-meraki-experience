@@ -17,6 +17,7 @@ const load = (path, dependencies) => {
 const configModule = load("../src/lib/commerce/config.ts", {});
 const statsModule = load("../src/lib/commerce/sales-stats.ts", {});
 const rome = load("../src/lib/commerce/rome-time.ts", {});
+const wizard = load("../src/components/admin/wizard-steps.tsx", {});
 const eventId = "e60752c4-b104-46bf-ad41-105dc7a05d40";
 const entryId = "0f23f119-7b2c-4238-bb3f-c69b76ad1533";
 const validConfig = { version: 1, enabled: true, waitlistEnabled: true, upgradesEnabled: true, activities: [{ id: "ws", name: "Workshop", kind: "workshop", capacity: 20, startsAt: null, salesEnd: null, menuOptions: [] }], packages: [{ id: "only-ws", name: "Solo Workshop", description: "", activityIds: ["ws"], prices: [{ id: "early", label: "Early Bird", amountCents: 2000, startsAt: null, endsAt: null }] }], addons: [] };
@@ -128,42 +129,7 @@ test("administrative time conversion uses Rome in winter and summer, rejects DST
 });
 
 
-test("the admin example is opt-in, stays disabled, and only saves valid explicit settings", async () => {
-  const { JSDOM } = await import("jsdom");
-  const React = await import("react");
-  const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", { url: "https://meraki.test", pretendToBeVisual: true });
-  const previous = new Map();
-  for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
-    previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
-  }
-  const { createRoot } = await import("react-dom/client");
-  const saved = [];
-  const component = load("../src/components/admin/commerce-config-editor.tsx", {
-    "@/app/api/admin/commerce/actions": { saveCommerceAdmin: async (_event, config) => { saved.push(JSON.parse(JSON.stringify(config))); return { success: true }; }, updateCommerceWaitlist: async () => ({ success: true }) },
-    "@/lib/commerce/rome-time": rome,
-    "@/lib/commerce/config": configModule,
-  });
-  const root = createRoot(dom.window.document.getElementById("root"));
-  try {
-    await React.act(async () => root.render(React.createElement(component.CommerceConfigEditor, { eventId, initialConfig: null, stats: { paidOrders: 0, revenueCents: 0, refundedCents: 0, participants: 0, packages: [], tiers: [], addons: [] }, initialWaitlist: [] })));
-    assert.equal(dom.window.document.querySelectorAll("input[type='number']").length, 0);
-    const template = [...dom.window.document.querySelectorAll("button")].find((button) => button.textContent.includes("Usa esempio"));
-    await React.act(async () => template.click());
-    const activation = dom.window.document.querySelector("input[type='checkbox']");
-    assert.equal(activation.checked, false);
-    await React.act(async () => dom.window.document.querySelector("form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
-    assert.equal(saved.length, 1); assert.equal(saved[0].enabled, false);
-    assert.equal(saved[0].packages.length, 3); assert.equal(saved[0].addons[0].amountCents, 2500);
-    await React.act(async () => activation.click());
-    await React.act(async () => dom.window.document.querySelector("form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
-    assert.equal(saved.length, 2); assert.equal(saved[1].enabled, true);
-  } finally {
-    await React.act(async () => root.unmount()); dom.window.close();
-    for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
-  }
-});
-
-test("a draft offers a complete visual package setup and publishes only through its explicit action", async () => {
+async function editorFixture({ initialConfig = null, isPublished = false, realEuro = false } = {}) {
   const { JSDOM } = await import("jsdom");
   const React = await import("react");
   const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", { url: "https://meraki.test", pretendToBeVisual: true });
@@ -176,52 +142,187 @@ test("a draft offers a complete visual package setup and publishes only through 
   const component = load("../src/components/admin/commerce-config-editor.tsx", {
     "@/app/api/admin/commerce/actions": { saveCommerceAdmin: async (_event, config, options) => { saved.push({ config: JSON.parse(JSON.stringify(config)), options }); return { success: true, published: Boolean(options?.publish) }; }, updateCommerceWaitlist: async () => ({ success: true }) },
     "@/lib/commerce/rome-time": rome, "@/lib/commerce/config": configModule,
+    "@/components/admin/wizard-steps": wizard,
+    ...(realEuro ? { "@/components/admin/euro-input": load("../src/components/admin/euro-input.tsx", {}) } : {}),
   });
   const root = createRoot(dom.window.document.getElementById("root"));
-  const findButton = (text) => [...dom.window.document.querySelectorAll("button")].find((button) => button.textContent.includes(text));
+  await React.act(async () => root.render(React.createElement(component.CommerceConfigEditor, { eventId, initialConfig, stats: { paidOrders: 0, revenueCents: 0, refundedCents: 0, participants: 0, packages: [], tiers: [], addons: [] }, initialWaitlist: [], isPublished })));
+  const document = dom.window.document;
+  const button = (text) => [...document.querySelectorAll("button")].find((node) => node.textContent.trim() === text || node.querySelector(":scope > span:last-child")?.textContent === text);
+  const click = async (text) => { const node = button(text); assert.ok(node, `button ${text} exists`); await React.act(async () => node.click()); };
+  const input = async (node, value) => React.act(async () => {
+    const prototype = node.tagName === "TEXTAREA" ? dom.window.HTMLTextAreaElement.prototype : dom.window.HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(prototype, "value").set.call(node, value);
+    node.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  });
+  const panel = (step) => document.querySelector(`[data-commerce-step="${step}"]`);
+  const currentStep = () => Number(document.querySelector("[data-commerce-step]:not([hidden])").dataset.commerceStep);
+  return { dom, document, React, saved, button, click, input, panel, currentStep, async close() {
+    await React.act(async () => root.unmount()); dom.window.close();
+    for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
+  } };
+}
+
+test("the example is opt-in and a published event is saved only after its explicit review action", async () => {
+  const fixture = await editorFixture({ isPublished: true });
+  const { document, React, saved, click, button, currentStep, panel } = fixture;
   try {
-    await React.act(async () => root.render(React.createElement(component.CommerceConfigEditor, { eventId, initialConfig: null, stats: { paidOrders: 0, revenueCents: 0, refundedCents: 0, participants: 0, packages: [], tiers: [], addons: [] }, initialWaitlist: [], isPublished: false })));
-    assert.match(dom.window.document.body.textContent, /Evento in bozza/);
-    assert.equal(findButton("Salva e pubblica evento").disabled, true);
-    assert.equal(dom.window.document.querySelector("details").open, false, "empty sales should not obscure the setup");
-    await React.act(async () => findButton("Usa esempio").click());
-    assert.equal(findButton("Salva e pubblica evento").disabled, false);
-    assert.equal(dom.window.document.querySelectorAll("textarea").length, 3, "menu choices can be edited without JSON");
-    assert.equal(dom.window.document.querySelectorAll("input[type='datetime-local']").length, 12, "activity and price date fields are present");
-    const firstFormula = [...dom.window.document.querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Formula 1");
+    assert.equal(document.querySelectorAll("input[type='number']").length, 0);
+    assert.equal(button("Salva configurazione"), undefined);
+    assert.equal(button("Formule e prezzi").disabled, true);
+    await click("Usa esempio WS + MC + cena");
+    assert.equal(saved.length, 0);
+    assert.equal(panel(3).querySelector("input[type='checkbox']").checked, false);
+    await click("Avanti"); await click("Avanti"); await click("Avanti");
+    assert.equal(currentStep(), 3);
+    assert.equal(saved.length, 0, "navigation never persists changes");
+    await click("Salva configurazione");
+    assert.equal(saved.length, 1); assert.equal(saved[0].config.enabled, false);
+    assert.equal(saved[0].config.packages.length, 3); assert.equal(saved[0].config.addons[0].amountCents, 2500);
+    await React.act(async () => panel(3).querySelector("input[type='checkbox']").click());
+    await click("Salva configurazione");
+    assert.equal(saved.length, 2); assert.equal(saved[1].config.enabled, true);
+    assert.equal(saved[1].options, undefined);
+    assert.equal(document.querySelector("details").closest("form"), null);
+    assert.equal(document.getElementById("commerce-waitlist").closest("form"), null);
+  } finally { await fixture.close(); }
+});
+
+test("the four-step draft retains dates and amounts, summarizes real values, and publishes only from review", async () => {
+  const fixture = await editorFixture();
+  const { dom, document, React, saved, click, button, input, panel, currentStep } = fixture;
+  try {
+    assert.match(document.body.textContent, /Evento in bozza/);
+    assert.equal(button("Salva e pubblica evento"), undefined);
+    assert.equal(document.querySelector("details").open, false);
+    await click("Usa esempio WS + MC + cena");
+    assert.equal(document.querySelectorAll("textarea").length, 3);
+    assert.equal(document.querySelectorAll("input[type='datetime-local']").length, 12);
+    assert.equal(panel(1).hidden, true); assert.equal(panel(1).disabled, true);
+    const option = document.createElement("div"); option.setAttribute("role", "option");
+    document.querySelector("form").append(option);
+    await React.act(async () => option.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+    assert.equal(currentStep(), 0, "Enter on a select popup option must not advance the wizard");
+    option.remove();
+    const activityName = panel(0).querySelector("input[required]");
+    await React.act(async () => activityName.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+    assert.equal(currentStep(), 1, "Enter advances, it does not save the draft");
+    assert.equal(saved.length, 0);
+    const firstFormula = [...panel(1).querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Formula 1");
     const firstTier = [...firstFormula.querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Scaglione 1");
     const endsAt = [...firstTier.querySelectorAll("label")].find((label) => label.textContent.startsWith("Valido fino a")).querySelector("input");
-    await React.act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(endsAt, "2026-11-01T00:00"); endsAt.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
-    await React.act(async () => [...firstFormula.querySelectorAll("button")].find((button) => button.textContent.includes("Aggiungi scaglione")).click());
+    await input(endsAt, "2026-11-01T00:00");
+    await React.act(async () => [...firstFormula.querySelectorAll("button")].find((node) => node.textContent.includes("Aggiungi scaglione")).click());
     const secondTier = [...firstFormula.querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Scaglione 2");
-    assert.equal([...secondTier.querySelectorAll("label")].find((label) => label.textContent.startsWith("Valido da")).querySelector("input").value, "2026-11-01T00:00", "the next tier starts where the previous one ends");
-    await React.act(async () => {
-      const amount = secondTier.querySelector("input[type='number']");
-      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(amount, "35");
-      amount.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    });
-    await React.act(async () => findButton("Salva bozza").click());
-    assert.equal(saved.length, 1);
-    assert.equal(saved[0].options, undefined);
-    assert.equal(saved[0].config.enabled, false);
-    assert.deepEqual(saved[0].config.packages.map((pkg) => pkg.name), ["Solo Workshop", "Solo Masterclass", "Workshop + Masterclass"]);
-    assert.equal(saved[0].config.packages[0].prices.length, 2);
+    const startsAt = [...secondTier.querySelectorAll("label")].find((label) => label.textContent.startsWith("Valido da")).querySelector("input");
+    assert.equal(startsAt.value, "2026-11-01T00:00");
+    const amount = secondTier.querySelector("input[type='number']");
+    await input(amount, "35");
+    await click("Indietro");
+    assert.equal(endsAt.isConnected, true, "date inputs remain mounted");
+    assert.equal(panel(1).disabled, true);
+    await click("Avanti");
+    assert.equal(startsAt.value, "2026-11-01T00:00"); assert.equal(amount.value, "35");
+    await click("Salva bozza");
+    assert.equal(saved.length, 1); assert.equal(saved[0].options, undefined); assert.equal(saved[0].config.enabled, false);
     assert.equal(saved[0].config.packages[0].prices[0].endsAt, "2026-10-31T23:00:00.000Z");
     assert.equal(saved[0].config.packages[0].prices[1].startsAt, "2026-10-31T23:00:00.000Z");
     assert.equal(saved[0].config.packages[0].prices[1].amountCents, 3500);
     assert.equal(saved[0].config.addons[0].activityId, "cena");
     assert.deepEqual(saved[0].config.activities.find((activity) => activity.id === "cena").menuOptions, ["Standard", "Vegetariano"]);
-    assert.match(dom.window.document.body.textContent, /Bozza salvata/);
-    await React.act(async () => findButton("Salva e pubblica evento").click());
-    assert.equal(saved.length, 2);
-    assert.equal(saved[1].options.publish, true);
-    assert.equal(saved[1].config.enabled, true);
-    assert.deepEqual(saved[1].config.activities, saved[0].config.activities, "publishing preserves activity identities and settings");
+    assert.match(document.body.textContent, /Bozza salvata/);
+    await click("Avanti"); await click("Avanti");
+    assert.equal(currentStep(), 3); assert.equal(saved.length, 1);
+    assert.match(panel(3).textContent, /Solo Workshop/); assert.match(panel(3).textContent, /Workshop \+ Masterclass/);
+    assert.match(panel(3).textContent, /35,00/); assert.match(panel(3).textContent, /25,00/);
+    assert.match(panel(3).textContent, /01\/11\/26, 00:00/); assert.match(panel(3).textContent, /Standard · Vegetariano/);
+    await React.act(async () => document.querySelector("form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
+    assert.equal(saved.length, 1, "implicit submit on review cannot publish");
+    await click("Modifica formule e prezzi"); assert.equal(currentStep(), 1);
+    assert.equal(amount.isConnected, true); assert.equal(amount.value, "35");
+    await click("Riepilogo e pubblicazione"); assert.equal(currentStep(), 3);
+    await click("Salva e pubblica evento");
+    assert.equal(saved.length, 2); assert.equal(saved[1].options.publish, true); assert.equal(saved[1].config.enabled, true);
+    assert.deepEqual(saved[1].config.activities, saved[0].config.activities);
     assert.deepEqual(saved[1].config.packages, saved[0].config.packages);
-    assert.match(dom.window.document.body.textContent, /Evento pubblicato/);
-    assert.equal(findButton("Salva e pubblica evento"), undefined);
-  } finally {
-    await React.act(async () => root.unmount()); dom.window.close();
-    for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
-  }
+    assert.match(document.body.textContent, /Evento pubblicato/);
+    assert.equal(button("Salva e pubblica evento"), undefined);
+  } finally { await fixture.close(); }
 });
+
+test("Next validates its section and draft saves return to the section containing a schema error", async () => {
+  const fixture = await editorFixture();
+  const { document, saved, click, input, panel, currentStep } = fixture;
+  try {
+    await click("Avanti"); assert.equal(currentStep(), 0); assert.equal(saved.length, 0);
+    assert.match(document.body.textContent, /Aggiungi almeno un’attività/);
+    await click("Aggiungi attività"); await click("Avanti"); assert.equal(currentStep(), 1);
+    await click("Avanti"); assert.equal(currentStep(), 1);
+    assert.match(document.body.textContent, /Aggiungi almeno un’attività e una formula/);
+    await click("Aggiungi formula");
+    await click("Avanti"); assert.equal(currentStep(), 1);
+    assert.match(document.body.textContent, /Formula 1:/);
+    await click("Indietro");
+    await click("Salva bozza"); assert.equal(currentStep(), 1); assert.equal(saved.length, 0);
+    const included = panel(1).querySelector("input[type='checkbox']");
+    await fixture.React.act(async () => included.click());
+    await click("Avanti"); assert.equal(currentStep(), 2);
+    await input(panel(2).querySelector("textarea"), "Vegetariano\nVegetariano");
+    await click("Indietro"); await click("Salva bozza");
+    assert.equal(currentStep(), 2); assert.equal(saved.length, 0);
+    assert.match(document.body.textContent, /I valori devono essere univoci/);
+  } finally { await fixture.close(); }
+});
+
+test("a raw invalid euro draft survives Back and blocks saving even while its panel is disabled", async () => {
+  const fixture = await editorFixture({ initialConfig: JSON.parse(JSON.stringify(validConfig)), realEuro: true });
+  const { document, React, saved, click, input, panel, currentStep } = fixture;
+  try {
+    await click("Avanti");
+    const amount = [...panel(1).querySelectorAll("label")].find((label) => label.textContent.startsWith("Prezzo (€)")).querySelector("input");
+    await React.act(async () => amount.focus());
+    await input(amount, "20,123");
+    assert.equal(amount.validity.valid, false);
+    await click("Indietro"); assert.equal(currentStep(), 0);
+    assert.equal(amount.isConnected, true); assert.equal(amount.value, "20,123");
+    assert.equal(panel(1).disabled, true);
+    await click("Salva bozza");
+    assert.equal(saved.length, 0); assert.equal(currentStep(), 1);
+    assert.equal(document.activeElement, amount, "the hidden invalid field is revealed before focus");
+    assert.equal(amount.value, "20,123", "the invalid draft is not silently replaced by the last saved amount");
+    await click("Avanti"); assert.equal(currentStep(), 1);
+    await input(amount, "20,25");
+    await click("Avanti"); assert.equal(currentStep(), 2);
+    const date = panel(0).querySelector("input[type='datetime-local']");
+    date.setCustomValidity("Orario incompleto");
+    await click("Salva bozza"); assert.equal(saved.length, 0); assert.equal(currentStep(), 0);
+    assert.equal(document.activeElement, date);
+    date.setCustomValidity("");
+    await click("Salva bozza"); assert.equal(saved.length, 1);
+    assert.equal(saved[0].config.packages[0].prices[0].amountCents, 2025);
+  } finally { await fixture.close(); }
+});
+
+for (const isPublished of [false, true]) {
+  test(`the final Next click cannot become a submission when review renders (published=${isPublished})`, async () => {
+    const fixture = await editorFixture({ initialConfig: JSON.parse(JSON.stringify(validConfig)), isPublished });
+    const { React, click, button, saved, currentStep } = fixture;
+    try {
+      await click("Avanti"); await click("Avanti");
+      assert.equal(currentStep(), 2);
+      const next = button("Avanti");
+      let navigationClick;
+      next.addEventListener("click", (event) => { navigationClick = event; }, { once: true });
+      await React.act(async () => next.click());
+      assert.equal(currentStep(), 3);
+      assert.equal(saved.length, 0, "reaching review must not save or publish");
+      assert.equal(navigationClick.defaultPrevented, true, "navigation cancels the browser's click default action");
+      assert.equal(next.isConnected, false, "the navigation node is never reused as a submit button");
+      const submit = button(isPublished ? "Salva configurazione" : "Salva e pubblica evento");
+      assert.ok(submit); assert.notEqual(submit, next); assert.equal(submit.type, "submit");
+      await React.act(async () => submit.click());
+      assert.equal(saved.length, 1, "saving still requires a separate explicit click");
+      assert.equal(Boolean(saved[0].options?.publish), !isPublished);
+    } finally { await fixture.close(); }
+  });
+}
