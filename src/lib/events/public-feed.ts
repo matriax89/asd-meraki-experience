@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { eventFeedColumns, eventFeedSnapshot } from "@/components/meraki/events-data";
 import { isPastEvent } from "@/components/meraki/event-model";
 
-// Layout and page share one request-time catalogue and clock. Commerce prices
-// are enriched only by the page that actually displays the event feed.
+// Reuse one request-time catalogue and clock wherever a page needs the feed.
+// Commerce prices are enriched only by the page that displays the events.
 export const getPublishedEventFeed = cache(async (locale: string) => {
   const supabase = await createClient();
   const { data, error } = await supabase

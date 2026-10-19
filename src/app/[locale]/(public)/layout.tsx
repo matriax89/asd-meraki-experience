@@ -5,7 +5,6 @@ import { Footer } from "@/components/public/footer";
 import { CookieBanner } from "@/components/public/cookie-banner";
 import { GlobalPopup } from "@/components/public/global-popup";
 import { createClient } from "@/lib/supabase/server";
-import { getPublishedEventFeed } from "@/lib/events/public-feed";
 
 type HomepageSettings = {
   popup?: React.ComponentProps<typeof GlobalPopup>["data"];
@@ -23,10 +22,7 @@ export default async function PublicLayout({
   // Fetch popup settings
   const locale = await getLocale();
   const supabase = await createClient();
-  const [{ hasUpcoming }, { data: settings }] = await Promise.all([
-    getPublishedEventFeed(locale),
-    supabase.from("site_settings").select("value").eq("key", "homepage_content").single(),
-  ]);
+  const { data: settings } = await supabase.from("site_settings").select("value").eq("key", "homepage_content").single();
   const homepageContent = settings?.value as HomepageSettings | undefined;
     
   const popupData = homepageContent?.popup || null;
@@ -42,7 +38,7 @@ export default async function PublicLayout({
       <PublicSurface
         locale={locale}
         logoUrl={brandingData?.logo_url}
-        header={<Header logoUrl={brandingData?.logo_url} logoWhiteUrl={brandingData?.logo_white_url} appearance={hasUpcoming ? "solid" : undefined} />}
+        header={<Header logoUrl={brandingData?.logo_url} logoWhiteUrl={brandingData?.logo_white_url} appearance="solid" />}
         footer={<Footer logoUrl={brandingData?.logo_url} locations={locations} branding={brandingData} contacts={contactsData} footerData={footerData} />}
         popup={<GlobalPopup data={popupTargetsRemovedShop ? null : popupData} />}
       >
