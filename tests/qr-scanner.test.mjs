@@ -53,13 +53,15 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-async function setup(context, { holdMedia = false, holdDecoder = false, immediateDecode = false, activities = [] } = {}) {
+async function setup(context, { holdMedia = false, holdDecoder = false, immediateDecode = false, activities = [], access = { allowed: true }, holdAuthorization = false } = {}) {
   Object.defineProperty(window.document, "hidden", { configurable: true, value: false });
   window.document.body.innerHTML = '<div id="scanner-root"></div>';
   const mediaRequests = [];
   const decoders = [];
   const actionCalls = [];
   const checkedResults = [];
+  const authorizationCalls = [];
+  let currentAccess = access;
   const timeline = [];
   const getUserMedia = () => {
     const pending = deferred();
@@ -98,6 +100,12 @@ async function setup(context, { holdMedia = false, holdDecoder = false, immediat
     require: (name) => {
       if (name === "@zxing/browser") return { BrowserQRCodeReader };
       if (name === "@/app/api/admin/biglietti/actions") return {
+        async checkInCameraAccess() {
+          const pending = deferred();
+          authorizationCalls.push(pending);
+          timeline.push("camera-authorization-requested");
+          return holdAuthorization ? pending.promise : currentAccess;
+        },
         checkInQrCode(code, selectedEvent, activityId) {
           timeline.push("server-requested");
           const pending = deferred();
@@ -142,7 +150,7 @@ async function setup(context, { holdMedia = false, holdDecoder = false, immediat
   const respond = async (result) => {
     await act(async () => actionCalls.at(-1).resolve(result));
   };
-  return { mediaRequests, decoders, actionCalls, checkedResults, timeline, button, click, selectEvent, decode, respond, dispose };
+  return { mediaRequests, decoders, actionCalls, checkedResults, authorizationCalls, setAccess: (next) => { currentAccess = next; }, timeline, button, click, selectEvent, decode, respond, dispose };
 }
 
 test("the first decoded QR stops media tracks before contacting the server and locks repeated frames", async (context) => {
@@ -152,6 +160,8 @@ test("the first decoded QR stops media tracks before contacting the server and l
   await scanner.click("Attiva fotocamera");
   assert.equal(scanner.mediaRequests.length, 1);
   assert.equal(scanner.mediaRequests[0].track.readyState, "live");
+  assert.equal(scanner.authorizationCalls.length, 1);
+  assert.ok(scanner.timeline.indexOf("camera-authorization-requested") < scanner.timeline.indexOf("media-requested"));
   scanner.decode();
   assert.equal(scanner.mediaRequests[0].track.readyState, "ended");
   assert.equal(scanner.actionCalls.length, 1);
@@ -171,8 +181,60 @@ test("the first decoded QR stops media tracks before contacting the server and l
   assert.equal(window.document.getElementById("check-in-event").disabled, true);
   await scanner.click("Prossimo biglietto");
   assert.equal(scanner.mediaRequests.length, 2);
+  assert.equal(scanner.authorizationCalls.length, 2);
   assert.equal(scanner.mediaRequests[1].track.readyState, "live");
   assert.equal(scanner.actionCalls.length, 1);
+});
+
+for (const identity of ["anonymous", "regular viewer"]) {
+  test(`${identity} cannot open the camera and the scanner is removed after server denial`, async (context) => {
+    const scanner = await setup(context, { access: { allowed: false, message: "Il check-in è riservato allo staff autenticato." } });
+    await scanner.selectEvent();
+    await scanner.click("Attiva fotocamera");
+    assert.equal(scanner.authorizationCalls.length, 1);
+    assert.equal(scanner.mediaRequests.length, 0);
+    assert.equal(scanner.decoders.length, 0);
+    assert.equal(scanner.actionCalls.length, 0);
+    assert.equal(window.document.querySelector("video"), null);
+    assert.equal(scanner.button("Attiva fotocamera"), undefined);
+    assert.match(window.document.querySelector('[role="alert"]').textContent, /staff autenticato/);
+  });
+}
+
+test("camera startup waits for server authorization before requesting any media", async (context) => {
+  const scanner = await setup(context, { holdAuthorization: true });
+  await scanner.selectEvent();
+  await scanner.click("Attiva fotocamera");
+  assert.equal(scanner.authorizationCalls.length, 1);
+  assert.equal(scanner.mediaRequests.length, 0);
+  await act(async () => scanner.authorizationCalls[0].resolve({ allowed: true }));
+  assert.equal(scanner.mediaRequests.length, 1);
+  assert.equal(scanner.mediaRequests[0].track.readyState, "live");
+});
+
+test("a late authorization response cannot open the camera after the operator stops startup", async (context) => {
+  const scanner = await setup(context, { holdAuthorization: true });
+  await scanner.selectEvent();
+  await scanner.click("Attiva fotocamera");
+  await scanner.click("Spegni fotocamera");
+  await act(async () => scanner.authorizationCalls[0].resolve({ allowed: true }));
+  assert.equal(scanner.mediaRequests.length, 0);
+  assert.equal(scanner.decoders.length, 0);
+});
+
+test("the next-ticket button rechecks access and cannot reopen the camera after logout or revocation", async (context) => {
+  const scanner = await setup(context);
+  await scanner.selectEvent();
+  await scanner.click("Attiva fotocamera");
+  scanner.decode();
+  await scanner.respond({ outcome: "admitted", message: "Ingresso confermato." });
+  scanner.setAccess({ allowed: false, message: "Sessione scaduta. Accedi di nuovo." });
+  await scanner.click("Prossimo biglietto");
+  assert.equal(scanner.authorizationCalls.length, 2);
+  assert.equal(scanner.mediaRequests.length, 1);
+  assert.equal(scanner.mediaRequests[0].track.readyState, "ended");
+  assert.equal(window.document.querySelector("video"), null);
+  assert.match(window.document.querySelector('[role="alert"]').textContent, /Sessione scaduta/);
 });
 
 for (const outcome of ["invalid", "already_used", "wrong_event", "unpaid", "refunded"]) {

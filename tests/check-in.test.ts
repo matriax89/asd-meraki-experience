@@ -7,7 +7,7 @@ import type { CheckInResult } from "../src/lib/tickets/check-in-types";
 
 type Row = Record<string, unknown>;
 type Action = (code: string, eventId: string, activityId?: string) => Promise<CheckInResult>;
-type Actions = { checkInQrCode: Action; checkInTicket: Action };
+type Actions = { checkInQrCode: Action; checkInTicket: Action; checkInCameraAccess: () => Promise<{ allowed: boolean; message?: string }> };
 
 const eventId = "e60752c4-b104-46bf-ad41-105dc7a05d40";
 const otherEventId = "f0c59975-552a-4471-bc3b-fb1940bc81ab";
@@ -276,6 +276,39 @@ test("unauthenticated operators cannot invoke the service-only commerce check-in
   const fixture = harness([], { user: false, commerceOutcome: "success" });
   assert.equal((await fixture.actions.checkInQrCode(qrCode, eventId, "workshop")).outcome, "error");
   assert.equal(fixture.commerceCalls.length, 0);
+});
+
+for (const options of [{ user: false }, { authError: true }, { role: "viewer" as const }, { role: null }]) {
+  test(`camera preflight rejects unverified or non-staff identities (${JSON.stringify(options)})`, async () => {
+    const fixture = harness([], options);
+    const result = await fixture.actions.checkInCameraAccess();
+    assert.equal(result.allowed, false);
+    assert.ok(result.message);
+    assert.equal(fixture.ticketOperations(), 0);
+    assert.equal(fixture.commerceCalls.length, 0);
+    assert.equal(fixture.revalidations.length, 0);
+  });
+}
+
+for (const role of ["admin", "editor"] as const) {
+  test(`${role} camera preflight is read-only and returns no private role/session data`, async () => {
+    const fixture = harness([], { role });
+    assert.deepEqual(JSON.parse(JSON.stringify(await fixture.actions.checkInCameraAccess())), { allowed: true });
+    assert.equal(fixture.ticketOperations(), 0);
+    assert.equal(fixture.commerceCalls.length, 0);
+    assert.equal(fixture.revalidations.length, 0);
+  });
+}
+
+test("successful camera preflight cannot authorize a later check-in after staff role revocation", async () => {
+  const options: { role: "admin" | "viewer" } = { role: "admin" };
+  const fixture = harness([paidTicket()], options);
+  assert.equal((await fixture.actions.checkInCameraAccess()).allowed, true);
+  options.role = "viewer";
+  assert.equal((await fixture.actions.checkInQrCode(qrCode, eventId)).outcome, "error");
+  assert.equal(fixture.commerceCalls.length, 0);
+  assert.equal(fixture.ticketOperations(), 0);
+  assert.equal(fixture.updateCount(), 0);
 });
 
 test("a legacy general-entry ticket cannot grant a workshop, masterclass, or dinner entitlement", async () => {

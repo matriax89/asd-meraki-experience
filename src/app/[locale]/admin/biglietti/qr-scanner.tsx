@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { IScannerControls } from "@zxing/browser";
 import { ArrowRight, Camera, CameraOff, CheckCircle2, LoaderCircle, ScanLine, ShieldAlert } from "lucide-react";
-import { checkInQrCode } from "@/app/api/admin/biglietti/actions";
+import { checkInCameraAccess, checkInQrCode } from "@/app/api/admin/biglietti/actions";
 import type { CheckInEvent, CheckInResult } from "@/lib/tickets/check-in-types";
 
 type Phase = "idle" | "starting" | "scanning" | "checking" | "result" | "camera_error";
@@ -20,6 +20,7 @@ export function QrScanner({ events, onChecked }: {
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<CheckInResult | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -97,6 +98,14 @@ export function QrScanner({ events, onChecked }: {
     }
 
     try {
+      const access = await checkInCameraAccess();
+      if (generation !== generationRef.current || !mountedRef.current) return;
+      if (!access.allowed) {
+        stopCamera();
+        setAccessDenied(access.message || "Il check-in è riservato agli amministratori e allo staff autenticati.");
+        setPhase("idle");
+        return;
+      }
       const { BrowserQRCodeReader } = await import("@zxing/browser");
       if (generation !== generationRef.current || !mountedRef.current) return;
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -153,6 +162,8 @@ export function QrScanner({ events, onChecked }: {
   };
   const accepted = result?.outcome === "admitted";
   const participant = result?.ticket && [result.ticket.buyer_nome, result.ticket.buyer_cognome].filter(Boolean).join(" ");
+
+  if (accessDenied) return <p role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{accessDenied}</p>;
 
   return (
     <section aria-labelledby="scanner-title" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">

@@ -10,6 +10,29 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const codePattern = /^[a-z0-9_-]{1,256}$/i;
 const ticketFields = "id,event_id,buyer_nome,buyer_cognome,status,used_at";
 
+async function authorizeCheckIn() {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return { allowed: false as const, message: "Sessione scaduta. Accedi di nuovo per effettuare il check-in." };
+
+  const admin = createAdminClient();
+  const { data: profile, error: roleError } = await admin.from("profiles").select("role").eq("id", user.id).single();
+  if (roleError || !profile || !["admin", "editor"].includes(profile.role)) {
+    return { allowed: false as const, message: "Il tuo account non è autorizzato al check-in." };
+  }
+  return { allowed: true as const, supabase, admin };
+}
+
+/** Read-only preflight: camera access never relies on a cached page or role. */
+export async function checkInCameraAccess(): Promise<{ allowed: boolean; message?: string }> {
+  try {
+    const access = await authorizeCheckIn();
+    return access.allowed ? { allowed: true } : { allowed: false, message: access.message };
+  } catch {
+    return { allowed: false, message: "Impossibile verificare i permessi. Ricarica la pagina con una connessione attiva." };
+  }
+}
+
 async function checkIn(value: string, eventId: string, column: "id" | "qr_code", activityId?: string): Promise<CheckInResult> {
   if (typeof value !== "string" || typeof eventId !== "string" || !uuidPattern.test(eventId)) {
     return { outcome: "invalid", message: "Seleziona un evento valido e riprova." };
@@ -23,25 +46,14 @@ async function checkIn(value: string, eventId: string, column: "id" | "qr_code",
   const selectedActivity = activityId === "__legacy_event" ? undefined : activityId;
 
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { outcome: "error", message: "Sessione scaduta. Accedi di nuovo per effettuare il check-in." };
-    }
-
-    const { data: profile, error: roleError } = await createAdminClient()
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (roleError || !profile || !["admin", "editor"].includes(profile.role)) {
-      return { outcome: "error", message: "Il tuo account non è autorizzato al check-in." };
-    }
+    // Recheck identity and role for every admission, independently of preflight.
+    const access = await authorizeCheckIn();
+    if (!access.allowed) return { outcome: "error", message: access.message };
+    const { supabase, admin } = access;
 
     // The service-only RPC consumes exactly one activity entitlement under a
     // database lock. Legacy tickets are consulted only when no pass was found.
-    const commerceClient = createAdminClient() as unknown as SupabaseClient;
+    const commerceClient = admin as unknown as SupabaseClient;
     const { data: commerce, error: commerceError } = await commerceClient.rpc("check_in_commerce_pass", {
       p_value: code, p_event_id: eventId, p_activity_id: selectedActivity || null, p_column: column,
     });
