@@ -36,7 +36,7 @@ export default async function AdminLayout({
     { name: "Storico ordini", href: "/admin/ordini", icon: ShoppingBag },
     { name: "Corsi", href: "/admin/corsi", icon: Dumbbell },
     { name: "Eventi", href: "/admin/eventi", icon: CalendarDays },
-    { name: "Biglietti", href: "/admin/biglietti", icon: Ticket },
+    { name: "Iscritti e check-in", href: "/admin/biglietti", icon: Ticket },
     { name: "Contatti e consensi", href: "/admin/contatti", icon: Users },
     { name: "Impostazioni", href: "/admin/impostazioni", icon: Settings },
     { name: "Prova Gratuita", href: "/admin/prova-gratuita", icon: Sparkles },

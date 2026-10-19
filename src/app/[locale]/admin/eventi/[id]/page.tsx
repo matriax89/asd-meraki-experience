@@ -3,8 +3,9 @@ import { EventForm } from "./event-form";
 import { notFound } from "next/navigation";
 import { Link } from "@/i18n/routing";
 
-export default async function AdminEventPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function AdminEventPage({ params, searchParams }: { params: Promise<{ id: string; locale: string }>; searchParams?: Promise<{ ticketing?: string | string[] }> }) {
+  const { id, locale } = await params;
+  const query = searchParams ? await searchParams : {};
   let initialData = null;
 
   if (id !== "nuovo") {
@@ -30,14 +31,14 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
         </h1>
         <p className="text-slate-500 mt-2">
           {id === "nuovo" 
-            ? "Inserisci i dettagli per un nuovo evento, masterclass o workshop." 
-            : "Aggiorna i dettagli di questo evento. Le modifiche saranno visibili sul sito immediatamente."}
+            ? "Inserisci i dettagli e scegli come vendere i biglietti: prezzo unico oppure formule, scaglioni e cena."
+            : initialData?.attivo ? "Aggiorna i dettagli pubblicati oppure apri Formule e prezzi per gestire la biglietteria." : "Questo evento non è pubblicato. Completa i dettagli e la biglietteria prima di renderlo visibile."}
         </p>
       </div>
 
-      {id !== "nuovo" && <Link href={`/admin/eventi/${id}/commerce`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 text-indigo-900"><span><strong className="block">Formule, scaglioni e cross-selling</strong><span className="mt-1 block text-sm">Configura workshop, masterclass, cena e consulta vendite e lista d’attesa.</span></span><span aria-hidden="true">→</span></Link>}
+      {id !== "nuovo" && <div className="grid gap-3 md:grid-cols-2"><Link href={`/admin/eventi/${id}/commerce`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 text-indigo-900"><span><strong className="block">Formule e prezzi</strong><span className="mt-1 block text-sm">Workshop, masterclass, scaglioni, cena, vendite e lista d’attesa.</span></span><span aria-hidden="true">→</span></Link><Link href={`/admin/biglietti?event=${id}`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-slate-900"><span><strong className="block">Iscritti e check-in</strong><span className="mt-1 block text-sm text-slate-600">Partecipanti e accessi di questo evento.</span></span><span aria-hidden="true">→</span></Link></div>}
 
-      <EventForm initialData={initialData} />
+      <EventForm initialData={initialData} locale={locale} initialTicketingMode={query.ticketing === "advanced" ? "advanced" : undefined} />
     </div>
   );
 }

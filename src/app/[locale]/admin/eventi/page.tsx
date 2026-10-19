@@ -3,6 +3,10 @@ import { DataTable } from "@/components/admin/data-table";
 import { Link } from "@/i18n/routing";
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { parseCommerceConfig } from "@/lib/commerce/config";
+import type { Database } from "@/types/supabase";
+
+type AdminEvent = Database["public"]["Tables"]["events"]["Row"] & { commerce_config?: unknown };
 
 export default async function AdminEventiPage() {
   const locale = await getLocale();
@@ -21,7 +25,7 @@ export default async function AdminEventiPage() {
   const columns = [
     {
       header: "Evento",
-      cell: (evento: any) => (
+      cell: (evento: AdminEvent) => (
         <div>
           <span className="block font-bold text-slate-900">{getLocalizedText(evento.titolo, locale)}</span>
           <span className="block text-[13px] text-slate-500 uppercase tracking-widest mt-0.5">{evento.tipo}</span>
@@ -30,56 +34,55 @@ export default async function AdminEventiPage() {
     },
     {
       header: "Data",
-      cell: (evento: any) => (
+      cell: (evento: AdminEvent) => (
         <div>
           <span className="font-bold text-slate-700">
-            {new Date(evento.data_inizio).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
+            {new Date(evento.data_inizio).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: 'short', year: 'numeric' })}
           </span>
           <span className="block text-[12px] text-slate-500 mt-0.5">
-            {new Date(evento.data_inizio).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} - {evento.data_fine ? new Date(evento.data_fine).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '...'}
+            {new Date(evento.data_inizio).toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' })} - {evento.data_fine ? new Date(evento.data_fine).toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' }) : '...'}
           </span>
         </div>
       )
     },
     {
-      header: "Prezzo",
-      cell: (evento: any) => (
+      header: "Biglietteria",
+      cell: (evento: AdminEvent) => (
         <span className="font-medium text-slate-700">
-          {evento.prezzo_cents ? `€${(evento.prezzo_cents / 100).toFixed(2)}` : 'Gratis'}
+          {parseCommerceConfig(evento.commerce_config) ? 'Formule e scaglioni' : evento.prezzo_cents !== null ? evento.prezzo_cents > 0 ? `€${(evento.prezzo_cents / 100).toFixed(2)}` : 'Gratuito' : evento.attivo ? 'Gratuito' : 'Prezzo da definire'}
         </span>
       )
     },
     {
       header: "Biglietti",
-      cell: (evento: any) => (
+      cell: (evento: AdminEvent) => (
+        parseCommerceConfig(evento.commerce_config) ? <Link href={`/admin/biglietti?event=${evento.id}`} className="inline-flex min-h-11 items-center font-semibold text-indigo-600 hover:text-indigo-800">Vedi iscritti →</Link> :
         <div>
           <span className="font-bold text-slate-700">{evento.posti_venduti || 0}</span>
-          <span className="text-[12px] text-slate-500"> / {evento.capacity || '∞'} venduti</span>
+          <span className="text-[12px] text-slate-500"> / {evento.capacity ?? '∞'} venduti</span>
         </div>
       )
     },
     {
       header: "Stato",
-      cell: (evento: any) => evento.attivo 
-        ? <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Attivo</span>
-        : <span className="px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Disattivato</span>
+      cell: (evento: AdminEvent) => evento.attivo
+        ? <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Pubblicato</span>
+        : <span className="px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-[11px] font-bold uppercase tracking-wider">Non pubblicato</span>
     },
     {
       header: "Azioni",
-      cell: (evento: any) => (
-        <Link href={`/admin/eventi/${evento.id}`} className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
-          Modifica
-        </Link>
+      cell: (evento: AdminEvent) => (
+        <div className="flex min-w-44 flex-col gap-1 text-[13px] font-semibold"><Link href={`/admin/eventi/${evento.id}`} className="inline-flex min-h-11 items-center text-slate-600 hover:text-slate-900">Modifica dettagli</Link><Link href={`/admin/eventi/${evento.id}/commerce`} className="inline-flex min-h-11 items-center text-indigo-600 hover:text-indigo-800">Formule e prezzi →</Link><Link href={`/admin/biglietti?event=${evento.id}`} className="inline-flex min-h-11 items-center text-indigo-600 hover:text-indigo-800">Iscritti e check-in →</Link></div>
       )
     }
   ];
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-8">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Eventi & Workshop</h1>
-          <p className="text-slate-500 mt-2">Gestisci il calendario di eventi speciali e ritiri.</p>
+          <p className="text-slate-500 mt-2">Crea eventi, configura i biglietti e controlla gli iscritti.</p>
         </div>
         <Link href="/admin/eventi/nuovo" className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-slate-800 hover:shadow-lg transition-all active:scale-95">
           + Nuovo Evento

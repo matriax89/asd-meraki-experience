@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 
 interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -6,11 +6,14 @@ interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = React.forwardRef<HTMLInputElement, FormFieldProps>(
-  ({ label, error, className = "", ...props }, ref) => {
+  ({ label, error, id, className = "", ...props }, ref) => {
+    const generatedId = useId();
+    const fieldId = id || generatedId;
     return (
       <div className="space-y-1">
-        <label className="block text-sm font-medium text-foreground">{label}</label>
+        <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">{label}</label>
         <input
+          id={fieldId}
           ref={ref}
           className={`w-full p-2.5 border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow ${
             error ? "border-destructive" : "border-border"
@@ -30,11 +33,14 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ label, error, className = "", ...props }, ref) => {
+  ({ label, error, id, className = "", ...props }, ref) => {
+    const generatedId = useId();
+    const fieldId = id || generatedId;
     return (
       <div className="space-y-1">
-        <label className="block text-sm font-medium text-foreground">{label}</label>
+        <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">{label}</label>
         <textarea
+          id={fieldId}
           ref={ref}
           className={`w-full p-2.5 border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow resize-y min-h-[100px] ${
             error ? "border-destructive" : "border-border"
@@ -55,11 +61,14 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, options, className = "", ...props }, ref) => {
+  ({ label, error, options, id, className = "", ...props }, ref) => {
+    const generatedId = useId();
+    const fieldId = id || generatedId;
     return (
       <div className="space-y-1">
-        <label className="block text-sm font-medium text-foreground">{label}</label>
+        <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">{label}</label>
         <select
+          id={fieldId}
           ref={ref}
           className={`w-full p-2.5 border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow appearance-none ${
             error ? "border-destructive" : "border-border"
@@ -83,11 +92,14 @@ interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ label, description, className = "", ...props }, ref) => {
+  ({ label, description, id, className = "", ...props }, ref) => {
+    const generatedId = useId();
+    const fieldId = id || generatedId;
     return (
       <div className="flex items-start space-x-3">
         <div className="flex items-center h-5">
           <input
+            id={fieldId}
             type="checkbox"
             ref={ref}
             className={`w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary/50 ${className}`}
@@ -95,7 +107,7 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
           />
         </div>
         <div className="text-sm">
-          <label className="font-medium text-foreground">{label}</label>
+          <label htmlFor={fieldId} className="font-medium text-foreground">{label}</label>
           {description && <p className="text-muted-foreground">{description}</p>}
         </div>
       </div>
@@ -115,7 +127,9 @@ interface MultilingualProps {
   required?: boolean;
 }
 
-export function MultilingualInput({ label, value, onChange, error, className = "", ...props }: MultilingualProps & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value'|'onChange'>) {
+export function MultilingualInput({ label, value, onChange, error, id, className = "", ...props }: MultilingualProps & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value'|'onChange'>) {
+  const generatedId = useId();
+  const fieldId = id || generatedId;
   const [activeTab, setActiveTab] = useState<Locale>('it');
   
   const valObj = typeof value === 'object' && value !== null && !Array.isArray(value) ? value : { it: typeof value === 'string' ? value : '' };
@@ -127,7 +141,7 @@ export function MultilingualInput({ label, value, onChange, error, className = "
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between mb-1">
-        <label className="block text-sm font-medium text-foreground">{label} {props.required && '*'}</label>
+        <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">{label} {props.required && '*'}</label>
         <div className="flex gap-1 bg-muted p-1 rounded-md">
           {LOCALES.map(loc => (
             <button
@@ -142,6 +156,7 @@ export function MultilingualInput({ label, value, onChange, error, className = "
         </div>
       </div>
       <input
+        id={fieldId}
         className={`w-full p-2.5 border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow ${
           error ? "border-destructive" : "border-border"
         } ${className}`}
@@ -154,7 +169,9 @@ export function MultilingualInput({ label, value, onChange, error, className = "
   );
 }
 
-export function MultilingualTextarea({ label, value, onChange, error, className = "", ...props }: MultilingualProps & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'|'onChange'>) {
+export function MultilingualTextarea({ label, value, onChange, error, id, className = "", ...props }: MultilingualProps & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'|'onChange'>) {
+  const generatedId = useId();
+  const fieldId = id || generatedId;
   const [activeTab, setActiveTab] = useState<Locale>('it');
   
   const valObj = typeof value === 'object' && value !== null && !Array.isArray(value) ? value : { it: typeof value === 'string' ? value : '' };
@@ -166,7 +183,7 @@ export function MultilingualTextarea({ label, value, onChange, error, className 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between mb-1">
-        <label className="block text-sm font-medium text-foreground">{label} {props.required && '*'}</label>
+        <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">{label} {props.required && '*'}</label>
         <div className="flex gap-1 bg-muted p-1 rounded-md">
           {LOCALES.map(loc => (
             <button
@@ -181,6 +198,7 @@ export function MultilingualTextarea({ label, value, onChange, error, className 
         </div>
       </div>
       <textarea
+        id={fieldId}
         className={`w-full p-2.5 border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow resize-y min-h-[100px] ${
           error ? "border-destructive" : "border-border"
         } ${className}`}

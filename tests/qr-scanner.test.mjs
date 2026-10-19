@@ -53,7 +53,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-async function setup(context, { holdMedia = false, holdDecoder = false, immediateDecode = false, activities = [], access = { allowed: true }, holdAuthorization = false } = {}) {
+async function setup(context, { holdMedia = false, holdDecoder = false, immediateDecode = false, activities = [], access = { allowed: true }, holdAuthorization = false, initialEventId = "" } = {}) {
   Object.defineProperty(window.document, "hidden", { configurable: true, value: false });
   window.document.body.innerHTML = '<div id="scanner-root"></div>';
   const mediaRequests = [];
@@ -126,6 +126,7 @@ async function setup(context, { holdMedia = false, holdDecoder = false, immediat
   context.after(dispose);
   await act(async () => root.render(React.createElement(exports.QrScanner, {
     events: [{ id: eventId, titolo: "Evento Meraki", data_inizio: "2026-10-18T18:00:00Z", activities }],
+    initialEventId,
     onChecked: (result) => checkedResults.push(result),
   })));
   const button = (text) => [...window.document.querySelectorAll("button")].find((element) => element.textContent.includes(text));
@@ -152,6 +153,22 @@ async function setup(context, { holdMedia = false, holdDecoder = false, immediat
   };
   return { mediaRequests, decoders, actionCalls, checkedResults, authorizationCalls, setAccess: (next) => { currentAccess = next; }, timeline, button, click, selectEvent, decode, respond, dispose };
 }
+
+test("the participant-list event preselects the scanner without requesting camera access", async (context) => {
+  const scanner = await setup(context, { initialEventId: eventId });
+  assert.equal(window.document.getElementById("check-in-event").value, eventId);
+  assert.equal(scanner.button("Attiva fotocamera").disabled, false);
+  assert.equal(scanner.authorizationCalls.length, 0);
+  assert.equal(scanner.mediaRequests.length, 0);
+  assert.equal(scanner.actionCalls.length, 0);
+});
+
+test("an initial event outside the scanner scope cannot enable a camera session", async (context) => {
+  const scanner = await setup(context, { initialEventId: "f0c59975-552a-4471-bc3b-fb1940bc81ab" });
+  assert.equal(window.document.getElementById("check-in-event").value, "");
+  assert.equal(scanner.button("Attiva fotocamera").disabled, true);
+  assert.equal(scanner.mediaRequests.length, 0);
+});
 
 test("the first decoded QR stops media tracks before contacting the server and locks repeated frames", async (context) => {
   const scanner = await setup(context);

@@ -10,7 +10,7 @@ const load = (path, dependencies) => {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
-  vm.runInNewContext(compiled, { exports, require: (name) => name in dependencies ? dependencies[name] : require(name), console, Error, Intl, Date, Map });
+  vm.runInNewContext(compiled, { exports, require: (name) => name in dependencies ? dependencies[name] : require(name), console, Error, Intl, Date, Map, crypto: globalThis.crypto });
   return exports;
 };
 const configModule = load("../src/lib/commerce/config.ts", {});
@@ -20,16 +20,16 @@ const eventId = "e60752c4-b104-46bf-ad41-105dc7a05d40";
 const entryId = "0f23f119-7b2c-4238-bb3f-c69b76ad1533";
 const validConfig = { version: 1, enabled: true, waitlistEnabled: true, upgradesEnabled: true, activities: [{ id: "ws", name: "Workshop", kind: "workshop", capacity: 20, startsAt: null, salesEnd: null, menuOptions: [] }], packages: [{ id: "only-ws", name: "Solo Workshop", description: "", activityIds: ["ws"], prices: [{ id: "early", label: "Early Bird", amountCents: 2000, startsAt: null, endsAt: null }] }], addons: [] };
 
-function setup({ user = true, role = "admin", rpcError = null } = {}) {
+function setup({ user = true, role = "admin", rpcError = null, rpcData = { saved: true }, currentConfig = validConfig, publishConflict = false } = {}) {
   const calls = [];
   const query = (table) => ({
     select(fields) { calls.push(["select", table, fields]); return this; },
     update(patch) { calls.push(["update", table, patch]); return this; },
     eq(field, value) { calls.push(["eq", table, field, value]); return this; },
-    async single() { return { data: { role }, error: null }; },
-    async maybeSingle() { return { data: { id: entryId }, error: null }; },
+    async single() { return { data: table === "events" ? { commerce_config: currentConfig, updated_at: "2026-10-19T12:00:00Z" } : { role }, error: null }; },
+    async maybeSingle() { return { data: table === "events" && publishConflict ? null : { id: table === "events" ? eventId : entryId }, error: null }; },
   });
-  const admin = { from: query, async rpc(name, args) { calls.push(["rpc", name, args]); return { data: true, error: rpcError }; } };
+  const admin = { from: query, async rpc(name, args) { calls.push(["rpc", name, args]); return { data: rpcData, error: rpcError }; } };
   const auth = load("../src/lib/commerce/admin-auth.ts", { "@/lib/supabase/server": { createClient: async () => ({ auth: { getUser: async () => ({ data: { user: user ? { id: "operator" } : null }, error: null }) } }), createAdminClient: () => admin } });
   const actions = load("../src/app/api/admin/commerce/actions.ts", { "next/cache": { revalidatePath() {} }, "@/lib/commerce/config": configModule, "@/lib/commerce/sales-stats": statsModule, "@/lib/commerce/admin-auth": auth });
   return { calls, actions };
@@ -60,6 +60,40 @@ test("missing migration is reported without pretending the config was saved", as
   const result = await fixture.actions.saveCommerceAdmin(eventId, validConfig);
   assert.equal(result.success, false);
   assert.match(result.error, /migrazione commerce/);
+});
+
+test("publishing a draft first confirms the validated transaction, then updates only that event version", async () => {
+  const fixture = setup();
+  const result = await fixture.actions.saveCommerceAdmin(eventId, validConfig, { publish: true });
+  assert.equal(result.success, true);
+  assert.equal(result.published, true);
+  const savedIndex = fixture.calls.findIndex(([kind]) => kind === "rpc");
+  const publishIndex = fixture.calls.findIndex(([kind, table]) => kind === "update" && table === "events");
+  assert.ok(savedIndex >= 0 && publishIndex > savedIndex);
+  assert.equal(fixture.calls[publishIndex][2].attivo, true);
+  assert.equal(fixture.calls[publishIndex][2].commerce_config, undefined);
+  assert.ok(fixture.calls.some(([kind, table, key, value]) => kind === "eq" && table === "events" && key === "id" && value === eventId));
+  assert.ok(fixture.calls.some(([kind, table, key, value]) => kind === "eq" && table === "events" && key === "updated_at" && value === "2026-10-19T12:00:00Z"));
+});
+
+test("saving a draft never publishes it, and disabled, failed or changed configurations cannot be published", async () => {
+  const saved = setup();
+  assert.equal((await saved.actions.saveCommerceAdmin(eventId, validConfig)).success, true);
+  assert.equal(saved.calls.some(([kind, table]) => kind === "update" && table === "events"), false);
+  for (const [fixture, config] of [
+    [setup(), { ...validConfig, enabled: false }],
+    [setup({ rpcError: { code: "PGRST202", message: "Missing migration" } }), validConfig],
+    [setup({ rpcData: { error: "issued_activity_removed" } }), validConfig],
+    [setup({ rpcData: null }), validConfig],
+    [setup({ currentConfig: { ...validConfig, waitlistEnabled: false } }), validConfig],
+  ]) {
+    assert.equal((await fixture.actions.saveCommerceAdmin(eventId, config, { publish: true })).success, false);
+    assert.equal(fixture.calls.some(([kind, table]) => kind === "update" && table === "events"), false);
+  }
+  const concurrent = setup({ publishConflict: true });
+  const result = await concurrent.actions.saveCommerceAdmin(eventId, validConfig, { publish: true });
+  assert.equal(result.success, false);
+  assert.match(result.error, /non è stato pubblicato/);
 });
 
 test("manual waitlist changes are scoped to the event and entry, with no notification side effects", async () => {
@@ -122,6 +156,69 @@ test("the admin example is opt-in, stays disabled, and only saves valid explicit
     await React.act(async () => activation.click());
     await React.act(async () => dom.window.document.querySelector("form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
     assert.equal(saved.length, 2); assert.equal(saved[1].enabled, true);
+  } finally {
+    await React.act(async () => root.unmount()); dom.window.close();
+    for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
+  }
+});
+
+test("a draft offers a complete visual package setup and publishes only through its explicit action", async () => {
+  const { JSDOM } = await import("jsdom");
+  const React = await import("react");
+  const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", { url: "https://meraki.test", pretendToBeVisual: true });
+  const previous = new Map();
+  for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
+    previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  }
+  const { createRoot } = await import("react-dom/client");
+  const saved = [];
+  const component = load("../src/components/admin/commerce-config-editor.tsx", {
+    "@/app/api/admin/commerce/actions": { saveCommerceAdmin: async (_event, config, options) => { saved.push({ config: JSON.parse(JSON.stringify(config)), options }); return { success: true, published: Boolean(options?.publish) }; }, updateCommerceWaitlist: async () => ({ success: true }) },
+    "@/lib/commerce/rome-time": rome, "@/lib/commerce/config": configModule,
+  });
+  const root = createRoot(dom.window.document.getElementById("root"));
+  const findButton = (text) => [...dom.window.document.querySelectorAll("button")].find((button) => button.textContent.includes(text));
+  try {
+    await React.act(async () => root.render(React.createElement(component.CommerceConfigEditor, { eventId, initialConfig: null, stats: { paidOrders: 0, revenueCents: 0, refundedCents: 0, participants: 0, packages: [], tiers: [], addons: [] }, initialWaitlist: [], isPublished: false })));
+    assert.match(dom.window.document.body.textContent, /Evento in bozza/);
+    assert.equal(findButton("Salva e pubblica evento").disabled, true);
+    assert.equal(dom.window.document.querySelector("details").open, false, "empty sales should not obscure the setup");
+    await React.act(async () => findButton("Usa esempio").click());
+    assert.equal(findButton("Salva e pubblica evento").disabled, false);
+    assert.equal(dom.window.document.querySelectorAll("textarea").length, 3, "menu choices can be edited without JSON");
+    assert.equal(dom.window.document.querySelectorAll("input[type='datetime-local']").length, 12, "activity and price date fields are present");
+    const firstFormula = [...dom.window.document.querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Formula 1");
+    const firstTier = [...firstFormula.querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Scaglione 1");
+    const endsAt = [...firstTier.querySelectorAll("label")].find((label) => label.textContent.startsWith("Valido fino a")).querySelector("input");
+    await React.act(async () => { endsAt.value = "2026-11-01T00:00"; endsAt.dispatchEvent(new dom.window.FocusEvent("focusout", { bubbles: true })); });
+    await React.act(async () => [...firstFormula.querySelectorAll("button")].find((button) => button.textContent.includes("Aggiungi scaglione")).click());
+    const secondTier = [...firstFormula.querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Scaglione 2");
+    assert.equal([...secondTier.querySelectorAll("label")].find((label) => label.textContent.startsWith("Valido da")).querySelector("input").value, "2026-11-01T00:00", "the next tier starts where the previous one ends");
+    await React.act(async () => {
+      const amount = secondTier.querySelector("input[type='number']");
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(amount, "35");
+      amount.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    });
+    await React.act(async () => findButton("Salva bozza").click());
+    assert.equal(saved.length, 1);
+    assert.equal(saved[0].options, undefined);
+    assert.equal(saved[0].config.enabled, false);
+    assert.deepEqual(saved[0].config.packages.map((pkg) => pkg.name), ["Solo Workshop", "Solo Masterclass", "Workshop + Masterclass"]);
+    assert.equal(saved[0].config.packages[0].prices.length, 2);
+    assert.equal(saved[0].config.packages[0].prices[0].endsAt, "2026-10-31T23:00:00.000Z");
+    assert.equal(saved[0].config.packages[0].prices[1].startsAt, "2026-10-31T23:00:00.000Z");
+    assert.equal(saved[0].config.packages[0].prices[1].amountCents, 3500);
+    assert.equal(saved[0].config.addons[0].activityId, "cena");
+    assert.deepEqual(saved[0].config.activities.find((activity) => activity.id === "cena").menuOptions, ["Standard", "Vegetariano"]);
+    assert.match(dom.window.document.body.textContent, /Bozza salvata/);
+    await React.act(async () => findButton("Salva e pubblica evento").click());
+    assert.equal(saved.length, 2);
+    assert.equal(saved[1].options.publish, true);
+    assert.equal(saved[1].config.enabled, true);
+    assert.deepEqual(saved[1].config.activities, saved[0].config.activities, "publishing preserves activity identities and settings");
+    assert.deepEqual(saved[1].config.packages, saved[0].config.packages);
+    assert.match(dom.window.document.body.textContent, /Evento pubblicato/);
+    assert.equal(findButton("Salva e pubblica evento"), undefined);
   } finally {
     await React.act(async () => root.unmount()); dom.window.close();
     for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }

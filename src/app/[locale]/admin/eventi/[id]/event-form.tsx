@@ -1,23 +1,36 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Input, Textarea, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
+import { Input, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
 import { upsertEvent, deleteEvent } from "@/app/api/admin/eventi/actions";
 import { useModal } from "@/components/ui/modal-provider";
+import { Link } from "@/i18n/routing";
+import { parseCommerceConfig } from "@/lib/commerce/config";
+import { fromRomeInput, toRomeInput } from "@/lib/commerce/rome-time";
+import type { Database } from "@/types/supabase";
+
+type EventRow = Database["public"]["Tables"]["events"]["Row"] & { commerce_config?: unknown };
+type LocalizedValue = string | Record<string, string>;
 
 interface EventFormProps {
-  initialData: any;
+  initialData: EventRow | null;
+  locale?: string;
+  initialTicketingMode?: "single" | "advanced";
 }
 
-export function EventForm({ initialData }: EventFormProps) {
+export function EventForm({ initialData, locale = "it", initialTicketingMode }: EventFormProps) {
   const router = useRouter();
+  const dateFieldId = useId();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const { showConfirm } = useModal();
+  const initialCommerceConfig = parseCommerceConfig(initialData?.commerce_config);
+  const [ticketingMode, setTicketingMode] = useState<"single" | "advanced">(initialCommerceConfig || initialTicketingMode === "advanced" ? "advanced" : "single");
+  const requiresTicketSetup = ticketingMode === "advanced" && !initialCommerceConfig?.enabled;
 
   // Convert cents to euros for the UI
-  const initialPriceEuro = initialData?.prezzo_cents 
+  const initialPriceEuro = initialData?.prezzo_cents !== null && initialData?.prezzo_cents !== undefined
     ? (initialData.prezzo_cents / 100).toFixed(2) 
     : "";
 
@@ -28,12 +41,12 @@ export function EventForm({ initialData }: EventFormProps) {
     slug: initialData?.slug || "",
     tipo: initialData?.tipo || "evento",
     descrizione: initialData?.descrizione || "",
-    data_inizio: initialData?.data_inizio ? new Date(initialData.data_inizio).toISOString().slice(0, 16) : "",
-    data_fine: initialData?.data_fine ? new Date(initialData.data_fine).toISOString().slice(0, 16) : "",
+    data_inizio: initialData?.data_inizio ? toRomeInput(initialData.data_inizio) : "",
+    data_fine: initialData?.data_fine ? toRomeInput(initialData.data_fine) : "",
     location: initialData?.location || "",
     indirizzo: initialData?.indirizzo || "",
     prezzo_euro: initialPriceEuro,
-    capacity: initialData?.capacity || "",
+    capacity: initialData?.capacity ?? "",
     copertina_url: initialData?.copertina_url || "",
     attivo: initialData?.attivo ?? true,
   });
@@ -42,7 +55,7 @@ export function EventForm({ initialData }: EventFormProps) {
     return nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
   };
 
-  const handleTitoloChange = (value: any) => {
+  const handleTitoloChange = (value: LocalizedValue) => {
     const itTitolo = typeof value === 'object' ? (value.it || "") : (typeof value === 'string' ? value : "");
     setFormData(prev => ({
       ...prev,
@@ -56,14 +69,28 @@ export function EventForm({ initialData }: EventFormProps) {
     setMessage(null);
     
     // Parse euro to cents
-    let prezzo_cents = null;
-    if (formData.prezzo_euro) {
-      const parsedEuro = parseFloat(formData.prezzo_euro.replace(',', '.'));
-      if (isNaN(parsedEuro)) {
-        setMessage({ type: 'error', text: "Il prezzo deve essere un numero valido o vuoto (per eventi gratuiti)." });
+    let prezzo_cents = ticketingMode === "advanced" ? initialData?.prezzo_cents ?? null : null;
+    if (ticketingMode === "single" && formData.prezzo_euro) {
+      const parsedEuro = Number(formData.prezzo_euro.replace(',', '.'));
+      if (!Number.isFinite(parsedEuro) || parsedEuro < 0) {
+        setMessage({ type: 'error', text: "Il prezzo deve essere un numero valido, positivo o zero. Lascia vuoto per un evento gratuito." });
         return;
       }
       prezzo_cents = Math.round(parsedEuro * 100);
+    }
+
+    let startsAt: string; let endsAt: string | null;
+    try {
+      // Unchanged fields keep their exact stored instant, including seconds
+      // and an already unambiguous offset during the repeated autumn hour.
+      startsAt = initialData?.data_inizio && formData.data_inizio === toRomeInput(initialData.data_inizio)
+        ? initialData.data_inizio : fromRomeInput(formData.data_inizio)!;
+      endsAt = initialData?.data_fine && formData.data_fine === toRomeInput(initialData.data_fine)
+        ? initialData.data_fine : fromRomeInput(formData.data_fine);
+      if (!startsAt || (endsAt && Date.parse(endsAt) < Date.parse(startsAt))) throw new Error("La fine dell’evento non può precedere l’inizio.");
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : "Controlla data e orario dell’evento." });
+      return;
     }
 
     const payload = {
@@ -73,14 +100,15 @@ export function EventForm({ initialData }: EventFormProps) {
       slug: formData.slug,
       tipo: formData.tipo,
       descrizione: formData.descrizione,
-      data_inizio: new Date(formData.data_inizio).toISOString(),
-      data_fine: formData.data_fine ? new Date(formData.data_fine).toISOString() : null,
+      data_inizio: startsAt,
+      data_fine: endsAt,
       location: formData.location,
       indirizzo: formData.indirizzo,
       prezzo_cents,
-      capacity: formData.capacity ? parseInt(formData.capacity as string) : null,
+      capacity: formData.capacity === "" ? null : Number(formData.capacity),
       copertina_url: formData.copertina_url,
-      attivo: formData.attivo,
+      attivo: requiresTicketSetup ? false : formData.attivo,
+      ticketing_mode: ticketingMode,
     };
 
     startTransition(async () => {
@@ -89,8 +117,10 @@ export function EventForm({ initialData }: EventFormProps) {
         setMessage({ type: 'error', text: result.error });
       } else {
         setMessage({ type: 'success', text: 'Evento salvato con successo!' });
-        if (formData.id === "nuovo") {
-          router.push(`/it/admin/eventi/${result.id}`);
+        if (ticketingMode === "advanced") {
+          router.push(`/${locale}/admin/eventi/${result.id}/commerce`);
+        } else if (formData.id === "nuovo") {
+          router.push(`/${locale}/admin/eventi/${result.id}`);
         }
       }
     });
@@ -109,7 +139,7 @@ export function EventForm({ initialData }: EventFormProps) {
       if (result.error) {
         setMessage({ type: 'error', text: result.error });
       } else {
-        router.push("/it/admin/eventi");
+        router.push(`/${locale}/admin/eventi`);
       }
     });
   };
@@ -117,7 +147,7 @@ export function EventForm({ initialData }: EventFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl pb-12">
       {message && (
-        <div className={`p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+        <div role={message.type === 'error' ? "alert" : "status"} className={`p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
           {message.text}
         </div>
       )}
@@ -138,7 +168,7 @@ export function EventForm({ initialData }: EventFormProps) {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <MultilingualInput 
-            label="Titolo *" 
+            label="Titolo"
             required 
             value={formData.titolo} 
             onChange={handleTitoloChange} 
@@ -163,7 +193,7 @@ export function EventForm({ initialData }: EventFormProps) {
               { value: "workshop", label: "Workshop" }
             ]}
             value={formData.tipo}
-            onChange={e => setFormData({...formData, tipo: e.target.value})}
+            onChange={e => setFormData({...formData, tipo: e.target.value as EventRow["tipo"]})}
           />
         </div>
 
@@ -176,12 +206,14 @@ export function EventForm({ initialData }: EventFormProps) {
       </div>
 
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
-        <h2 className="text-xl font-bold border-b border-border pb-2">Data, Luogo e Prezzo</h2>
+        <h2 className="text-xl font-bold border-b border-border pb-2">Data e luogo</h2>
+        <p className="text-sm text-muted-foreground">Gli orari sono riferiti all’Italia (Europe/Rome).</p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-semibold mb-2">Inizio Evento *</label>
+            <label htmlFor={`${dateFieldId}-start`} className="block text-sm font-semibold mb-2">Inizio Evento *</label>
             <input 
+              id={`${dateFieldId}-start`}
               type="datetime-local" 
               required
               value={formData.data_inizio}
@@ -190,8 +222,9 @@ export function EventForm({ initialData }: EventFormProps) {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-2">Fine Evento</label>
+            <label htmlFor={`${dateFieldId}-end`} className="block text-sm font-semibold mb-2">Fine Evento</label>
             <input 
+              id={`${dateFieldId}-end`}
               type="datetime-local" 
               value={formData.data_fine}
               onChange={e => setFormData({...formData, data_fine: e.target.value})}
@@ -209,20 +242,37 @@ export function EventForm({ initialData }: EventFormProps) {
             onChange={e => setFormData({...formData, indirizzo: e.target.value})} 
           />
           <Input 
-            label="Prezzo (€)" 
-            placeholder="Lascia vuoto se gratis. es. 20.00"
-            value={formData.prezzo_euro} 
-            onChange={e => setFormData({...formData, prezzo_euro: e.target.value})} 
-          />
-          <Input 
             label="Posti Totali (Capienza)" 
             type="number"
+            min={0}
+            max={100000}
             placeholder="es. 50 (vuoto = illimitati)"
             value={formData.capacity} 
             onChange={e => setFormData({...formData, capacity: e.target.value})} 
           />
         </div>
       </div>
+
+      <fieldset className="space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm">
+        <legend className="px-2 text-xl font-bold">Come vuoi vendere i biglietti?</legend>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${ticketingMode === "single" ? "border-indigo-500 bg-indigo-50" : "border-border"}`}>
+            <input type="radio" name="ticketing-mode" value="single" checked={ticketingMode === "single"} disabled={Boolean(initialCommerceConfig?.enabled)} onChange={() => setTicketingMode("single")} className="mt-1 h-4 w-4 shrink-0" />
+            <span><strong className="block text-sm">Prezzo unico</strong><span className="mt-1 block text-sm text-slate-600">Un biglietto per l’evento, con un solo prezzo oppure gratuito.</span></span>
+          </label>
+          <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${ticketingMode === "advanced" ? "border-indigo-500 bg-indigo-50" : "border-border"}`}>
+            <input type="radio" name="ticketing-mode" value="advanced" checked={ticketingMode === "advanced"} onChange={() => setTicketingMode("advanced")} className="mt-1 h-4 w-4 shrink-0" />
+            <span><strong className="block text-sm">Formule, scaglioni e cena</strong><span className="mt-1 block text-sm text-slate-600">Solo Workshop, solo Masterclass, WS + MC, prezzi Early Bird e cena facoltativa.</span></span>
+          </label>
+        </div>
+        {ticketingMode === "single" ? <Input label="Prezzo del biglietto (€)" inputMode="decimal" placeholder="Lascia vuoto se gratuito. Es. 20,00" value={formData.prezzo_euro} onChange={e => setFormData({ ...formData, prezzo_euro: e.target.value })} /> : <div className="space-y-2 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+          <p><strong className="text-slate-900">1. Crea la bozza → 2. Configura i biglietti → 3. Pubblica.</strong></p>
+          <p>Nel prossimo passaggio imposti attività, formule, prezzi con date di validità e cena. Ogni partecipante riceverà il proprio QR via email.</p>
+          {requiresTicketSetup && <p>L’evento resta non pubblicato finché non completi le formule e premi “Salva e pubblica evento”.</p>}
+          {formData.id !== "nuovo" && <Link href={`/admin/eventi/${formData.id}/commerce`} className="inline-flex min-h-11 items-center font-semibold text-indigo-700">Apri Formule e prezzi →</Link>}
+          {initialCommerceConfig?.enabled && <p>Le formule sono già attive: i prezzi si modificano in “Formule e prezzi”. Il prezzo unico precedente viene conservato.</p>}
+        </div>}
+      </fieldset>
 
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
         <h2 className="text-xl font-bold border-b border-border pb-2">Media e Visibilità</h2>
@@ -243,8 +293,9 @@ export function EventForm({ initialData }: EventFormProps) {
         <div className="pt-4">
           <Checkbox 
             label="Pubblica sul sito" 
-            description="Se disattivato, non sarà visibile e le prevendite non saranno attive."
-            checked={formData.attivo}
+            description={requiresTicketSetup ? "La pubblicazione sarà disponibile dopo la configurazione delle formule." : "Se disattivato, l’evento resta non pubblicato e gli acquisti non sono disponibili."}
+            checked={requiresTicketSetup ? false : formData.attivo}
+            disabled={requiresTicketSetup}
             onChange={e => setFormData({...formData, attivo: e.target.checked})}
           />
         </div>
@@ -256,7 +307,7 @@ export function EventForm({ initialData }: EventFormProps) {
           disabled={isPending}
           className="bg-primary text-primary-foreground font-bold px-8 py-4 rounded-xl shadow-lg hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-black/20 hover:shadow-black/30"
         >
-          {isPending ? "Salvataggio..." : (formData.id === "nuovo" ? "Crea Evento" : "Salva Modifiche")}
+          {isPending ? "Salvataggio..." : ticketingMode === "advanced" ? (formData.id === "nuovo" ? "Crea e configura biglietti" : "Salva e configura biglietti") : (formData.id === "nuovo" ? "Crea evento" : "Salva modifiche")}
         </button>
       </div>
     </form>

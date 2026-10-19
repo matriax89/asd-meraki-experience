@@ -19,6 +19,8 @@ const configErrors: Record<string, string> = {
   active_checkouts: "Sono in corso acquisti: puoi cambiare i prezzi, ma attendi la chiusura delle prenotazioni per modificare attività, formule e aggiunte.",
   issued_activity_removed: "Non puoi rimuovere un’attività che ha accessi già venduti.",
   capacity_below_occupancy: "I posti totali non possono essere inferiori ai posti già venduti o riservati.",
+  issued_package_removed: "Non puoi rimuovere una formula già acquistata mentre gli upgrade sono attivi.",
+  issued_package_changed: "Le attività di una formula già acquistata devono restare le stesse mentre gli upgrade sono attivi.",
 };
 
 async function allRows<T>(getPage: (start: number, end: number) => PromiseLike<{ data: T[] | null; error: { code?: string; message?: string } | null }>) {
@@ -36,7 +38,7 @@ export async function loadCommerceAdmin(eventId: string) {
     const admin = await requireCommerceStaff();
     const id = idSchema.parse(eventId);
     const [eventResult, orderResult, passesResult, waitlistResult] = await Promise.all([
-      admin.from("events").select("id,titolo,commerce_config").eq("id", id).single(),
+      admin.from("events").select("id,titolo,slug,tipo,attivo,data_inizio,commerce_config").eq("id", id).single(),
       allRows((start, end) => admin.from("commerce_orders").select("id,state,amount_cents,quote").eq("event_id", id).order("id").range(start, end)),
       allRows((start, end) => admin.from("commerce_passes").select("id,status").eq("event_id", id).order("id").range(start, end)),
       allRows((start, end) => admin.from("commerce_waitlist").select("id,first_name,last_name,email,activity_ids,status,created_at").eq("event_id", id).order("created_at", { ascending: false }).order("id").range(start, end)),
@@ -47,18 +49,34 @@ export async function loadCommerceAdmin(eventId: string) {
   } catch (error) { return { success: false as const, error: errorMessage(error) }; }
 }
 
-export async function saveCommerceAdmin(eventId: string, rawConfig: unknown) {
+export async function saveCommerceAdmin(eventId: string, rawConfig: unknown, options?: { publish?: boolean }) {
   try {
     const admin = await requireCommerceStaff();
     const id = idSchema.parse(eventId);
     const parsed = configSchema.safeParse(rawConfig);
     if (!parsed.success) return { success: false as const, error: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join(" · ") };
+    const intent = z.object({ publish: z.boolean().optional() }).strict().parse(options || {});
+    if (intent.publish && !parsed.data.enabled) return { success: false as const, error: "Attiva le formule e completa almeno un’attività e una formula prima di pubblicare." };
     const { data, error } = await admin.rpc("save_commerce_config", { p_event_id: id, p_config: parsed.data });
     if (error) return { success: false as const, error: error.code === "PGRST202" || error.code === "42703" ? unavailable : error.message };
     if (data && typeof data === "object" && "error" in data) return { success: false as const, error: configErrors[String(data.error)] || "Configurazione non salvata. Ricarica la pagina e riprova." };
+    if (intent.publish) {
+      if (!data || typeof data !== "object" || !("saved" in data) || data.saved !== true) return { success: false as const, error: "Il salvataggio delle formule non è confermato. L’evento non è stato pubblicato: ricarica e riprova." };
+      // Publish only the validated configuration just saved by the existing transaction.
+      // The version check also prevents a concurrent editor from publishing other changes.
+      const current = await admin.from("events").select("commerce_config,updated_at").eq("id", id).single();
+      const savedConfig = parseCommerceConfig(current.data?.commerce_config);
+      if (current.error || !current.data?.updated_at || !savedConfig?.enabled || JSON.stringify(savedConfig) !== JSON.stringify(parsed.data)) {
+        return { success: false as const, error: "Configurazione salvata, ma la pubblicazione non è confermata. L’evento è stato modificato: ricarica e controlla i dati prima di pubblicare." };
+      }
+      const published = await admin.from("events").update({ attivo: true, updated_at: new Date().toISOString() })
+        .eq("id", id).eq("updated_at", current.data.updated_at).select("id").maybeSingle();
+      if (published.error || !published.data) return { success: false as const, error: "Configurazione salvata, ma l’evento non è stato pubblicato. Ricarica e riprova." };
+    }
     revalidatePath("/[locale]/eventi", "layout"); revalidatePath("/[locale]/workshop", "layout");
     revalidatePath("/[locale]/admin/eventi", "layout");
-    return { success: true as const };
+    revalidatePath("/[locale]", "layout");
+    return { success: true as const, published: Boolean(intent.publish) };
   } catch (error) { return { success: false as const, error: errorMessage(error) }; }
 }
 

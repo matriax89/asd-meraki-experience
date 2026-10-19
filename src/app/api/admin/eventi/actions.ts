@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
 import { z } from "zod";
+import { parseCommerceConfig } from "@/lib/commerce/config";
 
 const localized = z.union([z.string().max(200_000), z.record(z.string(), z.string().max(200_000))]);
 const eventSchema = z.object({
@@ -14,7 +15,8 @@ const eventSchema = z.object({
   copertina_url: z.string().max(2048).nullable().optional(),
   prezzo_cents: z.number().int().min(0).max(10_000_000).nullable().optional(),
   capacity: z.number().int().min(0).max(100_000).nullable().optional(), attivo: z.boolean().optional(),
-});
+  ticketing_mode: z.enum(["single", "advanced"]).optional(),
+}).refine((event) => !event.data_fine || Date.parse(event.data_fine) >= Date.parse(event.data_inizio), { message: "La fine dell’evento non può precedere l’inizio.", path: ["data_fine"] });
 
 export async function getEvent(id: string) {
   const supabase = await requireCommerceStaff();
@@ -37,7 +39,13 @@ export async function upsertEvent(raw: unknown) {
   const validation = eventSchema.safeParse(raw);
   if (!validation.success) return { success: false, error: "Controlla date, prezzo, capienza e dettagli dell’evento." };
   // Configurations, counters and Stripe IDs have dedicated transactional paths.
-  const eventData = validation.data;
+  const { ticketing_mode: ticketingMode, ...eventData } = validation.data;
+  const createAdvancedDraft = !eventData.id && ticketingMode === "advanced";
+  if (eventData.id && ticketingMode === "advanced" && eventData.attivo) {
+    const { data: existing, error: existingError } = await supabase.from("events").select("*").eq("id", eventData.id).single();
+    const config = parseCommerceConfig((existing as (typeof existing & { commerce_config?: unknown }))?.commerce_config);
+    if (existingError || !config?.enabled) return { success: false, error: "Configura le formule e pubblica l’evento da Formule e prezzi." };
+  }
   
   // Create slug if new
   let slug = eventData.slug;
@@ -54,6 +62,7 @@ export async function upsertEvent(raw: unknown) {
 
   const payload = {
     ...eventData,
+    ...(createAdvancedDraft ? { attivo: false, prezzo_cents: null } : {}),
     ...(slug ? { slug } : {}),
     updated_at: new Date().toISOString()
   };

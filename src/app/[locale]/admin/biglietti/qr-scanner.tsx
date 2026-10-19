@@ -9,11 +9,12 @@ import type { CheckInEvent, CheckInResult } from "@/lib/tickets/check-in-types";
 
 type Phase = "idle" | "starting" | "scanning" | "checking" | "result" | "camera_error";
 
-export function QrScanner({ events, onChecked }: {
+export function QrScanner({ events, onChecked, initialEventId = "" }: {
   events: CheckInEvent[];
   onChecked: (result: CheckInResult) => void;
+  initialEventId?: string;
 }) {
-  const [eventId, setEventId] = useState("");
+  const [eventId, setEventId] = useState(() => events.some((event) => event.id === initialEventId) ? initialEventId : "");
   const [activityId, setActivityId] = useState("");
   const activities = events.find((event) => event.id === eventId)?.activities || [];
   const selectionReady = Boolean(eventId && (!activities.length || activityId));
