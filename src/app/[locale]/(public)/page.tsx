@@ -10,12 +10,17 @@ import { getLocalizedText } from "@/lib/i18n-utils";
 import { YoutubeCarousel } from "@/components/public/youtube-carousel";
 import { ScheduleClient } from "./orario/schedule-client";
 import { InstagramWidget } from "@/components/public/instagram-widget";
+import { EventFeed } from "@/components/meraki/event-feed";
+import { getPublishedEventFeed } from "@/lib/events/public-feed";
+import { enrichCommerceFeed } from "@/lib/commerce/feed";
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Index" });
   const tNav = await getTranslations({ locale, namespace: "Navigation" });
   const supabase = await createClient();
+  const eventFeed = await getPublishedEventFeed(locale);
+  const homepageEvents = eventFeed.hasUpcoming ? await enrichCommerceFeed(eventFeed.events) : [];
 
   const { data: corsi } = await supabase
     .from("courses")
@@ -96,9 +101,14 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const initiatives = { ...content.shop_text, ...content.initiatives_text };
 
   return (
-    <main className="flex flex-col min-h-[100dvh]">
+    <main className="flex flex-col min-h-[100dvh] overflow-x-clip">
       
       {/* ═══════ HERO (V2 Apple-style) ═══════ */}
+      {eventFeed.hasUpcoming ? (
+        <section data-meraki-home-events className="bg-[#f5f4f0] pb-8 pt-[calc(5rem+env(safe-area-inset-top,0px))] md:pt-[calc(6rem+env(safe-area-inset-top,0px))]">
+          <EventFeed events={homepageEvents} locale={locale} now={eventFeed.now} />
+        </section>
+      ) : (
       <section className="relative w-full h-[100svh] overflow-hidden bg-black flex items-center justify-center">
         {/* Full Image background */}
         <div className="absolute inset-0 z-0">
@@ -147,6 +157,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           <div className="w-[1px] h-12 bg-gradient-to-b from-white/60 to-transparent" />
         </FadeIn>
       </section>
+      )}
 
       {/* ═══════ CHI SIAMO ═══════ */}
       <section id="chi-siamo" className="py-24 md:py-32 scroll-mt-24">

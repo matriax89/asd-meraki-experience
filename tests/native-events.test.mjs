@@ -24,7 +24,7 @@ function load(name) {
   const source = readFileSync(new URL(`../src/components/meraki/${name}.${name === "event-model" ? "ts" : "tsx"}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (specifier) => {
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, window: dom.window, document: dom.window.document, Date, require: (specifier) => {
     if (specifier.startsWith("./")) return load(specifier.slice(2));
     if (specifier === "@/i18n/routing") return { Link: ({ children, ...props }) => React.createElement("a", props, children) };
     return require(specifier);
@@ -44,11 +44,14 @@ test("a past-only catalogue stays honest while preserving the event in the archi
   const screen = await render([past]);
   try {
     assert.match(screen.host.textContent, /Il prossimo momento sta arrivando/);
-    assert.match(screen.host.textContent, /Da ricordare/);
-    assert.ok(screen.host.querySelector('a[href="/eventi/outdoor-postal"]'));
+    assert.doesNotMatch(screen.host.textContent, /Da ricordare/);
+    assert.equal(screen.host.querySelector('a[href="/eventi/outdoor-postal"]'), null);
+    assert.equal(screen.host.querySelector('[aria-live="polite"]').textContent, "0 esperienze");
     await act(async () => button("Passati").click());
     assert.equal(button("Passati").getAttribute("aria-pressed"), "true");
     assert.equal(screen.host.querySelector('[aria-live="polite"]').textContent, "1 esperienza");
+    assert.ok(screen.host.querySelector('a[href="/eventi/outdoor-postal"]'));
+    assert.match(screen.host.textContent, /Da ricordare/);
     assert.doesNotMatch(screen.host.textContent, /Il prossimo momento sta arrivando/);
   } finally { await screen.cleanup(); }
 });
@@ -83,6 +86,44 @@ test("workshop discovery includes masterclasses and keeps ongoing experiences ou
   const result = model.filterEvents([past, ongoing, future], "workshop", "upcoming", "", now);
   assert.deepEqual([...result].map((event) => event.id), ["ongoing", "future"]);
   assert.equal(model.isPastEvent(ongoing, now), false);
+});
+
+test("event archive boundaries respect explicit ends and equivalent timezone offsets", () => {
+  const overnight = { ...future, startsAt: "2026-10-18T23:30:00+02:00", endsAt: "2026-10-19T02:00:00+02:00" };
+  assert.equal(model.isPastEvent(overnight, Date.parse("2026-10-18T23:59:59.999Z")), false);
+  assert.equal(model.isPastEvent(overnight, Date.parse("2026-10-19T00:00:00Z")), true);
+  assert.equal(model.isPastEvent({ ...overnight, endsAt: "2026-10-19T00:00:00Z" }, Date.parse("2026-10-19T02:00:00+02:00")), true);
+  assert.equal(model.isPastEvent({ ...future, endsAt: null }, Date.parse(future.startsAt) - 1), false);
+  assert.equal(model.isPastEvent({ ...future, endsAt: null }, Date.parse(future.startsAt)), true);
+  const severalDays = { ...overnight, endsAt: "2026-10-21T18:00:00+02:00" };
+  assert.equal(model.isPastEvent(severalDays, Date.parse("2026-10-20T10:00:00Z")), false);
+});
+
+test("returning to the installed app moves a newly ended event into its archive", async () => {
+  const ongoing = { ...future, startsAt: "2026-10-18T14:00:00Z", endsAt: "2026-10-18T16:00:00Z" };
+  const screen = await render([ongoing]);
+  const originalDateNow = Date.now;
+  try {
+    assert.ok(screen.host.querySelector('a[href="/workshop/workshop"]'));
+    Date.now = () => Date.parse("2026-10-18T16:00:00Z");
+    await act(async () => window.dispatchEvent(new dom.window.Event("focus")));
+    assert.equal(screen.host.querySelector('a[href="/workshop/workshop"]'), null);
+    assert.match(screen.host.textContent, /Il prossimo momento sta arrivando/);
+    await act(async () => button("Passati").click());
+    assert.ok(screen.host.querySelector('a[href="/workshop/workshop"]'));
+  } finally { Date.now = originalDateNow; await screen.cleanup(); }
+});
+
+test("past-only catalogues keep their archive separate in every supported language", async () => {
+  for (const [locale, archive] of [["it", "Passati"], ["en", "Past"], ["de", "Vergangen"], ["es", "Pasados"]]) {
+    const screen = await render([past], locale);
+    try {
+      assert.equal(screen.host.querySelector('a[href="/eventi/outdoor-postal"]'), null, locale);
+      await act(async () => button(archive).click());
+      assert.ok(screen.host.querySelector('a[href="/eventi/outdoor-postal"]'), locale);
+      assert.equal(button(archive).getAttribute("aria-pressed"), "true");
+    } finally { await screen.cleanup(); }
+  }
 });
 
 

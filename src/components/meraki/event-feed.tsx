@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, CalendarDays, ChevronRight, Compass, Search, Sparkles, Ticket, X } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { MerakiEventCard } from "./event-card";
@@ -18,10 +18,27 @@ export function EventFeed({ events, locale, now, initialType = "all", loadError 
   const [type, setType] = useState<"all" | "evento" | "workshop">(initialType);
   const [period, setPeriod] = useState<"upcoming" | "past">("upcoming");
   const [query, setQuery] = useState("");
-  const filtered = filterEvents(events, type, period, query, now);
-  const archived = filterEvents(events, type, "past", "", now);
-  const featured = filtered[0] || (!query.trim() && period === "upcoming" ? archived[0] : undefined);
-  const featuredIsPast = featured ? isPastEvent(featured, now) : false;
+  const [currentTime, setCurrentTime] = useState(now);
+  useEffect(() => {
+    // Installed apps can stay open for days. Reclassify events as time passes
+    // and as soon as the user returns, keeping the server time for hydration.
+    const updateTime = () => setCurrentTime(Date.now());
+    const interval = window.setInterval(updateTime, 30_000);
+    window.addEventListener("focus", updateTime);
+    window.addEventListener("pageshow", updateTime);
+    document.addEventListener("visibilitychange", updateTime);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", updateTime);
+      window.removeEventListener("pageshow", updateTime);
+      document.removeEventListener("visibilitychange", updateTime);
+    };
+  }, []);
+  const effectiveNow = Math.max(now, currentTime);
+  const filtered = filterEvents(events, type, period, query, effectiveNow);
+  // An empty upcoming catalogue must never promote an archived experience.
+  const featured = filtered[0];
+  const featuredIsPast = featured ? isPastEvent(featured, effectiveNow) : false;
   const list = filtered.filter((event) => event.id !== featured?.id);
   const hasFilters = Boolean(query.trim()) || type !== initialType;
   const reset = () => { setQuery(""); setType(initialType); setPeriod("upcoming"); };
@@ -75,7 +92,7 @@ export function EventFeed({ events, locale, now, initialType = "all", loadError 
           <div className="mb-4 flex items-center justify-between"><h2 id="explore-heading" className="text-lg font-semibold tracking-[-0.035em]">{t.explore}</h2><Sparkles className="h-4 w-4 text-[#b69a68]" aria-hidden="true" /></div>
           <div className="divide-y divide-[#e7e7de] overflow-hidden rounded-[22px] border border-[#18251f]/5 bg-white px-4">
             {([{ value: "evento", label: t.events, subtitle: t.eventLabel, Icon: Compass }, { value: "workshop", label: t.workshop, subtitle: t.workshopLabel, Icon: Sparkles }] as const).map(({ value, label, subtitle, Icon }) => {
-              const count = filterEvents(events, value, "upcoming", "", now).length;
+              const count = filterEvents(events, value, "upcoming", "", effectiveNow).length;
               return <button key={value} type="button" onClick={() => { setType(value); setQuery(""); setPeriod("upcoming"); }} className="flex min-h-[88px] w-full items-center gap-3 text-left transition-colors hover:bg-[#f8f8f4]" aria-label={`${label} · ${count} ${t.planned}`}><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] ${value === "evento" ? "bg-[#eaf0e5] text-[#6c805b]" : "bg-[#f4eddf] text-[#a08752]"}`}><Icon className="h-5 w-5" aria-hidden="true" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span><span className="mt-1 block text-[11px] text-[#808877]">{subtitle}</span></span><span className="ml-1 text-[10px] text-[#8b9283]">{count} {t.planned}</span><ChevronRight className="h-4 w-4 text-[#a2a894]" aria-hidden="true" /></button>;
             })}
           </div>

@@ -56,11 +56,8 @@
 .headerInner { max-width: 1080px; margin: 0 auto; height: 76px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 22px; }
 .headerSide { display: flex; align-items: center; }
 .headerEnd { justify-content: flex-end; }
-.brandSymbol { width: 39px; height: 39px; display: inline-flex; justify-content: center; align-items: center; color: #6d5532; border: 1px solid #d6c49f; border-radius: 50%; font-family: Georgia, serif; font-size: 24px; line-height: 1; font-style: italic; }
-.wordmark { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #18251f; }
-.wordmark > span { font-size: 29px; line-height: 1; letter-spacing: -1.5px; font-weight: 750; }
-.wordmarkDot { color: #ad8a51; }
-.wordmark small { margin-top: 6px; font-size: 7px; letter-spacing: 3px; padding-left: 3px; line-height: 1; font-weight: 600; }
+.wordmark { display: flex; align-items: center; justify-content: center; width: clamp(150px, calc(100vw - 144px), 210px); min-height: 44px; text-decoration: none; }
+.brandLogo { display: block; width: 100%; height: 58px; object-fit: contain; }
 .iconButton { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #e4e5dc; background: #fffefa; border-radius: 50%; color: #18251f; transition: background 160ms, transform 160ms; }
 .iconButton:active { transform: scale(.94); background: #e9e7df; }
 .content { max-width: 1080px; margin: 0 auto; outline: none; }

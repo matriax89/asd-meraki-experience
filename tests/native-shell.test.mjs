@@ -5,6 +5,7 @@ import test from "node:test";
 import vm from "node:vm";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { JSDOM } from "jsdom";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
@@ -30,7 +31,26 @@ const { MerakiAppShell } = loadTs("../src/components/meraki/app-shell.tsx", (id)
   if (id.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
   return require(id);
 });
-const renderShell = () => renderToStaticMarkup(createElement(MerakiAppShell, {}, createElement("h1", {}, "Test")));
+const renderShell = (props = {}) => renderToStaticMarkup(createElement(MerakiAppShell, props, createElement("h1", {}, "Test")));
+
+test("the app header displays the original artwork and follows the site's configured logo", () => {
+  pathname = "/it/eventi";
+  locale = "it";
+  for (const [props, expectedSource] of [
+    [{}, "/images/logo-meraki-horizontal.webp"],
+    [{ logoUrl: "/images/logo-meraki.png" }, "/images/logo-meraki.png"],
+  ]) {
+    const { document } = new JSDOM(renderShell(props)).window;
+    const brand = document.querySelector('header a[aria-label="Meraki Experience"]');
+    const artwork = brand?.querySelector('img[alt="Meraki Experience"]');
+    assert.ok(artwork, "the home link needs a named logo image");
+    assert.equal(brand.getAttribute("href"), "/eventi");
+    const imageUrl = new URL(artwork.getAttribute("src"), "https://meraki.test");
+    assert.equal(imageUrl.searchParams.get("url") || imageUrl.pathname, expectedSource);
+    assert.ok(Number(artwork.getAttribute("width")) > 0);
+    assert.ok(Number(artwork.getAttribute("height")) > 0);
+  }
+});
 
 test("app surface covers every ticket flow and leaves marketing and admin surfaces intact", () => {
   for (const lang of ["", "/it", "/en", "/de"]) {

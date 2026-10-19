@@ -28,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
   const title = branding?.meta_title || "ASD Meraki Experience";
   const description = branding?.meta_description || "Benessere, fitness e cambiamento";
-  const favicon = branding?.favicon_url || "/favicon.ico";
+  const favicon = branding?.favicon_url || "/icons/meraki-original-192.png";
 
   return {
     title,
@@ -42,7 +42,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     icons: {
       icon: favicon,
-      apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+      apple: [{ url: "/icons/meraki-original-apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
       shortcut: favicon,
     },
     openGraph: {

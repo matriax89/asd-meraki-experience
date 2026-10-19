@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useLocale } from "next-intl";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import { ArrowLeft, Compass, Ticket, UserRound } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { getMerakiRouteState } from "@/lib/meraki-routes";
@@ -23,7 +24,7 @@ const destinations = [
   { key: "profile", href: "/profilo", icon: UserRound },
 ] as const;
 
-export function MerakiAppShell({ children, locale }: { children: ReactNode; locale?: string }) {
+export function MerakiAppShell({ children, locale, logoUrl }: { children: ReactNode; locale?: string; logoUrl?: string }) {
   const contextLocale = useLocale();
   const pathname = usePathname();
   const text = copy[(locale ?? contextLocale) as keyof typeof copy] ?? copy.it;
@@ -39,11 +40,19 @@ export function MerakiAppShell({ children, locale }: { children: ReactNode; loca
               <Link href={route.backHref} className={styles.iconButton} aria-label={text.back}>
                 <ArrowLeft size={20} strokeWidth={1.8} aria-hidden="true" />
               </Link>
-            ) : <span className={styles.brandSymbol} aria-hidden="true">m</span>}
+            ) : null}
           </div>
           <Link href="/eventi" className={styles.wordmark} aria-label="Meraki Experience">
-            <span>meraki<span className={styles.wordmarkDot}>.</span></span>
-            <small>EXPERIENCE</small>
+            <Image
+              src={logoUrl || "/images/logo-meraki-horizontal.webp"}
+              alt="Meraki Experience"
+              width={901}
+              height={238}
+              className={styles.brandLogo}
+              sizes="210px"
+              unoptimized={!logoUrl}
+              priority
+            />
           </Link>
           <div className={`${styles.headerSide} ${styles.headerEnd}`}>
             <Link href="/profilo" className={styles.iconButton} aria-label={text.profile} aria-current={route.active === "profile" ? "page" : undefined}>
