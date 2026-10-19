@@ -45,7 +45,7 @@ export default async function AdminBigliettiPage({ searchParams }: {
   const [ticketResult, configResult, commerceResult] = await Promise.all([
     loadRows<LegacyCheckInTicket>((from, to) => admin.from("tickets").select("id,event_id,buyer_nome,buyer_cognome,buyer_email,qr_code,status,used_at,events(titolo,data_inizio)").eq("event_id", initialEventId).order("created_at", { ascending: false }).order("id").range(from, to)),
     admin.from("events").select("commerce_config").eq("id", initialEventId).single(),
-    loadRows<CommerceCheckInPass>((from, to) => admin.from("commerce_passes").select("id,event_id,first_name,last_name,package_name,qr_code,status,events(titolo,data_inizio),commerce_orders(buyer_email),commerce_entitlements(activity_id,activity_name,status,checked_in_at,menu_choice)").eq("event_id", initialEventId).order("created_at", { ascending: false }).order("id").range(from, to)),
+    loadRows<CommerceCheckInPass>((from, to) => admin.from("commerce_passes").select("id,event_id,first_name,last_name,package_name,qr_code,status,events(titolo,data_inizio),commerce_orders:commerce_orders!commerce_passes_order_id_fkey(buyer_email),commerce_entitlements(activity_id,activity_name,status,checked_in_at,menu_choice)").eq("event_id", initialEventId).order("created_at", { ascending: false }).order("id").range(from, to)),
   ]);
   if (ticketResult.error) return <div role="alert">Errore durante il caricamento dei biglietti. Ricarica la pagina.</div>;
   const selectedEvent = events.find((event) => event.id === initialEventId)!;

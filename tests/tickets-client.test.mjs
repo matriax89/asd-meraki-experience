@@ -403,3 +403,19 @@ test("unavailable participant contacts show a warning and preserve the legacy bu
   const warning = React.Children.toArray(tree.props.children).find((child) => child.props?.role === "status");
   assert.match(warning.props.children, /email dell’acquirente/);
 });
+
+test("the roster explicitly joins the original order when both purchase and upgrade relationships exist", async () => {
+  const pass = { id: "pass", event_id: eventA, first_name: "Ada", last_name: "QA", package_name: "Workshop", qr_code: "opaque", status: "paid", events: events[0], commerce_orders: { buyer_email: "original-buyer@example.test" }, commerce_entitlements: [entitlement("workshop", "Workshop")] };
+  const { Page, queries, clientProps } = pageHarness({ rows: { commerce_passes: [pass] } });
+  const tree = await Page({ searchParams: Promise.resolve({ event: eventA }) });
+  const passQueries = queries.filter((query) => query.table === "commerce_passes");
+  assert.ok(passQueries.length > 0);
+  for (const query of passQueries) {
+    assert.match(query.fields, /commerce_orders:commerce_orders!commerce_passes_order_id_fkey\(buyer_email\)/);
+    assert.doesNotMatch(query.fields, /(?:^|,)commerce_orders\(buyer_email\)/);
+    assert.doesNotMatch(query.fields, /commerce_upgrade_pass_fk/);
+  }
+  const [ticket] = clientProps(tree).initialTickets;
+  assert.equal(ticket.id, pass.id);
+  assert.equal(ticket.buyer_email, "original-buyer@example.test");
+});
