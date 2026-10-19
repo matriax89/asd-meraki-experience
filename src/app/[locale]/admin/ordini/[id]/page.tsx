@@ -131,7 +131,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
             <ul className="space-y-4">
               <li className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Creato il</span>
-                <span className="font-medium text-slate-700">{new Date(order.created_at || '').toLocaleString('it-IT')}</span>
+                <span className="font-medium text-slate-700">{new Date(order.created_at || '').toLocaleString('it-IT', { timeZone: 'Europe/Rome', hourCycle: 'h23' })}</span>
               </li>
               {order.stripe_payment_intent && (
                 <li className="flex flex-col gap-1">
@@ -142,7 +142,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               {order.shipped_at && (
                 <li className="flex flex-col gap-1">
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Spedito il</span>
-                  <span className="font-medium text-slate-700">{new Date(order.shipped_at).toLocaleString('it-IT')}</span>
+                  <span className="font-medium text-slate-700">{new Date(order.shipped_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome', hourCycle: 'h23' })}</span>
                 </li>
               )}
             </ul>

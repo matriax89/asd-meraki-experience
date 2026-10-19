@@ -4,7 +4,7 @@ import type { MerakiEvent } from "./event-model";
 
 export const eventFeedColumns = "id, slug, tipo, titolo, sottotitolo, data_inizio, data_fine, copertina_url, location, indirizzo, prezzo_cents, capacity, posti_venduti";
 
-type EventRow = Pick<Database["public"]["Tables"]["events"]["Row"], "id" | "slug" | "tipo" | "titolo" | "sottotitolo" | "data_inizio" | "data_fine" | "copertina_url" | "location" | "indirizzo" | "prezzo_cents" | "capacity" | "posti_venduti">;
+type EventRow = Pick<Database["public"]["Tables"]["events"]["Row"], "id" | "slug" | "tipo" | "titolo" | "sottotitolo" | "data_inizio" | "data_fine" | "copertina_url" | "location" | "indirizzo" | "prezzo_cents" | "capacity" | "posti_venduti"> & Partial<Pick<Database["public"]["Tables"]["events"]["Row"], "check_in_starts_at">>;
 
 // Translate JSON on the server, so the app only receives the copy it displays.
 export function toMerakiEvent(event: EventRow, locale: string): MerakiEvent {
@@ -16,6 +16,7 @@ export function toMerakiEvent(event: EventRow, locale: string): MerakiEvent {
     subtitle: getLocalizedText(event.sottotitolo, locale),
     startsAt: event.data_inizio,
     endsAt: event.data_fine,
+    checkInStartsAt: event.check_in_starts_at ?? null,
     cover: event.copertina_url,
     location: event.location,
     address: event.indirizzo,

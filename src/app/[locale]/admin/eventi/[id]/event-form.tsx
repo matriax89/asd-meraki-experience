@@ -3,6 +3,7 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Select, Checkbox, MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
+import { DateTimeField } from "@/components/admin/date-time-field";
 import { upsertEvent, deleteEvent } from "@/app/api/admin/eventi/actions";
 import { useModal } from "@/components/ui/modal-provider";
 import { Link } from "@/i18n/routing";
@@ -31,7 +32,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
 
   // Convert cents to euros for the UI
   const initialPriceEuro = initialData?.prezzo_cents !== null && initialData?.prezzo_cents !== undefined
-    ? (initialData.prezzo_cents / 100).toFixed(2) 
+    ? new Intl.NumberFormat("it-IT", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(initialData.prezzo_cents / 100)
     : "";
 
   const [formData, setFormData] = useState({
@@ -43,6 +44,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
     descrizione: initialData?.descrizione || "",
     data_inizio: initialData?.data_inizio ? toRomeInput(initialData.data_inizio) : "",
     data_fine: initialData?.data_fine ? toRomeInput(initialData.data_fine) : "",
+    check_in_starts_at: initialData?.check_in_starts_at ? toRomeInput(initialData.check_in_starts_at) : "",
     location: initialData?.location || "",
     indirizzo: initialData?.indirizzo || "",
     prezzo_euro: initialPriceEuro,
@@ -79,7 +81,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       prezzo_cents = Math.round(parsedEuro * 100);
     }
 
-    let startsAt: string; let endsAt: string | null;
+    let startsAt: string; let endsAt: string | null; let checkInStartsAt: string | null;
     try {
       // Unchanged fields keep their exact stored instant, including seconds
       // and an already unambiguous offset during the repeated autumn hour.
@@ -87,7 +89,10 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         ? initialData.data_inizio : fromRomeInput(formData.data_inizio)!;
       endsAt = initialData?.data_fine && formData.data_fine === toRomeInput(initialData.data_fine)
         ? initialData.data_fine : fromRomeInput(formData.data_fine);
+      checkInStartsAt = initialData?.check_in_starts_at && formData.check_in_starts_at === toRomeInput(initialData.check_in_starts_at)
+        ? initialData.check_in_starts_at : fromRomeInput(formData.check_in_starts_at);
       if (!startsAt || (endsAt && Date.parse(endsAt) < Date.parse(startsAt))) throw new Error("La fine dell’evento non può precedere l’inizio.");
+      if (checkInStartsAt && Date.parse(checkInStartsAt) > Date.parse(startsAt)) throw new Error("L’apertura del check-in non può essere successiva all’inizio dell’evento.");
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : "Controlla data e orario dell’evento." });
       return;
@@ -102,6 +107,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       descrizione: formData.descrizione,
       data_inizio: startsAt,
       data_fine: endsAt,
+      check_in_starts_at: checkInStartsAt,
       location: formData.location,
       indirizzo: formData.indirizzo,
       prezzo_cents,
@@ -210,27 +216,9 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         <p className="text-sm text-muted-foreground">Gli orari sono riferiti all’Italia (Europe/Rome).</p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label htmlFor={`${dateFieldId}-start`} className="block text-sm font-semibold mb-2">Inizio Evento *</label>
-            <input 
-              id={`${dateFieldId}-start`}
-              type="datetime-local" 
-              required
-              value={formData.data_inizio}
-              onChange={e => setFormData({...formData, data_inizio: e.target.value})}
-              className="w-full px-3 py-2 border rounded-lg bg-background text-foreground"
-            />
-          </div>
-          <div>
-            <label htmlFor={`${dateFieldId}-end`} className="block text-sm font-semibold mb-2">Fine Evento</label>
-            <input 
-              id={`${dateFieldId}-end`}
-              type="datetime-local" 
-              value={formData.data_fine}
-              onChange={e => setFormData({...formData, data_fine: e.target.value})}
-              className="w-full px-3 py-2 border rounded-lg bg-background text-foreground"
-            />
-          </div>
+          <DateTimeField id={`${dateFieldId}-start`} label="Inizio Evento" required value={formData.data_inizio} onChange={value => setFormData({...formData, data_inizio: value})} />
+          <DateTimeField id={`${dateFieldId}-end`} label="Fine Evento" value={formData.data_fine} onChange={value => setFormData({...formData, data_fine: value})} />
+          <DateTimeField id={`${dateFieldId}-check-in`} label="Apertura check-in" value={formData.check_in_starts_at} max={formData.data_inizio || undefined} onChange={value => setFormData({...formData, check_in_starts_at: value})} description="Facoltativa, in orario italiano (Europe/Rome). Può essere anche il giorno prima; lascia vuoto se non è ancora definita." />
           <Input 
             label="Location (es. Meraki HQ)" 
             value={formData.location} 
@@ -265,7 +253,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
             <span><strong className="block text-sm">Formule, scaglioni e cena</strong><span className="mt-1 block text-sm text-slate-600">Solo Workshop, solo Masterclass, WS + MC, prezzi Early Bird e cena facoltativa.</span></span>
           </label>
         </div>
-        {ticketingMode === "single" ? <Input label="Prezzo del biglietto (€)" inputMode="decimal" placeholder="Lascia vuoto se gratuito. Es. 20,00" value={formData.prezzo_euro} onChange={e => setFormData({ ...formData, prezzo_euro: e.target.value })} /> : <div className="space-y-2 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+        {ticketingMode === "single" ? <Input label="Prezzo del biglietto (€)" inputMode="decimal" lang="it-IT" placeholder="Lascia vuoto se gratuito. Es. 20,00" value={formData.prezzo_euro} onChange={e => setFormData({ ...formData, prezzo_euro: e.target.value })} /> : <div className="space-y-2 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
           <p><strong className="text-slate-900">1. Crea la bozza → 2. Configura i biglietti → 3. Pubblica.</strong></p>
           <p>Nel prossimo passaggio imposti attività, formule, prezzi con date di validità e cena. Ogni partecipante riceverà il proprio QR via email.</p>
           {requiresTicketSetup && <p>L’evento resta non pubblicato finché non completi le formule e premi “Salva e pubblica evento”.</p>}

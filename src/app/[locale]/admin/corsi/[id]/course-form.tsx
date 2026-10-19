@@ -300,7 +300,7 @@ export function CourseForm({ initialData, instructors, locations }: CourseFormPr
                 <div className="w-full sm:w-24">
                   <Input 
                     label="Inizio"
-                    type="time"
+                    type="text" inputMode="numeric" placeholder="HH:mm" pattern="([01][0-9]|2[0-3]):[0-5][0-9]"
                     required
                     value={slot.ora_inizio ? slot.ora_inizio.substring(0, 5) : ""}
                     onChange={(e) => updateScheduleSlot(idx, "ora_inizio", e.target.value)}
@@ -309,7 +309,7 @@ export function CourseForm({ initialData, instructors, locations }: CourseFormPr
                 <div className="w-full sm:w-24">
                   <Input 
                     label="Fine"
-                    type="time"
+                    type="text" inputMode="numeric" placeholder="HH:mm" pattern="([01][0-9]|2[0-3]):[0-5][0-9]"
                     required
                     value={slot.ora_fine ? slot.ora_fine.substring(0, 5) : ""}
                     onChange={(e) => updateScheduleSlot(idx, "ora_fine", e.target.value)}

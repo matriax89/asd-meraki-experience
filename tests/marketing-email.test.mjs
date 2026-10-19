@@ -20,10 +20,10 @@ const guestCopy = {
   es: /sin (?:crear )?(?:una )?(?:cuenta|registro)|no necesitas (?:crear )?(?:una )?cuenta/i,
 };
 const ticketLabels = {
-  it: { participant: 'Partecipante', date: 'Data', time: 'Ora', venue: 'Luogo', package: 'Formula', includes: 'Il tuo biglietto include', menu: 'Menu scelto', timezone: 'ora italiana' },
-  en: { participant: 'Participant', date: 'Date', time: 'Time', venue: 'Venue', package: 'Package', includes: 'Your ticket includes', menu: 'Selected menu', timezone: 'Italian time' },
-  de: { participant: 'Teilnehmende Person', date: 'Datum', time: 'Uhrzeit', venue: 'Ort', package: 'Paket', includes: 'In deinem Ticket enthalten', menu: 'Gewähltes Menü', timezone: 'italienische Zeit' },
-  es: { participant: 'Participante', date: 'Fecha', time: 'Hora', venue: 'Lugar', package: 'Paquete', includes: 'Tu entrada incluye', menu: 'Menú elegido', timezone: 'hora de Italia' },
+  it: { participant: 'Partecipante', date: 'Data', time: 'Inizio evento', checkInOpens: 'Apertura check-in', venue: 'Luogo', package: 'Formula', includes: 'Il tuo biglietto include', menu: 'Menu scelto', timezone: 'ora italiana' },
+  en: { participant: 'Participant', date: 'Date', time: 'Event starts', checkInOpens: 'Check-in opens', venue: 'Venue', package: 'Package', includes: 'Your ticket includes', menu: 'Selected menu', timezone: 'Italian time' },
+  de: { participant: 'Teilnehmende Person', date: 'Datum', time: 'Beginn', checkInOpens: 'Check-in öffnet', venue: 'Ort', package: 'Paket', includes: 'In deinem Ticket enthalten', menu: 'Gewähltes Menü', timezone: 'italienische Zeit' },
+  es: { participant: 'Participante', date: 'Fecha', time: 'Inicio del evento', checkInOpens: 'Apertura del check-in', venue: 'Lugar', package: 'Paquete', includes: 'Tu entrada incluye', menu: 'Menú elegido', timezone: 'hora de Italia' },
 };
 function detailValue(document, label) {
   const field = [...document.querySelectorAll('p')].find(element => element.textContent.trim() === label);
@@ -46,7 +46,7 @@ test('all four ticket emails use the original PNG logo, readable ticket details 
       '@/lib/supabase/server': { createAdminClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: null }) }) }) }) }) },
       resend: { Resend: class { emails = { send: async (...args) => { delivered = args; return { error: null }; } }; } }, nodemailer: {}, qrcode: { toBuffer: async () => Buffer.from('png') },
     }, { RESEND_API_KEY: 'test-only', NEXT_PUBLIC_SITE_URL: 'https://meraki.example' });
-    const result = await mail.sendTicketConfirmation({ id: 'ticket-1', qr_code: 'opaque', buyer_email: 'participant@example.test', buyer_nome: '<Ada>', buyer_cognome: 'Rossi' }, { titolo: { [locale]: '<Meraki>' }, data_inizio: '2026-11-18T23:30:00Z', location: 'Roma', indirizzo: 'Via <Meraki> 1' }, locale, {
+    const result = await mail.sendTicketConfirmation({ id: 'ticket-1', qr_code: 'opaque', buyer_email: 'participant@example.test', buyer_nome: '<Ada>', buyer_cognome: 'Rossi' }, { titolo: { [locale]: '<Meraki>' }, data_inizio: '2026-11-18T23:30:00Z', check_in_starts_at: '2026-11-18T22:00:00Z', location: 'Roma', indirizzo: 'Via <Meraki> 1' }, locale, {
       deliveryId: 'delivery-1', packageName: 'Formula <WS + MC>', accessNames: ['WS & MC', 'Cena'],
       accessDetails: [{ name: 'WS & MC', menuChoice: null }, { name: 'Cena', menuChoice: '<Vegetariano>' }],
       marketing: { confirmUrl: `https://meraki.example/${locale}/profilo/preferenze?token=${token}`, unsubscribeUrl: `https://meraki.example/${locale}/profilo/preferenze?token=${'b'.repeat(64)}` },
@@ -71,9 +71,11 @@ test('all four ticket emails use the original PNG logo, readable ticket details 
     const bodyText = document.body.textContent.replace(/\s+/g, ' ');
     const labels = ticketLabels[locale];
     assert.equal(detailValue(document, labels.participant), '<Ada> Rossi');
-    const localDate = new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'Europe/Rome' }).format(new Date('2026-11-18T23:30:00Z'));
+    const localDate = new Intl.DateTimeFormat('it-IT', { dateStyle: 'long', timeZone: 'Europe/Rome' }).format(new Date('2026-11-18T23:30:00Z'));
     assert.ok(detailValue(document, labels.date).includes(localDate), 'event date must use the Italian calendar day after UTC midnight');
     assert.equal(detailValue(document, labels.time), '00:30', 'event time stays in the Italian timezone and 24-hour format in every language');
+    assert.equal(detailValue(document, labels.checkInOpens), '18/11/2026, 23:00', 'opening time is distinct from the later event start and always uses Italian formatting');
+    assert.ok(sent.text.includes(`${labels.checkInOpens}: 18/11/2026, 23:00 (${labels.timezone})`));
     assert.equal(detailValue(document, labels.venue), 'Roma, Via <Meraki> 1');
     assert.equal(detailValue(document, labels.package), 'Formula <WS + MC>');
     assert.ok(bodyText.includes(labels.includes));
@@ -123,7 +125,7 @@ test('legacy tickets show their actual participant while omitting unknown packag
     const { document } = dom.window;
     const labels = ticketLabels[locale];
     assert.equal(detailValue(document, labels.participant), 'Ada Rossi');
-    for (const label of [labels.package, labels.includes, labels.menu, labels.venue]) {
+    for (const label of [labels.package, labels.includes, labels.menu, labels.venue, labels.checkInOpens]) {
       assert.equal([...document.querySelectorAll('p')].some(element => element.textContent.trim() === label), false, `Unknown legacy detail must stay absent: ${label}`);
     }
     assert.equal(document.querySelectorAll('img').length, 2, 'without a cover, only the brand logo and actual QR should be rendered');

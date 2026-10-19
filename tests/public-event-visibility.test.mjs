@@ -18,11 +18,12 @@ const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils"
 
 function fixture(type, published) {
   const queries = [];
-  const row = { id: "local-event", slug: "private-draft-slug", tipo: type, attivo: published, titolo: { it: "Titolo riservato della bozza", en: "Private draft title" }, descrizione: { it: "Descrizione riservata della bozza" }, copertina_url: "https://example.test/private-draft-image.png", data_inizio: "2027-01-01T10:00:00Z", data_fine: null, sottotitolo: null, location: null, indirizzo: null, prezzo_cents: 3000, capacity: 20, posti_venduti: 0, cta_tipo: "stripe", cta_url: null };
+  const selections = [];
+  const row = { id: "local-event", slug: "private-draft-slug", tipo: type, attivo: published, titolo: { it: "Titolo riservato della bozza", en: "Private draft title" }, descrizione: { it: "Descrizione riservata della bozza" }, copertina_url: "https://example.test/private-draft-image.png", data_inizio: "2027-01-01T10:00:00Z", data_fine: null, check_in_starts_at: "2026-12-31T17:00:00Z", sottotitolo: null, location: null, indirizzo: null, prezzo_cents: 3000, capacity: 20, posti_venduti: 0, cta_tipo: "stripe", cta_url: null };
   const server = { createClient: async () => ({ from(table) {
     assert.equal(table, "events");
     const predicates = [];
-    const query = { select() { return this; }, eq(column, value) { predicates.push((entry) => entry[column] === value); queries.push([column, value]); return this; }, in(column, values) { predicates.push((entry) => values.includes(entry[column])); return this; }, async single() { return { data: predicates.every((predicate) => predicate(row)) ? row : null, error: null }; } };
+    const query = { select(columns) { selections.push(columns); return this; }, eq(column, value) { predicates.push((entry) => entry[column] === value); queries.push([column, value]); return this; }, in(column, values) { predicates.push((entry) => values.includes(entry[column])); return this; }, async single() { return { data: predicates.every((predicate) => predicate(row)) ? row : null, error: null }; } };
     return query;
   } }) };
   const page = load(`app/[locale]/(public)/${type === "evento" ? "eventi" : "workshop"}/[slug]/page.tsx`, {
@@ -32,7 +33,7 @@ function fixture(type, published) {
     "@/components/meraki/event-detail": { EventDetail: () => null },
     "next/navigation": { notFound() { throw Object.assign(new Error("Not found"), { status: 404 }); } },
   });
-  return { page, queries, params: Promise.resolve({ locale: "it", slug: row.slug }) };
+  return { page, queries, selections, params: Promise.resolve({ locale: "it", slug: row.slug }) };
 }
 
 for (const type of ["evento", "workshop", "masterclass"]) {
@@ -50,6 +51,8 @@ for (const type of ["evento", "workshop", "masterclass"]) {
     const current = fixture(type, true);
     const element = await current.page.default({ params: current.params });
     assert.equal(element.props.event.title, "Titolo riservato della bozza");
+    assert.equal(element.props.event.checkInStartsAt, "2026-12-31T17:00:00Z");
+    assert.ok(current.selections[0].split(",").map((column) => column.trim()).includes("check_in_starts_at"));
     const metadata = await current.page.generateMetadata({ params: current.params });
     assert.equal(metadata.title, "Titolo riservato della bozza");
     assert.equal(metadata.openGraph.images[0].url, "https://example.test/private-draft-image.png");

@@ -77,6 +77,20 @@ test("verified updates replace one saved ticket and invalid or blocked storage f
   assert.equal(wallet.writeWallet(blocked, [ticket]), false);
 });
 
+test("optional opening times survive verified storage without invalidating older wallet entries", () => {
+  const opening = "2026-11-18T18:30:00+01:00";
+  const device = storage(JSON.stringify([ticket]));
+  assert.deepEqual(json(wallet.readWallet(device).tickets), [ticket]);
+  assert.equal(wallet.saveVerifiedTicket(device, { ...ticket, checkInStartsAt: opening, phone: "not-stored" }), true);
+  assert.equal(JSON.parse(device.value())[0].checkInStartsAt, opening);
+  assert.equal(JSON.parse(device.value())[0].phone, undefined);
+  for (const value of [null, 42, "not-a-date", "x".repeat(65)]) {
+    assert.deepEqual(json(wallet.walletTicket({ ...ticket, checkInStartsAt: value })), ticket);
+  }
+  assert.equal(wallet.saveVerifiedTicket(device, ticket), true);
+  assert.equal(JSON.parse(device.value())[0].checkInStartsAt, undefined, "removing the event setting clears the previously cached opening");
+});
+
 test("a malformed or unrelated refresh cannot overwrite previously saved tickets", () => {
   for (const response of [{}, { tickets: {} }, { tickets: [{ ...ticket, token: "unexpected" }] }, { tickets: [{ ...ticket, status: "invalid" }] }, { tickets: [ticket, ticket] }, { tickets: Array(51).fill(ticket) }]) {
     assert.equal(wallet.walletResponseTickets(response, [ticket]), null);
@@ -131,6 +145,16 @@ test("batch IN cross-product cannot expose tickets with mismatched id/token pair
   assert.deepEqual(await response.json(), { tickets: [] });
   const single = endpoint([row]);
   assert.deepEqual(await (await single.post({ tickets: [{ id, token: "wrong-token" }] })).json(), { tickets: [] });
+});
+
+test("wallet refresh propagates the actual event opening only after verifying the private credential", async () => {
+  const opening = "2026-11-18T18:30:00+01:00";
+  const api = endpoint([{ ...row, event: { ...row.event, check_in_starts_at: opening } }]);
+  const response = await api.post({ locale: "de", tickets: [{ id, token: ticket.token }] });
+  assert.deepEqual(await response.json(), { tickets: [{ ...ticket, checkInStartsAt: opening }] });
+  assert.equal(api.selections[0].includes("check_in_starts_at"), true);
+  const wrong = endpoint([{ ...row, event: { ...row.event, check_in_starts_at: opening } }]);
+  assert.deepEqual(await (await wrong.post({ tickets: [{ id, token: "wrong-token" }] })).json(), { tickets: [] });
 });
 
 test("malformed wallet requests never reach the service-role database, and failures stay retryable", async () => {

@@ -4,13 +4,14 @@ import vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import ts from "typescript";
+import { nativeFormControlMocks } from "./helpers/native-form-controls.mjs";
 
 const require = createRequire(import.meta.url);
 const load = (path, dependencies) => {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
-  vm.runInNewContext(compiled, { exports, require: (name) => name in dependencies ? dependencies[name] : require(name), console, Error, Intl, Date, Map, crypto: globalThis.crypto });
+  vm.runInNewContext(compiled, { exports, require: (name) => name in dependencies ? dependencies[name] : nativeFormControlMocks[name] || require(name), console, Error, Intl, Date, Map, crypto: globalThis.crypto });
   return exports;
 };
 const configModule = load("../src/lib/commerce/config.ts", {});
@@ -190,7 +191,7 @@ test("a draft offers a complete visual package setup and publishes only through 
     const firstFormula = [...dom.window.document.querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Formula 1");
     const firstTier = [...firstFormula.querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Scaglione 1");
     const endsAt = [...firstTier.querySelectorAll("label")].find((label) => label.textContent.startsWith("Valido fino a")).querySelector("input");
-    await React.act(async () => { endsAt.value = "2026-11-01T00:00"; endsAt.dispatchEvent(new dom.window.FocusEvent("focusout", { bubbles: true })); });
+    await React.act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(endsAt, "2026-11-01T00:00"); endsAt.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
     await React.act(async () => [...firstFormula.querySelectorAll("button")].find((button) => button.textContent.includes("Aggiungi scaglione")).click());
     const secondTier = [...firstFormula.querySelectorAll("fieldset")].find((fieldset) => fieldset.firstElementChild?.textContent === "Scaglione 2");
     assert.equal([...secondTier.querySelectorAll("label")].find((label) => label.textContent.startsWith("Valido da")).querySelector("input").value, "2026-11-01T00:00", "the next tier starts where the previous one ends");

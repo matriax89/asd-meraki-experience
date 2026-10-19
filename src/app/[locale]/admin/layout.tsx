@@ -44,7 +44,7 @@ export default async function AdminLayout({
   ];
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="meraki-admin flex h-screen bg-slate-50">
       {/* Sidebar Desktop */}
       <div className="w-[280px] bg-slate-900 text-slate-300 hidden md:flex flex-col shadow-2xl z-20">
         <div className="p-6">

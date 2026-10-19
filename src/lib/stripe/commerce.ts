@@ -36,7 +36,7 @@ export async function deliverCommerceOrder(order: CommerceOrder, passes?: Commer
   if (!claimed) throw new Error("Commerce email delivery is already being processed; retry later.");
   try {
     const [eventResult, passResult] = await Promise.all([
-      db.from("events").select("titolo,data_inizio,location,indirizzo,copertina_url").eq("id", order.event_id).single(),
+      db.from("events").select("titolo,data_inizio,location,indirizzo,copertina_url,check_in_starts_at").eq("id", order.event_id).single(),
       passes ? Promise.resolve({ data: passes, error: null }) : db.from("commerce_passes").select("*").eq("order_id", order.id),
     ]);
     const issued = passResult.data as CommercePass[] | null;

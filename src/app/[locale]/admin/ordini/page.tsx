@@ -35,7 +35,7 @@ export default async function AdminOrdiniPage() {
         <div>
           <span className="font-bold text-slate-900 uppercase">{order.numero_ordine}</span>
           <span className="block text-[13px] text-slate-500 mt-0.5">
-            {new Date(order.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
+            {new Date(order.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Europe/Rome' })}
           </span>
         </div>
       )

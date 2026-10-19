@@ -1,5 +1,8 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
+
 import { useState, useTransition } from "react";
 import { updateOrderStatus } from "@/app/api/admin/ordini/actions";
 
@@ -28,7 +31,7 @@ export function OrderStatusForm({ order }: { order: any }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-muted-foreground mb-1">Stato Ordine</label>
-        <select 
+        <CustomSelect aria-label="Stato ordine"
           value={status} 
           onChange={e => setStatus(e.target.value)}
           className="w-full p-2 border border-border rounded-lg bg-background"
@@ -40,7 +43,7 @@ export function OrderStatusForm({ order }: { order: any }) {
           <option value="delivered">Consegnato</option>
           <option value="cancelled">Cancellato</option>
           <option value="refunded">Rimborsato</option>
-        </select>
+        </CustomSelect>
       </div>
 
       <div>

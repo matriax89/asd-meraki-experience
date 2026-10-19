@@ -9,6 +9,7 @@ export type WalletTicket = {
   token: string;
   title: string;
   date: string;
+  checkInStartsAt?: string;
   location: string;
   status: WalletStatus;
 };
@@ -36,7 +37,8 @@ export function walletTicket(value: unknown): WalletTicket | null {
     typeof item.date !== "string" || item.date.length > 64 || !Number.isFinite(Date.parse(item.date)) ||
     typeof item.location !== "string" || item.location.length > 320 ||
     typeof item.status !== "string" || !statuses.includes(item.status)) return null;
-  return { ...credential, title: item.title.trim(), date: item.date, location: item.location.trim(), status: item.status as WalletStatus };
+  const checkInStartsAt = typeof item.checkInStartsAt === "string" && item.checkInStartsAt.length <= 64 && Number.isFinite(Date.parse(item.checkInStartsAt)) ? item.checkInStartsAt : undefined;
+  return { ...credential, title: item.title.trim(), date: item.date, ...(checkInStartsAt ? { checkInStartsAt } : {}), location: item.location.trim(), status: item.status as WalletStatus };
 }
 
 export function sanitizeWalletTickets(value: unknown): WalletTicket[] {

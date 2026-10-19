@@ -6,6 +6,7 @@ import vm from "node:vm";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import ts from "typescript";
+import { nativeFormControlMocks } from "./helpers/native-form-controls.mjs";
 
 const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -56,7 +57,7 @@ function compileDependency(path, modules = {}) {
   const dependencySource = readFileSync(new URL(path, import.meta.url), "utf8");
   const dependencyCompiled = ts.transpileModule(dependencySource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const exports = {};
-  vm.runInNewContext(dependencyCompiled, { exports, window, document: window.document, HTMLElement: window.HTMLElement, URL, require: (name) => modules[name] || require(name) });
+  vm.runInNewContext(dependencyCompiled, { exports, window, document: window.document, HTMLElement: window.HTMLElement, URL, require: (name) => modules[name] || nativeFormControlMocks[name] || require(name) });
   return exports;
 }
 const checkoutCopy = compileDependency("../src/components/meraki/checkout-copy.ts");
@@ -101,7 +102,7 @@ async function setup(context, { overflow = "auto", locale = "it" } = {}) {
       calls.push({ ...pending, url, options, body: JSON.parse(options.body) });
       return pending.promise;
     },
-    require: (name) => name === "next-intl" ? { useLocale: () => locale } : dependencies[name] || require(name),
+    require: (name) => name === "next-intl" ? { useLocale: () => locale } : dependencies[name] || nativeFormControlMocks[name] || require(name),
   });
   const root = createRoot(window.document.getElementById("checkout-root"));
   let disposed = false;

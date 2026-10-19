@@ -1,5 +1,8 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
+
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Ticket, Users } from "lucide-react";
@@ -98,7 +101,7 @@ export function TicketsClient({ initialTickets, events, initialEventId = "" }: {
     },
     {
       header: "Check-in manuale",
-      cell: (ticket: AdminTicket) => ticket.commerce && ticket.status === "paid" ? <div className="min-w-44 space-y-2"><select aria-label={`Attività per ${participantName(ticket)}`} value={activityChoices[ticket.id] || ""} disabled={pendingId !== null} onChange={(event) => setActivityChoices((current) => ({ ...current, [ticket.id]: event.target.value }))} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-2 text-xs"><option value="">Seleziona attività</option>{(ticket.entitlements || []).map((entry) => <option key={entry.activity_id} value={entry.activity_id} disabled={entry.status !== "valid"}>{entry.activity_name}{entry.status === "used" ? " · già utilizzato" : entry.status !== "valid" ? " · revocato" : ""}</option>)}</select><button type="button" onClick={() => void handleCheckIn(ticket)} disabled={pendingId !== null || !ticket.entitlements?.some((entry) => entry.activity_id === activityChoices[ticket.id] && entry.status === "valid")} className="min-h-11 w-full rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{pendingId === ticket.id ? "Verifica…" : "Registra attività"}</button></div> : ticket.status === "paid" ? <button type="button" onClick={() => void handleCheckIn(ticket)} disabled={pendingId !== null} className="min-h-11 whitespace-nowrap rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50">{pendingId === ticket.id ? "Verifica…" : "Registra ingresso"}</button>
+      cell: (ticket: AdminTicket) => ticket.commerce && ticket.status === "paid" ? <div className="min-w-44 space-y-2"><CustomSelect aria-label={`Attività per ${participantName(ticket)}`} value={activityChoices[ticket.id] || ""} disabled={pendingId !== null} onChange={(event) => setActivityChoices((current) => ({ ...current, [ticket.id]: event.target.value }))} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-2 text-xs"><option value="">Seleziona attività</option>{(ticket.entitlements || []).map((entry) => <option key={entry.activity_id} value={entry.activity_id} disabled={entry.status !== "valid"}>{entry.activity_name}{entry.status === "used" ? " · già utilizzato" : entry.status !== "valid" ? " · revocato" : ""}</option>)}</CustomSelect><button type="button" onClick={() => void handleCheckIn(ticket)} disabled={pendingId !== null || !ticket.entitlements?.some((entry) => entry.activity_id === activityChoices[ticket.id] && entry.status === "valid")} className="min-h-11 w-full rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{pendingId === ticket.id ? "Verifica…" : "Registra attività"}</button></div> : ticket.status === "paid" ? <button type="button" onClick={() => void handleCheckIn(ticket)} disabled={pendingId !== null} className="min-h-11 whitespace-nowrap rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50">{pendingId === ticket.id ? "Verifica…" : "Registra ingresso"}</button>
         : ticket.status === "used" ? <span className="whitespace-nowrap text-xs text-slate-500">{ticket.used_at ? new Date(ticket.used_at).toLocaleString("it-IT", { timeZone: "Europe/Rome", dateStyle: "short", timeStyle: "short" }) : "Check-in completati"}</span>
           : <span className="text-xs text-slate-400">Non disponibile</span>,
     },
@@ -109,10 +112,10 @@ export function TicketsClient({ initialTickets, events, initialEventId = "" }: {
       <div><p className="mb-2 text-xs font-bold uppercase tracking-widest text-indigo-600">Meraki · Controllo accessi</p><h1 className="text-3xl font-bold tracking-tight text-slate-900">Biglietti e check-in</h1><p className="mt-2 text-sm leading-6 text-slate-500">Seleziona l’evento, cerca il partecipante e registra l’ingresso dall’elenco o con il QR.</p></div>
       <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-5">
         <label htmlFor="tickets-event" className="block font-semibold text-slate-900">Evento dell’elenco iscritti</label>
-        <select id="tickets-event" value={eventId} disabled={pendingId !== null || isNavigating} onChange={(event) => selectEvent(event.target.value)} className="min-h-12 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:opacity-60">
+        <CustomSelect id="tickets-event" value={eventId} disabled={pendingId !== null || isNavigating} onChange={(event) => selectEvent(event.target.value)} className="min-h-12 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:opacity-60">
           <option value="">Seleziona un evento</option>
           {events.map((event) => <option key={event.id} value={event.id}>{event.titolo} · {eventDate(event.data_inizio)}</option>)}
-        </select>
+        </CustomSelect>
         {!events.length && <p className="text-sm text-slate-500">Carica un evento per iniziare il check-in.</p>}
       </div>
       {isNavigating ? <p role="status" className="rounded-2xl bg-slate-50 p-6 text-sm text-slate-600">Caricamento degli iscritti… La fotocamera è spenta.</p> : selectedEvent ? <>

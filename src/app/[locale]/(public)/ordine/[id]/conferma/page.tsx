@@ -46,7 +46,7 @@ export default async function ConfermaOrdinePage({ params }: { params: Promise<{
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Data:</span>
-                <span className="font-semibold text-foreground">{order.created_at ? new Date(order.created_at).toLocaleDateString() : 'N/A'}</span>
+                <span className="font-semibold text-foreground">{order.created_at ? new Date(order.created_at).toLocaleDateString("it-IT", { timeZone: "Europe/Rome" }) : 'N/A'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Stato:</span>

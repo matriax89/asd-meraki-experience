@@ -41,7 +41,7 @@ export async function getCommercePass(id: string, token: string) {
   if (!data) return null;
   const pass = data as CommercePass;
   const [eventResult, rightsResult] = await Promise.all([
-    db.from("events").select("titolo,data_inizio,location,indirizzo,commerce_config").eq("id", pass.event_id).single(),
+    db.from("events").select("titolo,data_inizio,location,indirizzo,check_in_starts_at,commerce_config").eq("id", pass.event_id).single(),
     db.from("commerce_entitlements").select("*").eq("pass_id", id).order("created_at"),
   ]);
   if (eventResult.error || rightsResult.error || !eventResult.data) throw new Error("Impossibile leggere gli accessi del biglietto.");
@@ -52,7 +52,7 @@ export async function getCommercePass(id: string, token: string) {
       ...right, status: right.status === "valid" ? "available" : right.status === "used" ? "used" : "revoked",
       used_at: right.checked_in_at,
     })),
-    event: { titolo: event.titolo, data_inizio: event.data_inizio as string, location: event.location as string | null, indirizzo: event.indirizzo as string | null },
+    event: { titolo: event.titolo, data_inizio: event.data_inizio as string, check_in_starts_at: event.check_in_starts_at as string | null, location: event.location as string | null, indirizzo: event.indirizzo as string | null },
     config: parseCommerceConfig(event.commerce_config),
   };
 }
@@ -61,7 +61,7 @@ export async function getCommerceWalletTickets(credentials: WalletCredential[], 
   if (!credentials.length) return [];
   const db = commerceClient();
   const { data, error } = await db.from("commerce_passes")
-    .select("id,qr_code,status,event_id,event:events(titolo,data_inizio,location,indirizzo)")
+    .select("id,qr_code,status,event_id,event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at)")
     .in("id", credentials.map(item => item.id)).in("qr_code", credentials.map(item => item.token));
   if (missingCommerceMigration(error)) return [];
   if (error) throw error;
@@ -75,7 +75,7 @@ export async function getCommerceWalletTickets(credentials: WalletCredential[], 
     if (!event) return [];
     const active = (rights || []).filter(right => right.pass_id === row.id && ["valid", "used"].includes(right.status));
     const status = row.status !== "paid" || !active.length ? "refunded" : active.some(right => right.status === "valid") ? "paid" : "used";
-    const ticket = walletTicket({ id: row.id, token: row.qr_code, title: getLocalizedText(event.titolo, locale).slice(0, 240), date: event.data_inizio,
+    const ticket = walletTicket({ id: row.id, token: row.qr_code, title: getLocalizedText(event.titolo, locale).slice(0, 240), date: event.data_inizio, checkInStartsAt: event.check_in_starts_at,
       location: [event.location, event.indirizzo].filter(Boolean).join(" · ").slice(0, 320), status });
     return ticket ? [ticket] : [];
   });

@@ -6,6 +6,7 @@ import vm from "node:vm";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import ts from "typescript";
+import { nativeFormControlMocks } from "./helpers/native-form-controls.mjs";
 
 const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -113,7 +114,7 @@ async function setup(context, { holdMedia = false, holdDecoder = false, immediat
           return pending.promise;
         },
       };
-      return require(name);
+      return nativeFormControlMocks[name] || require(name);
     },
   });
   const root = createRoot(window.document.getElementById("scanner-root"));

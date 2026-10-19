@@ -205,6 +205,7 @@ export type Database = {
         Row: {
           attivo: boolean | null
           capacity: number | null
+          check_in_starts_at: string | null
           copertina_url: string | null
           created_at: string | null
           cta_tipo: string | null
@@ -231,6 +232,7 @@ export type Database = {
         Insert: {
           attivo?: boolean | null
           capacity?: number | null
+          check_in_starts_at?: string | null
           copertina_url?: string | null
           created_at?: string | null
           cta_tipo?: string | null
@@ -257,6 +259,7 @@ export type Database = {
         Update: {
           attivo?: boolean | null
           capacity?: number | null
+          check_in_starts_at?: string | null
           copertina_url?: string | null
           created_at?: string | null
           cta_tipo?: string | null

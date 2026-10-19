@@ -69,3 +69,35 @@ test("ticket registration keeps storage minimal and displays the selected langua
   const saved = window.localStorage.getItem(wallet.WALLET_KEY);
   assert.equal(saved.includes("must-not-be-saved"), false);
 });
+
+
+test("wallet cards keep Italian dates and show optional check-in opening separately in every interface language", async (context) => {
+  const configured = { ...ticket, date: "2099-11-19T00:30:00+01:00", checkInStartsAt: "2099-11-18T23:00:00+01:00" };
+  const expectedLabels = { it: "Apertura check-in", en: "Check-in opens", de: "Check-in öffnet", es: "Apertura del check-in" };
+  for (const locale of ["it", "en", "de", "es"]) {
+    window.localStorage.setItem(wallet.WALLET_KEY, JSON.stringify([configured]));
+    const { TicketWallet } = compile("components/meraki/ticket-wallet.tsx", {
+      "@/lib/tickets/wallet": wallet, "./wallet-copy": copy,
+      "next/link": { default: Anchor, __esModule: true },
+      fetch: async () => ({ ok: true, json: async () => ({ tickets: [configured] }) }),
+    });
+    await mount(context, TicketWallet, { locale, siteOrigin: "https://meraki.test" });
+    const text = window.document.querySelector("article").textContent;
+    assert.ok(text.includes(expectedLabels[locale]));
+    assert.ok(text.includes("18/11/2099, 23:00"));
+    assert.ok(text.includes("00:30"));
+    assert.ok(text.includes("nov"), "month stays Italian even in another interface language");
+    assert.equal(/\b[AP]M\b/.test(text), false);
+    const saved = JSON.parse(window.localStorage.getItem(wallet.WALLET_KEY))[0];
+    assert.equal(saved.checkInStartsAt, configured.checkInStartsAt);
+  }
+});
+
+test("verified registration persists an opening time while keeping unknown personal data out", async (context) => {
+  window.localStorage.clear();
+  const { RegisterTicket } = compile("components/meraki/register-ticket.tsx", { "@/lib/tickets/wallet": wallet, "./wallet-copy": copy });
+  await mount(context, RegisterTicket, { locale: "en", ticket: { ...ticket, checkInStartsAt: "2099-08-01T09:30:00+02:00", email: "private@example.test" } });
+  const saved = JSON.parse(window.localStorage.getItem(wallet.WALLET_KEY))[0];
+  assert.equal(saved.checkInStartsAt, "2099-08-01T09:30:00+02:00");
+  assert.equal(saved.email, undefined);
+});

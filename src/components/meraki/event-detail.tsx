@@ -19,6 +19,7 @@ export function EventDetail({ event, locale }: { event: MerakiEventDetail; local
   const category = event.type === "evento" ? text.event : event.type === "masterclass" ? "Masterclass" : "Workshop";
   const date = eventDate(event.startsAt, locale, { weekday: "long", day: "numeric", month: "long" });
   const time = eventDate(event.startsAt, locale, { hour: "2-digit", minute: "2-digit" });
+  const checkInOpening = event.checkInStartsAt && Number.isFinite(Date.parse(event.checkInStartsAt)) ? event.checkInStartsAt : null;
   const state = salesClosed ? (isEnded ? text.ended : text.salesClosed) : soldOut ? text.soldOut : null;
 
   return (
@@ -39,7 +40,8 @@ export function EventDetail({ event, locale }: { event: MerakiEventDetail; local
           </header>
 
           <div className="my-7 divide-y divide-[#e9e9e0] overflow-hidden rounded-[22px] border border-[#18251f]/5 bg-white px-5">
-            <div className="flex items-center gap-4 py-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] bg-[#f0ede4]"><CalendarDays className="h-5 w-5 text-[#9e885d]" aria-hidden="true" /></span><div><p className="text-sm font-semibold capitalize">{date}</p><p className="mt-1 flex items-center gap-1.5 text-xs text-[#7f8777]"><Clock3 className="h-3 w-3" aria-hidden="true" />{time} <span className="px-0.5 text-[#b7bdaf]">·</span> {eventDate(event.startsAt, locale, { year: "numeric" })}</p></div></div>
+            <div className="flex items-center gap-4 py-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] bg-[#f0ede4]"><CalendarDays className="h-5 w-5 text-[#9e885d]" aria-hidden="true" /></span><div><p className="mb-1 text-xs text-[#7f8777]">{text.eventStart}</p><p className="text-sm font-semibold capitalize">{date}</p><p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#7f8777]"><Clock3 className="h-3 w-3" aria-hidden="true" />{time} <span className="px-0.5 text-[#b7bdaf]">·</span> {eventDate(event.startsAt, locale, { year: "numeric" })} <span className="px-0.5 text-[#b7bdaf]">·</span> {text.italianTime}</p></div></div>
+            {checkInOpening ? <div data-check-in-opening className="flex items-center gap-4 py-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] bg-[#f0ede4]"><Clock3 className="h-5 w-5 text-[#9e885d]" aria-hidden="true" /></span><div className="min-w-0"><p className="text-xs text-[#7f8777]">{text.checkInOpening}</p><time dateTime={checkInOpening} className="mt-1 block text-sm font-semibold">{eventDate(checkInOpening, locale, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</time><p className="mt-1 text-xs text-[#7f8777]">{text.italianTime}</p></div></div> : null}
             {event.location || event.address ? <div className="flex items-center gap-4 py-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] bg-[#eaf0e5]"><MapPin className="h-5 w-5 text-[#738463]" aria-hidden="true" /></span><div className="min-w-0"><p className="text-sm font-semibold leading-6">{event.location || event.address}</p>{event.location && event.address ? <p className="mt-0.5 text-xs leading-5 text-[#7f8777]">{event.address}</p> : null}</div></div> : null}
           </div>
 

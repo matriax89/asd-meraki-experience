@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 export default async function DetailPage({ params }: PageParams) {
   const { slug, locale } = await params;
   const supabase = await createClient();
-  const { data: event } = await supabase.from("events").select(`${eventFeedColumns}, descrizione, cta_tipo, cta_url`).eq("slug", slug).eq("tipo", "evento").eq("attivo", true).single();
+  const { data: event } = await supabase.from("events").select(`${eventFeedColumns}, check_in_starts_at, descrizione, cta_tipo, cta_url`).eq("slug", slug).eq("tipo", "evento").eq("attivo", true).single();
   if (!event) notFound();
   return <EventDetail event={{ ...toMerakiEvent(event, locale), description: getLocalizedText(event.descrizione, locale), ctaType: event.cta_tipo, ctaUrl: event.cta_url }} locale={locale} />;
 }

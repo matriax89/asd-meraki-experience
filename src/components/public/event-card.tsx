@@ -1,6 +1,4 @@
 import { Link } from "@/i18n/routing";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 
 import { getLocale } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
@@ -31,8 +29,8 @@ export async function EventCard({
 }: EventCardProps) {
   const locale = await getLocale();
   const date = new Date(data_inizio);
-  const formattedDate = format(date, "d MMMM yyyy", { locale: it });
-  const formattedTime = format(date, "HH:mm");
+  const formattedDate = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Rome" }).format(date);
+  const formattedTime = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Rome" }).format(date);
   
   const venduti = posti_venduti || 0;
   const postiDisponibili = capacity ? capacity - venduti : null;

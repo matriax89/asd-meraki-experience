@@ -6,6 +6,7 @@ import vm from "node:vm";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import ts from "typescript";
+import { nativeFormControlMocks } from "./helpers/native-form-controls.mjs";
 
 const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://meraki.test/it/admin/biglietti", pretendToBeVisual: true });
@@ -47,7 +48,7 @@ function compile(path, replacements) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
-  vm.runInNewContext(code, { exports, window, document: window.document, navigator: window.navigator, URL, Error, console, require: (name) => replacements[name] || require(name) });
+  vm.runInNewContext(code, { exports, window, document: window.document, navigator: window.navigator, URL, Error, console, require: (name) => replacements[name] || nativeFormControlMocks[name] || require(name) });
   return exports;
 }
 

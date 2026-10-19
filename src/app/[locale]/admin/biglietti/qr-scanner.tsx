@@ -1,5 +1,8 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { IScannerControls } from "@zxing/browser";
@@ -175,7 +178,7 @@ export function QrScanner({ events, onChecked, initialEventId = "" }: {
       <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-2">
         <div className="space-y-4">
           <label htmlFor="check-in-event" className="block text-sm font-semibold text-slate-700">Evento da controllare</label>
-          <select id="check-in-event" value={eventId} disabled={busy || phase === "result"} onChange={(event) => {
+          <CustomSelect id="check-in-event" value={eventId} disabled={busy || phase === "result"} onChange={(event) => {
             stopCamera();
             resultLockedRef.current = false;
             setEventId(event.target.value);
@@ -185,9 +188,9 @@ export function QrScanner({ events, onChecked, initialEventId = "" }: {
             setPhase("idle");
           }} className="min-h-12 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:opacity-60">
             <option value="">Seleziona un evento</option>
-            {events.map((event) => <option key={event.id} value={event.id}>{event.titolo} · {new Date(event.data_inizio).toLocaleDateString("it-IT")}</option>)}
-          </select>
-          {activities.length > 0 && <div className="space-y-2"><label htmlFor="check-in-activity" className="block text-sm font-semibold text-slate-700">Attività da controllare</label><select id="check-in-activity" value={activityId} disabled={busy || phase === "result"} onChange={(event) => { stopCamera(); setActivityId(event.target.value); setCameraError(null); setPhase("idle"); }} className="min-h-12 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:opacity-60"><option value="">Seleziona workshop, masterclass o cena</option><option value="__legacy_event">Ingresso evento · biglietti precedenti</option>{activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.name}</option>)}</select><p className="text-xs leading-5 text-slate-500">La lettura consuma solo l’accesso all’attività selezionata. Per i biglietti precedenti alle formule scegli “Ingresso evento”.</p></div>}
+            {events.map((event) => <option key={event.id} value={event.id}>{event.titolo} · {new Date(event.data_inizio).toLocaleDateString("it-IT", { timeZone: "Europe/Rome" })}</option>)}
+          </CustomSelect>
+          {activities.length > 0 && <div className="space-y-2"><label htmlFor="check-in-activity" className="block text-sm font-semibold text-slate-700">Attività da controllare</label><CustomSelect id="check-in-activity" value={activityId} disabled={busy || phase === "result"} onChange={(event) => { stopCamera(); setActivityId(event.target.value); setCameraError(null); setPhase("idle"); }} className="min-h-12 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:opacity-60"><option value="">Seleziona workshop, masterclass o cena</option><option value="__legacy_event">Ingresso evento · biglietti precedenti</option>{activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.name}</option>)}</CustomSelect><p className="text-xs leading-5 text-slate-500">La lettura consuma solo l’accesso all’attività selezionata. Per i biglietti precedenti alle formule scegli “Ingresso evento”.</p></div>}
           {events.length === 0 && <p className="text-sm text-slate-500">Carica un evento per iniziare il check-in.</p>}
           <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-950">
             <video ref={videoRef} muted playsInline autoPlay aria-label="Fotocamera per la lettura del QR code" className={`h-full w-full object-cover ${cameraActive ? "" : "hidden"}`} />
@@ -207,7 +210,7 @@ export function QrScanner({ events, onChecked, initialEventId = "" }: {
               <h3 className="text-2xl font-bold">{accepted ? "Ingresso consentito" : result.outcome === "already_used" ? "Già utilizzato" : "Ingresso non consentito"}</h3>
               <p className="mt-3 leading-6">{result.message}</p>
               {participant && <p className="mt-4 font-semibold">{participant}</p>}
-              {result.ticket?.used_at && <p className="mt-2 text-sm">Check-in: {new Date(result.ticket.used_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "medium" })}</p>}
+              {result.ticket?.used_at && <p className="mt-2 text-sm">Check-in: {new Date(result.ticket.used_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "medium", timeZone: "Europe/Rome", hourCycle: "h23" })}</p>}
               <p className="mt-5 text-sm">Fotocamera spenta. Premi il pulsante per una nuova lettura.</p>
             </div>}
           </div>

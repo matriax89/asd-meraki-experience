@@ -132,3 +132,41 @@
 }
 .animate-marquee { animation: marquee 25s linear infinite; }
 .animate-marquee-reverse { animation: marquee-reverse 25s linear infinite; }
+/* Meraki form controls: consistent shape, focus and selection across devices. */
+.meraki-admin :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]), textarea) {
+  appearance: none;
+  min-height: 46px;
+  border-radius: 14px;
+  border-color: #dcded5;
+  background-color: #fff;
+  color: #1b2a22;
+  font-size: 14px;
+  line-height: 1.5;
+  accent-color: #8d7750;
+}
+.meraki-admin :is(input, textarea):focus-visible {
+  outline: none;
+  border-color: #9d865c;
+  box-shadow: 0 0 0 3px #a38b6029;
+}
+.meraki-admin input[type="number"] { -moz-appearance: textfield; }
+.meraki-admin input::-webkit-inner-spin-button,
+.meraki-admin input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.meraki-admin input:is([type="checkbox"], [type="radio"]) {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid #c5c9bd;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.meraki-admin input[type="radio"] { border-radius: 50%; }
+.meraki-admin input:is([type="checkbox"], [type="radio"]):checked { border-color: #89734b; background: #89734b; }
+.meraki-admin input[type="checkbox"]:checked::after { content: ""; width: 9px; height: 5px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: translateY(-1px) rotate(-45deg); }
+.meraki-admin input[type="radio"]:checked::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #fff; }
+.meraki-admin input:disabled { cursor: not-allowed; opacity: .5; }

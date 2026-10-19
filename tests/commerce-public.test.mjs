@@ -6,13 +6,14 @@ import vm from "node:vm";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import ts from "typescript";
+import { nativeFormControlMocks } from "./helpers/native-form-controls.mjs";
 
 const require = createRequire(import.meta.url);
 function compile(path, overrides = {}) {
   const exports = {};
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  vm.runInNewContext(compiled, { exports, URL, Date, Set, JSON, console, AbortController, ...overrides, require: (name) => overrides.modules?.[name] || require(name) });
+  vm.runInNewContext(compiled, { exports, URL, Date, Set, JSON, console, AbortController, ...overrides, require: (name) => overrides.modules?.[name] || nativeFormControlMocks[name] || require(name) });
   return exports;
 }
 const attendeeModel = compile("../src/lib/commerce/attendee.ts");

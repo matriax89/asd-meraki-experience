@@ -11,12 +11,14 @@ const eventSchema = z.object({
   sottotitolo: localized.nullable().optional(), descrizione: localized.nullable().optional(),
   tipo: z.enum(["evento", "workshop", "masterclass"]), data_inizio: z.iso.datetime({ offset: true }),
   data_fine: z.iso.datetime({ offset: true }).nullable().optional(),
+  check_in_starts_at: z.iso.datetime({ offset: true }).nullable().optional(),
   location: z.string().max(500).nullable().optional(), indirizzo: z.string().max(1000).nullable().optional(),
   copertina_url: z.string().max(2048).nullable().optional(),
   prezzo_cents: z.number().int().min(0).max(10_000_000).nullable().optional(),
   capacity: z.number().int().min(0).max(100_000).nullable().optional(), attivo: z.boolean().optional(),
   ticketing_mode: z.enum(["single", "advanced"]).optional(),
-}).refine((event) => !event.data_fine || Date.parse(event.data_fine) >= Date.parse(event.data_inizio), { message: "La fine dell’evento non può precedere l’inizio.", path: ["data_fine"] });
+}).refine((event) => !event.data_fine || Date.parse(event.data_fine) >= Date.parse(event.data_inizio), { message: "La fine dell’evento non può precedere l’inizio.", path: ["data_fine"] })
+  .refine((event) => !event.check_in_starts_at || Date.parse(event.check_in_starts_at) <= Date.parse(event.data_inizio), { message: "L’apertura del check-in non può essere successiva all’inizio dell’evento.", path: ["check_in_starts_at"] });
 
 export async function getEvent(id: string) {
   const supabase = await requireCommerceStaff();
@@ -37,7 +39,10 @@ export async function getEvent(id: string) {
 export async function upsertEvent(raw: unknown) {
   const supabase = await requireCommerceStaff();
   const validation = eventSchema.safeParse(raw);
-  if (!validation.success) return { success: false, error: "Controlla date, prezzo, capienza e dettagli dell’evento." };
+  if (!validation.success) {
+    const openingError = validation.error.issues.find((issue) => issue.path[0] === "check_in_starts_at");
+    return { success: false, error: openingError ? openingError.code === "custom" ? openingError.message : "Controlla data e orario dell’apertura check-in." : "Controlla date, prezzo, capienza e dettagli dell’evento." };
+  }
   // Configurations, counters and Stripe IDs have dedicated transactional paths.
   const { ticketing_mode: ticketingMode, ...eventData } = validation.data;
   const createAdvancedDraft = !eventData.id && ticketingMode === "advanced";

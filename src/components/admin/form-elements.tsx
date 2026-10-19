@@ -1,3 +1,4 @@
+import { CustomSelect } from "@/components/ui/custom-select";
 import React, { useId, useState } from "react";
 
 interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -67,7 +68,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="space-y-1">
         <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">{label}</label>
-        <select
+        <CustomSelect
           id={fieldId}
           ref={ref}
           className={`w-full p-2.5 border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow appearance-none ${
@@ -78,7 +79,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           {options.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
-        </select>
+        </CustomSelect>
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     );

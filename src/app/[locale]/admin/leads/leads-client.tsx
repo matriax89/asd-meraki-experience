@@ -1,5 +1,8 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
+
 import { useState, useTransition } from "react";
 import { updateLeadStatus } from "@/app/api/admin/leads/actions";
 import { DataTable } from "@/components/admin/data-table";
@@ -48,7 +51,7 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
       header: "Data",
       cell: (lead: Lead) => (
         <span className="text-slate-500 text-[13px] font-medium">
-          {new Date(lead.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          {new Date(lead.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome', hourCycle: 'h23' })}
         </span>
       )
     },
@@ -83,7 +86,7 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
       header: "Stato",
       cell: (lead: Lead) => (
         <div className="relative inline-block">
-          <select
+          <CustomSelect aria-label="Stato richiesta"
             value={lead.status}
             onChange={(e) => handleStatusChange(lead.id, e.target.value)}
             disabled={isPending}
@@ -93,7 +96,7 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
             <option value="contattato">Contattato</option>
             <option value="convertito">Iscritto</option>
             <option value="archiviato">Archiviato</option>
-          </select>
+          </CustomSelect>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
           </div>
@@ -154,7 +157,7 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
                 <div>
                   <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-2">Data e Sorgente</p>
                   <p className="text-[15px] font-medium text-slate-900 mb-2">
-                    {new Date(selectedLead.created_at).toLocaleString('it-IT')}
+                    {new Date(selectedLead.created_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome', hourCycle: 'h23' })}
                   </p>
                   <span className="inline-block capitalize text-[12px] font-bold tracking-wider bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg border border-slate-200">
                     {selectedLead.source.replace('_', ' ')}
@@ -181,7 +184,7 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
               <div className="pt-4 border-t border-slate-100">
                 <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-3">Cambia Stato</p>
                 <div className="relative inline-block">
-                  <select
+                  <CustomSelect aria-label="Stato richiesta"
                     value={selectedLead.status}
                     onChange={(e) => {
                       handleStatusChange(selectedLead.id, e.target.value);
@@ -194,7 +197,7 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
                     <option value="contattato">Contattato</option>
                     <option value="convertito">Iscritto</option>
                     <option value="archiviato">Archiviato</option>
-                  </select>
+                  </CustomSelect>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                   </div>
