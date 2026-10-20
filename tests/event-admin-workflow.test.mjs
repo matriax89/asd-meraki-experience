@@ -688,3 +688,60 @@ test("event list exposes scoped package and check-in links without stale legacy 
   assert.equal(html.includes("venduti"), false);
   assert.equal(html.includes("Gratis"), false);
 });
+
+const tripText = (it = "", en = "", de = "", es = "") => ({ it, en, de, es });
+const connectedTrip = () => ({ ...logistics.emptyEventLogistics(), arrivals: [{ id: "airport", mode: "plane", title: tripText("Dall’aeroporto alla sede"), arrivalPoint: tripText("Aeroporto di prova", "Test airport"), description: tripText(), linkUrl: "", connections: [
+  { id: "airport-bus", mode: "bus", from: tripText("Aeroporto di prova", "Test airport"), to: tripText("Stazione di prova", "Test station"), service: tripText("Linea di prova A"), duration: tripText("30 minuti"), description: tripText("Scendi alla stazione"), linkUrl: "https://transport.example.test/bus", mapUrl: "" },
+  { id: "station-walk", mode: "walk", from: tripText("Stazione di prova", "Test station"), to: tripText("Sede dell’evento", "Event venue"), service: tripText(), duration: tripText("10 minuti"), description: tripText(), linkUrl: "", mapUrl: "https://maps.example.test/venue" },
+] }] });
+
+test("nested connection validation reveals the route and switches to the exact missing Italian field", async (context) => {
+  const screen = await mount(context, { ...baseEvent, logistics: connectedTrip() });
+  await screen.advance(); await screen.advance(); await screen.advance();
+  const route = screen.host.querySelector('[data-arrival="airport"]');
+  const departure = route.querySelector('[data-logistics-path="arrivals.0.connections.1.from"]');
+  await screen.change(departure, "");
+  await screen.click("en", departure.parentElement);
+  assert.equal(departure.value, "Test station");
+  await act(async () => { route.open = false; });
+  await screen.advance();
+  assert.equal(screen.currentStep(), 3);
+  assert.equal(route.open, true);
+  assert.equal(departure.value, "");
+  assert.equal(document.activeElement, departure);
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /Collegamento 2.*partenza.*italiano/);
+  assert.equal(screen.saved.length, 0);
+  await screen.change(departure, "Stazione di prova");
+  const link = route.querySelector('[data-logistics-path="arrivals.0.connections.1.mapUrl"]');
+  await screen.change(link, "javascript:alert(1)");
+  await act(async () => { route.open = false; });
+  await screen.advance();
+  assert.equal(screen.currentStep(), 3);
+  assert.equal(route.open, true);
+  assert.equal(document.activeElement, link);
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /Collegamento 2.*http o https.*Link mappa/);
+  assert.equal(screen.saved.length, 0);
+});
+
+test("the final review and save keep ordered connections and reload their translations", async (context) => {
+  const trip = connectedTrip();
+  const screen = await mount(context, { ...baseEvent, logistics: trip });
+  await screen.review();
+  assert.equal(screen.currentStep(), 4);
+  const review = screen.host.querySelector('[aria-label="Riepilogo viaggio e soggiorno"]');
+  assert.match(review.textContent, /Arrivo principale: Aeroporto di prova/);
+  const legs = [...review.querySelectorAll("ol li")];
+  assert.equal(legs.length, 2);
+  assert.match(legs[0].textContent, /Autobus.*Aeroporto di prova → Stazione di prova.*Linea di prova A.*30 minuti/);
+  assert.match(legs[1].textContent, /A piedi.*Stazione di prova → Sede dell’evento.*10 minuti/);
+  await screen.advance();
+  assert.equal(screen.saved.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.saved[0].logistics)), JSON.parse(JSON.stringify(trip)));
+  const reopened = await mount(context, { ...baseEvent, ...screen.saved[0] });
+  await reopened.advance(); await reopened.advance(); await reopened.advance();
+  assert.deepEqual([...reopened.host.querySelectorAll("[data-arrival-connection]")].map(row => row.getAttribute("data-arrival-connection")), ["airport-bus", "station-walk"]);
+  const destination = reopened.host.querySelector('[data-logistics-path="arrivals.0.connections.1.to"]');
+  await reopened.click("en", destination.parentElement);
+  assert.equal(destination.value, "Event venue");
+  assert.equal(reopened.host.querySelector('[data-logistics-path="arrivals.0.connections.0.service"]').value, "Linea di prova A");
+});

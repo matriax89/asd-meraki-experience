@@ -27,11 +27,14 @@ const eventSteps = [
 ] as const;
 const reviewStep = eventSteps.length - 1;
 const languageNames = { it: "Italiano", en: "Inglese", de: "Tedesco", es: "Spagnolo" };
+const connectionModeNames = { plane: "Aereo", train: "Treno", bus: "Autobus", shuttle: "Navetta", taxi: "Taxi", car: "Auto", walk: "A piedi", other: "Altro mezzo" };
 const logisticsFieldLabels: Record<string, string> = {
   name: "Nome struttura", address: "Indirizzo struttura", mapUrl: "Link mappa", bookingUrl: "Link prenotazione",
   phone: "Telefono struttura", email: "Email struttura", validUntil: "Data di validità", distance: "Distanza dall’evento",
   rate: "Tariffa o prezzo indicativo", benefits: "Servizi e vantaggi", bookingInstructions: "Come prenotare la struttura",
   title: "Titolo percorso", description: "Indicazioni per arrivare", linkUrl: "Link informazioni sul percorso",
+  arrivalPoint: "Punto di arrivo principale", from: "Partenza del collegamento", to: "Destinazione del collegamento",
+  service: "Linea o servizio", duration: "Durata indicativa", connections: "Collegamenti",
   accessibility: "Accessibilità e necessità specifiche", contact: "Contatto per viaggio e soggiorno",
 };
 function localizedCopy(value: unknown, language = "it") {
@@ -153,11 +156,13 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
           if (["it", "en", "de", "es"].includes(path.at(-1) || "")) language = path.pop();
           const field = path.at(-1) || "";
           const label = logisticsFieldLabels[field];
+          const connection = path[2] === "connections" ? `Collegamento ${Number(path[3]) + 1}: ` : "";
           target = `[data-logistics-path="${path.join(".")}"]`;
-          if (field.endsWith("Url")) throw new Error(`Inserisci un link http o https valido nel campo «${label}».`);
+          if (field.endsWith("Url")) throw new Error(`${connection}inserisci un link http o https valido nel campo «${label}».`.replace(/^inserisci/, "Inserisci"));
           if (field === "email") throw new Error("Inserisci un indirizzo email valido per la struttura.");
           if (field === "validUntil") throw new Error("Inserisci una data di validità nel formato gg/mm/aaaa.");
           if (label && issue.code === "too_big") throw new Error(`Il testo nel campo «${label}» è troppo lungo.`);
+          if (connection && (field === "from" || field === "to")) throw new Error(`${connection}inserisci ${field === "from" ? "il punto di partenza" : "la destinazione"} in italiano.`);
           throw new Error(label ? `Controlla il campo «${label}».` : "Controlla i dati di viaggio e soggiorno.");
         }
       }
@@ -190,7 +195,8 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       return;
     }
     const controls = panel?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea");
-    const specified = message.target ? panel?.querySelector<HTMLInputElement | HTMLTextAreaElement>(message.target) : null;
+    const specifiedElement = message.target ? panel?.querySelector<HTMLElement>(message.target) : null;
+    const specified = specifiedElement?.matches("input,textarea,select") ? specifiedElement as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement : specifiedElement?.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input,textarea,select");
     const invalid = specified || (controls && [...controls].find((control) => !control.checkValidity()));
     let details = invalid?.closest("details");
     while (details) { details.open = true; details = details.parentElement?.closest("details"); }
@@ -425,7 +431,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
           {requiresTicketSetup && <p className="rounded-xl bg-[#f2efe6] p-4 text-sm leading-6">Alla conferma salvi una bozza e apri la configurazione di attività, formule e prezzi. Pubblicherai l’evento dopo aver completato la biglietteria.</p>}
         </section>
         <section className="space-y-3 border-t border-[#e4e5dc] pt-4" aria-label="Riepilogo viaggio e soggiorno"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Viaggio e soggiorno</h3><button type="button" onClick={() => changeStep(3)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica viaggio e soggiorno</button></div>
-          {hasEventLogistics(logistics) ? <><p className="text-sm">{logistics.accommodations.length} {logistics.accommodations.length === 1 ? "struttura" : "strutture"} · {logistics.arrivals.length} {logistics.arrivals.length === 1 ? "percorso di arrivo" : "percorsi di arrivo"}</p>{logistics.accommodations.length > 0 && <ul className="list-inside list-disc text-sm text-[#7a8272]">{logistics.accommodations.map((item) => <li key={item.id}>{item.name} · {item.kind === "partner" ? "Convenzionata" : "Consigliata"}{item.validUntil ? ` · fino al ${item.validUntil.split("-").reverse().join("/")}` : ""}</li>)}</ul>}{logistics.arrivals.length > 0 && <ul className="list-inside list-disc text-sm text-[#7a8272]">{logistics.arrivals.map((item) => <li key={item.id}>{item.title.it}</li>)}</ul>}<p className="text-xs text-[#7a8272]">{Object.values(logistics.accessibility).some(Boolean) ? "Informazioni sull’accessibilità inserite." : "Accessibilità non specificata."} {Object.values(logistics.contact).some(Boolean) ? "Contatto organizzativo inserito." : "Contatto organizzativo non specificato."}</p></> : <p className="text-sm text-[#7a8272]">Nessuna informazione aggiunta. Questo passaggio è facoltativo.</p>}
+          {hasEventLogistics(logistics) ? <><p className="text-sm">{logistics.accommodations.length} {logistics.accommodations.length === 1 ? "struttura" : "strutture"} · {logistics.arrivals.length} {logistics.arrivals.length === 1 ? "percorso di arrivo" : "percorsi di arrivo"}</p>{logistics.accommodations.length > 0 && <ul className="list-inside list-disc text-sm text-[#7a8272]">{logistics.accommodations.map((item) => <li key={item.id}>{item.name} · {item.kind === "partner" ? "Convenzionata" : "Consigliata"}{item.validUntil ? ` · fino al ${item.validUntil.split("-").reverse().join("/")}` : ""}</li>)}</ul>}{logistics.arrivals.length > 0 && <ul className="list-inside list-disc text-sm text-[#7a8272]">{logistics.arrivals.map((item) => <li key={item.id} className="space-y-1"><span className="font-medium text-[#52604f]">{item.title.it}</span>{item.arrivalPoint?.it && <p className="ml-4">Arrivo principale: {item.arrivalPoint.it}</p>}{Boolean(item.connections?.length) && <ol className="ml-4 list-inside list-decimal space-y-1">{item.connections?.map((connection) => <li key={connection.id} className="break-words">{connectionModeNames[connection.mode]} · {connection.from.it} → {connection.to.it}{connection.service.it ? ` · ${connection.service.it}` : ""}{connection.duration.it ? ` · ${connection.duration.it}` : ""}</li>)}</ol>}</li>)}</ul>}<p className="text-xs text-[#7a8272]">{Object.values(logistics.accessibility).some(Boolean) ? "Informazioni sull’accessibilità inserite." : "Accessibilità non specificata."} {Object.values(logistics.contact).some(Boolean) ? "Contatto organizzativo inserito." : "Contatto organizzativo non specificato."}</p></> : <p className="text-sm text-[#7a8272]">Nessuna informazione aggiunta. Questo passaggio è facoltativo.</p>}
         </section>
         <div className="pt-4">
           <Checkbox 

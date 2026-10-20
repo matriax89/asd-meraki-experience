@@ -19,6 +19,7 @@ const { eventLogisticsSchema, parseEventLogistics, emptyEventLogistics, logistic
 const text = (it = "", en = "", de = "", es = "") => ({ it, en, de, es });
 const hotel = (id = "hotel-1") => ({ id, kind: "partner", name: "Hotel di esempio", address: "Via Esempio 1", mapUrl: "https://maps.example.test/hotel", bookingUrl: "https://hotel.example.test/prenota", phone: "+39 000 000000", email: "info@hotel.example.test", distance: text("10 minuti a piedi"), rate: text("Tariffa da confermare"), benefits: text("Colazione inclusa"), bookingInstructions: text("Indica il codice dell’evento"), validUntil: "2026-12-01" });
 const route = (id = "plane-1") => ({ id, mode: "plane", title: text("Aeroporto principale", "Main airport"), description: text("Prosegui con il bus."), linkUrl: "https://transport.example.test/orari" });
+const connection = (id = "connection-1", mode = "bus") => ({ id, mode, from: text("Aeroporto"), to: text("Stazione centrale"), service: text("Linea di esempio"), duration: text("40 minuti"), description: text("Scendi alla fermata indicata."), linkUrl: "https://transport.example.test/connection", mapUrl: "https://maps.example.test/stop" });
 const complete = () => ({ ...emptyEventLogistics(), accommodations: [hotel()], arrivals: [route()], accessibility: text("Ingresso accessibile"), contact: text("Contatta l’organizzazione") });
 
 test("legacy absence and optional empty logistics remain valid without inventing content", () => {
@@ -111,6 +112,50 @@ test("bounded arrays, fields and strict objects reject oversized or unknown data
   assert.equal(eventLogisticsSchema.safeParse({ ...complete(), accessibility: { ...text(), fr: "extra" } }).success, false);
 });
 
+test("arrival connections are optional for saved routes and support ordered onward transport", () => {
+  const legacy = complete();
+  assert.equal(JSON.stringify(parseEventLogistics(legacy)), JSON.stringify(legacy), "old events are not populated with new defaults");
+  const value = complete();
+  value.arrivals[0].arrivalPoint = text("Aeroporto di esempio", "Example airport");
+  value.arrivals[0].connections = [connection("airport-bus"), { ...connection("station-walk", "walk"), from: text("Stazione centrale"), to: text("Ingresso evento"), service: text(""), duration: text("10 minuti"), linkUrl: "", mapUrl: "" }];
+  const parsed = parseEventLogistics(value);
+  assert.equal(parsed.arrivals[0].arrivalPoint.en, "Example airport");
+  assert.deepEqual(Array.from(parsed.arrivals[0].connections, (leg) => leg.id), ["airport-bus", "station-walk"]);
+  assert.equal(hasEventLogistics(parsed, "en"), true);
+  for (const mode of ["plane", "train", "bus", "shuttle", "taxi", "car", "walk", "other"]) {
+    value.arrivals[0].connections = [connection(`mode-${mode}`, mode)];
+    assert.equal(eventLogisticsSchema.safeParse(value).success, true, mode);
+  }
+});
+
+test("onward connections require readable departure and destination, safe links and unique bounded rows", () => {
+  const makeValue = (leg) => ({ ...complete(), arrivals: [{ ...route(), connections: [leg] }] });
+  for (const field of ["from", "to"]) {
+    const leg = connection(); leg[field] = text(" ", "English only");
+    const parsed = eventLogisticsSchema.safeParse(makeValue(leg));
+    assert.equal(parsed.success, false);
+    assert.deepEqual(Array.from(parsed.error.issues[0].path), ["arrivals", 0, "connections", 0, field, "it"]);
+  }
+  for (const field of ["linkUrl", "mapUrl"]) for (const url of ["javascript:alert(1)", "data:text/html,x", "//example.test", "/relative", "mailto:guest@example.test"]) {
+    assert.equal(eventLogisticsSchema.safeParse(makeValue({ ...connection(), [field]: url })).success, false, `${field}: ${url}`);
+  }
+  for (const [field, maximum] of [["from", 300], ["to", 300], ["service", 200], ["duration", 120], ["description", 2000]]) {
+    assert.equal(eventLogisticsSchema.safeParse(makeValue({ ...connection(), [field]: text("x".repeat(maximum + 1)) })).success, false, field);
+  }
+  assert.equal(eventLogisticsSchema.safeParse(makeValue({ ...connection(), mode: "spaceship" })).success, false);
+  assert.equal(eventLogisticsSchema.safeParse(makeValue({ ...connection(), unknown: true })).success, false);
+  const value = complete(); value.arrivals[0].connections = Array.from({ length: 8 }, (_, index) => connection(`leg-${index}`));
+  assert.equal(eventLogisticsSchema.safeParse(value).success, true);
+  value.arrivals[0].connections.push(connection("leg-8"));
+  assert.equal(eventLogisticsSchema.safeParse(value).success, false);
+  value.arrivals[0].connections = [connection(), connection()];
+  const duplicate = eventLogisticsSchema.safeParse(value);
+  assert.equal(duplicate.success, false);
+  assert.deepEqual(Array.from(duplicate.error.issues[0].path), ["arrivals", 0, "connections", 1, "id"]);
+  value.arrivals = [{ ...route("route-1"), connections: [connection()] }, { ...route("route-2"), connections: [connection()] }];
+  assert.equal(eventLogisticsSchema.safeParse(value).success, true, "IDs are unique within their route");
+});
+
 const eventId = "12345678-1111-4111-8111-123456789abc";
 const baseEvent = { id: eventId, titolo: { it: "Evento" }, tipo: "evento", data_inizio: "2027-08-01T08:00:00Z", attivo: false };
 function serverFixture(authorized = true) {
@@ -137,6 +182,20 @@ test("the staff action persists validated logistics, preserves omitted legacy fi
   assert.equal(fixture.saved[2].logistics, null);
 });
 
+test("a connection-only guide persists its full route and keeps the ticket's public travel destination", async () => {
+  const fixture = serverFixture();
+  const guide = { ...emptyEventLogistics(), arrivals: [{ ...route(), arrivalPoint: text("Aeroporto Esempio"), connections: [connection("airport-bus"), { ...connection("station-taxi", "taxi"), from: text("Stazione centrale"), to: text("Sede evento") }] }] };
+  const result = await fixture.actions.upsertEvent({ ...baseEvent, logistics: guide });
+  assert.equal(result.success, true);
+  assert.equal(JSON.stringify(fixture.saved[0].logistics), JSON.stringify(guide));
+  const { eventTravelPath } = load("lib/events/travel-link.ts", { "@/lib/events/logistics": logistics });
+  for (const locale of ["it", "en", "de", "es"]) {
+    const path = eventTravelPath({ slug: "evento-connessioni", tipo: "evento", logistics: fixture.saved[0].logistics, attivo: true, qr_code: "private-ticket-token" }, locale);
+    assert.equal(path, `/${locale}/eventi/evento-connessioni#viaggio-soggiorno`);
+    assert.equal(path.includes("private-ticket-token"), false);
+  }
+});
+
 test("invalid travel data and unauthorized callers cannot cause an event write", async () => {
   const fixture = serverFixture(); const value = complete(); value.accommodations[0].bookingUrl = "javascript:alert(1)";
   const rejected = await fixture.actions.upsertEvent({ ...baseEvent, logistics: value });
@@ -145,4 +204,20 @@ test("invalid travel data and unauthorized callers cannot cause an event write",
   const unauthorized = serverFixture(false);
   await assert.rejects(unauthorized.actions.upsertEvent({ ...baseEvent, logistics: complete() }), /Accesso negato/);
   assert.equal(unauthorized.saved.length, 0);
+});
+
+test("the staff action refuses incomplete or unsafe onward legs before writing the event", async () => {
+  for (const patch of [
+    { from: text("", "Airport") },
+    { to: text("", "Venue") },
+    { linkUrl: "javascript:alert(1)" },
+    { mapUrl: "data:text/html,<script>alert(1)</script>" },
+  ]) {
+    const fixture = serverFixture();
+    const guide = { ...emptyEventLogistics(), arrivals: [{ ...route(), connections: [{ ...connection(), ...patch }] }] };
+    const result = await fixture.actions.upsertEvent({ ...baseEvent, logistics: guide });
+    assert.equal(result.success, false);
+    assert.match(result.error, /Viaggio e soggiorno/);
+    assert.equal(fixture.saved.length, 0);
+  }
 });

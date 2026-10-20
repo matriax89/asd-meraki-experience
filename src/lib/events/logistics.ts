@@ -31,6 +31,23 @@ const accommodationSchema = z.object({
   validUntil: z.iso.date().nullable(),
 }).strict();
 
+const connectionModeSchema = z.enum(["plane", "train", "bus", "shuttle", "taxi", "car", "walk", "other"]);
+const arrivalConnectionSchema = z.object({
+  id,
+  mode: connectionModeSchema,
+  from: localizedText(300).refine((value) => Boolean(value.it), {
+    message: "Inserisci il punto di partenza del collegamento in italiano.", path: ["it"],
+  }),
+  to: localizedText(300).refine((value) => Boolean(value.it), {
+    message: "Inserisci la destinazione del collegamento in italiano.", path: ["it"],
+  }),
+  service: localizedText(200),
+  duration: localizedText(120),
+  description: localizedText(2000),
+  linkUrl: optionalUrl,
+  mapUrl: optionalUrl,
+}).strict();
+
 const arrivalSchema = z.object({
   id,
   mode: z.enum(["plane", "train", "bus", "car"]),
@@ -39,10 +56,20 @@ const arrivalSchema = z.object({
   }),
   description: localizedText(4000),
   linkUrl: optionalUrl,
-}).strict();
+  arrivalPoint: localizedText(300).optional(),
+  connections: z.array(arrivalConnectionSchema).max(8, "Puoi aggiungere fino a 8 collegamenti per percorso.").optional(),
+}).strict().superRefine((value, context) => {
+  const ids = new Set<string>();
+  value.connections?.forEach((connection, index) => {
+    if (ids.has(connection.id)) context.addIssue({ code: "custom", message: "Ogni collegamento deve avere un identificativo univoco nel percorso.", path: ["connections", index, "id"] });
+    ids.add(connection.id);
+  });
+});
 
 export type Accommodation = z.infer<typeof accommodationSchema>;
 export type Arrival = z.infer<typeof arrivalSchema>;
+export type ArrivalConnection = z.infer<typeof arrivalConnectionSchema>;
+export type TravelConnectionMode = z.infer<typeof connectionModeSchema>;
 
 const logisticsObjectSchema = z.object({
   version: z.literal(1),

@@ -43,7 +43,7 @@ export async function upsertEvent(raw: unknown) {
   const validation = eventSchema.safeParse(raw);
   if (!validation.success) {
     if (validation.error.issues.some((issue) => issue.path[0] === "logistics")) {
-      return { success: false, error: "Controlla Viaggio e soggiorno: nomi, titoli in italiano, link, email e date delle convenzioni." };
+      return { success: false, error: "Controlla Viaggio e soggiorno: nomi, titoli, partenze e destinazioni dei collegamenti in italiano, link, email e date delle convenzioni." };
     }
     const openingError = validation.error.issues.find((issue) => issue.path[0] === "check_in_starts_at");
     return { success: false, error: openingError ? openingError.code === "custom" ? openingError.message : "Controlla data e orario dell’apertura check-in." : "Controlla date, prezzo, capienza e dettagli dell’evento." };

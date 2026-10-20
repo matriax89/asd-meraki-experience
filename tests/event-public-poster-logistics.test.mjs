@@ -139,6 +139,51 @@ test("suggested accommodation never claims a partner agreement when optional ben
   }
 });
 
+test("onward travel shows the airport, ordered departure and destination, service and duration in all four languages", () => {
+  const multilingual = (it, en, de, es) => ({ it, en, de, es });
+  const airport = multilingual("Aeroporto Esempio", "Example Airport", "Flughafen Beispiel", "Aeropuerto Ejemplo");
+  const station = multilingual("Stazione Esempio", "Example Station", "Bahnhof Beispiel", "Estación Ejemplo");
+  const venue = multilingual("Ingresso evento", "Event entrance", "Eventeingang", "Entrada del evento");
+  const service = multilingual("Bus linea Esempio", "Example bus service", "Buslinie Beispiel", "Línea de autobús Ejemplo");
+  const journey = { ...logistics.emptyEventLogistics(), arrivals: [{ ...data.arrivals[0], arrivalPoint: airport, connections: [
+    { id: "airport-bus", mode: "bus", from: airport, to: station, service, duration: multilingual("40 minuti", "40 minutes", "40 Minuten", "40 minutos"), description: localized("Scendi qui <script>alert(1)</script>"), linkUrl: "https://travel.example.test/bus", mapUrl: "https://maps.example.test/station" },
+    { id: "station-walk", mode: "walk", from: station, to: venue, service: localized(""), duration: localized("10 minuti"), description: localized(""), linkUrl: "", mapUrl: "" },
+  ] }] };
+  for (const locale of ["it", "en", "de", "es"]) {
+    const fragment = render(travel.EventLogisticsSection, { logistics: journey, locale });
+    const labels = travel.eventLogisticsLabels(locale);
+    const list = fragment.querySelector(`ol[aria-label="${labels.connections}"]`);
+    assert.ok(list);
+    const steps = [...list.querySelectorAll("li[data-arrival-connection]")];
+    assert.deepEqual(steps.map((step) => step.dataset.arrivalConnection), ["airport-bus", "station-walk"]);
+    assert.ok(fragment.querySelector("[data-arrival-route]").textContent.includes(airport[locale]));
+    const fields = [...steps[0].querySelectorAll("dd")].map((field) => field.textContent);
+    assert.deepEqual(fields, [airport[locale], station[locale], service[locale], journey.arrivals[0].connections[0].duration[locale]]);
+    assert.ok(steps[1].textContent.includes(labels.walk));
+    assert.ok(steps[1].textContent.includes(venue[locale]));
+    assert.ok(steps[1].textContent.includes("10 minuti"), "an untranslated leg falls back to Italian");
+    assert.equal(steps[1].querySelectorAll("dd").length, 3, "empty services do not create labels");
+    assert.equal(steps[1].querySelector("a"), null, "blank links do not create actions");
+    assert.equal(fragment.querySelector("script"), null);
+    assert.ok(steps[0].textContent.includes("<script>alert(1)</script>"));
+    for (const anchor of fragment.querySelectorAll('a[target="_blank"]')) assert.equal(anchor.rel, "noopener noreferrer");
+    assert.equal(steps[0].querySelector('a[href="https://travel.example.test/bus"]').textContent, labels.connectionLink);
+    assert.equal(steps[0].querySelector('a[href="https://maps.example.test/station"]').textContent, labels.map);
+  }
+});
+
+test("a legacy arrival remains a compact route without an empty point or connection list", () => {
+  const fragment = render(travel.EventLogisticsSection, { logistics: { ...logistics.emptyEventLogistics(), arrivals: [data.arrivals[0]] }, locale: "it" });
+  const route = fragment.querySelector("[data-arrival-route]");
+  assert.equal(route.querySelector("h4").textContent, "Percorso plane");
+  assert.equal(route.querySelector("ol"), null);
+  assert.equal(route.textContent.includes(travel.eventLogisticsLabels("it").arrivalPoint), false);
+  assert.equal(route.querySelectorAll("a").length, 1);
+  assert.equal(travel.eventLogisticsLabels("de-DE").connections, travel.eventLogisticsLabels("de").connections);
+  const unsafe = { ...data.arrivals[0], connections: [{ id: "bad", mode: "bus", from: localized("A"), to: localized("B"), service: localized(""), duration: localized(""), description: localized(""), linkUrl: "javascript:alert(1)", mapUrl: "" }] };
+  assert.equal(render(travel.EventLogisticsSection, { logistics: { ...logistics.emptyEventLogistics(), arrivals: [unsafe] }, locale: "it" }).querySelector("#viaggio-soggiorno"), null);
+});
+
 test("poster zoom is contained inside its scroll area, resets on opening and closes with restored focus", async () => {
   const dom = new JSDOM("<!doctype html><body style='overflow:auto'><div id='root'></div></body>", { url: "https://meraki.test", pretendToBeVisual: true });
   const previous = new Map();

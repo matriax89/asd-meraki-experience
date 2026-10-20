@@ -1,4 +1,4 @@
-import { Accessibility, BedDouble, Bus, Car, ExternalLink, Mail, MapPin, Phone, Plane, TrainFront } from "lucide-react";
+import { Accessibility, BedDouble, Bus, Car, ExternalLink, Footprints, Mail, MapPin, Phone, Plane, Route, TrainFront } from "lucide-react";
 import { hasEventLogistics, logisticsText, parseEventLogistics, type EventLogistics } from "@/lib/events/logistics";
 
 const copy = {
@@ -7,7 +7,16 @@ const copy = {
   de: { title: "Anreise und Unterkunft", jump: "Plane deine Reise", intro: "Nützliche Informationen für die Anreise und deinen Aufenthalt.", hotels: "Übernachten", partner: "Partnerunterkunft", suggested: "Empfohlene Unterkunft", map: "Karte öffnen", book: "Website und Buchung", distance: "Entfernung zum Event", rate: "Preise", benefits: "Partnervorteile", services: "Leistungen und Vorteile", infoValid: "Informationen gültig bis", instructions: "So buchst du", valid: "Partnerangebot gültig bis", expired: "Partnerangebot abgelaufen am", checkInfo: "Bitte überprüfen", arrivals: "Anreise", plane: "Mit dem Flugzeug", train: "Mit dem Zug", bus: "Mit dem Bus", car: "Mit dem Auto", route: "Link öffnen", accessibility: "Barrierefreiheit", contact: "Informationen und Hilfe" },
   es: { title: "Viaje y alojamiento", jump: "Organiza tu viaje", intro: "Información útil para llegar y disfrutar de tu estancia.", hotels: "Dónde alojarse", partner: "Alojamiento colaborador", suggested: "Alojamiento recomendado", map: "Abrir el mapa", book: "Web y reservas", distance: "Distancia al evento", rate: "Tarifas", benefits: "Ventajas del acuerdo", services: "Servicios y ventajas", infoValid: "Información válida hasta el", instructions: "Cómo reservar", valid: "Acuerdo válido hasta el", expired: "Acuerdo vencido el", checkInfo: "Por confirmar", arrivals: "Cómo llegar", plane: "En avión", train: "En tren", bus: "En autobús", car: "En coche", route: "Abrir el enlace", accessibility: "Accesibilidad", contact: "Información y asistencia" },
 };
-export const eventLogisticsLabels = (locale: string) => copy[locale as keyof typeof copy] || copy.it;
+const connectionCopy = {
+  it: { arrivalPoint: "Punto di arrivo", connections: "Collegamenti successivi", from: "Da", to: "A", service: "Linea o servizio", duration: "Durata indicativa", shuttle: "In navetta", taxi: "In taxi", walk: "A piedi", other: "Altro collegamento", connectionLink: "Orari e informazioni" },
+  en: { arrivalPoint: "Arrival point", connections: "Onward connections", from: "From", to: "To", service: "Line or service", duration: "Approximate journey time", shuttle: "By shuttle", taxi: "By taxi", walk: "On foot", other: "Other connection", connectionLink: "Timetables and information" },
+  de: { arrivalPoint: "Ankunftsort", connections: "Weiterführende Verbindungen", from: "Von", to: "Nach", service: "Linie oder Dienst", duration: "Ungefähre Fahrzeit", shuttle: "Mit dem Shuttle", taxi: "Mit dem Taxi", walk: "Zu Fuß", other: "Weitere Verbindung", connectionLink: "Fahrpläne und Informationen" },
+  es: { arrivalPoint: "Punto de llegada", connections: "Conexiones posteriores", from: "Desde", to: "Hasta", service: "Línea o servicio", duration: "Duración aproximada", shuttle: "En lanzadera", taxi: "En taxi", walk: "A pie", other: "Otra conexión", connectionLink: "Horarios e información" },
+};
+export const eventLogisticsLabels = (locale: string) => {
+  const language = (["it", "en", "de", "es"] as const).find((code) => code === locale.toLowerCase().split("-")[0]) || "it";
+  return { ...copy[language], ...connectionCopy[language] };
+};
 const external = "inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#dce0d2] bg-white px-3 py-2 text-xs font-semibold text-[#4f6344] underline-offset-4 hover:underline";
 const webLink = (value: string) => /^https?:\/\//i.test(value);
 
@@ -18,7 +27,7 @@ export function EventLogisticsSection({ logistics, locale }: { logistics: EventL
   const accessibility = logisticsText(data.accessibility, locale);
   const contact = logisticsText(data.contact, locale);
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  const icons = { plane: Plane, train: TrainFront, bus: Bus, car: Car };
+  const icons = { plane: Plane, train: TrainFront, bus: Bus, car: Car, shuttle: Bus, taxi: Car, walk: Footprints, other: Route };
   return <section id="viaggio-soggiorno" aria-labelledby="event-logistics-title" className="mt-12 scroll-mt-28 space-y-7 border-t border-[#dfe2d5] pt-9">
     <header><h2 id="event-logistics-title" className="text-2xl font-semibold tracking-[-0.035em]">{text.title}</h2><p className="mt-2 text-sm leading-6 text-[#727b6a]">{text.intro}</p></header>
     {data.accommodations.length > 0 && <section aria-labelledby="event-accommodations-title" className="space-y-4">
@@ -43,7 +52,38 @@ export function EventLogisticsSection({ logistics, locale }: { logistics: EventL
     {data.arrivals.length > 0 && <section aria-labelledby="event-arrivals-title" className="space-y-4"><h3 id="event-arrivals-title" className="text-lg font-semibold">{text.arrivals}</h3><div className="grid gap-4 sm:grid-cols-2">{data.arrivals.map((arrival) => {
       const Icon = icons[arrival.mode];
       const description = logisticsText(arrival.description, locale);
-      return <article key={arrival.id} className="min-w-0 space-y-3 rounded-[22px] border border-[#e1e4d9] bg-white p-5"><p className="flex items-center gap-2 text-xs font-semibold text-[#8a7450]"><Icon className="h-4 w-4" aria-hidden="true" />{text[arrival.mode]}</p><h4 className="text-base font-semibold">{logisticsText(arrival.title, locale)}</h4>{description && <p className="whitespace-pre-line text-sm leading-6 text-[#65715d]">{description}</p>}{webLink(arrival.linkUrl) && <a href={arrival.linkUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.route}<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>}</article>;
+      const arrivalPoint = logisticsText(arrival.arrivalPoint, locale);
+      const connections = arrival.connections || [];
+      return <article key={arrival.id} data-arrival-route={arrival.id} className={`min-w-0 space-y-3 rounded-[22px] border border-[#e1e4d9] bg-white p-5 ${connections.length ? "sm:col-span-2" : ""}`}>
+        <p className="flex items-center gap-2 text-xs font-semibold text-[#8a7450]"><Icon className="h-4 w-4" aria-hidden="true" />{text[arrival.mode]}</p>
+        <h4 className="break-words text-base font-semibold">{logisticsText(arrival.title, locale)}</h4>
+        {arrivalPoint && <div className="flex items-start gap-2 rounded-xl bg-[#f4f5ee] p-3"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#8a7450]" aria-hidden="true" /><div className="min-w-0"><p className="text-xs text-[#727b6a]">{text.arrivalPoint}</p><p className="mt-1 break-words text-sm font-semibold">{arrivalPoint}</p></div></div>}
+        {description && <p className="whitespace-pre-line text-sm leading-6 text-[#65715d]">{description}</p>}
+        {webLink(arrival.linkUrl) && <a href={arrival.linkUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.route}<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>}
+        {connections.length > 0 && <section className="border-t border-[#e1e4d9] pt-4">
+          <h5 className="text-sm font-semibold">{text.connections}</h5>
+          <ol aria-label={text.connections} className="mt-4 space-y-4">{connections.map((connection, index) => {
+            const ConnectionIcon = icons[connection.mode];
+            const service = logisticsText(connection.service, locale);
+            const duration = logisticsText(connection.duration, locale);
+            const instructions = logisticsText(connection.description, locale);
+            return <li key={connection.id} data-arrival-connection={connection.id} className="flex min-w-0 gap-3">
+              <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eaf0e5] text-xs font-semibold text-[#526b43]">{index + 1}</span>
+              <div className="min-w-0 flex-1 space-y-3 rounded-2xl bg-[#f7f7f1] p-4">
+                <p className="flex items-center gap-2 text-xs font-semibold text-[#8a7450]"><ConnectionIcon className="h-4 w-4 shrink-0" aria-hidden="true" />{text[connection.mode]}</p>
+                <dl className="space-y-2 text-sm">
+                  <div><dt className="text-xs text-[#727b6a]">{text.from}</dt><dd className="mt-0.5 break-words font-medium">{logisticsText(connection.from, locale)}</dd></div>
+                  <div><dt className="text-xs text-[#727b6a]">{text.to}</dt><dd className="mt-0.5 break-words font-semibold">{logisticsText(connection.to, locale)}</dd></div>
+                  {service && <div><dt className="text-xs text-[#727b6a]">{text.service}</dt><dd className="mt-0.5 break-words">{service}</dd></div>}
+                  {duration && <div><dt className="text-xs text-[#727b6a]">{text.duration}</dt><dd className="mt-0.5 break-words">{duration}</dd></div>}
+                </dl>
+                {instructions && <p className="whitespace-pre-line break-words text-sm leading-6 text-[#65715d]">{instructions}</p>}
+                {(webLink(connection.linkUrl) || webLink(connection.mapUrl)) && <div className="flex flex-wrap gap-2">{webLink(connection.linkUrl) && <a href={connection.linkUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.connectionLink}<ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" /></a>}{webLink(connection.mapUrl) && <a href={connection.mapUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.map}<ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" /></a>}</div>}
+              </div>
+            </li>;
+          })}</ol>
+        </section>}
+      </article>;
     })}</div></section>}
     {accessibility && <section className="rounded-[22px] border border-[#e1e4d9] p-5"><h3 className="flex items-center gap-2 text-base font-semibold"><Accessibility className="h-5 w-5 text-[#9e885d]" aria-hidden="true" />{text.accessibility}</h3><p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#65715d]">{accessibility}</p></section>}
     {contact && <section className="rounded-[22px] bg-[#eaf0e5] p-5"><h3 className="text-base font-semibold">{text.contact}</h3><p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#65715d]">{contact}</p></section>}
