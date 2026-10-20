@@ -10,11 +10,12 @@ function load(file, mocks = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : require(name), Date, Intl });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, URL, require: (name) => name in mocks ? mocks[name] : require(name), Date, Intl });
   return compiledModule.exports;
 }
 const i18n = load("lib/i18n-utils.ts");
 const richText = load("lib/rich-text.ts");
+const socialMetadata = load("lib/events/social-metadata.ts", { "@/lib/i18n-utils": i18n, "@/lib/rich-text": richText });
 const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n });
 const logistics = load("lib/events/logistics.ts", { "@/lib/rich-text": richText });
 const affiliates = load("lib/events/affiliates.ts");
@@ -35,8 +36,11 @@ function fixture(type, published) {
     const query = { select(columns) { selections.push(columns); return this; }, eq(column, value) { predicates.push((entry) => entry[column] === value); queries.push([column, value]); return this; }, in(column, values) { predicates.push((entry) => values.includes(entry[column])); return this; }, async single() { return { data: predicates.every((predicate) => predicate(row)) ? row : null, error: null }; } };
     return query;
   } }) };
+  const socialData = load("lib/events/social-data.ts", { react: { cache: callback => callback }, "@/lib/supabase/server": server });
   const page = load(`app/[locale]/(public)/${type === "evento" ? "eventi" : "workshop"}/[slug]/page.tsx`, {
     "@/lib/supabase/server": server,
+    "@/lib/events/social-data": socialData,
+    "@/lib/events/social-metadata": socialMetadata,
     "@/lib/i18n-utils": i18n,
     "@/components/meraki/events-data": eventsData,
     "@/components/meraki/event-detail": { EventDetail: () => null },
@@ -71,9 +75,9 @@ for (const type of ["evento", "workshop", "masterclass"]) {
     assert.ok(current.selections[0].split(",").map((column) => column.trim()).includes("affiliates"));
     const metadata = await current.page.generateMetadata({ params: current.params });
     assert.equal(metadata.title, "Titolo riservato della bozza");
-    assert.equal(metadata.openGraph.images[0].url, "https://example.test/private-draft-image.png");
-    assert.equal(metadata.openGraph.images[0].width, 1080);
-    assert.equal(metadata.openGraph.images[0].height, 1350);
+    assert.equal(new URL(metadata.openGraph.images[0].url).pathname, "/api/social/event/local-event");
+    assert.equal(metadata.openGraph.images[0].width, 1200);
+    assert.equal(metadata.openGraph.images[0].height, 630);
     assert.equal(metadata.openGraph.images[0].alt, "Titolo riservato della bozza");
   });
 }

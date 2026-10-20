@@ -97,6 +97,7 @@ for (const route of ["eventi", "workshop"]) test(`${route}: missing event metada
   const page = load(`app/[locale]/(public)/${route}/[slug]/page.tsx`, {
     "next/navigation": {}, "@/lib/supabase/server": { createClient: async () => chain }, "@/lib/i18n-utils": {},
     "@/components/meraki/event-detail": {}, "@/components/meraki/events-data": {}, "@/lib/events/logistics": {}, "@/lib/events/affiliates": {}, "@/lib/rich-text": {},
+    "@/lib/events/social-data": { getSocialEvent: async () => null }, "@/lib/events/social-metadata": {},
   });
   assert.equal((await page.generateMetadata({ params: Promise.resolve({ locale: "es", slug: "missing" }) })).title, "Evento no encontrado");
 });

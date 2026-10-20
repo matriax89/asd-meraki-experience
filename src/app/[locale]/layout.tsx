@@ -8,6 +8,8 @@ import { Suspense } from "react";
 import { FacebookPixelEvents } from "@/components/public/facebook-pixel-events";
 import { InstallProvider } from "@/components/pwa/install-provider";
 import "../globals.css";
+import { getLocalizedText } from "@/lib/i18n-utils";
+import { brandSocialMetadata } from "@/lib/events/social-metadata";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -16,7 +18,8 @@ const inter = Inter({
 
 export const viewport: Viewport = { themeColor: "#f5f4f0", viewportFit: "cover" };
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
   const supabase = await createClient();
   const { data: settings } = await supabase
     .from("site_settings")
@@ -26,13 +29,12 @@ export async function generateMetadata(): Promise<Metadata> {
 
   const branding = (settings?.value as any)?.branding;
 
-  const title = branding?.meta_title || "ASD Meraki Experience";
-  const description = branding?.meta_description || "Benessere, fitness e cambiamento";
+  const title = getLocalizedText(branding?.meta_title, locale) || "ASD Meraki Experience";
+  const description = getLocalizedText(branding?.meta_description, locale);
   const favicon = branding?.favicon_url || "/icons/meraki-original-192.png";
 
   return {
-    title,
-    description,
+    ...brandSocialMetadata(locale, undefined, { title, description }),
     applicationName: "Meraki",
     manifest: "/manifest.webmanifest",
     appleWebApp: {
@@ -44,19 +46,6 @@ export async function generateMetadata(): Promise<Metadata> {
       icon: favicon,
       apple: [{ url: "/icons/meraki-original-apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
       shortcut: favicon,
-    },
-    openGraph: {
-      title,
-      description,
-      siteName: title,
-      images: [
-        {
-          url: branding?.logo_url || "https://www.merakiexperience.org/images/logo.png",
-          width: 1200,
-          height: 630,
-          alt: title,
-        },
-      ],
     },
   };
 }

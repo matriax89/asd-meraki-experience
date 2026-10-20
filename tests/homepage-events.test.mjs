@@ -59,6 +59,8 @@ function catalogue(rows, error = null, packagePrices) {
     ...common,
     "@/lib/supabase/server": server,
     "@/lib/events/public-feed": feed,
+    "@/lib/events/social-data": {},
+    "@/lib/events/social-metadata": {},
     "@/components/meraki/event-feed": eventFeed,
     "@/lib/commerce/feed": { enrichCommerceFeed: async (events) => { enrichment.push(events); return events.map((event) => ({ ...event, price: 1900, priceFrom: true, packagePrices })); } },
     "@/lib/i18n-utils": i18n,

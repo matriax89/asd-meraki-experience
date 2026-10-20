@@ -12,6 +12,14 @@ import { InstagramWidget } from "@/components/public/instagram-widget";
 import { EventFeed } from "@/components/meraki/event-feed";
 import { getPublishedEventFeed } from "@/lib/events/public-feed";
 import { enrichCommerceFeed } from "@/lib/commerce/feed";
+import { getFeaturedSocialEvent } from "@/lib/events/social-data";
+import { brandSocialMetadata, eventSocialMetadata } from "@/lib/events/social-metadata";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  const event = await getFeaturedSocialEvent();
+  return event ? eventSocialMetadata(event, locale, "/") : brandSocialMetadata(locale, "/");
+}
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;

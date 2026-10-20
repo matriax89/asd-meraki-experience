@@ -208,8 +208,11 @@ for (const type of ["evento", "workshop", "masterclass"]) {
     const descriptions = Object.fromEntries(["it", "en", "de", "es"].map((locale) => [locale, `<h2>${locale} &amp; Meraki</h2><p>Uno <strong>due</strong></p><script>alert('private')</script><ul><li>Tre</li></ul>`]));
     const row = { ...baseEvent, tipo: type, descrizione: descriptions, copertina_url: null };
     const server = { createClient: async () => ({ from() { return { select() { return this; }, eq() { return this; }, in() { return this; }, async single() { return { data: row }; } }; } }) };
+    const socialMetadata = load("lib/events/social-metadata.ts", { "@/lib/i18n-utils": i18n, "@/lib/rich-text": richText });
     const page = load(`app/[locale]/(public)/${type === "evento" ? "eventi" : "workshop"}/[slug]/page.tsx`, {
       "@/lib/supabase/server": server,
+      "@/lib/events/social-data": { getSocialEvent: async () => row },
+      "@/lib/events/social-metadata": socialMetadata,
       "@/lib/i18n-utils": i18n,
       "@/components/meraki/event-detail": { EventDetail: () => null },
       "@/components/meraki/events-data": {},

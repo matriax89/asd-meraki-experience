@@ -6,18 +6,16 @@ import { EventDetail } from "@/components/meraki/event-detail";
 import { eventFeedColumns, toMerakiEvent } from "@/components/meraki/events-data";
 import { parseEventLogistics } from "@/lib/events/logistics";
 import { publicEventAffiliates } from "@/lib/events/affiliates";
-import { richTextPlainText } from "@/lib/rich-text";
+import { getSocialEvent } from "@/lib/events/social-data";
+import { eventSocialMetadata } from "@/lib/events/social-metadata";
 
 type PageParams = { params: Promise<{ slug: string; locale: string }> };
 
 export async function generateMetadata({ params }: PageParams): Promise<Metadata> {
   const { slug, locale } = await params;
-  const supabase = await createClient();
-  const { data: event } = await supabase.from("events").select("titolo, descrizione, copertina_url").eq("slug", slug).in("tipo", ["workshop", "masterclass"]).eq("attivo", true).single();
+  const event = await getSocialEvent(slug, ["workshop", "masterclass"]);
   if (!event) return { title: locale === "en" ? "Event not found" : locale === "de" ? "Veranstaltung nicht gefunden" : locale === "es" ? "Evento no encontrado" : "Evento non trovato" };
-  const title = getLocalizedText(event.titolo, locale);
-  const description = richTextPlainText(getLocalizedText(event.descrizione, locale)).replace(/\s+/g, " ").trim().slice(0, 180) || title;
-  return { title, description, openGraph: { title, description, ...(event.copertina_url && { images: [{ url: event.copertina_url, width: 1080, height: 1350, alt: title }] }) } };
+  return eventSocialMetadata(event, locale, `/workshop/${encodeURIComponent(slug)}`);
 }
 
 export default async function DetailPage({ params }: PageParams) {
