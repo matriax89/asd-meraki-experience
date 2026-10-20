@@ -1,14 +1,12 @@
 import { ArrowUpRight, MapPin } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { EventPoster } from "./event-poster";
-import { EventPriceSummary } from "./event-price-summary";
-import { availablePlaces, eventDate, eventHref, eventPrice, eventLabels, type MerakiEvent } from "./event-model";
+import { availablePlaces, eventDate, eventHref, eventLabels, type MerakiEvent } from "./event-model";
 
-export function MerakiEventCard({ event, locale, now, featured = false, past = false }: { event: MerakiEvent; locale: string; now: number; featured?: boolean; past?: boolean }) {
+export function MerakiEventCard({ event, locale, featured = false, past = false }: { event: MerakiEvent; locale: string; now: number; featured?: boolean; past?: boolean }) {
   const text = eventLabels(locale);
   const type = event.type === "evento" ? text.event : event.type === "masterclass" ? "Masterclass" : "Workshop";
   const places = availablePlaces(event);
-  const price = event.priceFrom ? event.price === null ? text.packages : `${text.from} ${eventPrice(event.price, locale)}` : eventPrice(event.price, locale);
   const purchase = !past && (Boolean(event.packagePrices?.length) || (event.price ?? 0) > 0);
   const destination = `${eventHref(event)}${purchase ? "#quote-partecipazione" : ""}`;
 
@@ -21,9 +19,8 @@ export function MerakiEventCard({ event, locale, now, featured = false, past = f
       {event.location && <p className="mt-3 flex items-start gap-1.5 text-xs leading-5 text-[#727b6a]"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{event.location}</p>}
     </div>
     <div className="min-w-0 px-1 pb-2 sm:col-span-2 sm:px-0 sm:pb-0">
-      {!past && event.packagePrices?.length ? <EventPriceSummary packages={event.packagePrices} locale={locale} now={now} /> : <p className="mt-4 text-base font-semibold">{price}</p>}
       {past ? <p className="mt-1 text-xs text-[#858b81]">{text.past}</p> : places === 0 ? <p className="mt-1 text-xs text-[#a04d3a]">{text.soldOut}</p> : null}
-      <Link href={destination} className={`mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-5 py-3 text-center text-sm font-semibold ${purchase ? "w-full bg-[#263a2c] text-white hover:bg-[#17281f]" : "border border-[#dce0d2] text-[#4f6344] hover:bg-[#f5f4f0]"}`} data-event-purchase-cta={purchase || undefined}>{past ? text.experience : purchase ? text.purchase : text.book}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>
+      <Link href={destination} className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-5 py-3 text-center text-sm font-semibold ${purchase ? "w-full bg-[#263a2c] text-white hover:bg-[#17281f]" : "border border-[#dce0d2] text-[#4f6344] hover:bg-[#f5f4f0]"}`} data-event-purchase-cta={purchase || undefined}>{past ? text.experience : purchase ? text.purchase : text.book}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>
     </div>
   </article>;
 
@@ -33,7 +30,7 @@ export function MerakiEventCard({ event, locale, now, featured = false, past = f
       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8a7450]">{eventDate(event.startsAt, locale, { day: "numeric", month: "short" })} <span className="px-1 text-[#c8c8bd]">·</span> {type}</p>
       <h3 className="mt-1.5 text-base font-semibold leading-5 tracking-[-0.025em] sm:text-lg"><Link href={eventHref(event)} className="line-clamp-2 outline-offset-4 hover:underline">{event.title}</Link></h3>
       {event.location ? <p className="mt-1.5 truncate text-xs text-[#727b72]">{event.location}</p> : null}
-      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-xs"><span className="font-semibold">{price}</span>{past ? <span className="text-[#858b81]">{text.past}</span> : places === 0 ? <span className="text-[#a04d3a]">{text.soldOut}</span> : <Link href={destination} aria-label={`${purchase ? text.purchase : text.book} · ${event.title}`} className="flex min-h-9 min-w-9 items-center justify-center rounded-full border border-[#dce0d2]"><ArrowUpRight aria-hidden="true" className="h-4 w-4 text-[#737d70]" /></Link>}</div>
+      <div className="mt-2.5 flex flex-wrap items-center justify-end gap-1 text-xs">{past ? <span className="text-[#858b81]">{text.past}</span> : places === 0 ? <span className="text-[#a04d3a]">{text.soldOut}</span> : <Link href={destination} aria-label={`${purchase ? text.purchase : text.book} · ${event.title}`} className="flex min-h-9 min-w-9 items-center justify-center rounded-full border border-[#dce0d2]"><ArrowUpRight aria-hidden="true" className="h-4 w-4 text-[#737d70]" /></Link>}</div>
     </div>
   </article>;
 }

@@ -32,9 +32,7 @@ const i18n = load("lib/i18n-utils.ts");
 const model = load("components/meraki/event-model.ts");
 const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n });
 const poster = load("components/meraki/event-poster.tsx", common);
-const commerceModel = load("components/meraki/commerce-public-model.ts");
-const priceSummary = load("components/meraki/event-price-summary.tsx", { "./event-model": model, "./commerce-public-model": commerceModel, "@/lib/commerce/localization": load("lib/commerce/localization.ts") });
-const card = load("components/meraki/event-card.tsx", { ...common, "./event-model": model, "./event-poster": poster, "./event-price-summary": priceSummary });
+const card = load("components/meraki/event-card.tsx", { ...common, "./event-model": model, "./event-poster": poster });
 const eventFeed = load("components/meraki/event-feed.tsx", { ...common, "./event-model": model, "./event-card": card });
 const past = { id: "past", slug: "old-event", tipo: "evento", titolo: { it: "Evento passato", en: "Past event", de: "Vergangenes Event", es: "Evento pasado" }, sottotitolo: null, data_inizio: "2026-08-04T18:00:00+02:00", data_fine: null, copertina_url: null, location: "Bolzano", indirizzo: null, prezzo_cents: 1000, capacity: 30, posti_venduti: 0 };
 const future = { ...past, id: "future", slug: "next-event", titolo: { it: "Evento futuro", en: "Future event", de: "Künftiges Event", es: "Evento futuro" }, data_inizio: "2026-12-01T18:00:00+01:00" };
@@ -88,7 +86,7 @@ test("published feed uses one explicit clock and activates home only for future 
   assert.equal(failed.loadError, true);
 });
 
-test("active events replace only the general hero with the same localized app feed and commerce prices", async () => {
+test("active events replace only the general hero with the same localized app feed without showing prices", async () => {
   for (const locale of ["it", "en", "de", "es"]) {
     const fixture = catalogue([past, future]);
     const html = await fixture.renderHome(locale);
@@ -96,7 +94,9 @@ test("active events replace only the general hero with the same localized app fe
     assert.match(html, /href="\/eventi\/next-event"/);
     assert.doesNotMatch(html, /href="\/eventi\/old-event"/);
     assert.doesNotMatch(html, /hero.headline/);
-    assert.ok(html.includes(model.eventPrice(1900, locale)), "homepage uses the current package price from commerce enrichment");
+    assert.ok(!html.includes(model.eventPrice(1900, locale)), "homepage leaves prices on the event detail page");
+    assert.ok(html.includes(model.eventLabels(locale).purchase), "the localized purchase action remains available");
+    assert.match(html, /href="\/eventi\/next-event#quote-partecipazione"/);
     assert.equal((html.match(/<main\b/g) || []).length, 1);
     for (const anchor of ["chi-siamo", "corsi", "orario"]) assert.ok(html.includes(`id="${anchor}"`), `general navigation target ${anchor} remains reachable`);
     assert.equal(fixture.enrichment.length, 1);
@@ -112,20 +112,17 @@ test("empty, archived-only and unavailable event catalogues preserve the general
   }
 });
 
-test("the general homepage exposes package prices and the next-tier saving before checkout", async () => {
+test("the general homepage links to participation options without repeating package prices", async () => {
   const packagePrices = [{ id: "bundle", name: "Workshop + Masterclass", prices: [
     { id: "early", label: "Early Bird", amountCents: 6500, startsAt: null, endsAt: "2026-12-04T22:59:00Z" },
     { id: "standard", label: "Standard", amountCents: 8500, startsAt: "2026-12-04T23:00:00Z", endsAt: null },
   ] }];
   for (const locale of ["it", "en", "de", "es"]) {
     const html = await catalogue([future], null, packagePrices).renderHome(locale);
-    assert.match(html, /Workshop \+ Masterclass/);
-    assert.match(html, /Early Bird/);
-    assert.match(html, /23,5%/);
-    assert.match(html, /04\/12\/2026/);
-    assert.ok(html.includes(model.eventPrice(6500, locale)));
-    assert.ok(html.includes(model.eventPrice(8500, locale)));
-    assert.ok(!html.includes(`${model.eventLabels(locale).from} ${model.eventPrice(1900, locale)}`));
+    assert.doesNotMatch(html, /Workshop \+ Masterclass|Early Bird|23,5%|04\/12\/2026/);
+    for (const amount of [1900, 6500, 8500]) assert.ok(!html.includes(model.eventPrice(amount, locale)));
+    assert.match(html, /href="\/eventi\/next-event#quote-partecipazione"/);
+    assert.ok(html.includes(model.eventLabels(locale).purchase));
   }
 });
 

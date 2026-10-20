@@ -21,13 +21,12 @@ after(() => { dom.window.close(); for (const [key, descriptor] of descriptors) {
 const modules = new Map();
 function load(name) {
   if (modules.has(name)) return modules.get(name);
-  const sourcePath = name === "commerce-localization" ? "../src/lib/commerce/localization.ts" : `../src/components/meraki/${name}.${["event-model", "commerce-public-model"].includes(name) ? "ts" : "tsx"}`;
+  const sourcePath = `../src/components/meraki/${name}.${name === "event-model" ? "ts" : "tsx"}`;
   const source = readFileSync(new URL(sourcePath, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
   vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, window: dom.window, document: dom.window.document, Date, require: (specifier) => {
     if (specifier.startsWith("./")) return load(specifier.slice(2));
-    if (specifier === "@/lib/commerce/localization") return load("commerce-localization");
     if (specifier === "@/i18n/routing") return { Link: ({ children, ...props }) => React.createElement("a", props, children) };
     return require(specifier);
   } });
@@ -62,19 +61,19 @@ test("event time uses Rome even around UTC midnight, and capacity zero stays sol
   assert.equal(model.availablePlaces({ capacity: null, sold: 8 }), null);
 });
 
-test("featured package prices replace the minimum price and refresh when returning after a tier change", async () => {
+test("featured events leave package prices on the detail page when returning after a tier change", async () => {
   const screen = await render([packageEvent]);
   const originalDateNow = Date.now;
   try {
-    assert.match(screen.host.textContent, /Workshop completo/);
-    assert.match(screen.host.textContent, /Early Bird/);
-    assert.match(screen.host.textContent, /18,1%/);
-    assert.doesNotMatch(screen.host.textContent, /da 45/);
+    assert.match(screen.host.textContent, /Pratica con Meraki/);
+    assert.doesNotMatch(screen.host.textContent, /Workshop completo|Early Bird|18,1%|45\s*€|55\s*€/);
+    assert.equal(screen.host.querySelector('[data-event-purchase-cta]').getAttribute("href"), "/workshop/workshop#quote-partecipazione");
+    assert.match(screen.host.querySelector('[data-event-purchase-cta]').textContent, /Acquista quota partecipazione/);
     Date.now = () => Date.parse("2026-11-01T23:00:00Z");
     await act(async () => window.dispatchEvent(new dom.window.Event("focus")));
-    assert.match(screen.host.textContent, /Workshop completo/);
-    assert.match(screen.host.textContent, /Standard/);
-    assert.doesNotMatch(screen.host.textContent, /Early Bird|18,1%|45\s*€/);
+    assert.match(screen.host.textContent, /Pratica con Meraki/);
+    assert.doesNotMatch(screen.host.textContent, /Workshop completo|Standard|Early Bird|18,1%|45\s*€|55\s*€/);
+    assert.equal(screen.host.querySelector('[data-event-purchase-cta]').getAttribute("href"), "/workshop/workshop#quote-partecipazione");
   } finally { Date.now = originalDateNow; await screen.cleanup(); }
 });
 
