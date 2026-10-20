@@ -159,3 +159,30 @@ test("free admission keeps its localized label and missing content translations 
   assert.ok(plain(document.body).includes("Ingresso gratuito"));
   assert.equal(plain(document.querySelector("strong")), "Free");
 });
+
+test("interactive prices use accessible whole-card buttons while static summaries remain noninteractive", () => {
+  assert.equal(render().querySelector("button"), null);
+  for (const [locale, action, unavailable] of [["it", "Seleziona", "Non disponibile"], ["en", "Select", "Unavailable"], ["de", "Auswählen", "Nicht verfügbar"], ["es", "Seleccionar", "No disponible"]]) {
+    const document = render({ locale, onSelectPackage() {}, packageAvailability: { bundle: true, ws: true, mc: false } });
+    const combo = row(document, "bundle");
+    assert.equal(combo.tagName, "BUTTON");
+    assert.equal(combo.type, "button");
+    assert.equal(combo.disabled, false);
+    assert.equal(combo.getAttribute("aria-haspopup"), "dialog");
+    assert.ok(combo.getAttribute("aria-label").startsWith(`${action}: Workshop + Masterclass, 65`));
+    assert.match(combo.className, /focus-visible:outline/);
+    assert.match(combo.className, /p-5 .*sm:p-6/);
+    assert.equal(combo.querySelector("button,input,a,div,p"), null, "Native buttons contain only valid phrasing content and no nested controls");
+    const soldOut = row(document, "mc");
+    assert.equal(soldOut.disabled, true);
+    assert.ok(soldOut.getAttribute("aria-label").startsWith(`${unavailable}: Masterclass`));
+    assert.ok(plain(soldOut).includes(unavailable));
+  }
+});
+
+test("interactive prices require explicit availability when a capacity map is provided", () => {
+  const document = render({ onSelectPackage() {}, packageAvailability: { ws: true } });
+  assert.equal(row(document, "ws").disabled, false);
+  assert.equal(row(document, "mc").disabled, true);
+  assert.equal(row(document, "bundle").disabled, true);
+});

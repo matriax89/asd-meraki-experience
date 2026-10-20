@@ -128,7 +128,7 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
   const root = createRoot(window.document.getElementById("root"));
   context.after(async () => act(async () => root.unmount()));
   await act(async () => root.render(React.createElement(exports.CommercePurchase, { eventId: catalog.event.id, locale, upgrade, ended: controls.ended || false, presentation: controls.presentation, fallback: React.createElement("button", null, "Legacy checkout") })));
-  const open = async () => act(async () => window.document.querySelector("button").click());
+  const open = async () => act(async () => (window.document.querySelector("[data-commerce-package-presentation] .packagePurchaseAction button") || window.document.querySelector("button")).click());
   const settleQuote = async () => act(async () => new Promise((resolve) => window.setTimeout(resolve, 300)));
   const change = async (element, value) => act(async () => { const prototype = element.tagName === "SELECT" ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(prototype, "value").set.call(element, value); element.dispatchEvent(new window.Event(element.tagName === "SELECT" ? "change" : "input", { bubbles: true })); });
   const fillPerson = async (index = 0) => {
@@ -186,7 +186,7 @@ for (const [locale, purchase] of [["it", "Acquista quota partecipazione"], ["en"
     assert.equal(offers[0].getAttribute("data-package-combo"), "true");
     assert.match(offers[0].className, /bg-\[#17281f\].*text-white/);
     assert.match(offers[1].querySelector("[data-price-saving]").textContent, /18,1%/);
-    const trigger = presentation.querySelector("button");
+    const trigger = presentation.querySelector(".packagePurchaseAction button");
     assert.equal(trigger.textContent, purchase); assert.equal(trigger.disabled, false);
     await ui.open(); await ui.settleQuote();
     assert.equal(window.document.querySelector("dialog").open, true);
@@ -195,11 +195,101 @@ for (const [locale, purchase] of [["it", "Acquista quota partecipazione"], ["en"
   });
 }
 
+for (const [packageId, amount] of [["only-ws", 3000], ["only-mc", 4000], ["bundle", 6000]]) {
+  test(`clicking the ${packageId} price card opens checkout with its exact package and authoritative quote`, async (context) => {
+    const ui = await setup(context, catalog, "it", undefined, { presentation: "packages" });
+    ui.setQuoteResponse((body) => {
+      const selected = config.packages.find((offer) => offer.id === body.participants[0].packageId);
+      return { ok: true, json: async () => ({ quote: { totalCents: selected.prices[0].amountCents, lines: [{ label: selected.name, quantity: 1, unitAmountCents: selected.prices[0].amountCents, totalCents: selected.prices[0].amountCents, kind: "package", packageId: selected.id }] } }) };
+    });
+    const card = window.document.querySelector(`[data-event-package-price="${packageId}"]`);
+    assert.equal(card.tagName, "BUTTON");
+    await act(async () => card.click());
+    await ui.settleQuote();
+    assert.equal(window.document.querySelector("dialog").open, true);
+    assert.equal(window.document.querySelector('input[name="package-0"]:checked').value, packageId);
+    const requested = ui.calls.filter((call) => call.url === "/api/commerce/quote");
+    assert.ok(requested.length > 0);
+    assert.ok(requested.every((call) => call.body.participants[0].packageId === packageId), "No request may use the previously selected formula");
+    assert.match(window.document.querySelector(".total").textContent, new RegExp(String(amount / 100) + ",00"));
+    assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
+    await act(async () => window.document.querySelector('button[aria-label="Chiudi acquisto"]').click());
+    assert.equal(window.document.activeElement, card, "Closing returns keyboard focus to the selected price card");
+  });
+}
+
+test("sold-out inline cards are disabled independently and never open a purchase or request a quote", async (context) => {
+  const ui = await setup(context, { ...catalog, availability: { ws: 20, mc: 0, dinner: 10 } }, "it", undefined, { presentation: "packages" });
+  for (const id of ["bundle", "only-mc"]) {
+    const card = window.document.querySelector(`[data-event-package-price="${id}"]`);
+    assert.equal(card.disabled, true);
+    await act(async () => card.click());
+  }
+  assert.equal(window.document.querySelector("dialog").open, false);
+  assert.equal(ui.calls.some((call) => call.url === "/api/commerce/quote" || call.url === "/api/commerce/checkout"), false);
+  const availableCard = window.document.querySelector('[data-event-package-price="only-ws"]');
+  assert.equal(availableCard.disabled, false);
+  await act(async () => availableCard.click()); await ui.settleQuote();
+  assert.equal(window.document.querySelector('input[name="package-0"]:checked').value, "only-ws");
+});
+
+test("globally unavailable or exhausted events disable every price card while keeping the separate waitlist action", async (context) => {
+  const ui = await setup(context, { ...catalog, available: false }, "it", undefined, { presentation: "packages" });
+  const cards = [...window.document.querySelectorAll("[data-event-package-price]")];
+  assert.equal(cards.length, 3);
+  assert.ok(cards.every((card) => card.disabled));
+  for (const card of cards) await act(async () => card.click());
+  assert.equal(window.document.querySelector("dialog").open, false);
+  assert.equal(ui.calls.some((call) => call.url === "/api/commerce/quote"), false);
+  await ui.open();
+  assert.match(window.document.querySelector("dialog h2").textContent, /prossimo posto/);
+});
+
+test("price-card changes preserve contact and group data, remove included add-ons and reset only the changed participant menus", async (context) => {
+  const withUpgradeAddon = structuredClone(catalog);
+  withUpgradeAddon.config.addons.push({ id: "add-mc", name: "Aggiungi masterclass", activityId: "mc", amountCents: 4000 });
+  const ui = await setup(context, withUpgradeAddon, "it", undefined, { presentation: "packages" });
+  const selectCard = async (id) => act(async () => window.document.querySelector(`[data-event-package-price="${id}"]`).click());
+  const close = async () => act(async () => window.document.querySelector('button[aria-label="Chiudi acquisto"]').click());
+  await selectCard("only-ws");
+  await ui.change(window.document.querySelector('select[aria-label="Numero di partecipanti"]'), "2");
+  await ui.fillPerson(0); await ui.fillPerson(1);
+  await act(async () => window.document.querySelector('input[name="addon-0-add-mc"]').click());
+  await act(async () => window.document.querySelector('input[name="addon-0-add-dinner"]').click());
+  await ui.change(window.document.querySelectorAll("fieldset")[0].querySelector('select[aria-label^="Cena:"]'), "Vegetariano");
+  await act(async () => window.document.querySelector('input[name="package-1"][value="only-mc"]').click());
+  await act(async () => window.document.querySelector('input[name="addon-1-add-dinner"]').click());
+  await ui.change(window.document.querySelectorAll("fieldset")[1].querySelector('select[aria-label^="Cena:"]'), "Classico");
+  await ui.settleQuote(); await close();
+  await selectCard("only-ws"); await ui.settleQuote();
+  assert.equal(window.document.querySelectorAll("fieldset")[0].querySelector('select[aria-label^="Cena:"]').value, "Vegetariano", "Reopening the same formula retains entered choices");
+  await close(); await selectCard("bundle"); await ui.settleQuote();
+  assert.equal(window.document.querySelectorAll("fieldset").length, 2);
+  for (const [index, firstName, email] of [[0, "Matias", "matias@example.test"], [1, "Anna", "anna@example.test"]]) {
+    assert.equal(window.document.querySelector(`input[name="firstName-${index}"]`).value, firstName);
+    assert.equal(window.document.querySelector(`input[name="participant-${index}-email"]`).value, email);
+    assert.equal(window.document.querySelector(`input[name="participant-${index}-phone"]`).value, "+393331234567");
+    assert.equal(window.document.querySelector(`input[name="participant-${index}-document-number"]`).value, "RSSMRA85T10A562S");
+  }
+  const quoted = ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1).body.participants;
+  assert.equal(quoted[0].packageId, "bundle");
+  assert.deepEqual(quoted[0].addonIds, ["add-dinner"], "The newly included masterclass is no longer charged as an add-on");
+  assert.deepEqual(quoted[0].menuChoices, {});
+  assert.equal(quoted[1].packageId, "only-mc");
+  assert.deepEqual(quoted[1].addonIds, ["add-dinner"]);
+  assert.deepEqual(quoted[1].menuChoices, { dinner: "Classico" });
+  await close(); await ui.open(); await ui.settleQuote();
+  assert.equal(window.document.querySelector('input[name="package-0"]:checked').value, "bundle", "The generic purchase button keeps the existing selection");
+  assert.equal(window.document.querySelector('input[name="participant-0-email"]').value, "matias@example.test");
+  await close();
+  assert.equal(window.document.activeElement, window.document.querySelector(".packagePurchaseAction button"), "The generic purchase button regains focus after a card was used previously");
+});
+
 test("inline sold-out prices offer a separate waitlist rather than a payment action", async (context) => {
   const ui = await setup(context, { ...catalog, availability: { ws: 0, mc: 0, dinner: 0 } }, "it", undefined, { presentation: "packages" });
   const presentation = window.document.querySelector("[data-commerce-package-presentation]");
   assert.equal(presentation.querySelectorAll("[data-event-package-price]").length, 3);
-  assert.match(presentation.querySelector("button").textContent, /lista d’attesa/);
+  assert.match(presentation.querySelector(".packagePurchaseAction button").textContent, /lista d’attesa/);
   await ui.open(); await ui.settleQuote();
   assert.equal(ui.calls.some((call) => call.url === "/api/commerce/quote" || call.url === "/api/commerce/checkout"), false);
   assert.match(window.document.querySelector("dialog h2").textContent, /prossimo posto/);
@@ -247,7 +337,7 @@ test("group purchase keeps independent formulas, optional dinner and menus for e
   assert.equal(window.document.querySelectorAll("fieldset").length, 2);
   const second = window.document.querySelectorAll("fieldset")[1];
   await act(async () => second.querySelector('input[value="bundle"]').click());
-  await act(async () => second.querySelector('input[type="checkbox"]:not([role="switch"])').click());
+  await act(async () => second.querySelector('input[name="addon-1-add-dinner"]').click());
   assert.equal(window.document.querySelectorAll('input[type="checkbox"]:checked').length, 1);
   const menu = [...second.querySelectorAll("select")].find((select) => [...select.options].some((option) => option.textContent === "Vegetariano"));
   assert.ok(menu.required);
@@ -260,7 +350,7 @@ test("group purchase keeps independent formulas, optional dinner and menus for e
   assert.deepEqual(quoted.participants[1].addonIds, ["add-dinner"]);
   assert.equal(quoted.participants[1].menuChoices.dinner, "Vegetariano");
   assert.match(window.document.querySelector("form").textContent, /115,00/);
-  await act(async () => second.querySelector('input[type="checkbox"]:not([role="switch"])').click());
+  await act(async () => second.querySelector('input[name="addon-1-add-dinner"]').click());
   await ui.settleQuote();
   assert.deepEqual(ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1).body.participants[1].menuChoices, {});
   await act(async () => window.document.querySelector('button[aria-label="Chiudi acquisto"]').click());
@@ -371,7 +461,7 @@ test("guest checkout keeps optional consent separate for each participant", asyn
   await ui.change(window.document.querySelector('select[aria-label="Numero di partecipanti"]'), "2");
   await ui.fillPerson(0);
   await ui.fillPerson(1);
-  const toggles = [...window.document.querySelectorAll('input[role="switch"]')];
+  const toggles = [...window.document.querySelectorAll('input[name$="-marketing-consent"]')];
   assert.equal(toggles.length, 2);
   assert.ok(toggles.every((toggle) => !toggle.checked && !toggle.required));
   await act(async () => toggles[0].click());
@@ -498,7 +588,7 @@ test("the selected language translates formulas, tiers, extras and menu labels w
   const ui = await setup(context, translated, "en"); await ui.open();
   assert.match(window.document.querySelector("form").textContent, /Workshop admission.*Move with us.*Regular price/s);
   assert.match(window.document.querySelector("form").textContent, /Add dinner/);
-  await act(async () => window.document.querySelector('input[type="checkbox"]:not([role="switch"])').click());
+  await act(async () => window.document.querySelector('input[name="addon-0-add-dinner"]').click());
   const menu = [...window.document.querySelectorAll("select")].find((element) => [...element.options].some((option) => option.textContent === "Vegetarian"));
   assert.ok(menu); await ui.change(menu, "Vegetariano"); await ui.settleQuote();
   const latest = ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1).body;

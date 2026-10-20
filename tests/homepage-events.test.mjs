@@ -96,7 +96,7 @@ test("active events replace only the general hero with the same localized app fe
     assert.doesNotMatch(html, /hero.headline/);
     assert.ok(!html.includes(model.eventPrice(1900, locale)), "homepage leaves prices on the event detail page");
     assert.ok(html.includes(model.eventLabels(locale).purchase), "the localized purchase action remains available");
-    assert.match(html, /href="\/eventi\/next-event#quote-partecipazione"/);
+    assert.match(html, /href="\/eventi\/next-event#top"/);
     assert.equal((html.match(/<main\b/g) || []).length, 1);
     for (const anchor of ["chi-siamo", "corsi", "orario"]) assert.ok(html.includes(`id="${anchor}"`), `general navigation target ${anchor} remains reachable`);
     assert.equal(fixture.enrichment.length, 1);
@@ -121,7 +121,7 @@ test("the general homepage links to participation options without repeating pack
     const html = await catalogue([future], null, packagePrices).renderHome(locale);
     assert.doesNotMatch(html, /Workshop \+ Masterclass|Early Bird|23,5%|04\/12\/2026/);
     for (const amount of [1900, 6500, 8500]) assert.ok(!html.includes(model.eventPrice(amount, locale)));
-    assert.match(html, /href="\/eventi\/next-event#quote-partecipazione"/);
+    assert.match(html, /href="\/eventi\/next-event#top"/);
     assert.ok(html.includes(model.eventLabels(locale).purchase));
   }
 });

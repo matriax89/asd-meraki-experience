@@ -67,11 +67,9 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   useCheckoutViewport(dialog, open);
-  const previousOverflow = useRef("");
   const submitting = useRef(false);
   const attempt = useRef<string | null>(null);
   const attemptBody = useRef("");
-  const opened = useRef(false);
   const base = useMemo(() => ({ eventId: catalog.event.id, participants: selection.participants, locale, ...(discountCode && !upgrade ? { discountCode } : {}), ...(upgrade ? { upgradePassId: upgrade.passId, upgradeToken: upgrade.token } : {}) }), [catalog.event.id, selection.participants, locale, discountCode, upgrade]);
   const selectionKey = JSON.stringify(base);
   const currentQuote = quoteKey === selectionKey ? quote : null;
@@ -81,7 +79,12 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
   const preserveAcceptedQuote = checkoutHold?.inputKey === checkoutInputKey;
 
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30000); return () => window.clearInterval(timer); }, []);
-  useEffect(() => () => { if (opened.current) document.body.style.overflow = previousOverflow.current; }, []);
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [open]);
   useEffect(() => {
     if (!open || waitlist || preserveAcceptedQuote) return;
     const controller = new AbortController();
@@ -101,10 +104,11 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
     if (checkoutHold) { setCheckoutHold(null); setQuote(null); setQuoteRetry((value) => value + 1); }
   }
 
-  function show(asWaitlist = false) {
+  function show(asWaitlist = false, source?: HTMLButtonElement, openedAt = now) {
     if (!dialog.current || dialog.current.open) return;
-    setWaitlist(asWaitlist); setError(""); setWaitlistSaved(false); setNow(Date.now()); setOpen(true);
-    previousOverflow.current = document.body.style.overflow; document.body.style.overflow = "hidden"; opened.current = true; dialog.current.showModal();
+    if (source) trigger.current = source;
+    setWaitlist(asWaitlist); setError(""); setWaitlistSaved(false); setNow(openedAt); setOpen(true);
+    dialog.current.showModal();
   }
   function updateParticipant(index: number, changes: Partial<CommerceParticipant>) {
     resetCheckoutAttempt();
@@ -115,6 +119,18 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
     resetCheckoutAttempt();
     setError("");
     setSelection((value) => ({ ...value, contacts: value.contacts.map((contact, position) => position === index ? { ...contact, ...changes } : contact) }));
+  }
+  function handleSelectPackage(packageId: string, source: HTMLButtonElement, selectedAt: number) {
+    if (upgrade || submitting.current || loading || !catalog.available || !packageAvailable(catalog, packageId, [], selectedAt)) return;
+    const offer = offers.find((item) => item.id === packageId);
+    const participant = selection.participants[0];
+    if (!offer || !participant) return;
+    if (participant.packageId !== packageId) updateParticipant(0, {
+      packageId,
+      addonIds: participant.addonIds.filter((id) => !catalog.config.addons.some((addon) => addon.id === id && offer.activityIds.includes(addon.activityId))),
+      menuChoices: {},
+    });
+    show(false, source, selectedAt);
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -171,15 +187,21 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
   });
 
   return <>
-    {upgrade ? <div className="mt-6 rounded-[22px] border border-[#dedfd3] bg-white p-5"><p className={styles.eyebrow}>{copy.complete}</p><p className="my-3 text-sm leading-6 text-[#64705f]">{copy.upgradeIntro}</p><button ref={trigger} className={styles.button} type="button" onClick={() => show()}><Plus className="h-4 w-4" /> {copy.upgradeAction}</button></div>
+    {upgrade ? <div className="mt-6 rounded-[22px] border border-[#dedfd3] bg-white p-5"><p className={styles.eyebrow}>{copy.complete}</p><p className="my-3 text-sm leading-6 text-[#64705f]">{copy.upgradeIntro}</p><button ref={trigger} className={styles.button} type="button" onClick={(event) => {
+      // eslint-disable-next-line react-hooks/purity -- The current time is read only by this native click handler, never during render.
+      show(false, event.currentTarget, Date.now());
+    }}><Plus className="h-4 w-4" /> {copy.upgradeAction}</button></div>
       : presentation === "packages" ? <div className={styles.packagePresentation} data-commerce-package-presentation>
-        <EventPriceSummary packages={packagePrices} locale={locale} now={now} headingLevel={2} />
+        <EventPriceSummary packages={packagePrices} locale={locale} now={now} headingLevel={2} onSelectPackage={(packageId, source, selectedAt) => { handleSelectPackage(packageId, source, selectedAt); }} packageAvailability={Object.fromEntries(offers.map((offer) => [offer.id, catalog.available && packageAvailable(catalog, offer.id, [], now)]))} />
         {!available && <p className={styles.unavailableMessage}>{copy.unavailableOffers}</p>}
-        <div className={styles.packagePurchaseAction}><button ref={trigger} className={styles.button} type="button" disabled={!available && !canWaitlist} onClick={() => show(!available)}>{available ? copy.purchaseLabel : canWaitlist ? copy.joinWaitlist : copy.closed}<ArrowRight className="h-4 w-4" /></button><p className={`${styles.muted} mt-2 text-center`}>{available ? copy.purchaseHint : canWaitlist ? copy.waitlistHint : copy.closedHint}</p></div>
+        <div className={styles.packagePurchaseAction}><button ref={trigger} className={styles.button} type="button" disabled={!available && !canWaitlist} onClick={(event) => { show(!available, event.currentTarget, Date.now()); }}>{available ? copy.purchaseLabel : canWaitlist ? copy.joinWaitlist : copy.closed}<ArrowRight className="h-4 w-4" /></button><p className={`${styles.muted} mt-2 text-center`}>{available ? copy.purchaseHint : canWaitlist ? copy.waitlistHint : copy.closedHint}</p></div>
       </div>
-      : <div><p className={styles.eyebrow}>{copy.chooseExperience}</p>{available && prices.length ? <p className={styles.price}><span className="mr-2 text-xs font-normal tracking-normal text-[#7c8676]">{copy.from}</span>{money(Math.min(...prices))}</p> : <p className="my-3 text-sm font-semibold">{copy.unavailableOffers}</p>}<button ref={trigger} className={styles.button} type="button" disabled={!available && !canWaitlist} onClick={() => show(!available)}>{available ? copy.chooseTickets : canWaitlist ? copy.joinWaitlist : copy.closed}<ArrowRight className="h-4 w-4" /></button><p className={`${styles.muted} mt-2 text-center`}>{available ? copy.purchaseHint : canWaitlist ? copy.waitlistHint : copy.closedHint}</p></div>}
+      : <div><p className={styles.eyebrow}>{copy.chooseExperience}</p>{available && prices.length ? <p className={styles.price}><span className="mr-2 text-xs font-normal tracking-normal text-[#7c8676]">{copy.from}</span>{money(Math.min(...prices))}</p> : <p className="my-3 text-sm font-semibold">{copy.unavailableOffers}</p>}<button ref={trigger} className={styles.button} type="button" disabled={!available && !canWaitlist} onClick={(event) => {
+        // eslint-disable-next-line react-hooks/purity -- The current time is read only by this native click handler, never during render.
+        show(!available, event.currentTarget, Date.now());
+      }}>{available ? copy.chooseTickets : canWaitlist ? copy.joinWaitlist : copy.closed}<ArrowRight className="h-4 w-4" /></button><p className={`${styles.muted} mt-2 text-center`}>{available ? copy.purchaseHint : canWaitlist ? copy.waitlistHint : copy.closedHint}</p></div>}
 
-    <dialog ref={dialog} className={styles.dialog} aria-labelledby={`commerce-title-${catalog.event.id}`} onCancel={(event) => { if (submitting.current) event.preventDefault(); }} onClose={() => { setOpen(false); opened.current = false; document.body.style.overflow = previousOverflow.current; trigger.current?.focus(); }} onClick={(event) => { if (event.target === event.currentTarget && !submitting.current) dialog.current?.close(); }}>
+    <dialog ref={dialog} className={styles.dialog} aria-labelledby={`commerce-title-${catalog.event.id}`} onCancel={(event) => { if (submitting.current) event.preventDefault(); }} onClose={() => { setOpen(false); trigger.current?.focus(); }} onClick={(event) => { if (event.target === event.currentTarget && !submitting.current) dialog.current?.close(); }}>
       <div className={styles.content}>
         <div className={styles.header}><div><p className={styles.eyebrow}>Meraki Experience</p><h2 id={`commerce-title-${catalog.event.id}`} className={styles.title}>{waitlist ? copy.waitlistTitle : upgrade ? copy.upgradeTitle : copy.title}</h2><p className={`${styles.muted} mt-2`}>{catalog.event.title}</p></div><button type="button" className={styles.close} disabled={loading} aria-label={copy.close} onClick={() => dialog.current?.close()}><X className="h-5 w-5" /></button></div>
         <div className={styles.scrollArea} data-checkout-scroll>

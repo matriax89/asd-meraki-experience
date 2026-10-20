@@ -67,13 +67,13 @@ test("featured events leave package prices on the detail page when returning aft
   try {
     assert.match(screen.host.textContent, /Pratica con Meraki/);
     assert.doesNotMatch(screen.host.textContent, /Workshop completo|Early Bird|18,1%|45\s*€|55\s*€/);
-    assert.equal(screen.host.querySelector('[data-event-purchase-cta]').getAttribute("href"), "/workshop/workshop#quote-partecipazione");
+    assert.equal(screen.host.querySelector('[data-event-purchase-cta]').getAttribute("href"), "/workshop/workshop#top");
     assert.match(screen.host.querySelector('[data-event-purchase-cta]').textContent, /Acquista quota partecipazione/);
     Date.now = () => Date.parse("2026-11-01T23:00:00Z");
     await act(async () => window.dispatchEvent(new dom.window.Event("focus")));
     assert.match(screen.host.textContent, /Pratica con Meraki/);
     assert.doesNotMatch(screen.host.textContent, /Workshop completo|Standard|Early Bird|18,1%|45\s*€|55\s*€/);
-    assert.equal(screen.host.querySelector('[data-event-purchase-cta]').getAttribute("href"), "/workshop/workshop#quote-partecipazione");
+    assert.equal(screen.host.querySelector('[data-event-purchase-cta]').getAttribute("href"), "/workshop/workshop#top");
   } finally { Date.now = originalDateNow; await screen.cleanup(); }
 });
 
