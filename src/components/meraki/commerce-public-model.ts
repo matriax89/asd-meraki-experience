@@ -29,6 +29,21 @@ export function currentTier(prices: CommerceConfig["packages"][number]["prices"]
   return prices.find((price) => (!price.startsAt || Date.parse(price.startsAt) <= now) && (!price.endsAt || Date.parse(price.endsAt) > now));
 }
 
+/** Compare only the next scheduled price; later increases cannot inflate savings. */
+export function nextTierComparison(prices: CommerceConfig["packages"][number]["prices"], now = Date.now()) {
+  if (!Number.isFinite(now)) return null;
+  const current = currentTier(prices, now);
+  if (!current?.endsAt) return null;
+  const endsAt = Date.parse(current.endsAt);
+  if (!Number.isFinite(endsAt)) return null;
+  const next = prices.filter((price) => price.startsAt && Date.parse(price.startsAt) >= endsAt && Date.parse(price.startsAt) > now)
+    .sort((left, right) => Date.parse(left.startsAt!) - Date.parse(right.startsAt!))[0];
+  if (!next || ![current.amountCents, next.amountCents].every((amount) => Number.isSafeInteger(amount) && amount >= 0)) return null;
+  const savingCents = Math.max(0, next.amountCents - current.amountCents);
+  const savingPercent = next.amountCents > 0 ? Number(BigInt(savingCents) * BigInt(1000) / BigInt(next.amountCents)) / 10 : 0;
+  return { current, next, savingCents, savingPercent };
+}
+
 export function packageSavings(config: CommerceConfig, packageId: string, now = Date.now()) {
   const bundle = config.packages.find((item) => item.id === packageId);
   const tier = bundle && currentTier(bundle.prices, now);

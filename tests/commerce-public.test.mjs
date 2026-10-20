@@ -20,7 +20,7 @@ const attendeeModel = compile("../src/lib/commerce/attendee.ts");
 const checkoutCopy = compile("../src/components/meraki/checkout-copy.ts");
 const discountCopyModule = compile("../src/components/meraki/discount-copy.ts");
 const localization = compile("../src/lib/commerce/localization.ts");
-const cssModule = { default: new Proxy({}, { get: (_, key) => key }) };
+const cssModule = { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
 const model = compile("../src/components/meraki/commerce-public-model.ts");
 const tier = (id, amountCents, startsAt = null, endsAt = null) => ({ id, label: id, amountCents, startsAt, endsAt });
 const config = {
@@ -414,9 +414,92 @@ for (const locale of ["en", "es"]) test(`${locale} keeps sale deadlines in Itali
   dated.config.activities[2].salesEnd = "2099-05-01T22:30:00Z";
   const ui = await setup(context, dated, locale); await ui.open();
   const text = window.document.querySelector("form").textContent;
-  assert.match(text, locale === "es" ? /hasta el 2 mag, 00:30/ : /until 2 mag, 00:30/);
+  assert.match(text, locale === "es" ? /hasta el 02\/05\/2099, 00:30/ : /until 02\/05\/2099, 00:30/);
   assert.match(text, locale === "es" ? /Reserva antes del 2 mag, 00:30/ : /Book by 2 mag, 00:30/);
   assert.equal(/10:30 PM|22:30/.test(text), false);
+});
+
+const scheduledPriceCatalog = () => {
+  const dated = structuredClone(catalog);
+  dated.config.packages[0].prices = [
+    { ...tier("early", 4500, null, "2099-05-01T22:30:00Z"), label: "Early Bird", labelTranslations: { de: "Frühbucher" } },
+    { ...tier("regular", 5500, "2099-05-01T22:30:00Z"), label: "Standard", labelTranslations: { en: "Regular", de: "Regulär", es: "Estándar" } },
+  ];
+  return dated;
+};
+
+for (const locale of ["it", "en", "de", "es"]) test(`${locale} distinguishes the current tier, its full Rome deadline and the next scheduled price saving`, async (context) => {
+  const ui = await setup(context, scheduledPriceCatalog(), locale); await ui.open();
+  const card = window.document.querySelector('input[value="only-ws"]').closest("label");
+  const copy = checkoutCopy.checkoutCopy(locale);
+  assert.equal(card.querySelector(".tierPill").textContent, locale === "de" ? "Frühbucher" : "Early Bird");
+  assert.match(card.querySelector(".offerPrice").textContent, /45,00\s*€/);
+  const expiry = card.querySelector("[data-tier-deadline]");
+  assert.equal(expiry.getAttribute("data-tier-deadline"), "2099-05-01T22:30:00Z");
+  assert.ok(expiry.textContent.includes(copy.until)); assert.match(expiry.textContent, /02\/05\/2099, 00:30/);
+  assert.ok(expiry.textContent.includes(copy.italianTime));
+  const next = card.querySelector("[data-next-tier-comparison]");
+  assert.ok(next.textContent.includes(copy.nextPriceFrom)); assert.match(next.textContent, /02\/05\/2099, 00:30/);
+  assert.match(next.querySelector(".nextPriceAmount").textContent, /55,00\s*€/);
+  assert.ok(next.textContent.includes(locale === "en" ? "Regular" : locale === "de" ? "Regulär" : locale === "es" ? "Estándar" : "Standard"));
+  assert.match(next.querySelector(".tierSavings").textContent, /−18,1%/);
+  assert.ok(next.querySelector(".tierSavings").textContent.includes(copy.nextPriceSaving));
+  assert.match(next.querySelector(".tierSavingAmount").textContent, /10,00\s*€/);
+  assert.equal(card.querySelector("s, del"), null, "a future price is not presented as a crossed-out past price");
+  assert.equal(card.querySelectorAll("input, button, a, select").length, 1, "the radio label contains no nested interactive price controls");
+  const bundle = window.document.querySelector('input[value="bundle"]').closest("label");
+  assert.ok(bundle.querySelector(".bundleSavings").textContent.includes(copy.bundleSavings));
+  assert.ok(bundle.querySelector(".bundleSavings").textContent.includes(copy.bundleSavingsCompared));
+});
+
+test("a tier with no next scheduled price never invents a future price or deadline", async (context) => {
+  const ui = await setup(context); await ui.open();
+  assert.equal(window.document.querySelector("[data-next-tier-comparison]"), null);
+  assert.equal(window.document.querySelector("[data-tier-deadline]"), null);
+  assert.equal(window.document.querySelector(".tierSavings"), null);
+  assert.ok(window.document.querySelector(".tierPill"), "the real current tier remains visible without a promotion");
+});
+
+test("the displayed tier and comparison update when the scheduled price boundary passes", async (context) => {
+  const ui = await setup(context, scheduledPriceCatalog(), "it", undefined, { manualClock: true }); await ui.open();
+  const card = () => window.document.querySelector('input[value="only-ws"]').closest("label");
+  assert.equal(card().querySelector(".tierPill").textContent, "Early Bird");
+  assert.ok(card().querySelector("[data-next-tier-comparison]"));
+  await ui.elapse(Date.parse("2099-05-01T22:30:01Z") - Date.now());
+  assert.equal(card().querySelector(".tierPill").textContent, "Standard");
+  assert.match(card().querySelector(".offerPrice").textContent, /55,00\s*€/);
+  assert.equal(card().querySelector("[data-next-tier-comparison], [data-tier-deadline], .tierSavings"), null);
+});
+
+for (const nextAmount of [4500, 4000]) test(`a next price of ${nextAmount} cents does not claim a saving against the current 4500 cents`, async (context) => {
+  const dated = scheduledPriceCatalog(); dated.config.packages[0].prices[1].amountCents = nextAmount;
+  const ui = await setup(context, dated); await ui.open();
+  const card = window.document.querySelector('input[value="only-ws"]').closest("label");
+  assert.equal(card.querySelector(".tierSavings"), null);
+  assert.equal(card.textContent.includes("rispetto al prossimo prezzo"), false);
+  assert.ok(card.querySelector(".nextPriceAmount").textContent.includes(nextAmount === 4500 ? "45,00" : "40,00"), "the actual scheduled price remains informative without a fake discount");
+});
+
+test("an unavailable formula and a waitlist never advertise a saving on a future price", async (context) => {
+  const sold = scheduledPriceCatalog(); sold.availability.ws = 0;
+  const ui = await setup(context, sold); await ui.open();
+  const card = window.document.querySelector('input[value="only-ws"]').closest("label");
+  assert.equal(card.querySelector("input").disabled, true);
+  assert.equal(card.querySelector("[data-next-tier-comparison]"), null);
+  const waitlist = [...window.document.querySelectorAll("button")].find((button) => button.textContent === "Avvisami per Solo Workshop");
+  await act(async () => waitlist.click());
+  assert.equal(window.document.querySelector("[data-next-tier-comparison]"), null);
+  assert.equal(window.document.querySelector(".tierSavings, .bundleSavings, .tierPill"), null);
+});
+
+test("an upgrade never mixes the full package price saving with the payable difference", async (context) => {
+  const upgrade = { passId: "00000000-0000-4000-8000-000000000002", token: "private-pass-token", firstName: "Matias", lastName: "Lisio", packageId: "only-ws", activityIds: ["ws"] };
+  const dated = scheduledPriceCatalog();
+  dated.config.packages[2].prices = [{ ...tier("early", 6500, null, "2099-05-01T22:30:00Z"), label: "Early Bird" }, tier("next", 8500, "2099-05-01T22:30:00Z")];
+  const ui = await setup(context, dated, "it", upgrade); await ui.open();
+  assert.equal(window.document.querySelector("[data-next-tier-comparison]"), null);
+  assert.equal(window.document.querySelector(".tierSavings, .bundleSavings"), null);
+  assert.ok(window.document.querySelector("dialog").textContent.includes("Già acquistata"));
 });
 
 
