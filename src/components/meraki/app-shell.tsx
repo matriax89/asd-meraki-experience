@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { useLocale } from "next-intl";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
@@ -24,14 +24,28 @@ const destinations = [
   { key: "profile", href: "/profilo", icon: Info },
 ] as const;
 
+function subscribeStandalone(onChange: () => void) {
+  const media = window.matchMedia("(display-mode: standalone)");
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches
+    || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
+const getServerStandalone = () => false;
+
 export function MerakiAppShell({ children, locale, logoUrl, staffAccess = false }: { children: ReactNode; locale?: string; logoUrl?: string; staffAccess?: boolean }) {
   const contextLocale = useLocale();
   const pathname = usePathname();
   const text = copy[(locale ?? contextLocale) as keyof typeof copy] ?? copy.it;
   const route = getMerakiRouteState(pathname);
+  const standalone = useSyncExternalStore(subscribeStandalone, isStandalone, getServerStandalone);
 
   return (
-    <div className={`meraki-app ${styles.shell}`} data-meraki-app>
+    <div className={`meraki-app ${styles.shell}${standalone ? ` ${styles.standalone}` : ""}`} data-meraki-app>
       <a className={styles.skipLink} href="#meraki-content">{text.skip}</a>
       <header className={styles.header}>
         <div className={styles.headerInner}>
@@ -64,16 +78,18 @@ export function MerakiAppShell({ children, locale, logoUrl, staffAccess = false 
       <main id="meraki-content" className={styles.content} tabIndex={-1}>
         {children}
       </main>
-      <div className={styles.bottomDock}>
-        <nav className={styles.bottomNav} aria-label={text.navigation}>
-          {destinations.map(({ key, href, icon: Icon }) => (
-            <Link key={key} href={href} className={`${styles.navItem} ${route.active === key ? styles.navItemActive : ""}`} aria-current={route.active === key ? "page" : undefined}>
-              <span className={styles.navIcon}><Icon size={22} strokeWidth={route.active === key ? 2 : 1.65} aria-hidden="true" /></span>
-              <span>{text[key]}</span>
-            </Link>
-          ))}
-        </nav>
-      </div>
+      {standalone ? (
+        <div className={styles.bottomDock}>
+          <nav className={styles.bottomNav} aria-label={text.navigation}>
+            {destinations.map(({ key, href, icon: Icon }) => (
+              <Link key={key} href={href} className={`${styles.navItem} ${route.active === key ? styles.navItemActive : ""}`} aria-current={route.active === key ? "page" : undefined}>
+                <span className={styles.navIcon}><Icon size={22} strokeWidth={route.active === key ? 2 : 1.65} aria-hidden="true" /></span>
+                <span>{text[key]}</span>
+              </Link>
+            ))}
+          </nav>
+        </div>
+      ) : null}
     </div>
   );
 }

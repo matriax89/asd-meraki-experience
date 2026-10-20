@@ -43,22 +43,15 @@ const packageEvent = { ...future, price: 4500, priceFrom: true, packagePrices: [
   { id: "early", label: "Early Bird", amountCents: 4500, startsAt: null, endsAt: "2026-11-01T23:00:00Z" },
   { id: "standard", label: "Standard", amountCents: 5500, startsAt: "2026-11-01T23:00:00Z", endsAt: null },
 ] }] };
-function button(text) { return [...document.querySelectorAll("button")].find((element) => element.textContent === text); }
 async function render(events, locale = "it") { const host = document.createElement("div"); document.body.append(host); const root = createRoot(host); await act(async () => root.render(React.createElement(EventFeed, { events, locale, now }))); return { host, root, cleanup: async () => { await act(async () => root.unmount()); host.remove(); } }; }
 
-test("a past-only catalogue stays honest while preserving the event in the archive", async () => {
+test("a past-only catalogue keeps ended events off the current feed", async () => {
   const screen = await render([past]);
   try {
     assert.match(screen.host.textContent, /Il prossimo momento sta arrivando/);
     assert.doesNotMatch(screen.host.textContent, /Da ricordare/);
     assert.equal(screen.host.querySelector('a[href="/eventi/outdoor-postal"]'), null);
     assert.equal(screen.host.querySelector('[aria-live="polite"]').textContent, "0 esperienze");
-    await act(async () => button("Passati").click());
-    assert.equal(button("Passati").getAttribute("aria-pressed"), "true");
-    assert.equal(screen.host.querySelector('[aria-live="polite"]').textContent, "1 esperienza");
-    assert.ok(screen.host.querySelector('a[href="/eventi/outdoor-postal"]'));
-    assert.match(screen.host.textContent, /Da ricordare/);
-    assert.doesNotMatch(screen.host.textContent, /Il prossimo momento sta arrivando/);
   } finally { await screen.cleanup(); }
 });
 
@@ -85,11 +78,10 @@ test("featured package prices replace the minimum price and refresh when returni
   } finally { Date.now = originalDateNow; await screen.cleanup(); }
 });
 
-test("the archive does not promote an old Early Bird offer", async () => {
+test("the current feed does not promote an ended Early Bird offer", async () => {
   const screen = await render([{ ...packageEvent, startsAt: past.startsAt }]);
   try {
-    await act(async () => button("Passati").click());
-    assert.match(screen.host.textContent, /Da ricordare/);
+    assert.match(screen.host.textContent, /Il prossimo momento sta arrivando/);
     assert.doesNotMatch(screen.host.textContent, /Early Bird|18,1%|Workshop completo/);
   } finally { await screen.cleanup(); }
 });
@@ -112,7 +104,7 @@ test("event archive boundaries respect explicit ends and equivalent timezone off
   assert.equal(model.isPastEvent(severalDays, Date.parse("2026-10-20T10:00:00Z")), false);
 });
 
-test("returning to the installed app moves a newly ended event into its archive", async () => {
+test("returning to the installed app removes a newly ended event from the current feed", async () => {
   const ongoing = { ...future, startsAt: "2026-10-18T14:00:00Z", endsAt: "2026-10-18T16:00:00Z" };
   const screen = await render([ongoing]);
   const originalDateNow = Date.now;
@@ -122,31 +114,23 @@ test("returning to the installed app moves a newly ended event into its archive"
     await act(async () => window.dispatchEvent(new dom.window.Event("focus")));
     assert.equal(screen.host.querySelector('a[href="/workshop/workshop"]'), null);
     assert.match(screen.host.textContent, /Il prossimo momento sta arrivando/);
-    await act(async () => button("Passati").click());
-    assert.ok(screen.host.querySelector('a[href="/workshop/workshop"]'));
   } finally { Date.now = originalDateNow; await screen.cleanup(); }
 });
 
-test("past-only catalogues keep their archive separate in every supported language", async () => {
-  for (const [locale, archive] of [["it", "Passati"], ["en", "Past"], ["de", "Vergangen"], ["es", "Pasados"]]) {
+test("past-only catalogues never feature ended events in any supported language", async () => {
+  for (const locale of ["it", "en", "de", "es"]) {
     const screen = await render([past], locale);
     try {
       assert.equal(screen.host.querySelector('a[href="/eventi/outdoor-postal"]'), null, locale);
-      await act(async () => button(archive).click());
-      assert.ok(screen.host.querySelector('a[href="/eventi/outdoor-postal"]'), locale);
-      assert.equal(button(archive).getAttribute("aria-pressed"), "true");
     } finally { await screen.cleanup(); }
   }
 });
 
 
-test("Spanish discovery translates periods, counts, event actions and archive labels", async () => {
+test("Spanish discovery translates counts and event actions", async () => {
   const screen = await render([past, future], "es");
   try {
-    assert.ok(button("Próximos"));
     assert.equal(screen.host.querySelector('[aria-live="polite"]').textContent, "1 experiencia");
-    await act(async () => button("Pasados").click());
-    assert.match(screen.host.textContent, /Para recordar/);
     assert.equal(model.eventLabels("es").soldOut, "Agotado");
     assert.equal(model.eventLabels("es").qrBody.includes("sin crear una cuenta"), true);
   } finally { await screen.cleanup(); }
