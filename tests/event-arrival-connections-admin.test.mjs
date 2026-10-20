@@ -6,6 +6,7 @@ import test, { after } from "node:test";
 import vm from "node:vm";
 import { JSDOM } from "jsdom";
 import ts from "typescript";
+import { richTextDynamicFixture } from "./helpers/rich-text-editor-fixture.mjs";
 
 const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://meraki.test/it/admin/eventi/nuovo", pretendToBeVisual: true });
@@ -28,7 +29,7 @@ function load(file, mocks = {}) {
 }
 const CustomSelect = React.forwardRef((props, ref) => React.createElement("select", { ...props, ref }));
 CustomSelect.displayName = "CustomSelectFixture";
-const elements = load("components/admin/form-elements.tsx", { "@/components/ui/custom-select": { CustomSelect } });
+const elements = load("components/admin/form-elements.tsx", { "@/components/ui/custom-select": { CustomSelect }, "next/dynamic": richTextDynamicFixture });
 const { EventLogisticsEditor } = load("components/admin/event-logistics-editor.tsx", { "@/components/admin/form-elements": elements });
 const localized = (it = "", en = "", de = "", es = "") => ({ it, en, de, es });
 const route = (id = "route-1") => ({ id, mode: "plane", title: localized("Via aeroporto"), description: localized("Indicazioni esistenti"), linkUrl: "https://travel.example.test/orari" });

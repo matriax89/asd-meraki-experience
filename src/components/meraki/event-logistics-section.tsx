@@ -1,4 +1,6 @@
 import { Accessibility, BedDouble, Bus, Car, ExternalLink, Footprints, Mail, MapPin, Phone, Plane, Route, TrainFront } from "lucide-react";
+import { EventDescription } from "@/components/public/event-description";
+import { richTextHasContent } from "@/lib/rich-text";
 import { hasEventLogistics, logisticsText, parseEventLogistics, type EventLogistics } from "@/lib/events/logistics";
 
 const copy = {
@@ -42,8 +44,8 @@ export function EventLogisticsSection({ logistics, locale }: { logistics: EventL
         return <article key={hotel.id} data-accommodation-kind={hotel.kind} className="min-w-0 space-y-4 rounded-[22px] border border-[#e1e4d9] bg-white p-5">
           <header><p className={`mb-2 inline-flex rounded-full px-3 py-1.5 text-[10px] font-semibold ${hotel.kind === "partner" ? "bg-[#eaf0e5] text-[#526b43]" : "bg-[#f2eee5] text-[#8a7450]"}`}>{hotel.kind === "partner" ? text.partner : text.suggested}</p><h4 className="break-words text-lg font-semibold">{hotel.name}</h4>{hotel.address && <p className="mt-2 flex items-start gap-2 whitespace-pre-line text-sm leading-6 text-[#727b6a]"><MapPin className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />{hotel.address}</p>}</header>
           {(distance || rate) && <dl className="space-y-3 text-sm">{distance && <div><dt className="text-xs text-[#818a76]">{text.distance}</dt><dd className="mt-1 whitespace-pre-line leading-6">{distance}</dd></div>}{rate && <div><dt className="text-xs text-[#818a76]">{text.rate}</dt><dd className="mt-1 whitespace-pre-line leading-6">{rate}</dd></div>}</dl>}
-          {benefits && <div><h5 className="text-xs font-semibold text-[#8a7450]">{hotel.kind === "partner" ? text.benefits : text.services}</h5><p className="mt-1 whitespace-pre-line text-sm leading-6 text-[#65715d]">{benefits}</p></div>}
-          {instructions && <div><h5 className="text-xs font-semibold text-[#8a7450]">{text.instructions}</h5><p className="mt-1 whitespace-pre-line text-sm leading-6 text-[#65715d]">{instructions}</p></div>}
+          {richTextHasContent(benefits) && <div><h5 className="text-xs font-semibold text-[#8a7450]">{hotel.kind === "partner" ? text.benefits : text.services}</h5><EventDescription description={benefits} compact className="mt-1 text-[#65715d]" /></div>}
+          {richTextHasContent(instructions) && <div><h5 className="text-xs font-semibold text-[#8a7450]">{text.instructions}</h5><EventDescription description={instructions} compact className="mt-1 text-[#65715d]" /></div>}
           {hotel.validUntil && <p data-expired-offer={expired || undefined} className={`text-xs leading-5 ${expired ? "text-[#9a6143]" : "text-[#7f8874]"}`}>{hotel.kind === "partner" ? expired ? text.expired : text.valid : text.infoValid} <time dateTime={hotel.validUntil}>{new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", dateStyle: "long" }).format(new Date(`${hotel.validUntil}T12:00:00Z`))}</time>{expired && hotel.kind === "suggested" ? ` · ${text.checkInfo}` : ""}</p>}
           <div className="flex flex-wrap gap-2">{webLink(hotel.mapUrl) && <a href={hotel.mapUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.map}<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>}{webLink(hotel.bookingUrl) && <a href={hotel.bookingUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.book}<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>}{hotel.phone && /\d/.test(telephone) && <a href={`tel:${telephone}`} className={`${external} break-all`}><Phone className="h-3 w-3 shrink-0" aria-hidden="true" />{hotel.phone}</a>}{hotel.email && <a href={`mailto:${hotel.email}`} className={`${external} min-w-0 break-all`}><Mail className="h-3 w-3 shrink-0" aria-hidden="true" />{hotel.email}</a>}</div>
         </article>;
@@ -58,7 +60,7 @@ export function EventLogisticsSection({ logistics, locale }: { logistics: EventL
         <p className="flex items-center gap-2 text-xs font-semibold text-[#8a7450]"><Icon className="h-4 w-4" aria-hidden="true" />{text[arrival.mode]}</p>
         <h4 className="break-words text-base font-semibold">{logisticsText(arrival.title, locale)}</h4>
         {arrivalPoint && <div className="flex items-start gap-2 rounded-xl bg-[#f4f5ee] p-3"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#8a7450]" aria-hidden="true" /><div className="min-w-0"><p className="text-xs text-[#727b6a]">{text.arrivalPoint}</p><p className="mt-1 break-words text-sm font-semibold">{arrivalPoint}</p></div></div>}
-        {description && <p className="whitespace-pre-line text-sm leading-6 text-[#65715d]">{description}</p>}
+        {richTextHasContent(description) && <EventDescription description={description} compact className="text-[#65715d]" />}
         {webLink(arrival.linkUrl) && <a href={arrival.linkUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.route}<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>}
         {connections.length > 0 && <section className="border-t border-[#e1e4d9] pt-4">
           <h5 className="text-sm font-semibold">{text.connections}</h5>
@@ -77,7 +79,7 @@ export function EventLogisticsSection({ logistics, locale }: { logistics: EventL
                   {service && <div><dt className="text-xs text-[#727b6a]">{text.service}</dt><dd className="mt-0.5 break-words">{service}</dd></div>}
                   {duration && <div><dt className="text-xs text-[#727b6a]">{text.duration}</dt><dd className="mt-0.5 break-words">{duration}</dd></div>}
                 </dl>
-                {instructions && <p className="whitespace-pre-line break-words text-sm leading-6 text-[#65715d]">{instructions}</p>}
+                {richTextHasContent(instructions) && <EventDescription description={instructions} compact className="text-[#65715d]" />}
                 {(webLink(connection.linkUrl) || webLink(connection.mapUrl)) && <div className="flex flex-wrap gap-2">{webLink(connection.linkUrl) && <a href={connection.linkUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.connectionLink}<ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" /></a>}{webLink(connection.mapUrl) && <a href={connection.mapUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.map}<ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" /></a>}</div>}
               </div>
             </li>;
@@ -85,7 +87,7 @@ export function EventLogisticsSection({ logistics, locale }: { logistics: EventL
         </section>}
       </article>;
     })}</div></section>}
-    {accessibility && <section className="rounded-[22px] border border-[#e1e4d9] p-5"><h3 className="flex items-center gap-2 text-base font-semibold"><Accessibility className="h-5 w-5 text-[#9e885d]" aria-hidden="true" />{text.accessibility}</h3><p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#65715d]">{accessibility}</p></section>}
-    {contact && <section className="rounded-[22px] bg-[#eaf0e5] p-5"><h3 className="text-base font-semibold">{text.contact}</h3><p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#65715d]">{contact}</p></section>}
+    {richTextHasContent(accessibility) && <section className="rounded-[22px] border border-[#e1e4d9] p-5"><h3 className="flex items-center gap-2 text-base font-semibold"><Accessibility className="h-5 w-5 text-[#9e885d]" aria-hidden="true" />{text.accessibility}</h3><EventDescription description={accessibility} compact className="mt-3 text-[#65715d]" /></section>}
+    {richTextHasContent(contact) && <section className="rounded-[22px] bg-[#eaf0e5] p-5"><h3 className="text-base font-semibold">{text.contact}</h3><EventDescription description={contact} compact className="mt-2 text-[#65715d]" /></section>}
   </section>;
 }

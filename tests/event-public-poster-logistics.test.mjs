@@ -1,3 +1,4 @@
+import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -13,7 +14,7 @@ function load(file, mocks = {}, environment = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, console, ...environment, require: (name) => name in mocks ? mocks[name] : require(name) });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, console, ...environment, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name) });
   return compiledModule.exports;
 }
 const image = { __esModule: true, default: (props) => {
@@ -73,8 +74,10 @@ for (const locale of ["it", "en", "de", "es"]) {
     assert.equal(section.querySelector("time").textContent, "20 novembre 2027");
     assert.equal(section.querySelector("time").getAttribute("datetime"), "2027-11-20");
     assert.ok(section.textContent.includes(logistics.logisticsText(data.accommodations[0].rate, locale)));
-    assert.ok(section.textContent.includes("Colazione inclusa\nParcheggio gratuito"));
-    assert.ok(section.textContent.includes("<b>codice</b>")); assert.equal(section.querySelector("b,script"), null);
+    assert.ok([...section.querySelectorAll("[data-rich-text] p")].some((node) => node.textContent === "Colazione inclusa"));
+    assert.ok([...section.querySelectorAll("[data-rich-text] p")].some((node) => node.textContent === "Parcheggio gratuito"));
+    assert.equal(section.querySelector("b").textContent, "codice"); assert.equal(section.querySelector("script"), null);
+    assert.equal(section.textContent.includes("alert(1)"), false);
     assert.equal(section.querySelectorAll('a[target="_blank"]').length, 6);
     for (const anchor of section.querySelectorAll('a[target="_blank"]')) {
       assert.match(anchor.href, /^https:\/\//); assert.equal(anchor.rel, "noopener noreferrer");
@@ -95,6 +98,23 @@ test("empty, invalid and absent logistics render no section or travel jump; cata
   const columns = readFileSync(new URL("../src/components/meraki/events-data.ts", import.meta.url), "utf8");
   assert.doesNotMatch(columns, /logistics/);
 });
+
+for (const locale of ["it", "en", "de", "es"]) {
+  test(`${locale} travel renders rich benefits, booking, routes, onward legs, accessibility and contact safely`, () => {
+    const translated = (label) => localized("", Object.fromEntries(["it", "en", "de", "es"].map((language) => [language, `<p><strong>${label} ${language}</strong> <em>Meraki</em></p><script>alert(1)</script>`])));
+    const guide = { ...data,
+      accommodations: [{ ...data.accommodations[0], benefits: translated("benefits"), bookingInstructions: translated("booking") }],
+      arrivals: [{ ...data.arrivals[0], description: translated("route"), connections: [{ id: "bus-leg", mode: "bus", from: localized("Aeroporto"), to: localized("Evento"), service: localized(""), duration: localized(""), description: translated("leg"), linkUrl: "", mapUrl: "" }] }],
+      accessibility: translated("accessibility"), contact: translated("contact"),
+    };
+    const fragment = render(travel.EventLogisticsSection, { logistics: guide, locale });
+    assert.deepEqual([...fragment.querySelectorAll("[data-rich-text] strong")].map((node) => node.textContent), ["benefits", "booking", "route", "leg", "accessibility", "contact"].map((label) => `${label} ${locale}`));
+    assert.equal(fragment.querySelectorAll("[data-rich-text] em").length, 6);
+    assert.equal(fragment.querySelector("script"), null);
+    assert.equal(fragment.textContent.includes("alert(1)"), false);
+    assert.equal(fragment.querySelector("p p,p ul,p ol"), null, "rich block content is never nested in a paragraph");
+  });
+}
 
 test("legacy event cards also preserve poster geometry and leave the event title outside the image", async () => {
   const { EventCard } = load("components/public/event-card.tsx", { "@/components/meraki/event-poster": poster, "@/i18n/routing": link, "next-intl/server": { getLocale: async () => "it" }, "@/lib/i18n-utils": load("lib/i18n-utils.ts") });
@@ -166,7 +186,8 @@ test("onward travel shows the airport, ordered departure and destination, servic
     assert.equal(steps[1].querySelectorAll("dd").length, 3, "empty services do not create labels");
     assert.equal(steps[1].querySelector("a"), null, "blank links do not create actions");
     assert.equal(fragment.querySelector("script"), null);
-    assert.ok(steps[0].textContent.includes("<script>alert(1)</script>"));
+    assert.ok(steps[0].textContent.includes("Scendi qui"));
+    assert.equal(steps[0].textContent.includes("alert(1)"), false);
     for (const anchor of fragment.querySelectorAll('a[target="_blank"]')) assert.equal(anchor.rel, "noopener noreferrer");
     assert.equal(steps[0].querySelector('a[href="https://travel.example.test/bus"]').textContent, labels.connectionLink);
     assert.equal(steps[0].querySelector('a[href="https://maps.example.test/station"]').textContent, labels.map);

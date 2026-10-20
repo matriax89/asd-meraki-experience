@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Link } from "@/i18n/routing";
 import { JsonLd } from "@/components/seo/json-ld";
+import { EventDescription } from "@/components/public/event-description";
 import { getLocalizedText, getLocalizedArray } from "@/lib/i18n-utils";
 import type { Metadata } from "next";
 
@@ -127,11 +128,7 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-12">
           {corso.descrizione_lunga && (
-            <div className="prose prose-neutral dark:prose-invert max-w-none">
-              {getLocalizedText(corso.descrizione_lunga, locale).split("\n").map((par, i) => (
-                <p key={i}>{par}</p>
-              ))}
-            </div>
+            <EventDescription description={getLocalizedText(corso.descrizione_lunga, locale)} />
           )}
 
           {corso.benefici && (

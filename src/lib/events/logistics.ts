@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { richTextHasContent, richTextPlainText, richTextSerializedLimit } from "@/lib/rich-text";
 
 export type LocalizedText = Record<"it" | "en" | "de" | "es", string>;
 
@@ -8,6 +9,10 @@ const localizedText = (maximum: number) => z.object({
   de: z.string().trim().max(maximum),
   es: z.string().trim().max(maximum),
 }).strict();
+const richLocalizedText = (maximum: number) => {
+  const value = () => z.string().trim().max(richTextSerializedLimit(maximum)).refine((text) => richTextPlainText(text).length <= maximum, `Usa al massimo ${maximum} caratteri di testo.`);
+  return z.object({ it: value(), en: value(), de: value(), es: value() }).strict();
+};
 const id = z.string().trim().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/);
 const optionalUrl = z.string().trim().max(2048).pipe(z.union([
   z.literal(""),
@@ -26,8 +31,8 @@ const accommodationSchema = z.object({
   email: optionalEmail,
   distance: localizedText(300),
   rate: localizedText(500),
-  benefits: localizedText(1500),
-  bookingInstructions: localizedText(2000),
+  benefits: richLocalizedText(1500),
+  bookingInstructions: richLocalizedText(2000),
   validUntil: z.iso.date().nullable(),
 }).strict();
 
@@ -43,7 +48,7 @@ const arrivalConnectionSchema = z.object({
   }),
   service: localizedText(200),
   duration: localizedText(120),
-  description: localizedText(2000),
+  description: richLocalizedText(2000),
   linkUrl: optionalUrl,
   mapUrl: optionalUrl,
 }).strict();
@@ -54,7 +59,7 @@ const arrivalSchema = z.object({
   title: localizedText(160).refine((value) => Boolean(value.it), {
     message: "Inserisci il titolo del percorso in italiano.", path: ["it"],
   }),
-  description: localizedText(4000),
+  description: richLocalizedText(4000),
   linkUrl: optionalUrl,
   arrivalPoint: localizedText(300).optional(),
   connections: z.array(arrivalConnectionSchema).max(8, "Puoi aggiungere fino a 8 collegamenti per percorso.").optional(),
@@ -75,8 +80,8 @@ const logisticsObjectSchema = z.object({
   version: z.literal(1),
   accommodations: z.array(accommodationSchema).max(12),
   arrivals: z.array(arrivalSchema).max(16),
-  accessibility: localizedText(2000),
-  contact: localizedText(1000),
+  accessibility: richLocalizedText(2000),
+  contact: richLocalizedText(1000),
 }).strict().superRefine((value, context) => {
   for (const key of ["accommodations", "arrivals"] as const) {
     const ids = new Set<string>();
@@ -101,7 +106,7 @@ export function emptyEventLogistics(): EventLogistics {
   return { version: 1, accommodations: [], arrivals: [], accessibility: text(), contact: text() };
 }
 
-/** Plain text only: consumers render this string with React's normal escaping. */
+/** Localized values retain their stored format; rich fields must use the safe rich renderer. */
 export function logisticsText(value: LocalizedText | null | undefined, locale: string): string {
   if (!value) return "";
   const language = (["it", "en", "de", "es"] as const).find((code) => code === locale.toLowerCase().split("-")[0]);
@@ -112,6 +117,6 @@ export function hasEventLogistics(value: unknown, locale?: string): boolean {
   const parsed = parseEventLogistics(value);
   if (!parsed) return false;
   if (parsed.accommodations.length || parsed.arrivals.length) return true;
-  if (locale) return Boolean(logisticsText(parsed.accessibility, locale) || logisticsText(parsed.contact, locale));
-  return Object.values(parsed.accessibility).some(Boolean) || Object.values(parsed.contact).some(Boolean);
+  if (locale) return richTextHasContent(logisticsText(parsed.accessibility, locale)) || richTextHasContent(logisticsText(parsed.contact, locale));
+  return Object.values(parsed.accessibility).some(richTextHasContent) || Object.values(parsed.contact).some(richTextHasContent);
 }

@@ -187,6 +187,8 @@ export function CourseForm({ initialData, instructors, locations }: CourseFormPr
         
         <MultilingualTextarea 
           label="Descrizione Completa" 
+          richText
+          disabled={isPending}
           className="min-h-[200px]"
           value={formData.descrizione_completa} 
           onChange={val => setFormData({...formData, descrizione_completa: val})} 

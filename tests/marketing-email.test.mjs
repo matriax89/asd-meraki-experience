@@ -1,3 +1,4 @@
+import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -9,7 +10,7 @@ const require = createRequire(import.meta.url);
 function load(path, mocks = {}, env = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : require(name), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
   return compiledModule.exports;
 }
 const logistics = load("src/lib/events/logistics.ts");
@@ -264,7 +265,7 @@ test('public preferences never confirm on open and require explicit confirmation
   const path = 'src/components/meraki/email-preferences.tsx';
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name === '@/i18n/routing' ? { Link: Anchor } : require(name), AbortController, fetch: async (url, options) => {
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name === '@/i18n/routing' ? { Link: Anchor } : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name), AbortController, fetch: async (url, options) => {
     calls.push([url, options]);
     return { ok: true, json: async () => options.method === 'POST' ? { status: 'subscribed' } : { status: 'pending', canConfirm: true, canUnsubscribe: false } };
   } });

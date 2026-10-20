@@ -1,3 +1,4 @@
+import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -10,7 +11,7 @@ function load(file, mocks = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : require(id), Date, Error });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : require(id), Date, Error });
   return compiledModule.exports;
 }
 const logistics = load("lib/events/logistics.ts");
@@ -53,7 +54,29 @@ test("fallback text uses the requested language, then Italian, then English, pre
   assert.equal(logisticsText(text("Italiano", "English"), "constructor"), "Italiano");
   assert.equal(logisticsText(null, "it"), "");
   const value = complete(); value.accessibility.it = '<strong>Ingresso</strong><script>alert("x")</script>';
-  assert.equal(parseEventLogistics(value).accessibility.it, value.accessibility.it, "data stays plain text for React escaping, never interpreted HTML");
+  assert.equal(parseEventLogistics(value).accessibility.it, value.accessibility.it, "stored rich copy is retained and sanitized only at the HTML rendering boundary");
+});
+
+test("formatted logistics use visible text limits while keeping serialized markup bounded", () => {
+  const value = complete();
+  value.accommodations[0].benefits.it = `<p><strong>${"x".repeat(1500)}</strong></p>`;
+  value.arrivals[0].description.it = `<p><em>${"x".repeat(4000)}</em></p>`;
+  value.accessibility.it = `<p><u>${"x".repeat(2000)}</u></p>`;
+  value.contact.it = `<p><s>${"x".repeat(1000)}</s></p>`;
+  assert.equal(eventLogisticsSchema.safeParse(value).success, true);
+  value.accommodations[0].benefits.it = `<strong>${"x".repeat(1501)}</strong>`;
+  assert.equal(eventLogisticsSchema.safeParse(value).success, false);
+  value.accommodations[0].benefits.it = `<p${" ".repeat(13000)}>x</p>`;
+  assert.equal(eventLogisticsSchema.safeParse(value).success, false, "markup alone cannot exceed the request bound");
+});
+
+test("formatting-only empty logistics do not create an empty public section", () => {
+  const value = emptyEventLogistics();
+  value.accessibility.it = "<p><br></p>";
+  value.contact.it = "<p>&nbsp;</p>";
+  assert.equal(eventLogisticsSchema.safeParse(value).success, true);
+  assert.equal(hasEventLogistics(value), false);
+  assert.equal(hasEventLogistics(value, "it"), false);
 });
 
 test("localized presence hides empty public sections while the editor retains translations in other languages", () => {

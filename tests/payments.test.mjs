@@ -1,3 +1,4 @@
+import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -15,7 +16,7 @@ function load(relativePath, mocks = {}, env = {}) {
   }).outputText;
   const sandboxModule = { exports: {} };
   vm.runInNewContext(source, {
-    module: sandboxModule, exports: sandboxModule.exports, require: (name) => name in mocks ? mocks[name] : require(name),
+    module: sandboxModule, exports: sandboxModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name),
     process: { env }, console: { error() {}, warn() {}, log() {} }, Buffer, URL, Request, Response,
     setTimeout, clearTimeout,
   }, { filename });

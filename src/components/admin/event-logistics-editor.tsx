@@ -61,8 +61,8 @@ function AccommodationFields({ value, index, onChange, onRemove }: { value: Acco
         <MultilingualInput label="Distanza dall’evento" data-logistics-path={path("distance")} value={value.distance} maxLength={300} onChange={(distance) => onChange({ distance })} />
         <MultilingualInput label="Tariffa o prezzo indicativo" data-logistics-path={path("rate")} value={value.rate} maxLength={500} onChange={(rate) => onChange({ rate })} />
       </div>
-      <MultilingualTextarea label={value.kind === "partner" ? "Vantaggi della convenzione" : "Servizi e vantaggi indicati"} data-logistics-path={path("benefits")} value={value.benefits} maxLength={1500} onChange={(benefits) => onChange({ benefits })} />
-      <MultilingualTextarea label="Come prenotare la struttura" data-logistics-path={path("bookingInstructions")} value={value.bookingInstructions} maxLength={2000} onChange={(bookingInstructions) => onChange({ bookingInstructions })} />
+      <MultilingualTextarea richText label={value.kind === "partner" ? "Vantaggi della convenzione" : "Servizi e vantaggi indicati"} data-logistics-path={path("benefits")} value={value.benefits} maxLength={1500} onChange={(benefits) => onChange({ benefits })} />
+      <MultilingualTextarea richText label="Come prenotare la struttura" data-logistics-path={path("bookingInstructions")} value={value.bookingInstructions} maxLength={2000} onChange={(bookingInstructions) => onChange({ bookingInstructions })} />
       <button type="button" onClick={onRemove} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-rose-700">Rimuovi struttura</button>
     </div>
   </details>;
@@ -86,7 +86,7 @@ function ConnectionFields({ value, index, total, path, onChange, onRemove, onMov
         <MultilingualInput label="Linea o operatore" data-logistics-path={path("service")} value={value.service} maxLength={200} placeholder="Es. linea del bus o nome della navetta" onChange={(service) => onChange({ service })} />
         <MultilingualInput label="Durata indicativa" data-logistics-path={path("duration")} value={value.duration} maxLength={120} placeholder="Es. circa 45 minuti" onChange={(duration) => onChange({ duration })} />
       </div>
-      <MultilingualTextarea label="Indicazioni per il collegamento" data-logistics-path={path("description")} value={value.description} maxLength={2000} onChange={(description) => onChange({ description })} />
+      <MultilingualTextarea richText label="Indicazioni per il collegamento" data-logistics-path={path("description")} value={value.description} maxLength={2000} onChange={(description) => onChange({ description })} />
       <div className="grid min-w-0 gap-4 xl:grid-cols-2">
         <Input label="Link orari o biglietti" data-logistics-path={path("linkUrl")} type="url" placeholder="https://…" value={value.linkUrl} maxLength={2048} onChange={(event) => onChange({ linkUrl: event.target.value })} />
         <Input label="Link mappa della destinazione" data-logistics-path={path("mapUrl")} type="url" placeholder="https://…" value={value.mapUrl} maxLength={2048} onChange={(event) => onChange({ mapUrl: event.target.value })} />
@@ -119,7 +119,7 @@ function ArrivalFields({ value, index, onChange, onRemove }: { value: Arrival; i
       <Select label="Mezzo di arrivo" value={value.mode} options={[{ value: "plane", label: "Aereo" }, { value: "train", label: "Treno" }, { value: "bus", label: "Autobus" }, { value: "car", label: "Auto" }]} onChange={(event) => onChange({ mode: event.target.value as Arrival["mode"] })} />
       <div data-arrival-title><MultilingualInput label="Titolo percorso *" data-logistics-path={path("title")} value={value.title} maxLength={160} onChange={(title) => onChange({ title })} /><p className="mt-2 text-xs leading-5 text-[#7a8272]">Il titolo in italiano è obbligatorio. Le altre traduzioni sono facoltative.</p></div>
       <MultilingualInput label={arrivalPointLabels[value.mode]} data-logistics-path={path("arrivalPoint")} value={value.arrivalPoint ?? blankText()} maxLength={300} onChange={(arrivalPoint) => onChange({ arrivalPoint })} />
-      <MultilingualTextarea label="Indicazioni per arrivare" data-logistics-path={path("description")} value={value.description} maxLength={4000} onChange={(description) => onChange({ description })} />
+      <MultilingualTextarea richText label="Indicazioni per arrivare" data-logistics-path={path("description")} value={value.description} maxLength={4000} onChange={(description) => onChange({ description })} />
       <Input label="Link informazioni sul percorso" data-logistics-path={path("linkUrl")} type="url" placeholder="https://…" value={value.linkUrl} maxLength={2048} onChange={(event) => onChange({ linkUrl: event.target.value })} />
       <section aria-label="Collegamenti successivi" className="min-w-0 space-y-4 rounded-2xl bg-[#f4f5ef] p-3 sm:p-4">
         <div><h4 className="font-semibold text-[#263a2c]">Come proseguire fino all’evento</h4><p className="mt-2 text-sm leading-6 text-[#687360]">Aggiungi i mezzi nell’ordine del viaggio, indicando partenza e arrivo di ogni collegamento. Puoi inserire fino a 8 collegamenti e riordinarli.</p></div>
@@ -148,8 +148,8 @@ export function EventLogisticsEditor({ value, onChange }: { value: EventLogistic
       <button type="button" disabled={value.arrivals.length >= 16} className={secondaryButton} onClick={() => onChange({ ...value, arrivals: [...value.arrivals, { id: crypto.randomUUID(), mode: "train", title: blankText(), description: blankText(), linkUrl: "" }] })}>Aggiungi percorso</button>
     </section>
     <div className={`${cardClass} space-y-5 p-4 sm:p-5`}>
-      <MultilingualTextarea label="Accessibilità e necessità specifiche" data-logistics-path="accessibility" value={value.accessibility} maxLength={2000} onChange={(accessibility) => onChange({ ...value, accessibility })} />
-      <MultilingualTextarea label="Contatto per viaggio e soggiorno" data-logistics-path="contact" value={value.contact} maxLength={1000} onChange={(contact) => onChange({ ...value, contact })} />
+      <MultilingualTextarea richText label="Accessibilità e necessità specifiche" data-logistics-path="accessibility" value={value.accessibility} maxLength={2000} onChange={(accessibility) => onChange({ ...value, accessibility })} />
+      <MultilingualTextarea richText label="Contatto per viaggio e soggiorno" data-logistics-path="contact" value={value.contact} maxLength={1000} onChange={(contact) => onChange({ ...value, contact })} />
     </div>
   </div>;
 }

@@ -14,6 +14,7 @@ import { Link } from "@/i18n/routing";
 import { parseCommerceConfig } from "@/lib/commerce/config";
 import { fromRomeInput, toRomeInput } from "@/lib/commerce/rome-time";
 import type { Database } from "@/types/supabase";
+import { richTextPlainText, richTextSerializedLimit } from "@/lib/rich-text";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"] & { commerce_config?: unknown };
 type LocalizedValue = string | Record<string, string>;
@@ -138,6 +139,15 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       if (step === 0) {
         if (!localizedCopy(formData.titolo).trim()) throw new Error("Inserisci il titolo in italiano.");
         if (!formData.slug.trim()) throw new Error("Inserisci lo slug dell’evento.");
+        const invalidLanguage = Object.keys(languageNames).find((language) => {
+          const description = localizedCopy(formData.descrizione, language);
+          return richTextPlainText(description).length > 20000 || description.length > richTextSerializedLimit(20000);
+        });
+        if (invalidLanguage) {
+          target = "[data-event-description]";
+          language = invalidLanguage;
+          throw new Error("La descrizione è troppo lunga. Riduci il testo nella lingua indicata.");
+        }
       }
       if (step === 1) {
         eventDates();
@@ -200,7 +210,15 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
     const invalid = specified || (controls && [...controls].find((control) => !control.checkValidity()));
     let details = invalid?.closest("details");
     while (details) { details.open = true; details = details.parentElement?.closest("details"); }
-    if (message.language) [...(invalid?.parentElement?.querySelectorAll("button") || [])].find((button) => button.textContent === message.language)?.click();
+    if (message.language && invalid) {
+      const multilingual = invalid.closest<HTMLElement>("[data-multilingual-field]") || invalid.parentElement;
+      [...(multilingual?.querySelectorAll("button") || [])].find((button) => button.textContent === message.language)?.click();
+      const timer = window.setTimeout(() => {
+        const field = multilingual?.querySelector<HTMLElement>('[role="textbox"],input,textarea');
+        field?.focus();
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
     else if (invalid?.closest("[data-arrival-title]")) [...(invalid.closest("[data-arrival-title]")?.querySelectorAll("button") || [])].find((button) => button.textContent === "it")?.click();
     const target = invalid || panel?.querySelector<HTMLElement>("input,textarea,button");
     target?.focus();
@@ -344,12 +362,15 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
           />
         </div>
 
-        <MultilingualTextarea 
+        <div data-event-description><MultilingualTextarea
           label="Descrizione Completa" 
+          richText
+          disabled={isPending}
+          maxLength={20000}
           className="min-h-[150px]"
           value={formData.descrizione} 
           onChange={val => setFormData({...formData, descrizione: val})} 
-        />
+        /></div>
       </div>
 
       </fieldset>
@@ -418,7 +439,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         <div><h2 className="text-xl font-semibold text-[#18251f]">Controlla prima di confermare</h2><p className="mt-2 text-sm leading-6 text-[#7a8272]">I dati vengono salvati solo con il pulsante finale. Puoi tornare ai passaggi precedenti per modificarli.</p></div>
         <section className="space-y-3" aria-label="Riepilogo dettagli"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Dettagli</h3><button type="button" onClick={() => changeStep(0)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica dettagli</button></div>
           <dl className="grid gap-3 sm:grid-cols-2">{Object.entries(languageNames).map(([language, name]) => <div key={language} className="rounded-xl bg-[#f3f2ed] p-3"><dt className="text-xs text-[#7a8272]">{name}</dt><dd className="mt-1 break-words text-sm font-semibold">{localizedCopy(formData.titolo, language) || "Titolo non inserito"}</dd>{localizedCopy(formData.sottotitolo, language) && <dd className="mt-1 text-sm text-[#7a8272]">{localizedCopy(formData.sottotitolo, language)}</dd>}</div>)}</dl>
-          <details className="rounded-xl border border-[#e4e5dc] p-3"><summary className="cursor-pointer text-sm font-semibold text-[#52604f]">Rivedi le descrizioni</summary><div className="mt-3 space-y-4">{Object.entries(languageNames).map(([language, name]) => <div key={language}><h4 className="text-xs font-semibold text-[#7a8272]">{name}</h4><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">{localizedCopy(formData.descrizione, language).replace(/<[^>]*>/g, " ").trim() || "Descrizione non inserita"}</p></div>)}</div></details>
+          <details className="rounded-xl border border-[#e4e5dc] p-3"><summary className="cursor-pointer text-sm font-semibold text-[#52604f]">Rivedi le descrizioni</summary><div className="mt-3 space-y-4">{Object.entries(languageNames).map(([language, name]) => <div key={language}><h4 className="text-xs font-semibold text-[#7a8272]">{name}</h4><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">{richTextPlainText(localizedCopy(formData.descrizione, language)).trim() || "Descrizione non inserita"}</p></div>)}</div></details>
           <p className="break-all text-xs text-[#7a8272]">{formData.tipo === "evento" ? "/eventi/" : "/workshop/"}{formData.slug}</p>
         </section>
         <section className="space-y-3 border-t border-[#e4e5dc] pt-4" aria-label="Riepilogo data e luogo"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Data e luogo</h3><button type="button" onClick={() => changeStep(1)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica data e luogo</button></div>

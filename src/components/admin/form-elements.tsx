@@ -1,5 +1,12 @@
+"use client";
+
 import { CustomSelect } from "@/components/ui/custom-select";
+import dynamic from "next/dynamic";
 import React, { useId, useState } from "react";
+
+const RichTextEditor = dynamic(() => import("./rich-text-editor").then((module) => module.RichTextEditor), {
+  loading: () => <div role="status" className="min-h-36 rounded-xl border border-[#dedfd4] bg-[#fffefa] p-4 text-sm text-[#52604f]">Caricamento editor…</div>,
+});
 
 interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -140,7 +147,7 @@ export function MultilingualInput({ label, value, onChange, error, id, className
   };
   
   return (
-    <div className="space-y-1">
+    <div data-multilingual-field className="space-y-1">
       <div className="flex items-center justify-between mb-1">
         <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">{label} {props.required && '*'}</label>
         <div className="flex gap-1 bg-muted p-1 rounded-md">
@@ -148,6 +155,7 @@ export function MultilingualInput({ label, value, onChange, error, id, className
             <button
               key={loc}
               type="button"
+              aria-pressed={activeTab === loc}
               onClick={() => setActiveTab(loc)}
               className={`px-2.5 py-0.5 text-[10px] font-bold rounded-[4px] uppercase transition-all ${activeTab === loc ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
@@ -170,7 +178,7 @@ export function MultilingualInput({ label, value, onChange, error, id, className
   );
 }
 
-export function MultilingualTextarea({ label, value, onChange, error, id, className = "", ...props }: MultilingualProps & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'|'onChange'>) {
+export function MultilingualTextarea({ label, value, onChange, error, id, className = "", richText = false, ...props }: MultilingualProps & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'|'onChange'> & { richText?: boolean }) {
   const generatedId = useId();
   const fieldId = id || generatedId;
   const [activeTab, setActiveTab] = useState<Locale>('it');
@@ -182,14 +190,15 @@ export function MultilingualTextarea({ label, value, onChange, error, id, classN
   };
   
   return (
-    <div className="space-y-1">
+    <div data-multilingual-field className="space-y-1">
       <div className="flex items-center justify-between mb-1">
-        <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">{label} {props.required && '*'}</label>
+        <label id={`${fieldId}-label`} htmlFor={fieldId} onClick={richText ? () => document.getElementById(fieldId)?.focus() : undefined} className="block text-sm font-medium text-foreground">{label} {props.required && '*'}</label>
         <div className="flex gap-1 bg-muted p-1 rounded-md">
           {LOCALES.map(loc => (
             <button
               key={loc}
               type="button"
+              aria-pressed={activeTab === loc}
               onClick={() => setActiveTab(loc)}
               className={`px-2.5 py-0.5 text-[10px] font-bold rounded-[4px] uppercase transition-all ${activeTab === loc ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
@@ -198,7 +207,15 @@ export function MultilingualTextarea({ label, value, onChange, error, id, classN
           ))}
         </div>
       </div>
-      <textarea
+      {richText ? <RichTextEditor
+        {...props}
+        key={activeTab}
+        id={fieldId}
+        aria-labelledby={`${fieldId}-label`}
+        className={className}
+        value={valObj[activeTab] || ''}
+        onChange={(html) => onChange({ ...valObj, [activeTab]: html })}
+      /> : <textarea
         id={fieldId}
         className={`w-full p-2.5 border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow resize-y min-h-[100px] ${
           error ? "border-destructive" : "border-border"
@@ -206,7 +223,7 @@ export function MultilingualTextarea({ label, value, onChange, error, id, classN
         value={valObj[activeTab] || ''}
         onChange={handleChange}
         {...props}
-      />
+      />}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

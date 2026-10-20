@@ -1,3 +1,5 @@
+import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
+import { richTextDynamicFixture } from "./helpers/rich-text-editor-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -25,14 +27,14 @@ function load(file, mocks = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : require(id), Date, Intl, Error, URL, crypto: webcrypto, FormData: dom.window.FormData, console: { error() {} } });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : require(id), Date, Intl, Error, URL, window: dom.window, crypto: webcrypto, FormData: dom.window.FormData, console: { error() {} } });
   return compiledModule.exports;
 }
 const config = load("lib/commerce/config.ts");
 const logistics = load("lib/events/logistics.ts");
 const rome = load("lib/commerce/rome-time.ts");
 const customSelect = load("components/ui/custom-select.tsx", { "./custom-select.module.css": {} });
-const elements = load("components/admin/form-elements.tsx", { "@/components/ui/custom-select": customSelect });
+const elements = load("components/admin/form-elements.tsx", { "@/components/ui/custom-select": customSelect, "next/dynamic": richTextDynamicFixture });
 const i18n = load("lib/i18n-utils.ts");
 const Anchor = ({ children, ...props }) => React.createElement("a", props, children);
 const routing = { Link: Anchor };

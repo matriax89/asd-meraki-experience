@@ -14,8 +14,9 @@ function load(file, mocks = {}) {
   return compiledModule.exports;
 }
 const i18n = load("lib/i18n-utils.ts");
+const richText = load("lib/rich-text.ts");
 const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n });
-const logistics = load("lib/events/logistics.ts");
+const logistics = load("lib/events/logistics.ts", { "@/lib/rich-text": richText });
 const travelData = { ...logistics.emptyEventLogistics(), contact: { it: "Assistenza viaggio Meraki", en: "", de: "", es: "" } };
 
 function fixture(type, published) {
@@ -35,6 +36,7 @@ function fixture(type, published) {
     "@/components/meraki/events-data": eventsData,
     "@/components/meraki/event-detail": { EventDetail: () => null },
     "@/lib/events/logistics": logistics,
+    "@/lib/rich-text": richText,
     "next/navigation": { notFound() { throw Object.assign(new Error("Not found"), { status: 404 }); } },
   });
   return { page, queries, selections, params: Promise.resolve({ locale: "it", slug: row.slug }) };
