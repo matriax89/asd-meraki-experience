@@ -373,7 +373,7 @@ async function discountEditorFixture({ config = validConfig, initialDiscounts = 
   const click = async (text) => { const node = [...document.querySelectorAll("button")].find((node) => node.textContent.trim() === text); assert.ok(node, `button ${text} exists`); await React.act(async () => node.click()); };
   const input = async (label, value) => { const node = [...document.querySelectorAll("label")].find((node) => node.textContent.startsWith(label))?.querySelector("input"); assert.ok(node, `input ${label} exists`); await React.act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(node, value); node.dispatchEvent(new dom.window.Event("input", { bubbles: true })); }); };
   const select = async (label, value) => React.act(async () => { const node = document.querySelector(`select[aria-label='${label}']`); Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype, "value").set.call(node, value); node.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
-  return { dom, document, React, saved, click, input, select, async close() { await React.act(async () => root.unmount()); dom.window.close(); for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } } };
+  return { dom, document, React, saved, click, input, select, async rerenderConfig(nextConfig) { await React.act(async () => root.render(React.createElement(component.DiscountCodesEditor, { eventId, config: nextConfig, initialDiscounts }))); }, async close() { await React.act(async () => root.unmount()); dom.window.close(); for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } } };
 }
 test("discount creation has three explicit stages and stores the targeted activity only at confirmation", async () => {
   const fixture = await discountEditorFixture();
@@ -398,9 +398,57 @@ test("simple ticket events can create order discounts without exposing unavailab
   try {
     await fixture.click("Crea codice sconto"); await fixture.input("Codice da condividere", "TICKET10"); await fixture.input("Nome interno", "Promo evento"); await fixture.click("Avanti");
     assert.deepEqual([...fixture.document.querySelector("select[aria-label='Applica lo sconto a']").options].map((option) => option.value), ["order"]);
+    const select = fixture.document.querySelector("select[aria-label='Applica lo sconto a']");
+    const help = fixture.document.getElementById(select.getAttribute("aria-describedby"));
+    assert.match(help.textContent, /salva la configurazione/); assert.match(help.textContent, /Salva bozza/);
     assert.equal(fixture.document.body.textContent.includes("Tutti gli scaglioni, compreso Early Bird"), false);
     await fixture.click("Avanti"); assert.equal(fixture.saved.length, 0); await fixture.click("Salva codice sconto");
     assert.equal(fixture.saved[0].targetType, "order");
+  } finally { await fixture.close(); }
+});
+
+test("saved products in a disabled draft unlock their own discount categories and saved price tiers", async () => {
+  const config = { ...validConfig, enabled: false, addons: [{ id: "extra-ws", name: "Ingresso aggiuntivo", activityId: "ws", amountCents: 500 }] };
+  const fixture = await discountEditorFixture({ config });
+  try {
+    await fixture.click("Crea codice sconto"); await fixture.input("Codice da condividere", "DRAFT20"); await fixture.input("Nome interno", "Promozione preparata in bozza");
+    await fixture.click("Avanti");
+    assert.deepEqual([...fixture.document.querySelector("select[aria-label='Applica lo sconto a']").options].map((option) => option.value), ["order", "package", "activity", "addon"]);
+    assert.equal(fixture.document.body.textContent.includes("Tutti gli scaglioni, compreso Early Bird"), true);
+    await fixture.select("Applica lo sconto a", "activity");
+    const target = [...fixture.document.querySelectorAll("label")].find((node) => node.textContent.trim() === "Workshop").querySelector("input");
+    const allTiers = [...fixture.document.querySelectorAll("label")].find((node) => node.textContent.trim() === "Tutti gli scaglioni, compreso Early Bird").querySelector("input");
+    await fixture.React.act(async () => { target.click(); allTiers.click(); });
+    await fixture.click("Avanti"); assert.equal(fixture.saved.length, 0);
+    await fixture.click("Salva codice sconto");
+    assert.equal(fixture.saved.length, 1); assert.equal(fixture.saved[0].targetType, "activity");
+    assert.deepEqual(fixture.saved[0].targetIds, ["ws"]); assert.deepEqual(fixture.saved[0].allowedTierIds, ["early"]);
+    assert.equal(config.enabled, false, "preparing the promotion never enables or publishes the saved draft");
+  } finally { await fixture.close(); }
+});
+
+test("discount categories reflect only saved collections and update without clearing the promotion draft", async () => {
+  const fixture = await discountEditorFixture({ config: null });
+  const categoryValues = () => [...fixture.document.querySelector("select[aria-label='Applica lo sconto a']").options].map((option) => option.value);
+  try {
+    await fixture.click("Crea codice sconto"); await fixture.input("Codice da condividere", "WAIT10"); await fixture.input("Nome interno", "Promozione in preparazione");
+    await fixture.click("Avanti");
+    assert.deepEqual(categoryValues(), ["order"]);
+    const empty = { ...validConfig, enabled: false, activities: [], packages: [], addons: [] };
+    await fixture.rerenderConfig(empty);
+    assert.deepEqual(categoryValues(), ["order"]);
+    assert.match(fixture.document.getElementById(fixture.document.querySelector("select[aria-label='Applica lo sconto a']").getAttribute("aria-describedby")).textContent, /Salva bozza/);
+    await fixture.rerenderConfig({ ...validConfig, enabled: false, packages: [] });
+    assert.deepEqual(categoryValues(), ["order", "activity"]);
+    assert.equal(fixture.document.body.textContent.includes("Tutti gli scaglioni, compreso Early Bird"), false);
+    await fixture.rerenderConfig(validConfig);
+    assert.deepEqual(categoryValues(), ["order", "package", "activity"]);
+    assert.equal(fixture.document.querySelector("select[aria-label='Applica lo sconto a']").hasAttribute("aria-describedby"), false);
+    assert.equal(fixture.document.querySelector("[data-discount-step='1']").hidden, false);
+    await fixture.click("Indietro");
+    assert.equal([...fixture.document.querySelectorAll("label")].find((node) => node.textContent.startsWith("Codice da condividere")).querySelector("input").value, "WAIT10");
+    assert.equal([...fixture.document.querySelectorAll("label")].find((node) => node.textContent.startsWith("Nome interno")).querySelector("input").value, "Promozione in preparazione");
+    assert.equal(fixture.saved.length, 0, "receiving saved products never auto-saves the promotion");
   } finally { await fixture.close(); }
 });
 
