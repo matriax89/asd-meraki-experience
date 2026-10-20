@@ -42,7 +42,7 @@ function localizedPath(locale: string, path: string) {
 }
 
 function socialMetadata(locale: string, path: string | undefined, title: string, description: string, image: {
-  url: string; width: number; height: number; alt: string; type: string;
+  url: string; width?: number; height?: number; alt: string; type?: string;
 }): Metadata {
   const current = language(locale);
   const url = path === undefined ? undefined : `${MERAKI_SITE_ORIGIN}${localizedPath(current, path)}`;
@@ -66,10 +66,15 @@ export function brandSocialMetadata(locale: string, path?: string, overrides?: {
 
 export function eventSocialMetadata(event: SocialEvent, locale: string, path: string): Metadata {
   const { title, description } = eventSocialCopy(event, locale);
-  const image = new URL(`/api/social/event/${encodeURIComponent(event.id)}`, MERAKI_SITE_ORIGIN);
-  image.searchParams.set("lang", language(locale));
-  image.searchParams.set("v", event.updated_at || "1");
-  return socialMetadata(locale, path, title, description, {
-    url: image.href, width: 1200, height: 630, type: "image/png", alt: title,
-  });
+  try {
+    if (event.copertina_url?.trim()) {
+      const image = new URL(event.copertina_url, MERAKI_SITE_ORIGIN);
+      if (image.protocol === "https:" && !image.username && !image.password) {
+        image.hash = "";
+        // Share the original file without cropping, resizing or adding artwork.
+        return socialMetadata(locale, path, title, description, { url: image.href, alt: title });
+      }
+    }
+  } catch { /* Missing or invalid posters use the existing brand fallback. */ }
+  return brandSocialMetadata(locale, path, { title, description });
 }

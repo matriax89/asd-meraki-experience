@@ -75,9 +75,9 @@ for (const type of ["evento", "workshop", "masterclass"]) {
     assert.ok(current.selections[0].split(",").map((column) => column.trim()).includes("affiliates"));
     const metadata = await current.page.generateMetadata({ params: current.params });
     assert.equal(metadata.title, "Titolo riservato della bozza");
-    assert.equal(new URL(metadata.openGraph.images[0].url).pathname, "/api/social/event/local-event");
-    assert.equal(metadata.openGraph.images[0].width, 1200);
-    assert.equal(metadata.openGraph.images[0].height, 630);
+    assert.equal(metadata.openGraph.images[0].url, "https://example.test/private-draft-image.png");
+    assert.equal(metadata.openGraph.images[0].width, undefined);
+    assert.equal(metadata.openGraph.images[0].height, undefined);
     assert.equal(metadata.openGraph.images[0].alt, "Titolo riservato della bozza");
   });
 }

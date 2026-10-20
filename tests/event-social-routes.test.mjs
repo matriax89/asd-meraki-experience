@@ -123,9 +123,9 @@ for (const locale of locales) test(`${locale}: homepage and event catalogue shar
     assert.equal(metadata.openGraph.title, row().titolo[locale]);
     assert.equal(metadata.twitter.title, row().titolo[locale]);
     assert.ok(metadata.description.includes(row().descrizione[locale].replace(/<[^>]+>/g, "")));
-    assert.ok(String(metadata.openGraph.images[0].url).includes(`/api/social/event/${row().id}?`));
-    assert.equal(metadata.openGraph.images[0].width, 1200);
-    assert.equal(metadata.openGraph.images[0].height, 630);
+    assert.equal(String(metadata.openGraph.images[0].url), row().copertina_url);
+    assert.equal(metadata.openGraph.images[0].width, undefined);
+    assert.equal(metadata.openGraph.images[0].height, undefined);
   }
   assert.equal(String(home.alternates.canonical), `https://www.merakiexperience.org/${locale}`);
   assert.equal(String(catalogue.alternates.canonical), `https://www.merakiexperience.org/${locale}/eventi`);
@@ -138,7 +138,7 @@ for (const locale of locales) test(`${locale}: workshop listing and detail use t
   for (const route of ["workshop", "workshop/[slug]"]) {
     const metadata = await current.metadata(route, locale, workshop.slug);
     assert.equal(metadata.openGraph.title, workshop.titolo[locale]);
-    assert.ok(String(metadata.openGraph.images[0].url).includes(`/api/social/event/${workshop.id}?`));
+    assert.equal(String(metadata.openGraph.images[0].url), workshop.copertina_url);
     const path = route.includes("[slug]") ? `/workshop/${workshop.slug}` : "/workshop";
     assert.equal(String(metadata.alternates.canonical), `https://www.merakiexperience.org/${locale}${path}`);
   }
@@ -149,7 +149,7 @@ for (const locale of locales) test(`${locale}: event detail describes the exact 
   const current = fixture([row({ titolo: { it: "Altro evento" } }), shared]);
   const metadata = await current.metadata("eventi/[slug]", locale, shared.slug);
   assert.equal(metadata.openGraph.title, shared.titolo[locale]);
-  assert.ok(String(metadata.openGraph.images[0].url).includes("/api/social/event/archived-published?"));
+  assert.equal(String(metadata.openGraph.images[0].url), shared.copertina_url);
   assert.equal(String(metadata.alternates.canonical), `https://www.merakiexperience.org/${locale}/eventi/evento-storico`);
 });
 

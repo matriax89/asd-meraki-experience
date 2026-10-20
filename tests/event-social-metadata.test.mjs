@@ -72,7 +72,7 @@ test("an event without a description still has a useful public preview", () => {
   }
 });
 
-for (const locale of locales) test(`${locale}: Open Graph and Twitter expose one public, versioned landscape image and matching event copy`, () => {
+for (const locale of locales) test(`${locale}: Open Graph and Twitter share only the original full-size poster and matching event copy`, () => {
   const current = event();
   const metadata = social.eventSocialMetadata(current, locale, `/${locale}/eventi/${current.slug}`);
   assert.equal(metadata.title, titles[locale]);
@@ -84,15 +84,14 @@ for (const locale of locales) test(`${locale}: Open Graph and Twitter expose one
   assert.ok(metadata.openGraph.siteName.includes("Meraki"));
   assert.equal(metadata.openGraph.type, "website");
   const og = metadata.openGraph.images[0];
-  assert.equal(og.width, 1200);
-  assert.equal(og.height, 630);
+  assert.equal(og.width, undefined);
+  assert.equal(og.height, undefined);
+  assert.equal(og.type, undefined);
   assert.equal(og.alt, titles[locale]);
   const image = new URL(String(og.url));
   assert.equal(image.protocol, "https:");
-  assert.equal(image.origin, "https://www.merakiexperience.org");
-  assert.equal(image.pathname, `/api/social/event/${current.id}`);
-  assert.equal(image.searchParams.get("lang"), locale);
-  assert.equal(image.searchParams.get("v"), current.updated_at);
+  assert.equal(image.href, current.copertina_url);
+  assert.doesNotMatch(image.href, /\/api\/social\/|resize|width=|height=/);
   const twitterImage = metadata.twitter.images[0];
   assert.equal(String(typeof twitterImage === "string" || twitterImage instanceof URL ? twitterImage : twitterImage.url), String(og.url));
   assert.equal(String(metadata.alternates.canonical), `https://www.merakiexperience.org/${locale}/eventi/${current.slug}`);
@@ -106,10 +105,21 @@ test("canonical social URLs never include checkout tokens, affiliate tracking or
   assert.doesNotMatch(JSON.stringify(metadata), /private-token|private-session|affiliate=|#prezzi/);
 });
 
-test("changing a poster or event's revision invalidates the public preview image URL", () => {
+test("replacing the original poster changes the public preview image URL", () => {
   const before = social.eventSocialMetadata(event(), "it", "/it/eventi/vibra-by-alejandro-angulo");
   const after = social.eventSocialMetadata(event({ updated_at: "2026-10-21T10:10:00Z", copertina_url: "https://assets.example.test/nuova-locandina.png" }), "it", "/it/eventi/vibra-by-alejandro-angulo");
   assert.notEqual(String(before.openGraph.images[0].url), String(after.openGraph.images[0].url));
+});
+
+test("missing or unsafe poster URLs retain event copy with the original brand fallback", () => {
+  for (const copertina_url of [null, "", "  ", "http://example.test/poster.jpg", "javascript:alert(1)", "data:image/png;base64,test", "https://user:secret@example.test/poster.jpg"]) {
+    const metadata = social.eventSocialMetadata(event({ copertina_url }), "en", "/en/eventi/vibra");
+    assert.equal(metadata.openGraph.images[0].url, "https://www.merakiexperience.org/images/logo-meraki-email.png");
+    assert.equal(metadata.openGraph.title, titles.en);
+    assert.equal(metadata.openGraph.description, descriptions.en);
+  }
+  const relative = social.eventSocialMetadata(event({ copertina_url: "/images/poster.jpg#preview" }), "it", "/it/eventi/vibra");
+  assert.equal(relative.openGraph.images[0].url, "https://www.merakiexperience.org/images/poster.jpg");
 });
 
 test("long descriptions preserve emoji and stop at a word boundary with a visible ellipsis", () => {
