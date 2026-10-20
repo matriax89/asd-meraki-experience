@@ -10,6 +10,7 @@ export type CommerceParticipant = {
 
 export type CommerceCatalog = {
   config: CommerceConfig;
+  affiliates?: { id: string; name: string }[];
   availability: Record<string, number | null>;
   available: boolean;
   event: { id: string; title: string; date: string };

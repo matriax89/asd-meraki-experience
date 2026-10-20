@@ -12,7 +12,7 @@ function load(path, mocks = {}, env = {}) {
   const filename = fileURLToPath(new URL(`../${path}`, import.meta.url));
   const source = ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name), console: { error() {} }, URL, Request, Response, process: { env }, Map, Date }, { filename });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : require(name), console: { error() {} }, URL, Request, Response, process: { env }, Map, Date }, { filename });
   return compiledModule.exports;
 }
 const localization = load("src/lib/commerce/localization.ts");
@@ -120,7 +120,7 @@ function checkoutEndpoint(savedOrder) {
   const route = load("src/app/api/commerce/checkout/route.ts", {
     "@/lib/commerce/http": http,
     "@/lib/commerce/attendee": attendee,
-    "@/lib/commerce/server": { commerceClient: () => ({ rpc: async (name, args) => { calls.push([name, args]); return { data: name === "reserve_event_commerce" || name === "reserve_event_commerce_attendees" ? { order: savedOrder } : null }; } }) },
+    "@/lib/commerce/server": { commerceClient: () => ({ rpc: async (name, args) => { calls.push([name, args]); return { data: name === "reserve_event_commerce_affiliate" ? { order: savedOrder } : null }; } }) },
     "@/lib/stripe/client": { PaymentConfigurationError: class extends Error {}, getVerifiedStripe: async () => ({ checkout: { sessions: { retrieve: async () => ({ status: "open", url: "https://checkout.stripe.com/existing" }) } } }) },
     "@/lib/stripe/commerce": { createCommerceSession: async () => { throw Error("No additional Stripe session expected"); } },
   });
@@ -146,7 +146,7 @@ test("an ambiguous creation attempt keeps the original reservation and request k
   assert.equal(result.code, "checkout_pending");
   assert.equal(endpoint.calls.length, 1);
   assert.equal(endpoint.calls[0][1].p_request_id, orderId);
-  assert.equal(endpoint.calls[0][0], "reserve_event_commerce_attendees");
+  assert.equal(endpoint.calls[0][0], "reserve_event_commerce_affiliate");
   assert.equal(endpoint.calls[0][1].p_privacy_version, attendee.ATTENDEE_PRIVACY_VERSION);
   assert.equal(endpoint.calls[0][1].p_attendees[0].email, contact.email);
   assert.equal(endpoint.calls[0][1].p_participants[0].email, undefined);
@@ -164,13 +164,27 @@ test("guest commerce requires matching attendee contacts and accepts an unchecke
   assert.equal(endpoint.calls.length, 1);
 });
 
+test("commerce sends only an affiliate identifier to the authoritative reservation and defaults to direct purchase", async () => {
+  const affiliateId = "20000000-0000-4000-8000-000000000001";
+  const endpoint = checkoutEndpoint({ ...order, stripe_session_id: sessionId });
+  assert.equal((await endpoint.post(8500, { affiliateId, affiliateName: "Untrusted name" })).status, 200);
+  assert.equal(endpoint.calls[0][1].p_affiliate_id, affiliateId);
+  assert.equal(endpoint.calls[0][1].affiliateName, undefined);
+  assert.equal(endpoint.calls[0][1].p_discount_code, null);
+  assert.equal((await endpoint.post()).status, 200);
+  assert.equal(endpoint.calls[1][1].p_affiliate_id, null);
+  assert.equal((await endpoint.post(8500, { affiliateId: "not-an-id" })).status, 400);
+  assert.equal(endpoint.calls.length, 2);
+});
+
 test("an existing verified pass upgrades without re-entering or exposing private identity data", async () => {
   const endpoint = checkoutEndpoint({ ...order, stripe_session_id: sessionId });
-  const response = await endpoint.post(8500, { attendees: undefined, upgradePassId: eventId, upgradeToken: "secure-upgrade-token" });
+  const response = await endpoint.post(8500, { attendees: undefined, upgradePassId: eventId, upgradeToken: "secure-upgrade-token", affiliateId: "20000000-0000-4000-8000-000000000001" });
   assert.equal(response.status, 200);
-  assert.equal(endpoint.calls[0][0], "reserve_event_commerce");
+  assert.equal(endpoint.calls[0][0], "reserve_event_commerce_affiliate");
   assert.equal(endpoint.calls[0][1].p_upgrade_pass_id, eventId);
-  assert.equal(endpoint.calls[0][1].p_attendees, undefined);
+  assert.equal(endpoint.calls[0][1].p_attendees, null);
+  assert.equal(endpoint.calls[0][1].p_affiliate_id, null, "Upgrades inherit attribution from the original verified pass");
 });
 
 test("an attached session is reused even when its remaining lifetime is under thirty minutes", async () => {
@@ -292,14 +306,14 @@ test("discount checkout atomically reserves private contacts and compares the ne
   const net = { ...order, amount_cents: 7300, quote: { subtotalCents: 8500, discountCents: 1200, totalCents: 7300, lines: [] } };
   const route = load("src/app/api/commerce/checkout/route.ts", {
     "@/lib/commerce/http": http, "@/lib/commerce/attendee": attendee,
-    "@/lib/commerce/server": { commerceClient: () => ({ rpc: async (name, args) => { calls.push([name, args]); return { data: name === "reserve_event_commerce_discount" ? { order: net } : null }; } }) },
+    "@/lib/commerce/server": { commerceClient: () => ({ rpc: async (name, args) => { calls.push([name, args]); return { data: name === "reserve_event_commerce_affiliate" ? { order: net } : null }; } }) },
     "@/lib/stripe/client": { PaymentConfigurationError: class extends Error {}, getVerifiedStripe: async () => ({}) },
     "@/lib/stripe/commerce": { createCommerceSession: async () => { throw Error("Price changed: no Stripe session"); } },
   });
   const response = await route.POST(new Request("https://meraki.example/api/commerce/checkout", { method: "POST", body: JSON.stringify({ eventId, participants: [person], attendees: [contact], buyerEmail: contact.email, locale: "es", checkoutAttemptId: orderId, expectedTotalCents: 7200, discountCode: "ws20" }) }));
   assert.equal(response.status, 409);
   assert.equal((await response.json()).code, "price_changed");
-  assert.equal(calls[0][0], "reserve_event_commerce_discount");
+  assert.equal(calls[0][0], "reserve_event_commerce_affiliate");
   assert.equal(calls[0][1].p_discount_code, "WS20");
   assert.equal(calls[0][1].p_locale, "es");
   assert.equal(calls[0][1].p_attendees[0].email, contact.email);

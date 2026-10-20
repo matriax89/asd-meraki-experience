@@ -27,7 +27,7 @@ function load(file, mocks = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : require(id), Date, Intl, Error, URL, window: dom.window, crypto: webcrypto, FormData: dom.window.FormData, console: { error() {} } });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : id === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(id), Date, Intl, Error, URL, window: dom.window, crypto: webcrypto, FormData: dom.window.FormData, console: { error() {} } });
   return compiledModule.exports;
 }
 const config = load("lib/commerce/config.ts");
@@ -746,4 +746,78 @@ test("the final review and save keep ordered connections and reload their transl
   await reopened.click("en", destination.parentElement);
   assert.equal(destination.value, "Event venue");
   assert.equal(reopened.host.querySelector('[data-logistics-path="arrivals.0.connections.0.service"]').value, "Linea di prova A");
+});
+
+const affiliateA = { id: "aaaaaaaa-1111-4111-8111-111111111111", name: "Scuola Aurora", active: true };
+const affiliateB = { id: "bbbbbbbb-2222-4222-8222-222222222222", name: "Referente Bruno", active: false };
+
+test("event affiliates are saved only after review and retain manual names and stable identifiers", async (context) => {
+  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA, affiliateB] });
+  await screen.advance(); await screen.advance();
+  assert.equal(screen.currentStep(), 2);
+  const original = screen.host.querySelector(`[data-event-affiliate="${affiliateA.id}"]`);
+  assert.equal(original.querySelector('input[type="text"], input:not([type])').value, affiliateA.name);
+  assert.equal([...original.querySelectorAll("button")].some((button) => button.textContent === "Rimuovi affiliato"), false);
+  assert.equal(original.querySelector("a").getAttribute("href"), `/admin/biglietti?event=${eventId}&affiliate=${affiliateA.id}`);
+  await screen.click("Aggiungi affiliato");
+  const added = screen.host.querySelectorAll("[data-event-affiliate]")[2];
+  const addedId = added.dataset.eventAffiliate;
+  assert.match(addedId, /^[0-9a-f-]{36}$/);
+  await screen.change(withinField(added, "Nome affiliato"), "Nuovo referente");
+  await screen.click("Aggiungi affiliato");
+  await screen.click("Rimuovi affiliato", screen.host.querySelectorAll("[data-event-affiliate]")[3]);
+  await act(async () => original.querySelector('input[type="checkbox"]').click());
+  await screen.review();
+  assert.equal(screen.saved.length, 0);
+  assert.match(screen.host.querySelector('[aria-label="Riepilogo biglietteria"]').textContent, /Affiliati: 1 attivi/);
+  await screen.advance();
+  assert.equal(JSON.stringify(screen.saved[0].affiliates), JSON.stringify([{ ...affiliateA, active: false }, affiliateB, { id: addedId, name: "Nuovo referente", active: true }]));
+});
+
+test("empty or duplicate active affiliate names stop the wizard without saving", async (context) => {
+  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA] });
+  await screen.advance(); await screen.advance();
+  await screen.click("Aggiungi affiliato");
+  const added = screen.host.querySelectorAll("[data-event-affiliate]")[1];
+  await screen.advance();
+  assert.equal(screen.currentStep(), 2);
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /nome per ogni affiliato/);
+  await screen.change(withinField(added, "Nome affiliato"), " scuola AURORA ");
+  await screen.advance();
+  assert.equal(screen.currentStep(), 2);
+  assert.equal(screen.saved.length, 0);
+  await screen.change(withinField(added, "Nome affiliato"), "Seconda scuola");
+  await screen.advance();
+  assert.equal(screen.currentStep(), 3);
+});
+
+test("affiliate updates preserve retired entries and omission does not overwrite event attribution settings", async () => {
+  const fixture = serverFixture({ ...baseEvent, affiliates: [affiliateA, affiliateB] });
+  const result = await fixture.actions.upsertEvent({ ...baseEvent, affiliates: [{ ...affiliateA, name: "Scuola Aurora nuova" }] });
+  assert.equal(result.success, true);
+  assert.equal(JSON.stringify(fixture.saved[0].affiliates), JSON.stringify([{ ...affiliateA, name: "Scuola Aurora nuova" }, affiliateB]));
+  const retired = serverFixture({ ...baseEvent, affiliates: [affiliateA] });
+  assert.equal((await retired.actions.upsertEvent({ ...baseEvent, affiliates: [] })).success, true);
+  assert.equal(JSON.stringify(retired.saved[0].affiliates), JSON.stringify([{ ...affiliateA, active: false }]));
+  const omitted = serverFixture({ ...baseEvent, affiliates: [affiliateA] });
+  assert.equal((await omitted.actions.upsertEvent(baseEvent)).success, true);
+  assert.equal("affiliates" in omitted.saved[0], false);
+});
+
+test("invalid affiliate configuration is rejected by the staff action before any event write", async () => {
+  for (const entries of [[{ ...affiliateA, name: " " }], [affiliateA, { ...affiliateA, name: "Another" }], [affiliateA, { ...affiliateB, active: true, name: "SCUOLA AURORA" }], [{ ...affiliateA, id: "unsafe-id" }]]) {
+    const fixture = serverFixture();
+    const result = await fixture.actions.upsertEvent({ ...baseEvent, affiliates: entries });
+    assert.equal(result.success, false);
+    assert.match(result.error, /Controlla gli affiliati/);
+    assert.equal(fixture.saved.length, 0);
+  }
+});
+
+test("a failed historical affiliate lookup stops the event update instead of erasing attribution configuration", async () => {
+  const fixture = serverFixture(null);
+  const result = await fixture.actions.upsertEvent({ ...baseEvent, affiliates: [] });
+  assert.equal(result.success, false);
+  assert.match(result.error, /verificare lo storico degli affiliati/);
+  assert.equal(fixture.saved.length, 0);
 });

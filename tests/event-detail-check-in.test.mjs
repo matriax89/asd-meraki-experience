@@ -24,13 +24,14 @@ const data = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n
 const logistics = load("lib/events/logistics.ts");
 const poster = load("components/meraki/event-poster.tsx", { "next/image": { __esModule: true, default: () => null } });
 const travel = load("components/meraki/event-logistics-section.tsx", { "@/lib/events/logistics": logistics });
+const checkoutCalls = [];
 const { EventDetail } = load("components/meraki/event-detail.tsx", {
   "./event-model": model,
   "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) },
   "next/image": { __esModule: true, default: () => null },
   "@/components/public/event-description": { EventDescription: ({ description }) => React.createElement("div", null, description) },
   "@/lib/tickets/event-availability": load("lib/tickets/event-availability.ts"),
-  "@/app/[locale]/(public)/eventi/[slug]/checkout-button": { CheckoutButton: () => React.createElement("button", null, "Checkout") },
+  "@/app/[locale]/(public)/eventi/[slug]/checkout-button": { CheckoutButton: (props) => { checkoutCalls.push(props); return React.createElement("button", null, "Checkout"); } },
   "./commerce-purchase": { CommercePurchase: ({ fallback }) => fallback },
   "./event-poster": poster,
   "./event-logistics-section": travel,
@@ -90,4 +91,13 @@ test("the server mapping preserves the organizer's exact opening instant and acc
   assert.equal(data.toMerakiEvent(row, "it").checkInStartsAt, null);
   assert.equal(data.toMerakiEvent({ ...row, check_in_starts_at: null }, "es").checkInStartsAt, null);
   assert.equal(data.eventFeedColumns.includes("check_in_starts_at"), false, "catalogue cards do not need the detail-only opening column");
+});
+
+test("single-price checkout receives the event's public affiliate choices without requiring them", () => {
+  const affiliates = [{ id: "10000000-0000-4000-8000-000000000001", name: "Referente Meraki" }];
+  render({ ...base, affiliates }, "it");
+  assert.equal(checkoutCalls.at(-1).eventId, base.id);
+  assert.deepEqual(checkoutCalls.at(-1).affiliates, affiliates);
+  render(base, "it");
+  assert.equal(checkoutCalls.at(-1).affiliates, undefined);
 });

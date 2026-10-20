@@ -203,6 +203,7 @@ export type Database = {
       }
       events: {
         Row: {
+          affiliates: Json
           attivo: boolean | null
           capacity: number | null
           check_in_starts_at: string | null
@@ -231,6 +232,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          affiliates?: Json
           attivo?: boolean | null
           capacity?: number | null
           check_in_starts_at?: string | null
@@ -259,6 +261,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          affiliates?: Json
           attivo?: boolean | null
           capacity?: number | null
           check_in_starts_at?: string | null
@@ -960,6 +963,8 @@ export type Database = {
       }
       ticket_reservations: {
         Row: {
+          affiliate_id: string | null
+          affiliate_name: string | null
           amount_cents: number
           buyer_cognome: string
           buyer_email: string
@@ -977,6 +982,8 @@ export type Database = {
           stripe_session_id: string | null
         }
         Insert: {
+          affiliate_id?: string | null
+          affiliate_name?: string | null
           amount_cents: number
           buyer_cognome?: string
           buyer_email: string
@@ -994,6 +1001,8 @@ export type Database = {
           stripe_session_id?: string | null
         }
         Update: {
+          affiliate_id?: string | null
+          affiliate_name?: string | null
           amount_cents?: number
           buyer_cognome?: string
           buyer_email?: string
@@ -1022,6 +1031,8 @@ export type Database = {
       }
       tickets: {
         Row: {
+          affiliate_id: string | null
+          affiliate_name: string | null
           amount_cents: number | null
           buyer_cognome: string | null
           buyer_email: string
@@ -1039,6 +1050,8 @@ export type Database = {
           used_at: string | null
         }
         Insert: {
+          affiliate_id?: string | null
+          affiliate_name?: string | null
           email_claimed_at?: string | null
           email_sent_at?: string | null
           amount_cents?: number | null
@@ -1056,6 +1069,8 @@ export type Database = {
           used_at?: string | null
         }
         Update: {
+          affiliate_id?: string | null
+          affiliate_name?: string | null
           email_claimed_at?: string | null
           email_sent_at?: string | null
           amount_cents?: number | null

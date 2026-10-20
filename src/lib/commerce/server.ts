@@ -4,6 +4,7 @@ import { parseCommerceConfig } from "./config";
 import type { CommerceEntitlement, CommercePass } from "./types";
 import { walletTicket, type WalletCredential, type WalletTicket } from "@/lib/tickets/wallet";
 import { commerceActivityName, commerceMenuName, commercePackageName } from "./localization";
+import { publicEventAffiliates } from "@/lib/events/affiliates";
 
 /** Private tables are deliberately separate from legacy single-entry tickets. */
 export function commerceClient() {
@@ -19,16 +20,17 @@ export function missingCommerceMigration(error: { code?: string } | null) {
 export async function getCommerceCatalog(eventId: string, locale = "it") {
   const db = commerceClient();
   const { data: event, error } = await db.from("events")
-    .select("id,titolo,slug,data_inizio,attivo,commerce_config,cta_tipo").eq("id", eventId).maybeSingle();
+    .select("id,titolo,slug,data_inizio,attivo,commerce_config,cta_tipo,affiliates").eq("id", eventId).maybeSingle();
   if (missingCommerceMigration(error)) return { config: null };
   if (error) throw new Error("Catalogo momentaneamente non disponibile.");
   if (!event || !event.attivo || (event.cta_tipo || "stripe") !== "stripe") return { config: null };
+  const affiliates = publicEventAffiliates(event.affiliates);
   const config = parseCommerceConfig(event.commerce_config);
-  if (!config?.enabled) return { config: null };
+  if (!config?.enabled) return { config: null, affiliates };
   const { data: availability, error: stockError } = await db.rpc("commerce_availability", { p_event_id: eventId });
   if (stockError) throw new Error("Disponibilità momentaneamente non verificabile.");
   return {
-    config, availability: availability as Record<string, number | null>,
+    config, affiliates, availability: availability as Record<string, number | null>,
     event: { id: event.id as string, title: getLocalizedText(event.titolo, locale), date: event.data_inizio as string },
     available: Date.parse(event.data_inizio) > Date.now(),
   };

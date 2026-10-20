@@ -9,7 +9,7 @@ import { EventLogisticsSection, eventLogisticsLabels } from "./event-logistics-s
 import { hasEventLogistics, type EventLogistics } from "@/lib/events/logistics";
 import { availablePlaces, eventDate, eventPrice, eventLabels, type MerakiEvent } from "./event-model";
 
-export type MerakiEventDetail = MerakiEvent & { description: string; ctaType: string | null; ctaUrl: string | null; logistics?: EventLogistics | null };
+export type MerakiEventDetail = MerakiEvent & { description: string; ctaType: string | null; ctaUrl: string | null; logistics?: EventLogistics | null; affiliates?: { id: string; name: string }[] };
 
 export function EventDetail({ event, locale }: { event: MerakiEventDetail; locale: string }) {
   const text = eventLabels(locale);
@@ -58,7 +58,7 @@ export function EventDetail({ event, locale }: { event: MerakiEventDetail; local
                   {state ? <div className={`flex min-h-12 items-center justify-center gap-2 rounded-[16px] px-4 py-3 text-center text-xs font-semibold ${soldOut && !salesClosed ? "bg-[#f4e8df] text-[#9a6143]" : "bg-[#edf0e7] text-[#738065]"}`}>{isEnded ? <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> : <Info className="h-4 w-4 shrink-0" aria-hidden="true" />}{state}</div>
                     : external ? <a href={event.ctaUrl!} rel="noopener noreferrer" target="_blank" className="flex min-h-[52px] items-center justify-center rounded-[16px] bg-[#263a2c] px-4 py-3 text-center text-xs font-semibold text-white">{text.book}<span className="ml-2" aria-hidden="true">↗</span></a>
                     : infoOnly ? <Link href="/profilo/assistenza" className="flex min-h-[52px] items-center justify-center rounded-[16px] bg-[#263a2c] px-4 py-3 text-center text-xs font-semibold text-white">{text.contact}</Link>
-                    : <CheckoutButton eventId={event.id} />}
+                    : <CheckoutButton eventId={event.id} affiliates={event.affiliates} />}
                 </div>
               </div>
               {!salesClosed && remaining !== null && !soldOut ? <p className="mt-3 text-center text-[10px] leading-5 text-[#7f8972]">{`${remaining} ${remaining === 1 ? text.place : text.places}`}</p> : null}

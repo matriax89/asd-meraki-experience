@@ -17,6 +17,7 @@ const requestSchema = z.object({
   attendee: attendeeSchema,
   discountCode: z.string().trim().max(50).regex(/^[a-z0-9_-]*$/i).transform(value => value.toUpperCase()).optional(),
   expectedTotalCents: z.number().int().min(0).max(10_000_000).optional(),
+  affiliateId: z.string().uuid().nullable().optional(),
 }).refine(body => !body.discountCode || body.expectedTotalCents !== undefined, "Conferma il totale scontato prima di proseguire.");
 
 type Reservation = {
@@ -28,7 +29,7 @@ type Reservation = {
 
 export async function POST(request: Request) {
   try {
-    const { eventId, buyerEmail, buyerNome, buyerCognome, checkoutAttemptId, locale, attendee, discountCode, expectedTotalCents } = requestSchema.parse(await request.json());
+    const { eventId, buyerEmail, buyerNome, buyerCognome, checkoutAttemptId, locale, attendee, discountCode, expectedTotalCents, affiliateId } = requestSchema.parse(await request.json());
     if (attendee.email !== buyerEmail.trim().toLowerCase() || attendee.firstName !== buyerNome || attendee.lastName !== buyerCognome) {
       return NextResponse.json({ code: "invalid_attendees", error: "Controlla i dati del partecipante." }, { status: 400 });
     }
@@ -39,11 +40,11 @@ export async function POST(request: Request) {
     }
     await getVerifiedStripe();
     const supabase = createAdminClient();
-    const { data, error } = await commerceClient().rpc(discountCode ? "reserve_event_ticket_discount" : "reserve_event_ticket_attendee", {
+    const { data, error } = await commerceClient().rpc("reserve_event_ticket_affiliate", {
       p_event_id: eventId, p_buyer_email: buyerEmail, p_locale: locale,
       p_request_id: checkoutAttemptId, p_buyer_nome: buyerNome, p_buyer_cognome: buyerCognome,
       p_attendee: attendee, p_privacy_version: ATTENDEE_PRIVACY_VERSION,
-      ...(discountCode ? { p_discount_code: discountCode } : {}),
+      p_discount_code: discountCode || null, p_affiliate_id: affiliateId || null,
     });
     if (error) throw new Error("Impossibile prenotare il posto.");
     const result = data as { error?: string; reservation?: Reservation };
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
         : result.error === "request_expired" ? "La sessione è scaduta. Avvia un nuovo acquisto."
         : result.error === "invalid_price" ? "Questo evento non è disponibile per l'acquisto online."
         : result.error === "advanced_checkout_required" ? "Questo evento prevede formule e pacchetti. Riapri la pagina e scegli la tua esperienza."
+        : result.error === "affiliate_unavailable" ? "L’affiliato selezionato non è più disponibile per questo evento. Scegli un altro affiliato o l’acquisto diretto."
         : result.error?.startsWith("discount_") ? "Codice sconto non disponibile per questa selezione. Controlla il codice e il totale."
         : "Evento non disponibile per l'acquisto.";
       return NextResponse.json({ error: message, code: result.error }, { status: result.error === "sold_out" || result.error === "request_expired" ? 409 : 400 });

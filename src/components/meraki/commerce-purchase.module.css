@@ -52,15 +52,22 @@
 .tierSavingAmount { display:block; font-size:11px; font-weight:550; }
 .bundleSavings { display:block; margin-top:12px; color:#6d6043; font-size:11px; font-weight:650; line-height:1.6; overflow-wrap:anywhere; }
 .bundleSavings > span { display:block; font-weight:400; }
-.option.comboOption { border-color:#17281f; background:#17281f; color:white; }
-.option.comboOption:has(input:checked) { border-color:#bda26d; background:#17281f; box-shadow:0 0 0 1px #bda26d; }
-.comboOption .offerPrice, .comboOption .nextPriceAmount { color:white; }
-.comboOption .offerDescription, .comboOption .nextTierPrice, .comboOption .muted, .comboOption .purchasedLabel { color:#d4dfd2; }
-.comboOption .tierDeadline, .comboOption .bundleSavings { color:#e9d9ae; }
-.comboOption .tierPill { border-color:#e9d9ae; background:#e9d9ae; color:#2b281f; }
-.comboOption .nextTierComparison { border-top-color:#536358; }
-.comboOption input:checked { background:#e9d9ae; border-color:#e9d9ae; }
-.comboOption input[type="radio"]:checked::after { background:#17281f; }
+.selectedPackageLabel { display:block; margin-bottom:9px; color:#e9d9ae; font-size:10px; font-weight:750; letter-spacing:.06em; text-transform:uppercase; }
+.option.selectedPackageOption, .option.selectedPackageOption:has(input:checked) { border-color:#bda26d; background:#17281f; color:white; box-shadow:0 0 0 1px #bda26d; }
+.selectedPackageOption .offerPrice, .selectedPackageOption .nextPriceAmount { color:white; }
+.selectedPackageOption .offerDescription, .selectedPackageOption .nextTierPrice, .selectedPackageOption .muted, .selectedPackageOption .purchasedLabel { color:#d4dfd2; }
+.selectedPackageOption .tierDeadline, .selectedPackageOption .bundleSavings { color:#e9d9ae; }
+.selectedPackageOption .tierPill { border-color:#e9d9ae; background:#e9d9ae; color:#2b281f; }
+.selectedPackageOption .nextTierComparison { border-top-color:#536358; }
+.selectedPackageOption input:checked { background:#e9d9ae; border-color:#e9d9ae; }
+.selectedPackageOption input[type="radio"]:checked::after { background:#17281f; }
+.option.unselectedPackageOption { border-color:#d9dcd7; background:#f0f1ee; color:#5d655d; }
+.unselectedPackageOption .offerPrice, .unselectedPackageOption .nextPriceAmount { color:#5d655d; }
+.unselectedPackageOption .offerDescription, .unselectedPackageOption .nextTierPrice, .unselectedPackageOption .tierDeadline, .unselectedPackageOption .bundleSavings { color:#687068; }
+.unselectedPackageOption .tierPill { border-color:#d2d6ce; background:#dfe2dc; color:#565e53; }
+.unselectedPackageOption .badge { background:#dfe2dc; color:#565e53; }
+.unselectedPackageOption .tierSavings { border-color:#d8dcd4; background:#e5e8e1; color:#5b6656; }
+.affiliateBox { min-width:0; border:1px solid #e0e2d9; border-radius:19px; background:white; padding:16px; }
 .addon { margin-top:17px; border-top:1px solid #eeeee7; padding-top:17px; }
 .summary { border:1px solid #e0e1d7; border-radius:19px; background:#efeee6; padding:18px; }
 .summary ul { margin:0 0 15px; padding:0; list-style:none; }

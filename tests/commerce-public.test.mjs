@@ -158,7 +158,7 @@ test("a new purchase selects the first available combo and the quote uses that e
   const radios = [...window.document.querySelectorAll('input[name="package-0"]')];
   assert.deepEqual(radios.map((input) => input.value), ["bundle", "only-ws", "only-mc"]);
   assert.equal(radios[0].checked, true);
-  assert.ok(radios[0].closest("label").classList.contains("comboOption"));
+  assert.ok(radios[0].closest("label").classList.contains("selectedPackageOption"));
   assert.equal(radios[0].closest("label").getAttribute("data-package-combo"), "true");
   assert.equal(radios[1].closest("label").hasAttribute("data-package-combo"), false);
   const request = ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1);
@@ -167,10 +167,11 @@ test("a new purchase selects the first available combo and the quote uses that e
   assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
 });
 
-test("a sold-out combo remains first but the available solo is selected without requesting an invalid bundle", async (context) => {
+test("the available selected solo precedes a sold-out combo without requesting an invalid bundle", async (context) => {
   const ui = await setup(context, { ...catalog, availability: { ws: 20, mc: 0, dinner: 10 } }); await ui.open(); await ui.settleQuote();
   const radios = [...window.document.querySelectorAll('input[name="package-0"]')];
-  assert.equal(radios[0].value, "bundle"); assert.equal(radios[0].disabled, true);
+  assert.equal(radios[0].value, "only-ws"); assert.equal(radios[0].checked, true);
+  assert.equal(radios[1].value, "bundle"); assert.equal(radios[1].disabled, true);
   assert.equal(window.document.querySelector('input[value="only-ws"]').checked, true);
   assert.equal(ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1).body.participants[0].packageId, "only-ws");
 });
@@ -208,6 +209,11 @@ for (const [packageId, amount] of [["only-ws", 3000], ["only-mc", 4000], ["bundl
     await ui.settleQuote();
     assert.equal(window.document.querySelector("dialog").open, true);
     assert.equal(window.document.querySelector('input[name="package-0"]:checked').value, packageId);
+    const options = [...window.document.querySelectorAll('input[name="package-0"]')];
+    assert.equal(options[0].value, packageId, "The chosen formula is first in the actual accessible list");
+    assert.equal(options[0].closest("label").dataset.packageSelected, "true");
+    assert.ok(options[0].closest("label").classList.contains("selectedPackageOption"));
+    assert.ok(options.slice(1).every((option) => option.closest("label").classList.contains("unselectedPackageOption")), "Every alternative, including the combo, has the neutral gray treatment");
     const requested = ui.calls.filter((call) => call.url === "/api/commerce/quote");
     assert.ok(requested.length > 0);
     assert.ok(requested.every((call) => call.body.participants[0].packageId === packageId), "No request may use the previously selected formula");
@@ -730,4 +736,119 @@ test("a deterministic checkout rejection clears the held quote and checks the co
   ui.setCheckoutResponse(new Error("Network timeout")); await submit();
   const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
   assert.notEqual(requests[1].body.checkoutAttemptId, requests[0].body.checkoutAttemptId);
+});
+
+
+test("changing a formula moves it first, keeps keyboard focus on its original radio and preserves contact/group data", async (context) => {
+  const ui = await setup(context); await ui.open();
+  await ui.change(window.document.querySelector('select[aria-label="Numero di partecipanti"]'), "2");
+  await ui.fillPerson(0); await ui.fillPerson(1);
+  const secondRadio = window.document.querySelector('input[name="package-1"][value="only-mc"]');
+  await act(async () => { secondRadio.focus(); secondRadio.click(); });
+  assert.equal(window.document.activeElement, secondRadio);
+  for (const id of ["only-ws", "only-mc", "bundle", "only-ws"]) {
+    const radio = window.document.querySelector(`input[name="package-0"][value="${id}"]`);
+    await act(async () => { radio.focus(); radio.click(); });
+    const ordered = [...window.document.querySelectorAll('input[name="package-0"]')];
+    assert.equal(ordered[0], radio, "React preserves the focused keyed control while changing order");
+    assert.equal(window.document.activeElement, radio, "Selection never drops keyboard focus to the document body");
+    assert.equal(radio.checked, true);
+    assert.ok(radio.closest("label").classList.contains("selectedPackageOption"));
+    assert.ok(ordered.slice(1).every((input) => !input.checked && input.closest("label").classList.contains("unselectedPackageOption")));
+    assert.equal(window.document.querySelector('input[name="package-1"]:checked').value, "only-mc");
+    assert.equal(window.document.querySelector('input[name="participant-0-email"]').value, "matias@example.test");
+    assert.equal(window.document.querySelector('input[name="participant-1-email"]').value, "anna@example.test");
+  }
+});
+
+const affiliateId = "00000000-0000-4000-8000-000000000501";
+for (const locale of ["it", "en", "de", "es"]) test(`${locale} shows event affiliates once per purchase and sends the choice only to checkout`, async (context) => {
+  const ui = await setup(context, { ...catalog, affiliates: [{ id: affiliateId, name: "Scuola Meraki" }] }, locale);
+  await ui.open(); await ui.fillPerson(); await ui.settleQuote();
+  const affiliate = window.document.querySelector('select[name="affiliateId"]');
+  const copy = checkoutCopy.checkoutCopy(locale);
+  assert.equal(affiliate.required, false);
+  assert.equal(affiliate.getAttribute("aria-label"), copy.affiliateLabel);
+  assert.equal(affiliate.value, "");
+  assert.equal(affiliate.options[0].textContent, copy.directPurchase);
+  assert.equal(affiliate.options[1].textContent, "Scuola Meraki");
+  await ui.change(affiliate, affiliateId);
+  await ui.change(window.document.querySelector('select[aria-label="' + copy.quantityLabel + '"]'), "2");
+  await ui.fillPerson(1); await ui.settleQuote();
+  assert.equal(window.document.querySelectorAll('select[name="affiliateId"]').length, 1, "An affiliate belongs to the order, not each attendee");
+  assert.equal(affiliate.value, affiliateId);
+  assert.ok(ui.calls.filter((call) => call.url === "/api/commerce/quote").every((call) => !("affiliateId" in call.body)), "Affiliation does not affect authoritative pricing");
+  await act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  const request = ui.calls.find((call) => call.url === "/api/commerce/checkout").body;
+  assert.equal(request.affiliateId, affiliateId);
+  assert.equal(request.attendees.length, 2);
+  assert.ok(request.attendees.every((person) => person.marketingConsent === false));
+});
+
+test("direct purchases remain possible with affiliates and omit any attribution", async (context) => {
+  const ui = await setup(context, { ...catalog, affiliates: [{ id: affiliateId, name: "Scuola Meraki" }] });
+  await ui.open(); await ui.fillPerson(); await ui.settleQuote();
+  await act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  assert.equal("affiliateId" in ui.calls.find((call) => call.url === "/api/commerce/checkout").body, false);
+});
+
+for (const affiliates of [undefined, []]) test(`no affiliate field exists for an event with ${affiliates ? "an empty list" : "no affiliate configuration"}`, async (context) => {
+  const ui = await setup(context, { ...catalog, affiliates }); await ui.open();
+  assert.equal(window.document.querySelector('[name="affiliateId"]'), null);
+});
+
+test("upgrades never offer affiliate reassignment even when affiliates are active", async (context) => {
+  const upgrade = { passId: "00000000-0000-4000-8000-000000000002", token: "private-pass-token", firstName: "Matias", lastName: "Lisio", packageId: "only-ws", activityIds: ["ws"], contact: { email: "original@example.test" } };
+  const ui = await setup(context, { ...catalog, affiliates: [{ id: affiliateId, name: "Scuola Meraki" }] }, "it", upgrade);
+  await ui.open();
+  assert.equal(window.document.querySelector('[name="affiliateId"]'), null);
+  await act(async () => window.document.querySelector('input[value="bundle"]').click()); await ui.settleQuote();
+  await act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  assert.equal("affiliateId" in ui.calls.find((call) => call.url === "/api/commerce/checkout").body, false);
+});
+
+test("waitlists do not ask for an affiliate or send a purchase attribution", async (context) => {
+  const ui = await setup(context, { ...catalog, available: false, affiliates: [{ id: affiliateId, name: "Scuola Meraki" }] }); await ui.open();
+  assert.equal(window.document.querySelector('[name="affiliateId"]'), null);
+});
+
+
+test("arrow keys reach every formula despite selection-first reordering and retain focus", async (context) => {
+  const ui = await setup(context); await ui.open();
+  const selected = () => window.document.querySelector('input[name="package-0"]:checked');
+  selected().focus();
+  for (const [key, expected] of [["ArrowDown", "only-ws"], ["ArrowDown", "only-mc"], ["ArrowDown", "bundle"], ["ArrowUp", "only-mc"], ["Home", "bundle"], ["End", "only-mc"]]) {
+    await act(async () => selected().dispatchEvent(new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })));
+    assert.equal(selected().value, expected);
+    assert.equal(window.document.activeElement, selected());
+    assert.equal(window.document.querySelector('input[name="package-0"]'), selected());
+  }
+});
+
+test("arrow navigation skips unavailable formulas while preserving the selected option", async (context) => {
+  const ui = await setup(context, { ...catalog, availability: { ws: 20, mc: 0, dinner: 10 } }); await ui.open();
+  const selected = window.document.querySelector('input[name="package-0"]:checked'); selected.focus();
+  await act(async () => selected.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true })));
+  assert.equal(window.document.activeElement, selected);
+  assert.equal(selected.value, "only-ws"); assert.equal(selected.checked, true);
+});
+
+
+for (const locale of ["it", "en", "de", "es"]) test(`${locale} unavailable affiliate explains how to recover without losing participant details`, async (context) => {
+  const ui = await setup(context, { ...catalog, affiliates: [{ id: affiliateId, name: "Scuola Meraki" }] }, locale);
+  await ui.open(); await ui.fillPerson();
+  await ui.change(window.document.querySelector('select[name="affiliateId"]'), affiliateId);
+  await ui.settleQuote();
+  ui.setCheckoutResponse({ code: "affiliate_unavailable", error: "Affiliato non valido" });
+  await act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  assert.equal(window.document.querySelector('[role="alert"]').textContent, checkoutCopy.checkoutCopy(locale).affiliateUnavailable);
+  assert.equal(window.document.querySelector("dialog").open, true);
+  assert.equal(window.document.querySelector('input[name="participant-0-email"]').value, "matias@example.test");
+  await ui.change(window.document.querySelector('select[name="affiliateId"]'), "");
+  await ui.settleQuote();
+  ui.setCheckoutResponse({ error: "Pagamento non disponibile" });
+  await act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  const retry = ui.calls.filter((call) => call.url === "/api/commerce/checkout").at(-1).body;
+  assert.equal("affiliateId" in retry, false);
+  assert.equal(retry.attendees[0].email, "matias@example.test");
 });

@@ -11,7 +11,7 @@ function load(file, mocks = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : require(id), Date, Error });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : id === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(id), Date, Error });
   return compiledModule.exports;
 }
 const logistics = load("lib/events/logistics.ts");

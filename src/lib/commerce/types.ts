@@ -15,6 +15,7 @@ export type CommerceOrderState = 'reserved' | 'awaiting_payment' | 'fulfilled' |
 export type CommerceOrder = {
   id: string; request_id: string; event_id: string; buyer_email: string; locale: 'it' | 'en' | 'de' | 'es'; state: CommerceOrderState;
   attendees?: CommerceAttendee[] | null; attendee_privacy_version?: string | null;
+  affiliate_id?: string | null; affiliate_name?: string | null;
   amount_cents: number; quote: CommerceQuote; participants: CommerceParticipant[]; demand: Record<string, number>;
   event_snapshot: { slug: string; titolo: string | Record<string, string>; data_inizio: string; location: string | null; commerce_config?: CommerceConfig };
   upgrade_pass_id: string | null; expires_at: string; stripe_session_id: string | null; stripe_payment_intent: string | null;
@@ -22,5 +23,5 @@ export type CommerceOrder = {
   upgrade_snapshot: { package_id: string; package_name: string; package_paid_cents: number; package_activity_ids?: string[] } | null;
   created_at: string; updated_at: string;
 };
-export type CommercePass = { id: string; event_id: string; order_id: string; participant_index?: number | null; first_name: string; last_name: string; package_id: string; package_name: string; package_paid_cents: number; package_activity_ids: string[]; original_package_paid_cents: number; qr_code: string; status: 'paid' | 'refunded' | 'canceled'; created_at: string };
+export type CommercePass = { id: string; event_id: string; order_id: string; participant_index?: number | null; affiliate_id?: string | null; affiliate_name?: string | null; first_name: string; last_name: string; package_id: string; package_name: string; package_paid_cents: number; package_activity_ids: string[]; original_package_paid_cents: number; qr_code: string; status: 'paid' | 'refunded' | 'canceled'; created_at: string };
 export type CommerceEntitlement = { id: string; pass_id: string; event_id: string; order_id: string; activity_id: string; activity_name: string; kind: CommerceActivityKind; menu_choice: string | null; status: 'valid' | 'used' | 'refunded' | 'canceled'; checked_in_at: string | null; created_at: string };

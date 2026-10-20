@@ -15,6 +15,7 @@ import { parseCommerceConfig } from "@/lib/commerce/config";
 import { fromRomeInput, toRomeInput } from "@/lib/commerce/rome-time";
 import type { Database } from "@/types/supabase";
 import { richTextPlainText, richTextSerializedLimit } from "@/lib/rich-text";
+import { eventAffiliatesSchema, parseEventAffiliates } from "@/lib/events/affiliates";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"] & { commerce_config?: unknown };
 type LocalizedValue = string | Record<string, string>;
@@ -66,6 +67,8 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
   const posterPending = useRef(false);
   const [posterUploading, setPosterUploading] = useState(false);
   const [logistics, setLogistics] = useState(() => parseEventLogistics(initialData?.logistics) || emptyEventLogistics());
+  const [affiliates, setAffiliates] = useState(() => parseEventAffiliates(initialData?.affiliates));
+  const [savedAffiliateIds, setSavedAffiliateIds] = useState(() => new Set(parseEventAffiliates(initialData?.affiliates).map((affiliate) => affiliate.id)));
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string; target?: string; language?: string } | null>(null);
   const { showConfirm } = useModal();
@@ -153,7 +156,15 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         eventDates();
         if (formData.capacity !== "" && (!Number.isInteger(Number(formData.capacity)) || Number(formData.capacity) < 0 || Number(formData.capacity) > 100_000)) throw new Error("La capienza deve essere un numero intero tra 0 e 100.000, oppure vuota per posti illimitati.");
       }
-      if (step === 2) ticketPrice();
+      if (step === 2) {
+        ticketPrice();
+        const affiliateValidation = eventAffiliatesSchema.safeParse(affiliates);
+        if (!affiliateValidation.success) {
+          const index = affiliateValidation.error.issues[0]?.path[0];
+          target = typeof index === "number" ? `[data-event-affiliate="${affiliates[index]?.id}"] input` : "[data-event-affiliates] input";
+          throw new Error("Inserisci un nome per ogni affiliato (massimo 120 caratteri) e usa nomi diversi per gli affiliati attivi.");
+        }
+      }
       if (step === 3) {
         const unnamed = logistics.accommodations.find((item) => !item.name.trim());
         if (unnamed) { target = `[data-accommodation="${unnamed.id}"] input`; throw new Error("Inserisci il nome di ogni struttura oppure rimuovi la voce vuota."); }
@@ -260,6 +271,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       capacity: formData.capacity === "" ? null : Number(formData.capacity),
       copertina_url: formData.copertina_url,
       logistics: hasEventLogistics(logistics) ? eventLogisticsSchema.parse(logistics) : null,
+      affiliates: eventAffiliatesSchema.parse(affiliates),
       attivo: requiresTicketSetup ? false : formData.attivo,
       ticketing_mode: ticketingMode,
     };
@@ -269,6 +281,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         const result = await upsertEvent(payload);
         if (result.error) setMessage({ type: "error", text: result.error });
         else {
+          setSavedAffiliateIds(new Set(affiliates.map((affiliate) => affiliate.id)));
           setMessage({ type: "success", text: "Evento salvato con successo!" });
           if (ticketingMode === "advanced") router.push(`/${locale}/admin/eventi/${result.id}/commerce`);
           else if (formData.id === "nuovo") router.push(`/${locale}/admin/eventi/${result.id}`);
@@ -428,6 +441,19 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         </div>}
       </fieldset>
 
+      <section data-event-affiliates aria-labelledby={`${dateFieldId}-affiliates-title`} className="space-y-4 rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div><h2 id={`${dateFieldId}-affiliates-title`} className="text-xl font-bold">Affiliati dell’evento</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Aggiungi manualmente gli insegnanti, le scuole o i referenti che porteranno partecipanti. La scelta compare durante l’acquisto solo se c’è almeno un affiliato attivo; è sempre possibile acquistare direttamente.</p></div>
+        {affiliates.length === 0 ? <p className="rounded-xl bg-[#f3f2ed] p-4 text-sm text-[#7a8272]">Nessun affiliato. Nell’acquisto non viene mostrato questo campo.</p> : <ul className="space-y-3">{affiliates.map((affiliate, index) => <li key={affiliate.id} data-event-affiliate={affiliate.id} className={`space-y-3 rounded-xl border p-4 ${affiliate.active ? "border-[#d9ddcf]" : "border-[#e4e5dc] bg-[#f3f2ed]"}`}>
+          <Input label={`Nome affiliato ${index + 1}`} required maxLength={120} value={affiliate.name} onChange={(event) => setAffiliates((current) => current.map((item) => item.id === affiliate.id ? { ...item, name: event.target.value } : item))} />
+          <div className="flex flex-wrap items-center justify-between gap-3"><Checkbox label="Disponibile durante l’acquisto" checked={affiliate.active} onChange={(event) => setAffiliates((current) => current.map((item) => item.id === affiliate.id ? { ...item, active: event.target.checked } : item))} />
+            {!savedAffiliateIds.has(affiliate.id) ? <button type="button" onClick={() => setAffiliates((current) => current.filter((item) => item.id !== affiliate.id))} className="min-h-11 text-sm font-semibold text-rose-700">Rimuovi affiliato</button> : <Link href={`/admin/biglietti?event=${formData.id}&affiliate=${affiliate.id}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-[#52604f]">Vedi iscritti →</Link>}
+          </div>
+          {!affiliate.active && <p className="text-xs leading-5 text-[#7a8272]">Non compare nei nuovi acquisti. Gli iscritti già associati restano nello storico.</p>}
+        </li>)}</ul>}
+        <button type="button" disabled={affiliates.length >= 100} onClick={() => setAffiliates((current) => [...current, { id: crypto.randomUUID(), name: "", active: true }])} className="min-h-11 rounded-xl border border-[#d9ddcf] px-4 text-sm font-semibold text-[#52604f] disabled:opacity-50">Aggiungi affiliato</button>
+        <p className="text-xs leading-5 text-muted-foreground">Dopo il salvataggio, disattiva gli affiliati che non devono più comparire. Le attribuzioni dei biglietti già acquistati vengono conservate.</p>
+      </section>
+
       <PosterUpload value={formData.copertina_url} onChange={(copertina_url) => setFormData((current) => ({ ...current, copertina_url }))} onUploadingChange={(uploading) => { posterPending.current = uploading; setPosterUploading(uploading); }} disabled={isPending} />
       </fieldset>
 
@@ -449,6 +475,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         <section className="space-y-3 border-t border-[#e4e5dc] pt-4" aria-label="Riepilogo biglietteria"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Biglietteria e media</h3><button type="button" onClick={() => changeStep(2)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica biglietteria e media</button></div>
           <p className="text-sm">{ticketingMode === "advanced" ? "Formule, scaglioni e cena" : formData.prezzo_euro && Number(formData.prezzo_euro.replace(",", ".")) > 0 ? `Prezzo unico · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(formData.prezzo_euro.replace(",", ".")))}` : "Prezzo unico · Gratuito"}</p>
           <p className="text-sm text-[#7a8272]">{formData.copertina_url ? "Immagine di copertina inserita." : "Nessuna immagine di copertina."}</p>
+          <div className="space-y-2 text-sm"><p className="font-semibold">Affiliati: {affiliates.filter((affiliate) => affiliate.active).length} attivi</p>{affiliates.length > 0 ? <ul className="space-y-1 text-[#7a8272]">{affiliates.map((affiliate) => <li key={affiliate.id}>{affiliate.name} · {affiliate.active ? "Attivo" : "Disattivato"}</li>)}</ul> : <p className="text-[#7a8272]">Nessun campo affiliato durante l’acquisto.</p>}</div>
           {requiresTicketSetup && <p className="rounded-xl bg-[#f2efe6] p-4 text-sm leading-6">Alla conferma salvi una bozza e apri la configurazione di attività, formule e prezzi. Pubblicherai l’evento dopo aver completato la biglietteria.</p>}
         </section>
         <section className="space-y-3 border-t border-[#e4e5dc] pt-4" aria-label="Riepilogo viaggio e soggiorno"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Viaggio e soggiorno</h3><button type="button" onClick={() => changeStep(3)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica viaggio e soggiorno</button></div>

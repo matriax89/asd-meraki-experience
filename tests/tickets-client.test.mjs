@@ -48,7 +48,7 @@ function compile(path, replacements) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
-  vm.runInNewContext(code, { exports, window, document: window.document, navigator: window.navigator, URL, Error, console, require: (name) => replacements[name] || nativeFormControlMocks[name] || require(name) });
+  vm.runInNewContext(code, { exports, window, document: window.document, navigator: window.navigator, URL, Error, console, require: (name) => replacements[name] || nativeFormControlMocks[name] || (name === "@/lib/events/affiliates" ? compile("../src/lib/events/affiliates.ts", {}) : require(name)) });
   return exports;
 }
 
@@ -59,7 +59,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-async function setup(context, { initialEventId = "", url = "/it/admin/biglietti?source=events#iscritti" } = {}) {
+async function setup(context, { initialEventId = "", initialAffiliateId = "", ticketRows = tickets, eventRows = events, url = "/it/admin/biglietti?source=events#iscritti" } = {}) {
   window.history.replaceState(null, "", url);
   window.document.body.innerHTML = '<div id="tickets-root"></div>';
   const actionCalls = [];
@@ -68,7 +68,7 @@ async function setup(context, { initialEventId = "", url = "/it/admin/biglietti?
   const authorizationCalls = [];
   const decoders = [];
   const navigationCalls = [];
-  const storedTickets = structuredClone(tickets);
+  const storedTickets = structuredClone(ticketRows);
   const actions = {
     checkInTicket(id, selectedEvent, activityId) {
       const pending = deferred();
@@ -106,7 +106,7 @@ async function setup(context, { initialEventId = "", url = "/it/admin/biglietti?
   } };
   const { TicketsClient } = compile("../src/app/[locale]/admin/biglietti/tickets-client.tsx", { "next/navigation": { useRouter: () => router }, "@/app/api/admin/biglietti/actions": actions, "@/components/admin/data-table": dataTable, "./qr-scanner": scanner });
   const root = createRoot(window.document.getElementById("tickets-root"));
-  const render = (id) => root.render(React.createElement(TicketsClient, { initialTickets: storedTickets.filter((ticket) => ticket.event_id === id), events, initialEventId: id }));
+  const render = (id) => root.render(React.createElement(TicketsClient, { initialTickets: storedTickets.filter((ticket) => ticket.event_id === id), events: eventRows, initialEventId: id, initialAffiliateId: new URL(window.location.href).searchParams.get("affiliate") || initialAffiliateId }));
   context.after(async () => { await act(async () => root.unmount()); });
   await act(async () => render(initialEventId));
   const rows = () => [...window.document.querySelectorAll("tbody tr")];
@@ -419,4 +419,87 @@ test("the roster explicitly joins the original order when both purchase and upgr
   const [ticket] = clientProps(tree).initialTickets;
   assert.equal(ticket.id, pass.id);
   assert.equal(ticket.buyer_email, "original-buyer@example.test");
+});
+
+const affiliateA = "aaaaaaaa-1111-4111-8111-111111111111";
+const affiliateB = "bbbbbbbb-2222-4222-8222-222222222222";
+const affiliatedEvents = [{ ...events[0], affiliates: [{ id: affiliateA, name: "Scuola Aurora", active: true }, { id: affiliateB, name: "Referente Bruno", active: false }] }, events[1]];
+const affiliatedTickets = tickets.map((ticket) => ["ada", "edo"].includes(ticket.id) ? { ...ticket, affiliate_id: affiliateA, affiliate_name: "Scuola Aurora originale" } : ticket.id === "luca" ? { ...ticket, affiliate_id: affiliateB, affiliate_name: "Referente Bruno" } : ticket);
+
+test("the affiliate filter shows one participant per ticket, direct sales and retired affiliates with valid participant counts", async (context) => {
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, ticketRows: affiliatedTickets });
+  const filter = () => window.document.getElementById("tickets-affiliate");
+  assert.match(filter().querySelector(`option[value="${affiliateA}"]`).textContent, /Scuola Aurora · 2 iscritti validi/);
+  assert.match(filter().querySelector(`option[value="${affiliateB}"]`).textContent, /disattivato · 1 iscritti validi/);
+  assert.match(filter().querySelector('option[value="direct"]').textContent, /1 iscritti validi/);
+  await ui.select(filter(), affiliateA);
+  assert.equal(ui.rows().length, 2);
+  assert.ok(ui.row("Ada Rossi"));
+  assert.ok(ui.row("Edo Bianchi"));
+  assert.match(ui.row("Ada Rossi").textContent, /Scuola Aurora originale/);
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 2, "Con check-in": 0, "Senza check-in": 2 });
+  assert.equal(new URL(window.location.href).searchParams.get("affiliate"), affiliateA);
+  await ui.search("Ada");
+  assert.equal(ui.rows().length, 1);
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 2, "Con check-in": 0, "Senza check-in": 2 });
+  await ui.select(filter(), "direct");
+  assert.equal(ui.rows().length, 3);
+  assert.ok(ui.row("Nina Blu"));
+  assert.equal(ui.row("Ada Rossi"), undefined);
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 1, "Con check-in": 0, "Senza check-in": 1 });
+  assert.match(ui.row("Nina Blu").textContent, /Acquisto diretto/);
+  await ui.selectEvent(eventB);
+  assert.equal(new URL(window.location.href).searchParams.has("affiliate"), false);
+  assert.equal(filter(), null);
+  assert.ok(ui.row("Bruno Neri"));
+  assert.equal(ui.mediaRequests.length, 0);
+});
+
+test("deep links open a retired affiliate list and unknown affiliate IDs cannot hide or expose another event", async (context) => {
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, ticketRows: affiliatedTickets, url: `/it/admin/biglietti?event=${eventA}&affiliate=${affiliateB}` });
+  assert.equal(window.document.getElementById("tickets-affiliate").value, affiliateB);
+  assert.equal(ui.rows().length, 1);
+  assert.ok(ui.row("Luca Verdi"));
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 1, "Con check-in": 1, "Senza check-in": 0 });
+  assert.equal(ui.mediaRequests.length, 0);
+});
+
+test("manual check-in within an affiliate list retains attribution and updates only that affiliate's counters", async (context) => {
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, ticketRows: affiliatedTickets, url: `/it/admin/biglietti?event=${eventA}&affiliate=${affiliateA}` });
+  await ui.select(ui.row("Ada Rossi").querySelector("select"), "workshop");
+  await act(async () => ui.button("Registra attività", ui.row("Ada Rossi")).click());
+  assert.equal(ui.actionCalls[0].eventId, eventA);
+  await ui.respond({ outcome: "admitted", message: "Workshop confermato.", ticket: { id: "ada", event_id: eventA, buyer_nome: "Ada", buyer_cognome: "Rossi", status: "paid", used_at: null, commerce: true, entitlements: [entitlement("workshop", "Workshop", { status: "used", checked_in_at: "2026-11-19T00:30:00Z" }), entitlement("dinner", "Cena")] } });
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 2, "Con check-in": 1, "Senza check-in": 1 });
+  assert.match(ui.row("Ada Rossi").textContent, /Scuola Aurora originale/);
+  assert.equal(window.document.getElementById("tickets-affiliate").value, affiliateA);
+  assert.equal(ui.mediaRequests.length, 0);
+});
+
+test("the server roster carries original affiliate snapshots and filters through validated event scoped deep links", async () => {
+  const pass = { id: "pass", event_id: eventA, first_name: "Ada", last_name: "QA", package_name: "Workshop", qr_code: "opaque", status: "paid", affiliate_id: affiliateA, affiliate_name: "Scuola al momento dell’acquisto", events: events[0], commerce_orders: { buyer_email: "buyer@example.test" }, commerce_entitlements: [entitlement("workshop", "Workshop")] };
+  const legacy = { ...tickets[3], affiliate_id: affiliateB, affiliate_name: "Referente precedente" };
+  const { Page, queries, clientProps } = pageHarness({ rows: { events: affiliatedEvents, tickets: [legacy], commerce_passes: [pass] } });
+  const tree = await Page({ searchParams: Promise.resolve({ event: eventA, affiliate: affiliateA }) });
+  const props = clientProps(tree);
+  assert.equal(props.initialAffiliateId, affiliateA);
+  assert.equal(props.initialTickets.find((ticket) => ticket.id === pass.id).affiliate_name, pass.affiliate_name);
+  assert.equal(props.initialTickets.find((ticket) => ticket.id === legacy.id).affiliate_id, affiliateB);
+  assert.equal(props.events.find((event) => event.id === eventA).affiliates[0].id, affiliateA);
+  for (const query of queries.filter((entry) => ["tickets", "commerce_passes"].includes(entry.table))) assert.match(query.fields, /affiliate_id,affiliate_name/);
+});
+
+test("unknown affiliate links default to the event list and snapshot-only affiliates remain selectable", async (context) => {
+  const archivedId = "cccccccc-3333-4333-8333-333333333333";
+  const snapshotTickets = affiliatedTickets.map((ticket) => ticket.id === "edo" ? { ...ticket, affiliate_id: archivedId, affiliate_name: "Scuola precedente" } : ticket);
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, ticketRows: snapshotTickets, url: `/it/admin/biglietti?event=${eventA}&affiliate=unknown` });
+  const filter = window.document.getElementById("tickets-affiliate");
+  assert.equal(filter.value, "");
+  assert.equal(ui.rows().length, 6);
+  assert.equal(ui.row("Bruno Neri"), undefined);
+  assert.match(filter.querySelector(`option[value="${archivedId}"]`).textContent, /Scuola precedente · disattivato · 1 iscritti validi/);
+  await ui.select(filter, archivedId);
+  assert.equal(ui.rows().length, 1);
+  assert.ok(ui.row("Edo Bianchi"));
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 1, "Con check-in": 0, "Senza check-in": 1 });
 });

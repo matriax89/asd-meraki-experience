@@ -86,7 +86,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-async function setup(context, { overflow = "auto", locale = "it" } = {}) {
+async function setup(context, { overflow = "auto", locale = "it", affiliates } = {}) {
   window.document.body.innerHTML = '<div id="checkout-root"></div>';
   window.document.body.style.overflow = overflow;
   const calls = [];
@@ -122,7 +122,7 @@ async function setup(context, { overflow = "auto", locale = "it" } = {}) {
     await act(async () => root.unmount());
   };
   context.after(dispose);
-  await act(async () => root.render(React.createElement(exports.CheckoutButton, { eventId })));
+  await act(async () => root.render(React.createElement(exports.CheckoutButton, { eventId, affiliates })));
   const dialog = window.document.querySelector("dialog");
   const trigger = window.document.querySelector('button[type="button"]');
   const form = dialog.querySelector("form");
@@ -344,4 +344,48 @@ test("reopening an ambiguous discounted simple checkout reuses the held quote an
   assert.equal(checkout.quoteCalls.length, quoted + 1);
   assert.match(checkout.form.querySelector('[role="alert"]').textContent, /limite di utilizzi/);
   assert.equal(checkout.calls.length, 2);
+});
+
+
+for (const locale of ["it", "en", "de", "es"]) test(`${locale} legacy event affiliates are optional, localized and retained only in the checkout payload`, async (context) => {
+  const affiliateId = "00000000-0000-4000-8000-000000000501";
+  const checkout = await setup(context, { locale, affiliates: [{ id: affiliateId, name: "Scuola Meraki" }] });
+  await checkout.open(); await checkout.fill();
+  const affiliate = checkout.form.querySelector('select[name="affiliateId"]');
+  const copy = checkoutCopy.checkoutCopy(locale);
+  assert.equal(affiliate.required, false); assert.equal(affiliate.value, "");
+  assert.equal(affiliate.getAttribute("aria-label"), copy.affiliateLabel);
+  assert.equal(affiliate.options[0].textContent, copy.directPurchase);
+  await checkout.change(affiliate, affiliateId);
+  assert.ok(checkout.quoteCalls.every((call) => !("affiliateId" in call.body)));
+  await checkout.submit();
+  assert.equal(checkout.calls[0].body.affiliateId, affiliateId);
+  assert.equal(checkout.calls[0].body.attendee.marketingConsent, false);
+  await checkout.fail();
+  await checkout.change(affiliate, ""); await checkout.submit();
+  assert.equal("affiliateId" in checkout.calls.at(-1).body, false);
+  await checkout.fail();
+});
+
+test("legacy purchases hide the affiliate selector entirely when the event has none", async (context) => {
+  const checkout = await setup(context); await checkout.open();
+  assert.equal(checkout.form.querySelector('[name="affiliateId"]'), null);
+});
+
+
+for (const locale of ["it", "en", "de", "es"]) test(`${locale} legacy checkout localizes unavailable affiliates and allows a direct purchase retry`, async (context) => {
+  const affiliateId = "00000000-0000-4000-8000-000000000501";
+  const checkout = await setup(context, { locale, affiliates: [{ id: affiliateId, name: "Scuola Meraki" }] });
+  await checkout.open(); await checkout.fill();
+  const affiliate = checkout.form.querySelector('select[name="affiliateId"]');
+  await checkout.change(affiliate, affiliateId);
+  await checkout.submit();
+  await checkout.respond({ code: "affiliate_unavailable", error: "Affiliato non valido" });
+  assert.equal(checkout.form.querySelector('[role="alert"]').textContent, checkoutCopy.checkoutCopy(locale).affiliateUnavailable);
+  assert.equal(checkout.dialog.open, true);
+  assert.equal(checkout.form.elements.namedItem("email").value, "buyer@example.test");
+  await checkout.change(affiliate, ""); await checkout.submit();
+  assert.equal("affiliateId" in checkout.calls.at(-1).body, false);
+  assert.equal(checkout.calls.at(-1).body.buyerEmail, "buyer@example.test");
+  await checkout.fail();
 });

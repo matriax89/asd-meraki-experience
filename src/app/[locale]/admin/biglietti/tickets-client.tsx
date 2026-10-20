@@ -19,10 +19,11 @@ function eventDate(date: string) {
   return new Date(date).toLocaleDateString("it-IT", { timeZone: "Europe/Rome" });
 }
 
-export function TicketsClient({ initialTickets, events, initialEventId = "" }: {
+export function TicketsClient({ initialTickets, events, initialEventId = "", initialAffiliateId = "" }: {
   initialTickets: AdminTicket[];
   events: CheckInEvent[];
   initialEventId?: string;
+  initialAffiliateId?: string;
 }) {
   const router = useRouter();
   const [isNavigating, startNavigation] = useTransition();
@@ -35,9 +36,24 @@ export function TicketsClient({ initialTickets, events, initialEventId = "" }: {
   const requestPendingRef = useRef(false);
   const selectedEvent = events.find((event) => event.id === eventId);
   const tickets = initialTickets.map((ticket) => ({ ...ticket, ...updates[ticket.id] })).filter((ticket) => ticket.event_id === selectedEvent?.id);
+  const knownAffiliates = new Map((selectedEvent?.affiliates || []).map((affiliate) => [affiliate.id, { name: affiliate.name, active: affiliate.active }]));
+  for (const ticket of tickets) {
+    if (ticket.affiliate_id && !knownAffiliates.has(ticket.affiliate_id)) knownAffiliates.set(ticket.affiliate_id, { name: ticket.affiliate_name || "Affiliato archiviato", active: false });
+  }
+  const affiliateId = initialAffiliateId === "direct" || knownAffiliates.has(initialAffiliateId) ? initialAffiliateId : "";
+  const scopedTickets = tickets.filter((ticket) => !affiliateId || (affiliateId === "direct" ? !ticket.affiliate_id : ticket.affiliate_id === affiliateId));
   const query = search.toLocaleLowerCase("it-IT").trim();
-  const matchingTickets = tickets.filter((ticket) => [participantName(ticket), ticket.buyer_email, ticket.qr_code].join(" ").toLocaleLowerCase("it-IT").includes(query));
-  const validTickets = tickets.filter((ticket) => ticket.status === "paid" || ticket.status === "used").filter((ticket) => !ticket.commerce || ticket.entitlements?.some((entry) => entry.status === "valid" || entry.status === "used"));
+  const matchingTickets = scopedTickets.filter((ticket) => [participantName(ticket), ticket.buyer_email, ticket.qr_code].join(" ").toLocaleLowerCase("it-IT").includes(query));
+  const isValid = (ticket: AdminTicket) => (ticket.status === "paid" || ticket.status === "used") && (!ticket.commerce || Boolean(ticket.entitlements?.some((entry) => entry.status === "valid" || entry.status === "used")));
+  const validTickets = scopedTickets.filter(isValid);
+  const affiliateCounts = new Map<string, number>();
+  let eventValidCount = 0;
+  for (const ticket of tickets) {
+    if (!isValid(ticket)) continue;
+    eventValidCount += 1;
+    const attribution = ticket.affiliate_id || "direct";
+    affiliateCounts.set(attribution, (affiliateCounts.get(attribution) || 0) + 1);
+  }
   const admittedCount = validTickets.filter((ticket) => ticket.commerce ? ticket.entitlements?.some((entry) => entry.status === "used") : ticket.status === "used").length;
 
   const updateFromResult = useCallback((result: CheckInResult) => {
@@ -54,8 +70,20 @@ export function TicketsClient({ initialTickets, events, initialEventId = "" }: {
     setUpdates({});
     setActivityChoices({});
     const url = new URL(window.location.href);
+    url.searchParams.delete("affiliate");
     if (nextEventId) url.searchParams.set("event", nextEventId);
     else url.searchParams.delete("event");
+    startNavigation(() => router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false }));
+  };
+
+  const selectAffiliate = (nextAffiliateId: string) => {
+    if (requestPendingRef.current || isNavigating || nextAffiliateId === affiliateId) return;
+    setSearch("");
+    setFeedback(null);
+    const url = new URL(window.location.href);
+    url.searchParams.set("event", eventId);
+    if (nextAffiliateId) url.searchParams.set("affiliate", nextAffiliateId);
+    else url.searchParams.delete("affiliate");
     startNavigation(() => router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false }));
   };
 
@@ -87,6 +115,10 @@ export function TicketsClient({ initialTickets, events, initialEventId = "" }: {
       header: "Biglietto",
       cell: (ticket: AdminTicket) => <div className="space-y-2">{ticket.package_name && <span className="block text-xs font-semibold text-indigo-600">{ticket.package_name}</span>}<span className="block max-w-48 break-all rounded bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-600">{ticket.qr_code || "—"}</span></div>,
     },
+    ...(knownAffiliates.size > 0 ? [{
+      header: "Affiliato",
+      cell: (ticket: AdminTicket) => <span className={`block max-w-44 break-words text-sm ${ticket.affiliate_id ? "font-semibold text-[#52604f]" : "text-slate-500"}`}>{ticket.affiliate_id ? ticket.affiliate_name || knownAffiliates.get(ticket.affiliate_id)?.name || "Affiliato archiviato" : "Acquisto diretto"}</span>,
+    }] : []),
     {
       header: "Accessi compresi",
       cell: (ticket: AdminTicket) => ticket.commerce ? <ul className="min-w-40 space-y-2">{(ticket.entitlements || []).map((entry) => <li key={entry.activity_id} className={`text-xs ${entry.status === "used" ? "text-slate-500" : entry.status === "valid" ? "text-emerald-700" : "text-rose-700"}`}><span className="font-semibold">{entry.activity_name}</span><span className="block">{entry.status === "used" ? "Check-in registrato" : entry.status === "valid" ? "Da utilizzare" : "Revocato"}{entry.menu_choice ? ` · Menu: ${entry.menu_choice}` : ""}</span>{entry.checked_in_at && <span className="block">{new Date(entry.checked_in_at).toLocaleString("it-IT", { timeZone: "Europe/Rome", dateStyle: "short", timeStyle: "short" })}</span>}</li>)}</ul> : <span className="text-xs text-slate-500">Ingresso evento</span>,
@@ -121,6 +153,11 @@ export function TicketsClient({ initialTickets, events, initialEventId = "" }: {
       {isNavigating ? <p role="status" className="rounded-2xl bg-slate-50 p-6 text-sm text-slate-600">Caricamento degli iscritti… La fotocamera è spenta.</p> : selectedEvent ? <>
         <div className="space-y-3">
           <h2 className="text-xl font-bold text-slate-900">{selectedEvent.titolo} <span className="whitespace-nowrap text-sm font-normal text-slate-500">{eventDate(selectedEvent.data_inizio)}</span></h2>
+          {knownAffiliates.size > 0 && <div className="space-y-2 rounded-2xl border border-[#d9ddcf] bg-white p-4"><label htmlFor="tickets-affiliate" className="block text-sm font-semibold text-[#263a2c]">Iscritti per affiliato</label><CustomSelect id="tickets-affiliate" value={affiliateId} disabled={pendingId !== null || isNavigating} onChange={(event) => selectAffiliate(event.target.value)} className="min-h-12 w-full rounded-xl border border-[#d9ddcf] bg-white px-3 text-sm">
+            <option value="">Tutti gli affiliati e acquisti diretti · {eventValidCount} iscritti validi</option>
+            <option value="direct">Acquisto diretto · {affiliateCounts.get("direct") || 0} iscritti validi</option>
+            {[...knownAffiliates].map(([id, affiliate]) => <option key={id} value={id}>{affiliate.name}{!affiliate.active ? " · disattivato" : ""} · {affiliateCounts.get(id) || 0} iscritti validi</option>)}
+          </CustomSelect><p className="text-xs leading-5 text-slate-500">Elenco e conteggi seguono il filtro scelto. Sono disponibili anche gli affiliati disattivati; ogni partecipante viene contato una sola volta.</p></div>}
           <dl className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-slate-200 bg-white p-4"><dt className="flex items-center gap-2 text-sm text-slate-500"><Ticket aria-hidden="true" className="h-4 w-4" /> Iscritti validi</dt><dd className="mt-1 text-2xl font-bold text-slate-900">{validTickets.length}</dd></div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><dt className="flex items-center gap-2 text-sm text-emerald-800"><Users aria-hidden="true" className="h-4 w-4" /> Con check-in</dt><dd className="mt-1 text-2xl font-bold text-emerald-900">{admittedCount}</dd></div>
@@ -130,7 +167,7 @@ export function TicketsClient({ initialTickets, events, initialEventId = "" }: {
         </div>
         <section aria-labelledby="tickets-title" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="tickets-title" className="text-xl font-bold text-slate-900">Check-in manuale · iscritti</h2><p className="mt-1 text-sm text-slate-500">Il check-in dall’elenco non richiede la fotocamera. Per le formule, scegli un’attività alla volta.</p></div><div className="relative w-full sm:w-80"><Search aria-hidden="true" className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input aria-label="Cerca nome, email o codice" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cerca nome, email o codice" className="min-h-12 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm" /></div></div>
-          <p role="status" className="text-sm text-slate-500">{matchingTickets.length} risultati su {tickets.length} biglietti dell’evento.</p>
+          <p role="status" className="text-sm text-slate-500">{matchingTickets.length} risultati su {scopedTickets.length} biglietti{affiliateId ? ` per ${affiliateId === "direct" ? "acquisto diretto" : knownAffiliates.get(affiliateId)?.name}` : " dell’evento"}.</p>
           {feedback && <p role="status" className={`rounded-xl border p-4 text-sm ${feedback.outcome === "admitted" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-rose-200 bg-rose-50 text-rose-900"}`}>{feedback.message}</p>}
           <DataTable data={matchingTickets} columns={columns} keyExtractor={(ticket) => ticket.id} />
         </section>

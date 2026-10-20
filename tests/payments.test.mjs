@@ -119,7 +119,7 @@ test("an ambiguous Checkout creation failure preserves the hold for concurrent r
   assert.equal((await checkout.post()).status, 500);
   assert.equal(checkout.creations.length, 1);
   assert.equal(checkout.rpcCalls.length, 1);
-  assert.equal(checkout.rpcCalls[0][0], "reserve_event_ticket_attendee");
+  assert.equal(checkout.rpcCalls[0][0], "reserve_event_ticket_affiliate");
   assert.equal(checkout.rpcCalls[0][1].p_attendee.email, checkoutBody.buyerEmail);
   assert.equal(checkout.rpcCalls[0][1].p_attendee.marketingConsent, false);
   assert.equal(checkout.rpcCalls[0][1].p_privacy_version, attendee.ATTENDEE_PRIVACY_VERSION);
@@ -129,7 +129,7 @@ test("guest single ticket checkout requires valid private contacts but never req
   const checkout = checkoutFor({ error: "sold_out" }, {});
   const accepted = await checkout.post({ ...checkoutBody, locale: "es" });
   assert.equal(accepted.status, 409);
-  assert.equal(checkout.rpcCalls[0][0], "reserve_event_ticket_attendee");
+  assert.equal(checkout.rpcCalls[0][0], "reserve_event_ticket_affiliate");
   assert.equal(checkout.rpcCalls[0][1].p_locale, "es");
   assert.equal(checkout.rpcCalls[0][1].p_attendee.marketingConsent, false);
   assert.equal(checkout.rpcCalls[0][1].userId, undefined);
@@ -137,6 +137,18 @@ test("guest single ticket checkout requires valid private contacts but never req
     assert.equal((await checkout.post({ ...checkoutBody, attendee: contact })).status, 400);
   }
   assert.equal(checkout.rpcCalls.length, 1);
+});
+
+test("single-ticket affiliate attribution is optional and an untrusted label never reaches the reservation", async () => {
+  const checkout = checkoutFor({ error: "sold_out" }, {});
+  const affiliateId = "20000000-0000-4000-8000-000000000001";
+  assert.equal((await checkout.post({ ...checkoutBody, affiliateId, affiliateName: "Untrusted name" })).status, 409);
+  assert.equal(checkout.rpcCalls[0][1].p_affiliate_id, affiliateId);
+  assert.equal(checkout.rpcCalls[0][1].affiliateName, undefined);
+  assert.equal((await checkout.post()).status, 409);
+  assert.equal(checkout.rpcCalls[1][1].p_affiliate_id, null);
+  assert.equal((await checkout.post({ ...checkoutBody, affiliateId: "not-an-id" })).status, 400);
+  assert.equal(checkout.rpcCalls.length, 2);
 });
 
 test("unpaid asynchronous checkout never issues a ticket", async () => {
@@ -296,7 +308,7 @@ test("single-ticket discount requires an explicit net confirmation and canonical
   const response = await checkout.post({ ...checkoutBody, discountCode: " ws20 ", expectedTotalCents: 2000 });
   assert.equal(response.status, 400);
   assert.equal((await response.json()).code, "discount_limit");
-  assert.equal(checkout.rpcCalls[0][0], "reserve_event_ticket_discount");
+  assert.equal(checkout.rpcCalls[0][0], "reserve_event_ticket_affiliate");
   assert.equal(checkout.rpcCalls[0][1].p_discount_code, "WS20");
   assert.equal(checkout.rpcCalls[0][1].p_attendee.email, checkoutBody.buyerEmail);
 });

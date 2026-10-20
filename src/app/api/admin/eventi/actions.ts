@@ -5,6 +5,7 @@ import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
 import { z } from "zod";
 import { parseCommerceConfig } from "@/lib/commerce/config";
 import { eventLogisticsSchema } from "@/lib/events/logistics";
+import { eventAffiliatesSchema, parseEventAffiliates } from "@/lib/events/affiliates";
 
 const localized = z.union([z.string().max(200_000), z.record(z.string(), z.string().max(200_000))]);
 const eventSchema = z.object({
@@ -16,6 +17,7 @@ const eventSchema = z.object({
   location: z.string().max(500).nullable().optional(), indirizzo: z.string().max(1000).nullable().optional(),
   copertina_url: z.string().max(2048).nullable().optional(),
   logistics: eventLogisticsSchema.optional(),
+  affiliates: eventAffiliatesSchema.optional(),
   prezzo_cents: z.number().int().min(0).max(10_000_000).nullable().optional(),
   capacity: z.number().int().min(0).max(100_000).nullable().optional(), attivo: z.boolean().optional(),
   ticketing_mode: z.enum(["single", "advanced"]).optional(),
@@ -42,6 +44,9 @@ export async function upsertEvent(raw: unknown) {
   const supabase = await requireCommerceStaff();
   const validation = eventSchema.safeParse(raw);
   if (!validation.success) {
+    if (validation.error.issues.some((issue) => issue.path[0] === "affiliates")) {
+      return { success: false, error: "Controlla gli affiliati: inserisci nomi validi e diversi per gli affiliati attivi, senza duplicare gli identificativi." };
+    }
     if (validation.error.issues.some((issue) => issue.path[0] === "logistics")) {
       return { success: false, error: "Controlla Viaggio e soggiorno: nomi, titoli, partenze e destinazioni dei collegamenti in italiano, link, email e date delle convenzioni." };
     }
@@ -50,6 +55,18 @@ export async function upsertEvent(raw: unknown) {
   }
   // Configurations, counters and Stripe IDs have dedicated transactional paths.
   const { ticketing_mode: ticketingMode, ...eventData } = validation.data;
+  if (eventData.id && eventData.affiliates !== undefined) {
+    const { data: existing, error: existingError } = await supabase.from("events").select("affiliates").eq("id", eventData.id).single();
+    if (existingError || !existing) return { success: false, error: "Impossibile verificare lo storico degli affiliati. Ricarica l’evento e riprova." };
+    const previous = parseEventAffiliates(existing.affiliates);
+    const submittedIds = new Set(eventData.affiliates.map((affiliate) => affiliate.id));
+    // Removing an existing affiliate only retires it. Issued tickets keep
+    // their original attribution, and the organizer can still filter it.
+    const preserved = [...eventData.affiliates, ...previous.filter((affiliate) => !submittedIds.has(affiliate.id)).map((affiliate) => ({ ...affiliate, active: false }))];
+    const checked = eventAffiliatesSchema.safeParse(preserved);
+    if (!checked.success) return { success: false, error: "Hai raggiunto il limite di 100 affiliati, compreso lo storico. Disattiva quelli esistenti senza aggiungere nuove voci." };
+    eventData.affiliates = checked.data;
+  }
   const createAdvancedDraft = !eventData.id && ticketingMode === "advanced";
   if (eventData.id && ticketingMode === "advanced" && eventData.attivo) {
     const { data: existing, error: existingError } = await supabase.from("events").select("*").eq("id", eventData.id).single();

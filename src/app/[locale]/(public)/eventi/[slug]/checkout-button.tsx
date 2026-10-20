@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { useLocale } from "next-intl";
 import { ArrowRight, LoaderCircle, LockKeyhole, Ticket, X } from "lucide-react";
 import { attendeeSchema } from "@/lib/commerce/attendee";
@@ -12,11 +13,12 @@ import styles from "@/components/meraki/commerce-purchase.module.css";
 import { DiscountBreakdown, DiscountCodeFields, discountCodeValue, type DiscountQuote } from "@/components/meraki/discount-code-fields";
 import { discountError } from "@/components/meraki/discount-copy";
 
-export function CheckoutButton({ eventId }: { eventId: string }) {
+export function CheckoutButton({ eventId, affiliates = [] }: { eventId: string; affiliates?: { id: string; name: string }[] }) {
   const locale = useLocale();
   const copy = checkoutCopy(locale);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [affiliateId, setAffiliateId] = useState("");
   const [contact, setContact] = useState(() => emptyCheckoutContact(locale));
   const [error, setError] = useState<string | null>(null);
   const [discountInput, setDiscountInput] = useState("");
@@ -29,7 +31,7 @@ export function CheckoutButton({ eventId }: { eventId: string }) {
   const [checkoutHold, setCheckoutHold] = useState<{ inputKey: string; fingerprint: string } | null>(null);
   const requestKey = `${eventId}:${discountCode}`;
   const currentQuote = quoteKey === requestKey ? quote : null;
-  const checkoutInputKey = JSON.stringify({ eventId, locale, discountCode, contact });
+  const checkoutInputKey = JSON.stringify({ eventId, locale, discountCode, contact, affiliateId });
   const preserveAcceptedQuote = checkoutHold?.inputKey === checkoutInputKey;
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -78,7 +80,7 @@ export function CheckoutButton({ eventId }: { eventId: string }) {
     submitting.current = true;
     setLoading(true);
     setError(null);
-    const body = { eventId, buyerEmail: checked.data.email, buyerNome: checked.data.firstName, buyerCognome: checked.data.lastName, attendee: checked.data, locale, expectedTotalCents: currentQuote.totalCents, ...(discountCode ? { discountCode } : {}) };
+    const body = { eventId, buyerEmail: checked.data.email, buyerNome: checked.data.firstName, buyerCognome: checked.data.lastName, attendee: checked.data, locale, expectedTotalCents: currentQuote.totalCents, ...(discountCode ? { discountCode } : {}), ...(affiliateId ? { affiliateId } : {}) };
     const currentFingerprint = JSON.stringify(body);
     if (preserveAcceptedQuote && checkoutHold.fingerprint !== currentFingerprint) {
       resetCheckoutAttempt(); setError(copy.priceChanged); submitting.current = false; setLoading(false); return;
@@ -95,7 +97,7 @@ export function CheckoutButton({ eventId }: { eventId: string }) {
         if (deterministic) { resetCheckoutAttempt(); setCheckoutHold(null); setQuote(null); setQuoteLoading(true); setQuoteRetry((value) => value + 1); }
         if (data.code === "request_expired" || data.code === "price_changed") attempt.current = null;
         if (data.code === "price_changed" && data.quote) { setQuote(data.quote); setQuoteKey(requestKey); throw new Error(copy.priceChanged); }
-        throw new Error(discountError(data.code, locale) || (locale === "it" ? data.error : "") || copy.checkoutError);
+        throw new Error(data.code === "affiliate_unavailable" ? copy.affiliateUnavailable : discountError(data.code, locale) || (locale === "it" ? data.error : "") || copy.checkoutError);
       }
       const checkoutUrl = safeCommerceRedirect(data.url, window.location.origin);
       if (!checkoutUrl) throw new Error(copy.redirectError);
@@ -117,6 +119,14 @@ export function CheckoutButton({ eventId }: { eventId: string }) {
             <p className={styles.muted}>{copy.legacyIntro}</p>
             <div className={styles.fields}><label className={styles.label} htmlFor={`buyer-name-${eventId}`}>{copy.firstName}<input id={`buyer-name-${eventId}`} className={styles.input} name="nome" required maxLength={100} autoComplete="given-name" disabled={loading} /></label><label className={styles.label} htmlFor={`buyer-surname-${eventId}`}>{copy.lastName}<input id={`buyer-surname-${eventId}`} className={styles.input} name="cognome" required maxLength={100} autoComplete="family-name" disabled={loading} /></label></div>
             <CheckoutContactFields locale={locale} prefix="buyer" emailName="email" value={contact} onChange={(changes) => { resetCheckoutAttempt(); setContact((value) => ({ ...value, ...changes })); setError(null); }} disabled={loading} />
+            {!!affiliates.length && <div className={styles.affiliateBox}>
+              <label className={styles.label} htmlFor={`ticket-affiliate-${eventId}`}>{copy.affiliateLabel}</label>
+              <CustomSelect id={`ticket-affiliate-${eventId}`} name="affiliateId" aria-label={copy.affiliateLabel} aria-describedby={`ticket-affiliate-hint-${eventId}`} className={styles.input} value={affiliateId} disabled={loading} onChange={(event) => { resetCheckoutAttempt(); setAffiliateId(event.target.value); setError(null); }}>
+                <option value="">{copy.directPurchase}</option>
+                {affiliates.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.name}</option>)}
+              </CustomSelect>
+              <p id={`ticket-affiliate-hint-${eventId}`} className={`${styles.muted} mt-2`}>{copy.affiliateHint}</p>
+            </div>}
             <DiscountCodeFields id={`ticket-code-${eventId}`} locale={locale} value={discountInput} requestedCode={discountCode} appliedCode={currentQuote?.discount?.code} loading={loading} pending={quoteLoading} onChange={(value) => { resetCheckoutAttempt(); setDiscountInput(value); if (discountCode) { setDiscountCode(""); setQuote(null); setQuoteLoading(true); } setQuoteError(""); setError(null); }} onApply={() => { resetCheckoutAttempt(); setDiscountCode(discountCodeValue(discountInput)); setQuote(null); setQuoteLoading(true); setQuoteError(""); setError(null); setQuoteRetry((value) => value + 1); }} onRemove={() => { resetCheckoutAttempt(); setDiscountInput(""); setDiscountCode(""); setQuote(null); setQuoteLoading(true); setQuoteError(""); setError(null); }} />
             <div className={styles.summary} aria-live="polite">{quoteLoading ? <p className={styles.muted}>{copy.checkingTotal}</p> : currentQuote ? <><DiscountBreakdown quote={currentQuote} locale={locale} /><div className={styles.total}><span>{copy.total}</span><span>{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(currentQuote.totalCents / 100)}</span></div><p className={`${styles.muted} mt-2`}>{copy.holdHint}</p></> : null}{quoteError && <><p role="alert" className={styles.error}>{quoteError}</p><button type="button" className={styles.smallButton} onClick={() => { setQuote(null); setQuoteLoading(true); setQuoteError(""); setQuoteRetry((value) => value + 1); }}>{copy.recheck}</button></>}</div>
             {error && <p role="alert" className={styles.error}>{error}</p>}

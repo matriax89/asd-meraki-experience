@@ -3,7 +3,7 @@
 import { CustomSelect } from "@/components/ui/custom-select";
 
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowRight, Check, LoaderCircle, LockKeyhole, Plus, Ticket, X } from "lucide-react";
 import { activityAvailable, currentTier, eligiblePackages, nextTierComparison, packageAvailable, packageSavings, safeCommerceRedirect, type CommerceCatalog, type CommerceParticipant, type CommerceUpgrade } from "./commerce-public-model";
 import styles from "./commerce-purchase.module.css";
@@ -51,6 +51,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
   const [now, setNow] = useState(() => Date.now());
   const [open, setOpen] = useState(false);
   const [waitlist, setWaitlist] = useState(false);
+  const [affiliateId, setAffiliateId] = useState("");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState("");
@@ -66,6 +67,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
   const [selection, setSelection] = useState<Selection>(() => ({ participants: [initial()], contacts: [emptyCheckoutContact(locale)], buyerEmail: upgrade?.contact?.email || "" }));
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const packageFocus = useRef<HTMLInputElement | null>(null);
   useCheckoutViewport(dialog, open);
   const submitting = useRef(false);
   const attempt = useRef<string | null>(null);
@@ -73,10 +75,18 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
   const base = useMemo(() => ({ eventId: catalog.event.id, participants: selection.participants, locale, ...(discountCode && !upgrade ? { discountCode } : {}), ...(upgrade ? { upgradePassId: upgrade.passId, upgradeToken: upgrade.token } : {}) }), [catalog.event.id, selection.participants, locale, discountCode, upgrade]);
   const selectionKey = JSON.stringify(base);
   const currentQuote = quoteKey === selectionKey ? quote : null;
-  const checkoutInputKey = JSON.stringify({ base, contacts: selection.contacts, buyerEmail: selection.buyerEmail });
+  const checkoutInputKey = JSON.stringify({ base, contacts: selection.contacts, buyerEmail: selection.buyerEmail, affiliateId: upgrade ? null : affiliateId });
   // A failed response can leave a real reservation (and the code's only use)
   // held by this UUID. Retry that exact checkout through the authoritative API.
   const preserveAcceptedQuote = checkoutHold?.inputKey === checkoutInputKey;
+
+  useLayoutEffect(() => {
+    // Moving keyed cards can blur the focused radio in some browsers. Keep the
+    // chosen control focused without scrolling the form after it moves first.
+    const input = packageFocus.current;
+    packageFocus.current = null;
+    if (dialog.current?.open && input?.isConnected) input.focus({ preventScroll: true });
+  }, [selection.participants]);
 
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30000); return () => window.clearInterval(timer); }, []);
   useEffect(() => {
@@ -132,6 +142,19 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
     });
     show(false, source, selectedAt);
   }
+  function navigatePackages(event: KeyboardEvent<HTMLInputElement>, index: number, packageId: string) {
+    const direction = ["ArrowDown", "ArrowRight"].includes(event.key) ? 1 : ["ArrowUp", "ArrowLeft"].includes(event.key) ? -1 : 0;
+    if (!direction && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    // The visual first position follows the selection. Arrow keys still cycle
+    // through one stable offer order so every option remains reachable.
+    const navigable = offers.filter((offer) => waitlist || packageAvailable(catalog, offer.id, upgrade?.activityIds, now));
+    if (!navigable.length) return;
+    const current = navigable.findIndex((offer) => offer.id === packageId);
+    const next = event.key === "Home" ? navigable[0] : event.key === "End" ? navigable[navigable.length - 1] : navigable[(current + direction + navigable.length) % navigable.length];
+    const input = Array.from(dialog.current?.querySelectorAll<HTMLInputElement>('input[type="radio"]') || []).find((item) => item.name === `package-${index}` && item.value === next.id);
+    if (input && !input.disabled) { input.focus({ preventScroll: true }); input.click(); }
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting.current || (!waitlist && (!currentQuote || quoteLoading))) return;
@@ -147,7 +170,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
       const participants = base.participants.map((participant) => ({ ...participant, firstName: participant.firstName.trim(), lastName: participant.lastName.trim() }));
       const checked = upgrade ? null : attendeesSchema.safeParse(participants.map((participant, index) => ({ firstName: participant.firstName, lastName: participant.lastName, ...selection.contacts[index], email: selection.contacts[index].email.trim() })));
       if (checked && !checked.success) throw new Error(copy.invalidData);
-      const body = { ...base, participants, ...(checked?.success ? { attendees: checked.data } : {}), buyerEmail: upgrade ? selection.buyerEmail.trim() : selection.contacts[0].email.trim(), locale, expectedTotalCents: currentQuote!.totalCents };
+      const body = { ...base, participants, ...(checked?.success ? { attendees: checked.data } : {}), buyerEmail: upgrade ? selection.buyerEmail.trim() : selection.contacts[0].email.trim(), locale, expectedTotalCents: currentQuote!.totalCents, ...(!upgrade && affiliateId ? { affiliateId } : {}) };
       const fingerprint = JSON.stringify(body);
       if (preserveAcceptedQuote && checkoutHold.fingerprint !== fingerprint) {
         resetCheckoutAttempt(); throw new Error(copy.priceChanged);
@@ -163,7 +186,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
         if (deterministic) { attempt.current = null; setCheckoutHold(null); setQuote(null); setQuoteRetry((value) => value + 1); }
         if (result.code === "request_expired" || result.code === "price_changed") attempt.current = null;
         if (result.code === "price_changed" && result.quote) { setQuote(result.quote); setQuoteKey(selectionKey); throw new Error(copy.priceChanged); }
-        throw new Error(discountError(result.code, locale) || (locale === "it" ? result.error : "") || copy.checkoutError);
+        throw new Error(result.code === "affiliate_unavailable" ? copy.affiliateUnavailable : discountError(result.code, locale) || (locale === "it" ? result.error : "") || copy.checkoutError);
       }
       const url = safeCommerceRedirect(result.url, window.location.origin);
       if (!url) throw new Error(copy.redirectError);
@@ -209,19 +232,21 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
           {!waitlist && !upgrade && <label className={styles.quantity}><span className={styles.label}> {copy.quantity}<span className={`${styles.muted} block font-normal`}>{copy.personalTicket}</span></span><CustomSelect aria-label={copy.quantityLabel} disabled={loading} value={selection.participants.length} onChange={(event) => { const quantity = Number(event.target.value); resetCheckoutAttempt(); setQuote(null); setSelection((value) => ({ ...value, participants: Array.from({ length: quantity }, (_, index) => value.participants[index] || initial()), contacts: Array.from({ length: quantity }, (_, index) => value.contacts[index] || emptyCheckoutContact(locale)) })); }}>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</CustomSelect></label>}
           {selection.participants.map((participant, index) => {
             const selectedPackage = catalog.config.packages.find((offer) => offer.id === participant.packageId);
+            const orderedOffers = [...offers.filter((offer) => offer.id === participant.packageId), ...offers.filter((offer) => offer.id !== participant.packageId)];
             const includedIds = new Set([...(upgrade?.activityIds || []), ...(selectedPackage?.activityIds || []), ...catalog.config.addons.filter((addon) => participant.addonIds.includes(addon.id)).map((addon) => addon.activityId)]);
             const menuActivities = catalog.config.activities.filter((activity) => includedIds.has(activity.id) && activity.menuOptions.length && !upgrade?.activityIds.includes(activity.id));
             return <fieldset key={index} className={styles.person} disabled={loading}>
               <legend>{waitlist ? copy.yourData : upgrade ? copy.yourTicket : `${copy.participant} ${index + 1}`}</legend>
               <div className={styles.fields}><label className={styles.label}>{copy.firstName}<input className={styles.input} name={`firstName-${index}`} value={participant.firstName} onChange={(event) => updateParticipant(index, { firstName: event.target.value })} autoComplete={index === 0 ? "given-name" : "off"} required maxLength={100} readOnly={!!upgrade} /></label><label className={styles.label}>{copy.lastName}<input className={styles.input} name={`lastName-${index}`} value={participant.lastName} onChange={(event) => updateParticipant(index, { lastName: event.target.value })} autoComplete={index === 0 ? "family-name" : "off"} required maxLength={100} readOnly={!!upgrade} /></label></div>
               <CheckoutContactFields locale={locale} prefix={`participant-${index}`} value={upgrade ? { ...emptyCheckoutContact(locale), email: selection.buyerEmail } : selection.contacts[index]} onChange={(changes) => { if (upgrade) { resetCheckoutAttempt(); setSelection((value) => ({ ...value, buyerEmail: changes.email ?? value.buyerEmail })); } else updateContact(index, changes); }} disabled={loading} emailOnly={waitlist || !!upgrade} originalEmail={!!upgrade} group={selection.participants.length > 1} />
-              <h3 className={styles.sectionTitle}>{waitlist ? copy.interest : copy.chooseFormula}</h3><div className={styles.options}>{offers.map((offer) => {
+              <h3 className={styles.sectionTitle}>{waitlist ? copy.interest : copy.chooseFormula}</h3><div className={styles.options} role="radiogroup" aria-label={waitlist ? copy.interest : copy.chooseFormula}>{orderedOffers.map((offer) => {
                 const tier = currentTier(offer.prices, now);
                 const valid = packageAvailable(catalog, offer.id, upgrade?.activityIds, now);
                 const savings = packageSavings(catalog.config, offer.id, now);
                 const comparison = !waitlist && !upgrade && catalog.available && valid ? nextTierComparison(offer.prices, now) : null;
                 const tierLabel = tier && commerceText(tier.label, tier.labelTranslations, locale);
-                return <div key={offer.id}><label className={`${styles.option} ${styles.packageOption} ${offer.activityIds.length > 1 ? styles.comboOption : ""}`} data-package-combo={offer.activityIds.length > 1 ? "true" : undefined}><input type="radio" name={`package-${index}`} value={offer.id} checked={participant.packageId === offer.id} disabled={!waitlist && !valid} required onChange={() => updateParticipant(index, { packageId: offer.id, addonIds: participant.addonIds.filter((id) => !catalog.config.addons.some((addon) => addon.id === id && offer.activityIds.includes(addon.activityId))), menuChoices: {} })} /><span className={styles.optionBody}>
+                return <div key={offer.id}><label className={`${styles.option} ${styles.packageOption} ${participant.packageId === offer.id ? styles.selectedPackageOption : styles.unselectedPackageOption}`} data-package-combo={offer.activityIds.length > 1 ? "true" : undefined} data-package-selected={participant.packageId === offer.id ? "true" : "false"}><input type="radio" name={`package-${index}`} value={offer.id} checked={participant.packageId === offer.id} disabled={!waitlist && !valid} required onKeyDown={(event) => navigatePackages(event, index, offer.id)} onChange={(event) => { packageFocus.current = event.currentTarget; updateParticipant(index, { packageId: offer.id, addonIds: participant.addonIds.filter((id) => !catalog.config.addons.some((addon) => addon.id === id && offer.activityIds.includes(addon.activityId))), menuChoices: {} }); }} /><span className={styles.optionBody}>
+                  {participant.packageId === offer.id && <span className={styles.selectedPackageLabel}>{copy.selectedFormula}</span>}
                   <span className={`${styles.optionTop} ${styles.offerTop}`}><span className={styles.offerName}>{commerceText(offer.name, offer.nameTranslations, locale)}</span><span className={upgrade && offer.id === upgrade.packageId ? styles.purchasedLabel : styles.offerPrice}>{upgrade && offer.id === upgrade.packageId ? copy.purchased : tier ? money(tier.amountCents) : "—"}</span></span>
                   <span className={styles.offerDescription}>{commerceText(offer.description, offer.descriptionTranslations, locale) || offer.activityIds.map((id) => { const activity = catalog.config.activities.find((item) => item.id === id); return activity ? commerceText(activity.name, activity.nameTranslations, locale) : ""; }).filter(Boolean).join(" + ")}</span>
                   {!waitlist && tier && !(upgrade && offer.id === upgrade.packageId) && <span className={styles.tierDetails}>
@@ -251,6 +276,14 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
               {!waitlist && menuActivities.map((activity) => <label key={activity.id} className={`${styles.label} mt-4`}>{commerceText(activity.name, activity.nameTranslations, locale)}: {copy.chooseMenu}<CustomSelect aria-label={`${commerceText(activity.name, activity.nameTranslations, locale)}: ${copy.chooseMenu}`} className={styles.input} value={participant.menuChoices[activity.id] || ""} required onChange={(event) => updateParticipant(index, { menuChoices: { ...participant.menuChoices, [activity.id]: event.target.value } })}><option value="">{copy.selectMenu}</option>{activity.menuOptions.map((option) => <option key={option} value={option}>{commerceText(option, activity.menuTranslations?.[option], locale)}</option>)}</CustomSelect></label>)}
             </fieldset>;
           })}
+          {!waitlist && !upgrade && !!catalog.affiliates?.length && <div className={styles.affiliateBox}>
+            <label className={styles.label} htmlFor={`commerce-affiliate-${catalog.event.id}`}>{copy.affiliateLabel}</label>
+            <CustomSelect id={`commerce-affiliate-${catalog.event.id}`} name="affiliateId" aria-label={copy.affiliateLabel} aria-describedby={`commerce-affiliate-hint-${catalog.event.id}`} className={styles.input} value={affiliateId} disabled={loading} onChange={(event) => { resetCheckoutAttempt(); setAffiliateId(event.target.value); setError(""); }}>
+              <option value="">{copy.directPurchase}</option>
+              {catalog.affiliates.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.name}</option>)}
+            </CustomSelect>
+            <p id={`commerce-affiliate-hint-${catalog.event.id}`} className={`${styles.muted} mt-2`}>{copy.affiliateHint}</p>
+          </div>}
           {!waitlist && !upgrade && <DiscountCodeFields id={`commerce-code-${catalog.event.id}`} locale={locale} value={discountInput} requestedCode={discountCode} appliedCode={currentQuote?.discount?.code} loading={loading} pending={quoteLoading || (!!discountCode && !currentQuote && !quoteError)} onChange={(value) => { resetCheckoutAttempt(); setDiscountInput(value); if (discountCode) { setDiscountCode(""); setQuote(null); } setQuoteError(""); setError(""); }} onApply={() => { resetCheckoutAttempt(); setDiscountCode(discountCodeValue(discountInput)); setQuote(null); setQuoteError(""); setError(""); setQuoteRetry((value) => value + 1); }} onRemove={() => { resetCheckoutAttempt(); setDiscountCode(""); setDiscountInput(""); setQuote(null); setQuoteError(""); setError(""); }} />}
           {!waitlist && <div className={styles.summary} aria-live="polite">{quoteLoading ? <p className={styles.muted}>{copy.checkingTotal}</p> : currentQuote ? <><ul>{currentQuote.lines.map((line, index) => <li key={index}><span>{line.quantity > 1 ? `${line.quantity} × ` : ""}{commerceQuoteLabel(catalog.config, line, locale)}</span><span>{money(line.subtotalCents ?? line.totalCents)}</span></li>)}</ul><DiscountBreakdown quote={currentQuote} locale={locale} scope={commerceDiscountScope(catalog.config, currentQuote.discount, locale)} /><div className={styles.total}><span>{upgrade ? copy.difference : copy.total}</span><span>{money(currentQuote.totalCents)}</span></div><p className={`${styles.muted} mt-2`}>{copy.holdHint}</p></> : <p className={styles.muted}>{copy.selectionHint}</p>}{quoteError && <><p role="alert" className={styles.error}>{quoteError}</p><button type="button" className={styles.smallButton} onClick={() => setQuoteRetry((value) => value + 1)}>{copy.recheck}</button></>}</div>}
           {error && <p role="alert" className={styles.error}>{error}</p>}

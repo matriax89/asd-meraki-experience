@@ -26,7 +26,7 @@ function load(file, mocks = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, Error, window: dom.window, document: dom.window.document, crypto: webcrypto, console, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : require(name) });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, Error, window: dom.window, document: dom.window.document, crypto: webcrypto, console, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(name) });
   return compiledModule.exports;
 }
 const CustomSelect = React.forwardRef((props, ref) => React.createElement("select", { ...props, ref }));
@@ -70,7 +70,7 @@ async function mount(context, Component, props) {
 
 function eventFormFixture({ realLogistics = false } = {}) {
   const saved = [];
-  const db = { from(table) { assert.equal(table, "events"); let payload; return { upsert(value) { payload = value; saved.push(copy(value)); return this; }, select() { return this; }, async single() { return { data: { ...payload, id: eventId }, error: null }; } }; } };
+  const db = { from(table) { assert.equal(table, "events"); let payload; return { upsert(value) { payload = value; saved.push(copy(value)); return this; }, select() { return this; }, eq() { return this; }, async single() { return { data: { ...payload, id: eventId }, error: null }; } }; } };
   const actions = load("app/api/admin/eventi/actions.ts", { "@/lib/events/logistics": logistics, "@/lib/commerce/config": config, "@/lib/commerce/admin-auth": { requireCommerceStaff: async () => db }, "next/cache": { revalidatePath() {} } });
   const DateTimeField = ({ label, value, onChange, required, id }) => React.createElement("label", null, label, React.createElement("input", { id, required, value, onChange: (event) => onChange(event.target.value) }));
   const { EventForm } = load("app/[locale]/admin/eventi/[id]/event-form.tsx", {

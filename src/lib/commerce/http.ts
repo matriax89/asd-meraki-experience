@@ -7,6 +7,7 @@ export const selectionSchema = z.object({
   eventId: z.string().uuid(), participants: z.array(participantSchema).min(1).max(10),
   upgradePassId: z.string().uuid().optional(), upgradeToken: z.string().min(16).max(256).regex(/^[a-z0-9_-]+$/i).optional(),
   discountCode: z.string().trim().max(50).regex(/^[a-z0-9_-]*$/i).transform(value => value.toUpperCase()).optional(),
+  affiliateId: z.string().uuid().nullable().optional(),
 }).refine((body) => Boolean(body.upgradePassId) === Boolean(body.upgradeToken), "Credenziali upgrade incomplete.");
 
 export async function commerceBody(request: Request): Promise<unknown> {
@@ -39,6 +40,7 @@ const errors: Record<string, string> = {
   invalid_price: "La formula selezionata non è in vendita in questo momento.",
   pricing_unavailable: "La formula selezionata non è in vendita in questo momento.",
   invalid_request: "La selezione è cambiata. Avvia un nuovo acquisto.",
+  affiliate_unavailable: "L’affiliato selezionato non è più disponibile per questo evento. Scegli un altro affiliato o l’acquisto diretto.",
   upgrade_in_progress: "È già in corso un aggiornamento di questo biglietto. Completa o attendi la scadenza del pagamento.",
   email_mismatch: "Per aggiornare il biglietto usa l’indirizzo email dell’acquisto originale.",
   request_conflict: "La selezione è cambiata. Avvia un nuovo acquisto.",

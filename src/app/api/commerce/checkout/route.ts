@@ -17,12 +17,12 @@ export async function POST(request: Request) {
     }
     const stripe = await getVerifiedStripe();
     const db = commerceClient();
-    const { data, error } = await db.rpc(body.discountCode ? "reserve_event_commerce_discount" : body.upgradePassId ? "reserve_event_commerce" : "reserve_event_commerce_attendees", {
+    const { data, error } = await db.rpc("reserve_event_commerce_affiliate", {
       p_event_id: body.eventId, p_request_id: body.checkoutAttemptId, p_buyer_email: body.buyerEmail,
       p_locale: body.locale, p_participants: body.participants,
       p_upgrade_pass_id: body.upgradePassId || null, p_upgrade_token: body.upgradeToken || null,
-      ...(!body.upgradePassId ? { p_attendees: attendees, p_privacy_version: ATTENDEE_PRIVACY_VERSION } : {}),
-      ...(body.discountCode ? { p_discount_code: body.discountCode } : {}),
+      p_attendees: attendees, p_privacy_version: body.upgradePassId ? null : ATTENDEE_PRIVACY_VERSION,
+      p_discount_code: body.discountCode || null, p_affiliate_id: body.upgradePassId ? null : body.affiliateId || null,
     });
     if (error) throw error;
     if (data.error || !data.order) return commerceFailure(data.error || "invalid_selection");

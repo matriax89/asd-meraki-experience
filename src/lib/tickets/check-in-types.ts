@@ -26,6 +26,8 @@ export interface AdminTicket extends CheckInTicketSummary {
   qr_code: string | null;
   events: { titolo: string; data_inizio: string } | null;
   package_name?: string;
+  affiliate_id?: string | null;
+  affiliate_name?: string | null;
 }
 
 export interface CheckInEvent {
@@ -33,6 +35,7 @@ export interface CheckInEvent {
   titolo: string;
   data_inizio: string;
   activities?: { id: string; name: string }[];
+  affiliates?: { id: string; name: string; active: boolean }[];
 }
 
 export type CheckInResult = {
