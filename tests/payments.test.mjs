@@ -286,3 +286,34 @@ test("webhook lifecycle covers paid, asynchronous pending/success/failure and ex
     assert.deepEqual(hook.calls, [expected], type);
   }
 });
+
+test("single-ticket discount requires an explicit net confirmation and canonical reservation", async () => {
+  const checkout = checkoutFor({ error: "discount_limit" }, {});
+  const missing = await checkout.post({ ...checkoutBody, discountCode: "WS20" });
+  assert.equal(missing.status, 400);
+  assert.equal(checkout.rpcCalls.length, 0);
+  const response = await checkout.post({ ...checkoutBody, discountCode: " ws20 ", expectedTotalCents: 2000 });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).code, "discount_limit");
+  assert.equal(checkout.rpcCalls[0][0], "reserve_event_ticket_discount");
+  assert.equal(checkout.rpcCalls[0][1].p_discount_code, "WS20");
+  assert.equal(checkout.rpcCalls[0][1].p_attendee.email, checkoutBody.buyerEmail);
+});
+
+test("single-ticket changed discount amount releases its new hold before any payment", async () => {
+  const quote = { subtotalCents: 2500, discountCents: 400, totalCents: 2100 };
+  const checkout = checkoutFor({ reservation: { id: checkoutBody.checkoutAttemptId, amount_cents: 2100, discount_quote: quote, stripe_session_id: null } }, {});
+  const response = await checkout.post({ ...checkoutBody, discountCode: "SAVE", expectedTotalCents: 2000 });
+  assert.equal(response.status, 409);
+  const body = await response.json();
+  assert.equal(body.code, "price_changed");
+  assert.deepEqual(body.quote, quote);
+  assert.equal(checkout.creations.length, 0);
+  assert.equal(checkout.rpcCalls[1][0], "transition_ticket_reservation");
+});
+
+test("buyer email is normalized before reservation and Stripe metadata identity", async () => {
+  const checkout = checkoutFor({ error: "sold_out" }, {});
+  await checkout.post({ ...checkoutBody, buyerEmail: " BUYER@EXAMPLE.TEST " });
+  assert.equal(checkout.rpcCalls[0][1].p_buyer_email, "buyer@example.test");
+});

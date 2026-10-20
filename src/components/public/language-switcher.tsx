@@ -35,7 +35,7 @@ export function LanguageSwitcher() {
     setIsOpen(false);
     if (newLocale === locale) return;
     startTransition(() => {
-      router.replace(pathname, { locale: newLocale });
+      router.replace(`${pathname}${window.location.search}${window.location.hash}`, { locale: newLocale });
     });
   };
 

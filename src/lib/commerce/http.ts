@@ -6,6 +6,7 @@ export const commerceResponse = (body: unknown, status = 200) => Response.json(b
 export const selectionSchema = z.object({
   eventId: z.string().uuid(), participants: z.array(participantSchema).min(1).max(10),
   upgradePassId: z.string().uuid().optional(), upgradeToken: z.string().min(16).max(256).regex(/^[a-z0-9_-]+$/i).optional(),
+  discountCode: z.string().trim().max(50).regex(/^[a-z0-9_-]*$/i).transform(value => value.toUpperCase()).optional(),
 }).refine((body) => Boolean(body.upgradePassId) === Boolean(body.upgradeToken), "Credenziali upgrade incomplete.");
 
 export async function commerceBody(request: Request): Promise<unknown> {
@@ -43,6 +44,18 @@ const errors: Record<string, string> = {
   request_conflict: "La selezione è cambiata. Avvia un nuovo acquisto.",
   request_expired: "Il tempo per completare l’acquisto è scaduto. Avvia un nuovo acquisto.",
   no_change: "Questo biglietto comprende già gli accessi selezionati.",
+  discount_invalid: "Codice sconto non valido per questo evento.",
+  discount_unavailable: "Il codice sconto non è attivo in questo momento o è scaduto.",
+  discount_exhausted: "Il codice sconto ha raggiunto il limite di utilizzi o è temporaneamente prenotato.",
+  discount_minimum_subtotal: "La selezione non raggiunge l’importo minimo richiesto dal codice sconto.",
+  discount_minimum_payment: "Questo codice porterebbe il totale sotto l’importo minimo di pagamento di 0,50 €.",
+  discount_inactive: "Il codice sconto non è attivo in questo momento.",
+  discount_expired: "Il codice sconto è scaduto.",
+  discount_limit: "Il codice sconto ha raggiunto il limite di utilizzi o è temporaneamente prenotato.",
+  discount_not_applicable: "Il codice sconto non si applica alla selezione o allo scaglione di prezzo scelto.",
+  discount_minimum: "La selezione non raggiunge l’importo minimo richiesto dal codice sconto.",
+  discount_price_too_low: "Questo codice porterebbe il totale sotto l’importo minimo di pagamento di 0,50 €.",
+  discount_upgrade_unsupported: "I codici sconto si applicano ai nuovi acquisti. Gli upgrade mantengono il credito già pagato.",
 };
 export function commerceFailure(code: string) {
   return commerceResponse({ code, error: errors[code] || "La selezione non è disponibile. Controlla formule, orari e posti disponibili." }, 409);

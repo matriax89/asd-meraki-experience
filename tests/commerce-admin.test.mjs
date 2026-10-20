@@ -14,6 +14,7 @@ const load = (path, dependencies) => {
   vm.runInNewContext(compiled, { exports, require: (name) => name in dependencies ? dependencies[name] : nativeFormControlMocks[name] || require(name), console, Error, Intl, Date, Map, crypto: globalThis.crypto });
   return exports;
 };
+const discountModule = load("../src/lib/commerce/discounts.ts", {});
 const configModule = load("../src/lib/commerce/config.ts", {});
 const statsModule = load("../src/lib/commerce/sales-stats.ts", {});
 const rome = load("../src/lib/commerce/rome-time.ts", {});
@@ -33,7 +34,7 @@ function setup({ user = true, role = "admin", rpcError = null, rpcData = { saved
   });
   const admin = { from: query, async rpc(name, args) { calls.push(["rpc", name, args]); return { data: rpcData, error: rpcError }; } };
   const auth = load("../src/lib/commerce/admin-auth.ts", { "@/lib/supabase/server": { createClient: async () => ({ auth: { getUser: async () => ({ data: { user: user ? { id: "operator" } : null }, error: null }) } }), createAdminClient: () => admin } });
-  const actions = load("../src/app/api/admin/commerce/actions.ts", { "next/cache": { revalidatePath() {} }, "@/lib/commerce/config": configModule, "@/lib/commerce/sales-stats": statsModule, "@/lib/commerce/admin-auth": auth });
+  const actions = load("../src/app/api/admin/commerce/actions.ts", { "next/cache": { revalidatePath() {} }, "@/lib/commerce/config": configModule, "@/lib/commerce/discounts": discountModule, "@/lib/commerce/sales-stats": statsModule, "@/lib/commerce/admin-auth": auth });
   return { calls, actions };
 }
 
@@ -326,3 +327,132 @@ for (const isPublished of [false, true]) {
     } finally { await fixture.close(); }
   });
 }
+
+const validDiscount = { code: "MERAKI20", name: "Promo workshop", active: true, startsAt: null, endsAt: null, discountType: "percentage", discountValue: 20, minSubtotalCents: 0, maxUses: 10, targetType: "activity", targetIds: ["ws"], allowedTierIds: [] };
+const discountRow = { id: "b12aba53-9496-49d3-9ac6-d38a21ac2ad4", event_id: eventId, code: "MERAKI20", name: "Promo workshop", active: true, starts_at: null, ends_at: null, discount_type: "percentage", discount_value: 20, min_subtotal_cents: 0, max_uses: 10, target_type: "activity", target_ids: ["ws"], allowed_tier_ids: [], created_at: "2026-10-20T10:00:00Z", updated_at: "2026-10-20T10:00:00Z", reserved_uses: 1, redeemed_uses: 2 };
+for (const options of [{ user: false }, { role: "viewer" }, { role: null }]) {
+  test(`private discount listing and saves verify staff identity (${JSON.stringify(options)})`, async () => {
+    const fixture = setup(options);
+    assert.equal((await fixture.actions.loadCommerceDiscountsAdmin(eventId)).success, false);
+    assert.equal((await fixture.actions.saveCommerceDiscountAdmin(eventId, validDiscount)).success, false);
+    assert.equal(fixture.calls.some(([kind]) => kind === "rpc"), false);
+  });
+}
+test("discount writes normalize codes, reject forged fields and scope the private RPC to an event", async () => {
+  const fixture = setup({ rpcData: { discount: discountRow } });
+  assert.equal((await fixture.actions.saveCommerceDiscountAdmin(eventId, { ...validDiscount, discountValue: 100 })).success, false);
+  assert.equal((await fixture.actions.saveCommerceDiscountAdmin(eventId, { ...validDiscount, event_id: "another-event" })).success, false);
+  assert.equal(fixture.calls.some(([kind]) => kind === "rpc"), false);
+  assert.equal((await fixture.actions.saveCommerceDiscountAdmin(eventId, { ...validDiscount, code: " meraki20 " })).success, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(fixture.calls.find(([kind]) => kind === "rpc").slice(1))), ["save_event_discount_code", { p_event_id: eventId, p_discount: validDiscount }]);
+  const stats = setup({ rpcData: { discounts: [discountRow] } });
+  const result = await stats.actions.loadCommerceDiscountsAdmin(eventId);
+  assert.equal(result.success, true); assert.equal(result.discounts[0].reserved_uses, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(stats.calls.find(([kind]) => kind === "rpc").slice(1))), ["event_discount_code_stats", { p_event_id: eventId }]);
+});
+test("discount storage errors and missing acknowledgements are never reported as saved", async () => {
+  for (const options of [{ rpcData: null }, { rpcData: { error: "invalid_target" } }, { rpcError: { code: "23505" } }]) {
+    const result = await setup(options).actions.saveCommerceDiscountAdmin(eventId, validDiscount);
+    assert.equal(result.success, false); assert.ok(result.error);
+  }
+});
+
+async function discountEditorFixture({ config = validConfig, initialDiscounts = [] } = {}) {
+  const { JSDOM } = await import("jsdom"); const React = await import("react");
+  const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", { url: "https://meraki.test", pretendToBeVisual: true });
+  const previous = new Map();
+  for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) { previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
+  const saved = [];
+  const component = load("../src/components/admin/discount-codes-editor.tsx", {
+    "@/app/api/admin/commerce/actions": { saveCommerceDiscountAdmin: async (_id, discount) => { saved.push(JSON.parse(JSON.stringify(discount))); return { success: true, discount: discountRow }; }, loadCommerceDiscountsAdmin: async () => ({ success: true, discounts: [discountRow] }) },
+    "@/lib/commerce/discounts": discountModule, "@/lib/commerce/rome-time": rome, "@/components/admin/wizard-steps": wizard,
+  });
+  const { createRoot } = await import("react-dom/client"); const root = createRoot(dom.window.document.getElementById("root"));
+  await React.act(async () => root.render(React.createElement(component.DiscountCodesEditor, { eventId, config, initialDiscounts })));
+  const document = dom.window.document;
+  const click = async (text) => { const node = [...document.querySelectorAll("button")].find((node) => node.textContent.trim() === text); assert.ok(node, `button ${text} exists`); await React.act(async () => node.click()); };
+  const input = async (label, value) => { const node = [...document.querySelectorAll("label")].find((node) => node.textContent.startsWith(label))?.querySelector("input"); assert.ok(node, `input ${label} exists`); await React.act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(node, value); node.dispatchEvent(new dom.window.Event("input", { bubbles: true })); }); };
+  const select = async (label, value) => React.act(async () => { const node = document.querySelector(`select[aria-label='${label}']`); Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype, "value").set.call(node, value); node.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  return { dom, document, React, saved, click, input, select, async close() { await React.act(async () => root.unmount()); dom.window.close(); for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } } };
+}
+test("discount creation has three explicit stages and stores the targeted activity only at confirmation", async () => {
+  const fixture = await discountEditorFixture();
+  try {
+    await fixture.click("Crea codice sconto");
+    await fixture.click("Avanti");
+    assert.equal(fixture.document.querySelector("[data-discount-step='0']").hidden, false);
+    await fixture.input("Codice da condividere", "ws20"); await fixture.input("Nome interno", "Promo workshop"); await fixture.input("Percentuale", "20");
+    await fixture.click("Avanti"); await fixture.select("Applica lo sconto a", "activity");
+    await fixture.click("Avanti"); assert.equal(fixture.document.querySelector("[data-discount-step='1']").hidden, false, "selecting a target is required");
+    const target = [...fixture.document.querySelectorAll("label")].find((node) => node.textContent.trim() === "Workshop").querySelector("input");
+    await fixture.React.act(async () => target.click()); await fixture.click("Avanti");
+    assert.equal(fixture.document.querySelector("[data-discount-step='2']").hidden, false); assert.equal(fixture.saved.length, 0);
+    assert.match(fixture.document.body.textContent, /non si applica agli upgrade/);
+    await fixture.click("Indietro"); assert.equal(target.checked, true); await fixture.click("Avanti"); await fixture.click("Salva codice sconto");
+    assert.equal(fixture.saved.length, 1); assert.equal(fixture.saved[0].code, "WS20"); assert.deepEqual(fixture.saved[0].targetIds, ["ws"]); assert.equal(fixture.saved[0].discountValue, 20);
+    assert.match(fixture.document.body.textContent, /Utilizzi confermati: 2/); assert.match(fixture.document.body.textContent, /Riservati: 1/);
+  } finally { await fixture.close(); }
+});
+test("simple ticket events can create order discounts without exposing unavailable bundle targets", async () => {
+  const fixture = await discountEditorFixture({ config: null });
+  try {
+    await fixture.click("Crea codice sconto"); await fixture.input("Codice da condividere", "TICKET10"); await fixture.input("Nome interno", "Promo evento"); await fixture.click("Avanti");
+    assert.deepEqual([...fixture.document.querySelector("select[aria-label='Applica lo sconto a']").options].map((option) => option.value), ["order"]);
+    assert.equal(fixture.document.body.textContent.includes("Tutti gli scaglioni, compreso Early Bird"), false);
+    await fixture.click("Avanti"); assert.equal(fixture.saved.length, 0); await fixture.click("Salva codice sconto");
+    assert.equal(fixture.saved[0].targetType, "order");
+  } finally { await fixture.close(); }
+});
+
+test("bundle allocation and translated content survive navigation and require an exact package sum", async () => {
+  const fixture = await editorFixture();
+  try {
+    await fixture.click("Usa esempio WS + MC + cena"); await fixture.click("Avanti");
+    const combo = [...fixture.panel(1).querySelectorAll("fieldset")].find((node) => node.firstElementChild?.textContent === "Formula 3");
+    const customize = [...combo.querySelectorAll("button")].find((node) => node.textContent === "Personalizza ripartizione");
+    await fixture.React.act(async () => customize.click());
+    const amount = (label) => [...combo.querySelectorAll("label")].find((node) => node.textContent === label).querySelector("input");
+    await fixture.input(amount("Workshop (€)"), "25"); await fixture.input(amount("Masterclass (€)"), "35");
+    const name = combo.querySelector("[aria-label='Lingua · Nome formula']");
+    await fixture.React.act(async () => [...name.querySelectorAll("button")].find((node) => node.textContent === "en").click());
+    const translated = combo.querySelector("input[lang='en']"); await fixture.input(translated, "Workshop and masterclass");
+    await fixture.click("Avanti"); await fixture.click("Avanti"); await fixture.click("Salva bozza");
+    assert.equal(fixture.saved.length, 1); assert.deepEqual(fixture.saved[0].config.packages[2].prices[0].activityAmounts, { workshop: 2500, masterclass: 3500 }); assert.equal(fixture.saved[0].config.packages[2].nameTranslations.en, "Workshop and masterclass");
+    await fixture.click("Modifica formule e prezzi"); await fixture.input(amount("Workshop (€)"), "24"); await fixture.click("Avanti");
+    assert.equal(fixture.currentStep(), 1); assert.match(fixture.document.body.textContent, /ripartizione deve includere/);
+  } finally { await fixture.close(); }
+});
+
+test("clearing optional Spanish translations removes their keys and saves the required Italian fallback", async () => {
+  const fixture = await editorFixture();
+  const clearTranslation = async (panel, label, text) => {
+    const group = panel.querySelector(`[aria-label='Lingua · ${label}']`); assert.ok(group, `translation group ${label} exists`);
+    await fixture.React.act(async () => [...group.querySelectorAll("button")].find((node) => node.textContent === "es").click());
+    const control = group.parentElement.nextElementSibling;
+    await fixture.input(control, text); assert.equal(control.value, text);
+    await fixture.input(control, ""); assert.equal(control.value, "");
+    await fixture.React.act(async () => [...group.querySelectorAll("button")].find((node) => node.textContent === "it").click());
+    assert.ok(control.value, "the Italian source remains present");
+  };
+  try {
+    await fixture.click("Usa esempio WS + MC + cena");
+    await clearTranslation(fixture.panel(0), "Nome", "Taller");
+    await fixture.click("Avanti");
+    await clearTranslation(fixture.panel(1), "Nome formula", "Solo taller");
+    await clearTranslation(fixture.panel(1), "Descrizione", "Entrada al taller");
+    await clearTranslation(fixture.panel(1), "Etichetta", "Precio normal");
+    await fixture.click("Avanti");
+    await clearTranslation(fixture.panel(2), "Nome dell’aggiunta", "Añade la cena");
+    await clearTranslation(fixture.panel(2), "Scelta 1", "Menú estándar");
+    await fixture.click("Avanti"); await fixture.click("Salva bozza");
+    assert.equal(fixture.saved.length, 1);
+    const config = fixture.saved[0].config;
+    assert.equal(config.activities[0].name, "Workshop"); assert.equal(config.activities[0].nameTranslations.es, undefined);
+    assert.equal(config.packages[0].name, "Solo Workshop"); assert.equal(config.packages[0].nameTranslations.es, undefined);
+    assert.equal(config.packages[0].description, "Accesso al workshop"); assert.equal(config.packages[0].descriptionTranslations.es, undefined);
+    assert.equal(config.packages[0].prices[0].label, "Standard"); assert.equal(config.packages[0].prices[0].labelTranslations.es, undefined);
+    assert.equal(config.addons[0].name, "Aggiungi la cena"); assert.equal(config.addons[0].nameTranslations.es, undefined);
+    assert.equal(config.activities[2].menuOptions[0], "Standard"); assert.equal(config.activities[2].menuTranslations.Standard.es, undefined);
+    assert.equal(configModule.configSchema.safeParse(config).success, true);
+  } finally { await fixture.close(); }
+});

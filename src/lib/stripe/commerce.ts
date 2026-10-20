@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import { commerceClient, missingCommerceMigration } from "@/lib/commerce/server";
-import type { CommerceOrder, CommercePass } from "@/lib/commerce/types";
+import type { CommerceConfig, CommerceOrder, CommercePass } from "@/lib/commerce/types";
+import { commerceActivityName, commerceMenuName, commercePackageName, commerceQuoteLabel } from "@/lib/commerce/localization";
 import { getVerifiedStripe } from "./client";
 import { sendTicketConfirmation } from "@/lib/resend/client";
 import { ticketUrl } from "./ticket-status";
@@ -10,15 +11,16 @@ export const isCommerceSession = (session: Pick<Stripe.Checkout.Session, "metada
 export async function createCommerceSession(order: CommerceOrder, siteUrl: string) {
   const grouped = new Map<string, { label: string; unitAmountCents: number; quantity: number }>();
   for (const line of order.quote.lines) {
-    const key = JSON.stringify([line.label, line.unitAmountCents]);
+    const label = commerceQuoteLabel(order.event_snapshot.commerce_config, line, order.locale);
+    const key = JSON.stringify([label, line.unitAmountCents]);
     const previous = grouped.get(key);
-    grouped.set(key, { label: line.label, unitAmountCents: line.unitAmountCents, quantity: (previous?.quantity || 0) + line.quantity });
+    grouped.set(key, { label, unitAmountCents: line.unitAmountCents, quantity: (previous?.quantity || 0) + line.quantity });
   }
   const lines = [...grouped.values()];
   if (!lines.length || lines.length > 100 || lines.some(line => !Number.isSafeInteger(line.unitAmountCents) || line.unitAmountCents < 0)
     || lines.reduce((sum, line) => sum + line.quantity * line.unitAmountCents, 0) !== order.amount_cents) throw new Error("Unexpected order totals.");
   return (await getVerifiedStripe()).checkout.sessions.create({
-    mode: "payment", currency: "eur", customer_email: order.buyer_email,
+    mode: "payment", currency: "eur", customer_email: order.buyer_email, locale: order.locale,
     line_items: lines.map((line) => ({ price_data: { currency: "eur", product_data: { name: line.label }, unit_amount: line.unitAmountCents }, quantity: line.quantity })),
     expires_at: Math.floor(Date.parse(order.expires_at) / 1000),
     integration_identifier: `meraki-packages-${order.id.replace(/[^a-z]/g, char => String.fromCharCode(97 + (parseInt(char, 16) || 0))).slice(0, 8)}`,
@@ -42,17 +44,29 @@ export async function deliverCommerceOrder(order: CommerceOrder, passes?: Commer
     const issued = passResult.data as CommercePass[] | null;
     if (eventResult.error || !eventResult.data || passResult.error || !issued?.length) throw new Error("Order delivery data missing.");
     for (const pass of issued) {
-      const { data: rights, error } = await db.from("commerce_entitlements").select("activity_name,menu_choice").eq("pass_id", pass.id).in("status", ["valid", "used"]);
+      const { data: rights, error } = await db.from("commerce_entitlements").select("activity_id,activity_name,menu_choice,order_id").eq("pass_id", pass.id).in("status", ["valid", "used"]);
       if (error) throw error;
+      const snapshots = new Map<string, CommerceConfig | undefined>([[order.id, order.event_snapshot.commerce_config]]);
+      const originalOrderIds = [...new Set((rights || []).map(right => right.order_id as string).filter(id => id && id !== order.id))];
+      if (originalOrderIds.length) {
+        const originals = await db.from("commerce_orders").select("id,event_snapshot").in("id", originalOrderIds);
+        if (originals.error) throw originals.error;
+        for (const original of originals.data || []) snapshots.set(original.id, original.event_snapshot?.commerce_config);
+      }
+      const accessDetails = (rights || []).map(right => {
+        const config = snapshots.get(right.order_id) || order.event_snapshot.commerce_config;
+        return { name: commerceActivityName(config, right.activity_id, right.activity_name, order.locale),
+          menuChoice: right.menu_choice ? commerceMenuName(config, right.activity_id, right.menu_choice, order.locale) : null };
+      });
       const { data: contact, error: contactError } = await db.from("commerce_attendee_contacts")
         .select("email,order_id,participant_index").eq("pass_id", pass.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (contactError && !missingCommerceMigration(contactError)) throw contactError;
       if (order.attendees?.length && !contact?.email) throw new Error("Participant email is unavailable; retry delivery after restoring the contact.");
       const marketing = contact ? await (await import("@/lib/email/marketing")).prepareMarketingEmailLinks(contact.order_id, contact.participant_index, order.locale) : undefined;
       const sent = await sendTicketConfirmation({ id: pass.id, qr_code: pass.qr_code, buyer_email: contact?.email || order.buyer_email, buyer_nome: pass.first_name, buyer_cognome: pass.last_name }, eventResult.data, order.locale, {
-        deliveryId: `${order.id}-${pass.id}`, accessNames: (rights || []).map(right => right.activity_name as string),
-        packageName: pass.package_name,
-        accessDetails: (rights || []).map(right => ({ name: right.activity_name as string, menuChoice: right.menu_choice as string | null })),
+        deliveryId: `${order.id}-${pass.id}`, accessNames: accessDetails.map(right => right.name),
+        packageName: commercePackageName(order.event_snapshot.commerce_config, pass.package_id, pass.package_name, order.locale),
+        accessDetails,
         marketing,
       });
       if (!sent.success) throw new Error("Commerce email delivery pending.");
@@ -140,7 +154,7 @@ export async function getCommerceCheckoutStatus(session: Stripe.Checkout.Session
     const result = order.upgrade_pass_id ? await query.eq("id", order.upgrade_pass_id) : await query.eq("order_id", order.id);
     if (result.error) throw result.error;
     const tickets = (result.data as CommercePass[]).filter(pass => pass.status === "paid").map(pass => ({
-      id: pass.id, qr_code: pass.qr_code, url: ticketUrl(pass, locale), title: pass.package_name, name: `${pass.first_name} ${pass.last_name}`,
+      id: pass.id, qr_code: pass.qr_code, url: ticketUrl(pass, locale), title: commercePackageName(order.event_snapshot.commerce_config, pass.package_id, pass.package_name, locale), name: `${pass.first_name} ${pass.last_name}`,
     }));
     if (tickets.length) return { status: "ready" as const, locale, url: tickets[0].url, tickets };
   }

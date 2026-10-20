@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { configSchema, parseCommerceConfig } from "@/lib/commerce/config";
+import { discountSchema, type CommerceDiscountCode } from "@/lib/commerce/discounts";
 import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
 import type { WaitlistRow } from "@/lib/commerce/admin-types";
 
@@ -89,5 +90,37 @@ export async function updateCommerceWaitlist(eventId: string, entryId: string, s
     if (error || !data) return { success: false as const, error: "Voce non aggiornata. Ricarica e riprova." };
     revalidatePath("/[locale]/admin/eventi", "layout");
     return { success: true as const };
+  } catch (error) { return { success: false as const, error: errorMessage(error) }; }
+}
+
+
+const discountErrors: Record<string, string> = {
+  event_unavailable: "Evento non disponibile. Ricarica la pagina.",
+  invalid_discount: "Controlla codice, importo, date e prodotti della promozione.",
+  discount_code_exists: "Questo codice esiste già per l’evento. Modifica quello esistente oppure scegli un altro codice.",
+  invalid_discount_target: "Uno dei prodotti o degli scaglioni selezionati non è disponibile. Salva prima le formule e ricarica la pagina.",
+  discount_not_found: "Codice non trovato per questo evento. Ricarica la pagina.",
+  discount_limit_below_usage: "Il limite non può essere inferiore agli utilizzi già confermati o riservati.",
+};
+export async function loadCommerceDiscountsAdmin(eventId: string) {
+  try {
+    const admin = await requireCommerceStaff();
+    const id = idSchema.parse(eventId);
+    const { data, error } = await admin.rpc("event_discount_code_stats", { p_event_id: id });
+    if (error || !data || typeof data !== "object" || !("discounts" in data) || !Array.isArray(data.discounts)) return { success: false as const, error: "Codici sconto non disponibili. Verifica che la migrazione degli sconti sia stata applicata al database." };
+    return { success: true as const, discounts: data.discounts as CommerceDiscountCode[] };
+  } catch (error) { return { success: false as const, error: errorMessage(error) }; }
+}
+export async function saveCommerceDiscountAdmin(eventId: string, rawDiscount: unknown) {
+  try {
+    const admin = await requireCommerceStaff();
+    const id = idSchema.parse(eventId);
+    const parsed = discountSchema.safeParse(rawDiscount);
+    if (!parsed.success) return { success: false as const, error: parsed.error.issues.map((issue) => issue.message).join(" · ") };
+    const { data, error } = await admin.rpc("save_event_discount_code", { p_event_id: id, p_discount: parsed.data });
+    if (error) return { success: false as const, error: error.code === "PGRST202" || error.code === "42703" ? "Codici sconto non disponibili: applica prima la migrazione degli sconti." : error.code === "23505" ? discountErrors.discount_code_exists : "Codice non salvato. Ricarica e riprova." };
+    if (!data || typeof data !== "object" || "error" in data || !("discount" in data) || !data.discount) return { success: false as const, error: data && typeof data === "object" && "error" in data ? discountErrors[String(data.error)] || "Codice non salvato. Controlla i prodotti selezionati e riprova." : "Salvataggio non confermato. Ricarica e riprova." };
+    revalidatePath("/[locale]/admin/eventi", "layout");
+    return { success: true as const, discount: data.discount as CommerceDiscountCode };
   } catch (error) { return { success: false as const, error: errorMessage(error) }; }
 }

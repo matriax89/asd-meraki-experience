@@ -16,12 +16,15 @@ export async function createTicketCheckoutSession({
   expiresAt: string;
 }) {
   const stripe = await getVerifiedStripe();
+  const checkoutLocale = locale === "en" || locale === "de" || locale === "es" ? locale : "it";
+  const ticketLabel = { it: "Biglietto Meraki", en: "Meraki ticket", de: "Meraki-Ticket", es: "Entrada Meraki" }[checkoutLocale];
   return stripe.checkout.sessions.create({
+    locale: checkoutLocale,
     customer_email: buyerEmail,
     line_items: [{
       price_data: {
         currency: "eur",
-        product_data: { name: title, description: `Biglietto Meraki: ${title}` },
+        product_data: { name: title, description: `${ticketLabel}: ${title}` },
         unit_amount: priceCents,
       },
       quantity: 1,

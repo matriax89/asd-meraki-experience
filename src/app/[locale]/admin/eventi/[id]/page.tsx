@@ -1,3 +1,6 @@
+import { DiscountCodesEditor } from "@/components/admin/discount-codes-editor";
+import { loadCommerceDiscountsAdmin } from "@/app/api/admin/commerce/actions";
+import { parseCommerceConfig } from "@/lib/commerce/config";
 import { getEvent } from "@/app/api/admin/eventi/actions";
 import { EventForm } from "./event-form";
 import { notFound } from "next/navigation";
@@ -16,6 +19,8 @@ export default async function AdminEventPage({ params, searchParams }: { params:
     }
     initialData = data;
   }
+
+  const discounts = id !== "nuovo" ? await loadCommerceDiscountsAdmin(id) : null;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -39,6 +44,7 @@ export default async function AdminEventPage({ params, searchParams }: { params:
       {id !== "nuovo" && <div className="grid gap-3 md:grid-cols-2"><Link href={`/admin/eventi/${id}/commerce`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 text-indigo-900"><span><strong className="block">Formule e prezzi</strong><span className="mt-1 block text-sm">Workshop, masterclass, scaglioni, cena, vendite e lista d’attesa.</span></span><span aria-hidden="true">→</span></Link><Link href={`/admin/biglietti?event=${id}`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-slate-900"><span><strong className="block">Iscritti e check-in</strong><span className="mt-1 block text-sm text-slate-600">Partecipanti e accessi di questo evento.</span></span><span aria-hidden="true">→</span></Link></div>}
 
       <EventForm initialData={initialData} locale={locale} initialTicketingMode={query.ticketing === "advanced" ? "advanced" : undefined} />
+      {initialData && discounts && <DiscountCodesEditor eventId={id} config={parseCommerceConfig(initialData.commerce_config)} initialDiscounts={discounts.success ? discounts.discounts : []} loadError={discounts.success ? undefined : discounts.error} />}
     </div>
   );
 }

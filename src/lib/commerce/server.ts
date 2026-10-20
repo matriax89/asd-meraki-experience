@@ -3,6 +3,7 @@ import { getLocalizedText } from "@/lib/i18n-utils";
 import { parseCommerceConfig } from "./config";
 import type { CommerceEntitlement, CommercePass } from "./types";
 import { walletTicket, type WalletCredential, type WalletTicket } from "@/lib/tickets/wallet";
+import { commerceActivityName, commerceMenuName, commercePackageName } from "./localization";
 
 /** Private tables are deliberately separate from legacy single-entry tickets. */
 export function commerceClient() {
@@ -33,7 +34,7 @@ export async function getCommerceCatalog(eventId: string, locale = "it") {
   };
 }
 
-export async function getCommercePass(id: string, token: string) {
+export async function getCommercePass(id: string, token: string, locale = "it") {
   const db = commerceClient();
   const { data, error } = await db.from("commerce_passes").select("*").eq("id", id).eq("qr_code", token).maybeSingle();
   if (missingCommerceMigration(error)) return null;
@@ -46,14 +47,30 @@ export async function getCommercePass(id: string, token: string) {
   ]);
   if (eventResult.error || rightsResult.error || !eventResult.data) throw new Error("Impossibile leggere gli accessi del biglietto.");
   const event = eventResult.data;
+  const rights = rightsResult.data as CommerceEntitlement[];
+  const orderIds = [...new Set([pass.order_id, ...rights.map((right) => right.order_id)].filter(Boolean))];
+  const ordersResult = orderIds.length ? await db.from("commerce_orders")
+    .select("id,event_snapshot,created_at,state,upgrade_pass_id").in("id", orderIds).order("created_at", { ascending: false }) : { data: [], error: null };
+  if (ordersResult.error) throw new Error("Impossibile leggere i dettagli dell’acquisto.");
+  const currentConfig = parseCommerceConfig(event.commerce_config);
+  const snapshots = new Map((ordersResult.data || []).map((order) => {
+    const snapshot = order.event_snapshot as { commerce_config?: unknown } | null;
+    return [order.id as string, parseCommerceConfig(snapshot?.commerce_config)];
+  }));
+  // Each admission keeps the translations that were present when it was purchased.
+  // A later dinner upgrade must not rename an already issued workshop admission.
+  const packageOrder = (ordersResult.data || []).find((order) => order.state === "fulfilled" && (order.id === pass.order_id || order.upgrade_pass_id === pass.id) && snapshots.get(order.id)?.packages.some((item) => item.id === pass.package_id));
+  const packageConfig = (packageOrder ? snapshots.get(packageOrder.id) : snapshots.get(pass.order_id)) || currentConfig;
   return {
-    pass: { ...pass, buyer_nome: pass.first_name, buyer_cognome: pass.last_name },
-    entitlements: (rightsResult.data as CommerceEntitlement[]).map((right) => ({
+    pass: { ...pass, buyer_nome: pass.first_name, buyer_cognome: pass.last_name, package_name: commercePackageName(packageConfig, pass.package_id, pass.package_name, locale) },
+    entitlements: rights.map((right) => ({
       ...right, status: right.status === "valid" ? "available" : right.status === "used" ? "used" : "revoked",
       used_at: right.checked_in_at,
+      activity_name: commerceActivityName(snapshots.get(right.order_id) || currentConfig, right.activity_id, right.activity_name, locale),
+      menu_choice: right.menu_choice ? commerceMenuName(snapshots.get(right.order_id) || currentConfig, right.activity_id, right.menu_choice, locale) : null,
     })),
     event: { slug: event.slug as string, tipo: event.tipo as string, logistics: event.logistics, attivo: event.attivo as boolean, titolo: event.titolo, data_inizio: event.data_inizio as string, check_in_starts_at: event.check_in_starts_at as string | null, location: event.location as string | null, indirizzo: event.indirizzo as string | null },
-    config: parseCommerceConfig(event.commerce_config),
+    config: currentConfig,
   };
 }
 

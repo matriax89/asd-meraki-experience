@@ -110,7 +110,7 @@ test("commerce pass loading and verified wallet refresh preserve the actual even
   const wallet = load("src/lib/tickets/wallet.ts");
   const server = load("src/lib/commerce/server.ts", {
     "@supabase/supabase-js": { createClient: () => db },
-    "@/lib/i18n-utils": i18n, "./config": { parseCommerceConfig: () => null }, "@/lib/tickets/wallet": wallet,
+    "@/lib/i18n-utils": i18n, "./localization": load("src/lib/commerce/localization.ts"), "./config": { parseCommerceConfig: () => null }, "@/lib/tickets/wallet": wallet,
   });
   const verified = await server.getCommercePass(id, token);
   assert.equal(verified.event.check_in_starts_at, event.check_in_starts_at);
@@ -120,4 +120,29 @@ test("commerce pass loading and verified wallet refresh preserve the actual even
   assert.equal(refreshed[0].status, "paid");
   assert.ok(selected.some(([table, fields]) => table === "events" && fields.includes("check_in_starts_at")));
   assert.ok(selected.some(([table, fields]) => table === "commerce_passes" && fields.includes("event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at)")));
+});
+
+test("ticket translations use each paid admission snapshot even after catalogue names change", async () => {
+  const localization = load("src/lib/commerce/localization.ts");
+  const original = { packages: [{ id: "bundle", name: "Formula originale", nameTranslations: { en: "Original package" }, prices: [] }], activities: [{ id: "ws", name: "Workshop originale", nameTranslations: { en: "Original workshop" }, menuTranslations: {} }] };
+  const upgraded = { packages: [{ id: "bundle", name: "Formula con cena", nameTranslations: { en: "Package with dinner" }, prices: [] }], activities: [{ id: "dinner", name: "Cena originale", nameTranslations: { en: "Original dinner" }, menuTranslations: { Vegetariano: { en: "Vegetarian dinner" } } }] };
+  const current = { packages: [{ id: "bundle", name: "Formula rinominata", nameTranslations: { en: "Renamed package" }, prices: [] }], activities: [{ id: "ws", name: "Workshop rinominato", nameTranslations: { en: "Renamed workshop" } }, { id: "dinner", name: "Cena rinominata", nameTranslations: { en: "Renamed dinner" } }] };
+  const pass = { id, qr_code: token, event_id: "event", order_id: "original-order", package_id: "bundle", package_name: "Formula con cena", status: "paid", first_name: "Ada", last_name: "Prova" };
+  const rights = [{ order_id: "original-order", activity_id: "ws", activity_name: "Workshop originale", menu_choice: null, status: "valid" }, { order_id: "upgrade-order", activity_id: "dinner", activity_name: "Cena originale", menu_choice: "Vegetariano", status: "valid" }];
+  const orders = [{ id: "upgrade-order", state: "fulfilled", upgrade_pass_id: id, event_snapshot: { commerce_config: upgraded } }, { id: "original-order", state: "fulfilled", upgrade_pass_id: null, event_snapshot: { commerce_config: original } }];
+  const filters = [];
+  const db = { from(table) { return {
+    select() { return this; }, eq(key, value) { filters.push([table, key, value]); return this; }, in() { return this; }, order() { return this; },
+    maybeSingle: async () => ({ data: pass }), single: async () => ({ data: { ...event, commerce_config: current } }),
+    then(resolve) { return resolve({ data: table === "commerce_orders" ? orders : rights, error: null }); },
+  }; } };
+  const server = load("src/lib/commerce/server.ts", { "@supabase/supabase-js": { createClient: () => db }, "@/lib/i18n-utils": i18n, "./config": { parseCommerceConfig: (value) => value || null }, "./localization": localization, "@/lib/tickets/wallet": {} });
+  const ticket = await server.getCommercePass(id, token, "en");
+  assert.equal(ticket.pass.package_name, "Package with dinner");
+  assert.equal(ticket.entitlements[0].activity_name, "Original workshop");
+  assert.equal(ticket.entitlements[1].activity_name, "Original dinner");
+  assert.equal(ticket.entitlements[1].menu_choice, "Vegetarian dinner");
+  assert.ok(filters.some(([table, key, value]) => table === "commerce_passes" && key === "qr_code" && value === token));
+  assert.equal(localization.commerceActivityName(original, "ws", "legacy", "de"), "Workshop originale");
+  assert.equal(localization.commerceMenuName(upgraded, "dinner", "Vegetariano", "es"), "Vegetariano");
 });

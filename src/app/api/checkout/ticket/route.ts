@@ -9,23 +9,26 @@ import { commerceClient } from "@/lib/commerce/server";
 
 const requestSchema = z.object({
   eventId: z.string().uuid(),
-  buyerEmail: z.string().trim().email().max(254),
+  buyerEmail: z.string().trim().toLowerCase().email().max(254),
   buyerNome: z.string().trim().min(1).max(100),
   buyerCognome: z.string().trim().min(1).max(100),
   checkoutAttemptId: z.string().uuid(),
   locale: z.enum(["it", "en", "de", "es"]).default("it"),
   attendee: attendeeSchema,
-});
+  discountCode: z.string().trim().max(50).regex(/^[a-z0-9_-]*$/i).transform(value => value.toUpperCase()).optional(),
+  expectedTotalCents: z.number().int().min(0).max(10_000_000).optional(),
+}).refine(body => !body.discountCode || body.expectedTotalCents !== undefined, "Conferma il totale scontato prima di proseguire.");
 
 type Reservation = {
   id: string; event_id: string; slug: string; titolo: unknown;
   tipo: "evento" | "workshop" | "masterclass";
   amount_cents: number; expires_at: string; stripe_session_id: string | null; locale: string;
+  discount_quote?: { subtotalCents: number; discountCents: number; totalCents: number } | null;
 };
 
 export async function POST(request: Request) {
   try {
-    const { eventId, buyerEmail, buyerNome, buyerCognome, checkoutAttemptId, locale, attendee } = requestSchema.parse(await request.json());
+    const { eventId, buyerEmail, buyerNome, buyerCognome, checkoutAttemptId, locale, attendee, discountCode, expectedTotalCents } = requestSchema.parse(await request.json());
     if (attendee.email !== buyerEmail.trim().toLowerCase() || attendee.firstName !== buyerNome || attendee.lastName !== buyerCognome) {
       return NextResponse.json({ code: "invalid_attendees", error: "Controlla i dati del partecipante." }, { status: 400 });
     }
@@ -36,10 +39,11 @@ export async function POST(request: Request) {
     }
     await getVerifiedStripe();
     const supabase = createAdminClient();
-    const { data, error } = await commerceClient().rpc("reserve_event_ticket_attendee", {
+    const { data, error } = await commerceClient().rpc(discountCode ? "reserve_event_ticket_discount" : "reserve_event_ticket_attendee", {
       p_event_id: eventId, p_buyer_email: buyerEmail, p_locale: locale,
       p_request_id: checkoutAttemptId, p_buyer_nome: buyerNome, p_buyer_cognome: buyerCognome,
       p_attendee: attendee, p_privacy_version: ATTENDEE_PRIVACY_VERSION,
+      ...(discountCode ? { p_discount_code: discountCode } : {}),
     });
     if (error) throw new Error("Impossibile prenotare il posto.");
     const result = data as { error?: string; reservation?: Reservation };
@@ -48,10 +52,17 @@ export async function POST(request: Request) {
         : result.error === "request_expired" ? "La sessione è scaduta. Avvia un nuovo acquisto."
         : result.error === "invalid_price" ? "Questo evento non è disponibile per l'acquisto online."
         : result.error === "advanced_checkout_required" ? "Questo evento prevede formule e pacchetti. Riapri la pagina e scegli la tua esperienza."
+        : result.error?.startsWith("discount_") ? "Codice sconto non disponibile per questa selezione. Controlla il codice e il totale."
         : "Evento non disponibile per l'acquisto.";
       return NextResponse.json({ error: message, code: result.error }, { status: result.error === "sold_out" || result.error === "request_expired" ? 409 : 400 });
     }
     const reservation = result.reservation;
+    if (expectedTotalCents !== undefined && reservation.amount_cents !== expectedTotalCents) {
+      if (!reservation.stripe_session_id) await supabase.rpc("transition_ticket_reservation", { p_reservation_id: reservation.id, p_session_id: null, p_state: "expired" });
+      return NextResponse.json({ code: "price_changed", error: "Il prezzo è cambiato. Controlla il nuovo totale e conferma nuovamente.",
+        quote: reservation.discount_quote || { subtotalCents: reservation.amount_cents, discountCents: 0, totalCents: reservation.amount_cents } },
+      { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    }
     if (reservation.stripe_session_id) {
       const existing = await (await getVerifiedStripe()).checkout.sessions.retrieve(reservation.stripe_session_id);
       if (existing.status === "open" && existing.url) {

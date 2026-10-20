@@ -18,6 +18,8 @@ function compile(path, overrides = {}) {
 }
 const attendeeModel = compile("../src/lib/commerce/attendee.ts");
 const checkoutCopy = compile("../src/components/meraki/checkout-copy.ts");
+const discountCopyModule = compile("../src/components/meraki/discount-copy.ts");
+const localization = compile("../src/lib/commerce/localization.ts");
 const cssModule = { default: new Proxy({}, { get: (_, key) => key }) };
 const model = compile("../src/components/meraki/commerce-public-model.ts");
 const tier = (id, amountCents, startsAt = null, endsAt = null) => ({ id, label: id, amountCents, startsAt, endsAt });
@@ -73,17 +75,28 @@ window.HTMLDialogElement.prototype.close = function () { this.open = false; this
 const { createRoot } = await import("react-dom/client");
 after(() => { window.close(); for (const [key, descriptor] of descriptors) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } });
 
-async function setup(context, result = catalog, locale = "it", upgrade = undefined) {
+async function setup(context, result = catalog, locale = "it", upgrade = undefined, controls = {}) {
   window.document.body.innerHTML = '<div id="root"></div>';
   window.document.body.style.overflow = "auto";
   const calls = [];
   let rejectCatalog = false;
   let checkoutResponse = { error: "Pagamento non disponibile" };
   let uuidCalls = 1;
+  let clockNow = Date.now(), clockTick;
+  const TestDate = controls.manualClock ? class extends Date { static now() { return clockNow; } } : Date;
+  if (controls.manualClock) {
+    const originalInterval = window.setInterval, originalClearInterval = window.clearInterval;
+    window.setInterval = (callback, delay, ...args) => delay === 30000 ? (clockTick = callback, -1) : originalInterval.call(window, callback, delay, ...args);
+    window.clearInterval = (id) => { if (id !== -1) originalClearInterval.call(window, id); };
+    context.after(() => { window.setInterval = originalInterval; window.clearInterval = originalClearInterval; });
+  }
+  let quoteResponse = (body) => ({ ok: true, json: async () => ({ quote: { totalCents: body.participants.reduce((sum, participant) => sum + (participant.packageId === "bundle" ? 6000 : 3000) + (participant.addonIds.length ? 2500 : 0), 0), lines: [{ label: "Riepilogo", quantity: 1, unitAmountCents: 3000, totalCents: 3000, kind: "package" }] } }) });
   const exports = compile("../src/components/meraki/commerce-purchase.tsx", {
-    window, document: window.document, crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++uuidCalls).padStart(12, "0")}` },
+    window, document: window.document, Date: TestDate, crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++uuidCalls).padStart(12, "0")}` },
     modules: {
       "./commerce-public-model": model, "./commerce-purchase.module.css": cssModule,
+      "@/lib/commerce/localization": localization, "./discount-copy": discountCopyModule,
+      "./discount-code-fields": compile("../src/components/meraki/discount-code-fields.tsx", { modules: { "./discount-copy": discountCopyModule, "./commerce-purchase.module.css": cssModule } }),
       "./checkout-copy": checkoutCopy, "@/lib/commerce/attendee": attendeeModel,
       "./checkout-contact-fields": compile("../src/components/meraki/checkout-contact-fields.tsx", { modules: { "./checkout-copy": checkoutCopy, "./commerce-purchase.module.css": cssModule } }),
       "./use-checkout-viewport": compile("../src/components/meraki/use-checkout-viewport.ts", { window, document: window.document, HTMLElement: window.HTMLElement }),
@@ -95,8 +108,9 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
         if (rejectCatalog || result instanceof Error) throw new Error("offline");
         return { ok: true, json: async () => result };
       }
-      if (url === "/api/commerce/quote") return { ok: true, json: async () => ({ quote: { totalCents: body.participants.reduce((sum, participant) => sum + (participant.packageId === "bundle" ? 6000 : 3000) + (participant.addonIds.length ? 2500 : 0), 0), lines: [{ label: "Riepilogo", quantity: 1, unitAmountCents: 3000, totalCents: 3000, kind: "package" }] } }) };
+      if (url === "/api/commerce/quote") return quoteResponse(body, options);
       if (url === "/api/commerce/waitlist") return { ok: true, json: async () => ({ success: true }) };
+      if (checkoutResponse instanceof Error) throw checkoutResponse;
       return { ok: false, json: async () => checkoutResponse };
     },
   });
@@ -113,7 +127,7 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
     await change(window.document.querySelector(`input[name="participant-${index}-phone"]`), "+393331234567");
     await change(window.document.querySelector(`input[name="participant-${index}-document-number"]`), locale === "it" ? "RSSMRA85T10A562S" : "ABC123456");
   };
-  return { calls, open, settleQuote, change, fillPerson, setCatalogOffline: () => { rejectCatalog = true; }, setCheckoutResponse: (value) => { checkoutResponse = value; } };
+  return { calls, open, settleQuote, change, fillPerson, elapse: async (milliseconds) => { clockNow += milliseconds; await act(async () => clockTick?.()); await settleQuote(); }, setQuoteResponse: (value) => { quoteResponse = value; }, setCatalogOffline: () => { rejectCatalog = true; }, setCheckoutResponse: (value) => { checkoutResponse = value; } };
 }
 
 test("events with no commerce configuration preserve their existing purchase", async (context) => {
@@ -327,4 +341,122 @@ test("verified upgrade preserves existing attendee details without requesting ta
   assert.equal(request.buyerEmail, "original@example.test");
   assert.equal("attendees" in request, false);
   assert.equal(request.upgradePassId, upgrade.passId);
+});
+
+
+test("discount application and removal keep the server total and block stale payment", async (context) => {
+  const ui = await setup(context);
+  await ui.open(); await ui.fillPerson(); await ui.settleQuote();
+  ui.setQuoteResponse((body) => ({ ok: true, json: async () => ({ quote: { subtotalCents: 3000, discountCents: body.discountCode ? 600 : 0, totalCents: body.discountCode ? 2400 : 3000, discount: body.discountCode ? { code: body.discountCode, targetType: "activity", targetIds: ["ws"] } : null, lines: [{ label: "Solo Workshop", packageId: "only-ws", tierId: "Standard", quantity: 1, subtotalCents: 3000, totalCents: body.discountCode ? 2400 : 3000, kind: "package" }] } }) }));
+  await ui.change(window.document.querySelector('input[name="discountCode"]'), " meraki20 ");
+  await act(async () => [...window.document.querySelectorAll("button")].find((button) => button.textContent === "Applica").click());
+  assert.equal(window.document.querySelector('button[type="submit"]').disabled, true);
+  await ui.settleQuote();
+  assert.equal(ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1).body.discountCode, "MERAKI20");
+  assert.match(window.document.querySelector("form").textContent, /Subtotale30,00/);
+  assert.match(window.document.querySelector("form").textContent, /Sconto.*MERAKI20.*Workshop.*6,00/);
+  await act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  const paid = ui.calls.filter((call) => call.url === "/api/commerce/checkout").at(-1).body;
+  assert.equal(paid.discountCode, "MERAKI20"); assert.equal(paid.expectedTotalCents, 2400);
+  await act(async () => [...window.document.querySelectorAll("button")].find((button) => button.textContent === "Rimuovi").click());
+  assert.equal(window.document.querySelector('button[type="submit"]').disabled, true);
+  await ui.settleQuote();
+  assert.equal(ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1).body.discountCode, undefined);
+  assert.equal(window.document.querySelector('input[name="discountCode"]').value, "");
+  assert.match(window.document.querySelector("form").textContent, /Totale30,00/);
+});
+
+test("invalid discount errors are localized and cannot silently charge the full price", async (context) => {
+  const ui = await setup(context, catalog, "de"); await ui.open(); await ui.fillPerson(); await ui.settleQuote();
+  ui.setQuoteResponse(() => ({ ok: false, json: async () => ({ code: "discount_not_applicable", error: "Codice non applicabile" }) }));
+  await ui.change(window.document.querySelector('input[name="discountCode"]'), "wrong");
+  await act(async () => [...window.document.querySelectorAll("button")].find((button) => button.textContent === "Anwenden").click()); await ui.settleQuote();
+  assert.match(window.document.querySelector('[role="alert"]').textContent, /gilt nicht für deine aktuelle Auswahl/);
+  assert.equal(window.document.querySelector('button[type="submit"]').disabled, true);
+  await act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
+});
+
+test("a late quote for an old discount cannot replace a newer selection", async (context) => {
+  const ui = await setup(context); await ui.open(); await ui.settleQuote();
+  let resolveOld;
+  ui.setQuoteResponse((body) => body.participants[0].packageId === "only-ws" ? new Promise((resolve) => { resolveOld = resolve; }) : ({ ok: true, json: async () => ({ quote: { totalCents: 5400, subtotalCents: 6000, discountCents: 600, discount: { code: "CODE" }, lines: [] } }) }));
+  await ui.change(window.document.querySelector('input[name="discountCode"]'), "code");
+  await act(async () => [...window.document.querySelectorAll("button")].find((button) => button.textContent === "Applica").click()); await ui.settleQuote();
+  await act(async () => window.document.querySelector('input[value="bundle"]').click()); await ui.settleQuote();
+  await act(async () => resolveOld({ ok: true, json: async () => ({ quote: { totalCents: 999, lines: [] } }) }));
+  assert.match(window.document.querySelector("form").textContent, /Totale54,00/);
+  assert.equal(window.document.querySelector("form").textContent.includes("9,99"), false);
+});
+
+test("the selected language translates formulas, tiers, extras and menu labels without changing menu values", async (context) => {
+  const translated = structuredClone(catalog);
+  translated.config.packages[0].nameTranslations = { en: "Workshop admission" };
+  translated.config.packages[0].descriptionTranslations = { en: "Move with us" };
+  translated.config.packages[0].prices[0].labelTranslations = { en: "Regular price" };
+  translated.config.addons[0].nameTranslations = { en: "Add dinner" };
+  translated.config.activities[2].nameTranslations = { en: "Dinner" };
+  translated.config.activities[2].menuTranslations = { Vegetariano: { en: "Vegetarian" } };
+  const ui = await setup(context, translated, "en"); await ui.open();
+  assert.match(window.document.querySelector("form").textContent, /Workshop admission.*Move with us.*Regular price/s);
+  assert.match(window.document.querySelector("form").textContent, /Add dinner/);
+  await act(async () => window.document.querySelector('input[type="checkbox"]:not([role="switch"])').click());
+  const menu = [...window.document.querySelectorAll("select")].find((element) => [...element.options].some((option) => option.textContent === "Vegetarian"));
+  assert.ok(menu); await ui.change(menu, "Vegetariano"); await ui.settleQuote();
+  const latest = ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1).body;
+  assert.equal(latest.locale, "en"); assert.equal(latest.participants[0].menuChoices.dinner, "Vegetariano");
+  assert.match(ui.calls.find((call) => call.url.startsWith("/api/commerce/catalog")).url, /locale=en/);
+});
+
+for (const locale of ["en", "es"]) test(`${locale} keeps sale deadlines in Italian 24-hour Rome time`, async (context) => {
+  const dated = structuredClone(catalog);
+  dated.config.packages[0].prices[0].endsAt = "2099-05-01T22:30:00Z";
+  dated.config.activities[2].salesEnd = "2099-05-01T22:30:00Z";
+  const ui = await setup(context, dated, locale); await ui.open();
+  const text = window.document.querySelector("form").textContent;
+  assert.match(text, locale === "es" ? /hasta el 2 mag, 00:30/ : /until 2 mag, 00:30/);
+  assert.match(text, locale === "es" ? /Reserva antes del 2 mag, 00:30/ : /Book by 2 mag, 00:30/);
+  assert.equal(/10:30 PM|22:30/.test(text), false);
+});
+
+
+test("an ambiguous discounted checkout keeps its frozen total and UUID across automatic 30-second checks", async (context) => {
+  const ui = await setup(context, catalog, "it", undefined, { manualClock: true });
+  await ui.open(); await ui.fillPerson(); await ui.settleQuote();
+  let held = false;
+  const acceptedQuote = { subtotalCents: 3000, discountCents: 600, totalCents: 2400, discount: { code: "ONLYONCE" }, lines: [{ label: "Workshop", quantity: 1, totalCents: 2400, kind: "package" }] };
+  ui.setQuoteResponse(() => held ? ({ ok: false, json: async () => ({ code: "discount_exhausted", error: "Codice esaurito" }) }) : ({ ok: true, json: async () => ({ quote: acceptedQuote }) }));
+  await ui.change(window.document.querySelector('input[name="discountCode"]'), "onlyonce");
+  await act(async () => [...window.document.querySelectorAll("button")].find((button) => button.textContent === "Applica").click()); await ui.settleQuote();
+  ui.setCheckoutResponse(new Error("Network timeout"));
+  const submit = () => act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  await submit(); held = true;
+  const before = ui.calls.filter((call) => call.url === "/api/commerce/quote").length;
+  await ui.elapse(30000);
+  assert.equal(ui.calls.filter((call) => call.url === "/api/commerce/quote").length, before, "Do not count this attempt’s own held use as a new application");
+  assert.equal(window.document.querySelector('button[type="submit"]').disabled, false);
+  assert.match(window.document.querySelector("form").textContent, /Totale24,00/);
+  await submit();
+  const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
+  assert.equal(requests.length, 2); assert.equal(requests[1].body.checkoutAttemptId, requests[0].body.checkoutAttemptId);
+  assert.deepEqual(requests[1].body, requests[0].body);
+  assert.equal(requests[1].body.expectedTotalCents, 2400); assert.equal(requests[1].body.discountCode, "ONLYONCE");
+  await ui.change(window.document.querySelector('input[name="participant-0-phone"]'), "+393331111222");
+  assert.equal(window.document.querySelector('button[type="submit"]').disabled, true);
+  await ui.settleQuote();
+  assert.match(window.document.querySelector('[role="alert"]').textContent, /limite di utilizzi/);
+  assert.equal(window.document.querySelector('button[type="submit"]').disabled, true);
+});
+
+test("a deterministic checkout rejection clears the held quote and checks the code again", async (context) => {
+  const ui = await setup(context, catalog, "it", undefined, { manualClock: true }); await ui.open(); await ui.fillPerson(); await ui.settleQuote();
+  ui.setCheckoutResponse({ code: "request_expired", error: "Prenotazione scaduta" });
+  const before = ui.calls.filter((call) => call.url === "/api/commerce/quote").length;
+  const submit = () => act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  await submit(); assert.equal(window.document.querySelector('button[type="submit"]').disabled, true);
+  await ui.settleQuote();
+  assert.equal(ui.calls.filter((call) => call.url === "/api/commerce/quote").length, before + 1);
+  ui.setCheckoutResponse(new Error("Network timeout")); await submit();
+  const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
+  assert.notEqual(requests[1].body.checkoutAttemptId, requests[0].body.checkoutAttemptId);
 });

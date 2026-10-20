@@ -12,9 +12,10 @@ export async function POST(request: Request) {
       } : person);
     }
     const body = selectionSchema.parse(raw);
-    const { data, error } = await commerceClient().rpc("quote_event_commerce", {
+    const { data, error } = await commerceClient().rpc(body.discountCode ? "quote_event_commerce_discount" : "quote_event_commerce", {
       p_event_id: body.eventId, p_participants: body.participants,
       p_upgrade_pass_id: body.upgradePassId || null, p_upgrade_token: body.upgradeToken || null,
+      ...(body.discountCode ? { p_discount_code: body.discountCode } : {}),
     });
     if (error) throw error;
     return data?.error ? commerceFailure(data.error) : commerceResponse(data);

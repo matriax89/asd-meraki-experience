@@ -14,6 +14,7 @@ function load(path, mocks = {}, env = {}) {
   vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : require(name), console: { error() {} }, URL, Request, Response, process: { env }, Map, Date }, { filename });
   return compiledModule.exports;
 }
+const localization = load("src/lib/commerce/localization.ts");
 const config = load("src/lib/commerce/config.ts");
 const logistics = load("src/lib/events/logistics.ts");
 const attendee = load("src/lib/commerce/attendee.ts");
@@ -23,12 +24,12 @@ const orderId = "12345678-2222-4222-8222-123456789abc";
 const sessionId = "cs_test_commerce000000001";
 const person = { firstName: "Ada", lastName: "Rossi", packageId: "full", addonIds: ["dinner"], menuChoices: { dinner: "Vegetariano" } };
 const contact = { firstName: "Ada", lastName: "Rossi", email: "buyer@example.test", phone: "+393331234567", documentType: "codice_fiscale", documentCountry: "IT", documentNumber: "RSSMRA80A01H501U", marketingConsent: false };
-const order = { id: orderId, event_id: eventId, buyer_email: "buyer@example.test", locale: "it", amount_cents: 8500, quote: { lines: [
+const order = { event_snapshot: {}, id: orderId, event_id: eventId, buyer_email: "buyer@example.test", locale: "it", amount_cents: 8500, quote: { lines: [
   { label: "WS + MC · Standard", quantity: 1, unitAmountCents: 6000, totalCents: 6000, kind: "package" },
   { label: "Cena", quantity: 1, unitAmountCents: 2500, totalCents: 2500, kind: "addon" },
 ] }, expires_at: new Date(Date.now() + 35 * 60000).toISOString(), stripe_session_id: null, state: "reserved" };
 const paid = { id: sessionId, mode: "payment", currency: "eur", payment_status: "paid", amount_total: 8500, payment_intent: "pi_commerce_1", metadata: { flow_type: "event_commerce", commerce_order_id: orderId, event_id: eventId } };
-const baseMocks = { "@/lib/commerce/server": {}, "@/lib/resend/client": {}, "@/lib/email/marketing": { prepareMarketingEmailLinks: async () => undefined }, "./ticket-status": { ticketUrl: pass => `/it/biglietto/${pass.id}?token=${pass.qr_code}` } };
+const baseMocks = { "@/lib/commerce/localization": localization, "@/lib/commerce/server": {}, "@/lib/resend/client": {}, "@/lib/email/marketing": { prepareMarketingEmailLinks: async () => undefined }, "./ticket-status": { ticketUrl: pass => `/it/biglietto/${pass.id}?token=${pass.qr_code}` } };
 
 test("commerce Checkout groups repeated selections without changing authoritative totals", async () => {
   let params, options;
@@ -109,7 +110,7 @@ test("commerce quote strips client money and permits blank names only for previe
 });
 
 test("catalog availability uses a private RPC and missing migration falls back to existing tickets", async () => {
-  const server = load("src/lib/commerce/server.ts", { "@supabase/supabase-js": { createClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ error: { code: "42703" } }) }) }) }) }) }, "@/lib/i18n-utils": {}, "./config": config, "@/lib/tickets/wallet": {} });
+  const server = load("src/lib/commerce/server.ts", { "@supabase/supabase-js": { createClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ error: { code: "42703" } }) }) }) }) }) }, "@/lib/i18n-utils": {}, "./config": config, "./localization": load("src/lib/commerce/localization.ts"), "@/lib/tickets/wallet": {} });
   assert.deepEqual(plain(await server.getCommerceCatalog(eventId)), { config: null });
 });
 
@@ -227,7 +228,7 @@ test("group ticket delivery uses each verified private recipient even when pass 
   assert.equal(JSON.stringify(fixture.deliveries).includes(contact.documentNumber),false);
   assert.equal(JSON.stringify(fixture.deliveries).includes(contact.phone),false);
   assert.ok(fixture.selected.filter(([table])=>table==="commerce_attendee_contacts").every(([,columns])=>columns==="email,order_id,participant_index"));
-  assert.ok(fixture.selected.filter(([table])=>table==="commerce_entitlements").every(([,columns])=>columns.split(",").map(column=>column.trim()).sort().join(",")==="activity_name,menu_choice"));
+  assert.ok(fixture.selected.filter(([table])=>table==="commerce_entitlements").every(([,columns])=>columns.split(",").map(column=>column.trim()).sort().join(",")==="activity_id,activity_name,menu_choice,order_id"));
   assert.equal(fixture.calls.at(-1)[0],"complete_commerce_email");
   assert.equal(fixture.calls.at(-1)[1].p_success,true);
 });
@@ -264,4 +265,75 @@ test("existing event editor cannot bypass transactional commerce configuration o
   assert.equal(saved.stripe_price_id, undefined);
   const unauthorized = load("src/app/api/admin/eventi/actions.ts", { "next/cache": {}, "@/lib/commerce/config": config, "@/lib/events/logistics": logistics, "@/lib/commerce/admin-auth": { requireCommerceStaff: async () => { throw Error("Unauthorized"); } } });
   await assert.rejects(unauthorized.upsertEvent({}), /Unauthorized/);
+});
+
+test("discounted commerce quote forwards only the normalized code and server selection", async () => {
+  let name, args;
+  const route = load("src/app/api/commerce/quote/route.ts", { "@/lib/commerce/http": http, "@/lib/commerce/server": { commerceClient: () => ({ rpc: async (rpc, input) => { name = rpc; args = input; return { data: { quote: { subtotalCents: 8500, discountCents: 1200, totalCents: 7300 } } }; } }) } });
+  const response = await route.POST(new Request("https://meraki.example/api/commerce/quote", { method: "POST", body: JSON.stringify({ eventId, participants: [person], discountCode: "  ws20  ", discountCents: 8500, totalCents: 0 }) }));
+  assert.equal(response.status, 200);
+  assert.equal(name, "quote_event_commerce_discount");
+  assert.equal(args.p_discount_code, "WS20");
+  assert.equal(args.discountCents, undefined);
+  assert.equal((await response.json()).quote.totalCents, 7300);
+});
+
+test("discount cannot be applied to an upgrade or start a payment without guest contact data", async () => {
+  const endpoint = checkoutEndpoint(order);
+  const result = await endpoint.post(8500, { discountCode: "WS20", upgradePassId: eventId, upgradeToken: "secure-upgrade-token", attendees: undefined });
+  assert.equal(result.status, 409);
+  assert.equal((await result.json()).code, "discount_upgrade_unsupported");
+  assert.equal(endpoint.calls.length, 0);
+});
+
+test("discount checkout atomically reserves private contacts and compares the net price before Stripe", async () => {
+  const calls = [];
+  const net = { ...order, amount_cents: 7300, quote: { subtotalCents: 8500, discountCents: 1200, totalCents: 7300, lines: [] } };
+  const route = load("src/app/api/commerce/checkout/route.ts", {
+    "@/lib/commerce/http": http, "@/lib/commerce/attendee": attendee,
+    "@/lib/commerce/server": { commerceClient: () => ({ rpc: async (name, args) => { calls.push([name, args]); return { data: name === "reserve_event_commerce_discount" ? { order: net } : null }; } }) },
+    "@/lib/stripe/client": { PaymentConfigurationError: class extends Error {}, getVerifiedStripe: async () => ({}) },
+    "@/lib/stripe/commerce": { createCommerceSession: async () => { throw Error("Price changed: no Stripe session"); } },
+  });
+  const response = await route.POST(new Request("https://meraki.example/api/commerce/checkout", { method: "POST", body: JSON.stringify({ eventId, participants: [person], attendees: [contact], buyerEmail: contact.email, locale: "es", checkoutAttemptId: orderId, expectedTotalCents: 7200, discountCode: "ws20" }) }));
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, "price_changed");
+  assert.equal(calls[0][0], "reserve_event_commerce_discount");
+  assert.equal(calls[0][1].p_discount_code, "WS20");
+  assert.equal(calls[0][1].p_locale, "es");
+  assert.equal(calls[0][1].p_attendees[0].email, contact.email);
+  assert.equal(calls[1][0], "transition_commerce_order");
+});
+
+test("Stripe displays frozen translated products and receives the exact net amount", async () => {
+  let params;
+  const mod = load("src/lib/stripe/commerce.ts", { ...baseMocks, "./client": { getVerifiedStripe: async () => ({ checkout: { sessions: { create: async p => { params = p; return {}; } } } }) } });
+  await mod.createCommerceSession({ ...order, locale: "es", amount_cents: 5500, event_snapshot: { commerce_config: { packages: [{ id: "bundle", name: "WS + MC", nameTranslations: { es: "Taller + clase magistral" }, prices: [{ id: "standard", label: "Standard", labelTranslations: { es: "General" } }] }], addons: [] } }, quote: { subtotalCents: 6000, discountCents: 500, lines: [{ label: "WS + MC · Standard", packageId: "bundle", tierId: "standard", kind: "package", quantity: 1, unitAmountCents: 5500, totalCents: 5500 }] } }, "https://meraki.example");
+  assert.equal(params.locale, "es");
+  assert.equal(params.line_items[0].price_data.product_data.name, "Taller + clase magistral · General");
+  assert.equal(params.line_items[0].price_data.unit_amount, 5500);
+  assert.equal(params.allow_promotion_codes, undefined);
+  assert.equal(params.discounts, undefined);
+});
+
+test("single-ticket quote is private, rejects cross-origin requests and forwards no client money", async () => {
+  const calls = [];
+  const route = load("src/app/api/checkout/ticket/quote/route.ts", { "@/lib/commerce/http": http, "@/lib/commerce/server": { commerceClient: () => ({ rpc: async (name, args) => { calls.push([name, args]); return { data: { quote: { subtotalCents: 3000, discountCents: 600, totalCents: 2400 } } }; } }) } });
+  const request = origin => new Request("https://meraki.example/api/checkout/ticket/quote", { method: "POST", headers: { Origin: origin }, body: JSON.stringify({ eventId, discountCode: " single20 ", totalCents: 0 }) });
+  assert.equal((await route.POST(request("https://other.example"))).status, 403);
+  assert.equal(calls.length, 0);
+  const response = await route.POST(request("https://meraki.example"));
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "private, no-store");
+  assert.deepEqual(plain(calls[0]), ["quote_event_ticket_discount", { p_event_id: eventId, p_discount_code: "SINGLE20" }]);
+  assert.equal((await response.json()).quote.totalCents, 2400);
+});
+
+test("group confirmation translates package names from the frozen order", async () => {
+  const saved = { ...order, state: "fulfilled", event_snapshot: { commerce_config: { packages: [{ id: "bundle", name: "Workshop e Masterclass", nameTranslations: { de: "Workshop und Masterclass" } }] } } };
+  const db = { from: table => ({ select() { return this; }, eq() { return this; }, maybeSingle: async () => ({ data: saved }), then(resolve) { return Promise.resolve({ data: [{ id: "pass-1", package_id: "bundle", package_name: "Workshop e Masterclass", first_name: "Ada", last_name: "Prova", status: "paid" }] }).then(resolve); } }) };
+  const mod = load("src/lib/stripe/commerce.ts", { ...baseMocks, "./client": {}, "@/lib/commerce/server": { commerceClient: () => db } });
+  const status = await mod.getCommerceCheckoutStatus(paid, "de");
+  assert.equal(status.status, "ready");
+  assert.equal(status.tickets[0].title, "Workshop und Masterclass");
 });

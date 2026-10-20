@@ -64,7 +64,10 @@ const checkoutCopy = compileDependency("../src/components/meraki/checkout-copy.t
 const cssModule = { default: new Proxy({}, { get: (_, key) => key }) };
 const attendeeModel = compileDependency("../src/lib/commerce/attendee.ts");
 const contactFields = compileDependency("../src/components/meraki/checkout-contact-fields.tsx", { "./checkout-copy": checkoutCopy, "./commerce-purchase.module.css": cssModule });
+const discountCopyModule = compileDependency("../src/components/meraki/discount-copy.ts");
 const dependencies = {
+  "@/components/meraki/discount-copy": discountCopyModule,
+  "@/components/meraki/discount-code-fields": compileDependency("../src/components/meraki/discount-code-fields.tsx", { "./discount-copy": discountCopyModule, "./commerce-purchase.module.css": cssModule }),
   "@/lib/commerce/attendee": attendeeModel,
   "@/components/meraki/checkout-contact-fields": contactFields,
   "@/components/meraki/checkout-copy": checkoutCopy,
@@ -87,6 +90,8 @@ async function setup(context, { overflow = "auto", locale = "it" } = {}) {
   window.document.body.innerHTML = '<div id="checkout-root"></div>';
   window.document.body.style.overflow = overflow;
   const calls = [];
+  const quoteCalls = [];
+  let quoteResponse = () => Promise.resolve({ ok: true, json: async () => ({ quote: { totalCents: 3000 } }) });
   let uuidCalls = 0;
   const exports = {};
   vm.runInNewContext(compiled, {
@@ -96,8 +101,13 @@ async function setup(context, { overflow = "auto", locale = "it" } = {}) {
     FormData: window.FormData,
     URL,
     Error,
+    AbortController,
     crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++uuidCalls).padStart(12, "0")}` },
     fetch: (url, options) => {
+      if (url === "/api/checkout/ticket/quote") {
+        quoteCalls.push({ url, options, body: JSON.parse(options.body) });
+        return quoteResponse(JSON.parse(options.body));
+      }
       const pending = deferred();
       calls.push({ ...pending, url, options, body: JSON.parse(options.body) });
       return pending.promise;
@@ -144,7 +154,7 @@ async function setup(context, { overflow = "auto", locale = "it" } = {}) {
     });
     return cancel;
   };
-  return { dialog, trigger, form, submitButton, closeButton, calls, fill, open, submit, respond, fail, escape, dispose };
+  return { dialog, trigger, form, submitButton, closeButton, calls, quoteCalls, setQuoteResponse: (value) => { quoteResponse = value; }, change, fill, open, submit, respond, fail, escape, dispose };
 }
 
 test("purchase opens an accessible native dialog and preserves required/email validation", async (context) => {
@@ -158,9 +168,10 @@ test("purchase opens an accessible native dialog and preserves required/email va
   assert.equal(checkout.dialog.contains(window.document.activeElement), true);
 
   const inputs = [...checkout.form.querySelectorAll("input")];
-  assert.deepEqual(inputs.map((input) => input.name), ["nome", "cognome", "email", "buyer-phone", "buyer-document-number", "buyer-marketing-consent"]);
-  assert.ok(inputs.filter((input) => input.type !== "checkbox").every((input) => input.required));
-  assert.equal(inputs.at(-1).checked, false);
+  assert.deepEqual(inputs.map((input) => input.name), ["nome", "cognome", "email", "buyer-phone", "buyer-document-number", "buyer-marketing-consent", "discountCode"]);
+  assert.ok(inputs.filter((input) => input.type !== "checkbox" && input.name !== "discountCode").every((input) => input.required));
+  assert.equal(inputs.find((input) => input.type === "checkbox").checked, false);
+  assert.equal(inputs.find((input) => input.type === "checkbox").required, false);
   assert.equal(inputs.at(-1).required, false);
   assert.equal(inputs[2].type, "email");
   assert.equal(inputs[2].autocomplete, "email");
@@ -192,6 +203,7 @@ test("pending checkout sends one trimmed request and blocks duplicate submission
     buyerCognome: "Lisio",
     attendee: { firstName: "Matias", lastName: "Lisio", email: "buyer@example.test", phone: "+393331234567", documentType: "codice_fiscale", documentCountry: "IT", documentNumber: "RSSMRA85T10A562S", marketingConsent: false },
     locale: "it",
+    expectedTotalCents: 3000,
     checkoutAttemptId: "00000000-0000-4000-8000-000000000001",
   });
   assert.ok([...checkout.form.querySelectorAll("input, select, button")].every((element) => element.disabled));
@@ -213,7 +225,7 @@ test("API rejection keeps the purchase open, shows the error and enables a corre
   assert.equal(checkout.dialog.open, true);
   assert.equal(window.document.body.style.overflow, "hidden");
   assert.equal(checkout.dialog.querySelector('[role="alert"]').textContent, "I posti disponibili sono terminati.");
-  assert.ok([...checkout.form.querySelectorAll("input, button")].every((element) => !element.disabled));
+  assert.ok([...checkout.form.querySelectorAll("input, button")].filter((element) => element.textContent !== "Applica").every((element) => !element.disabled));
   assert.equal(checkout.closeButton.disabled, false);
   assert.equal(checkout.form.elements.namedItem("email").value, "buyer@example.test");
   await checkout.submit();
@@ -287,4 +299,49 @@ test("guest contact fields reject invalid documents before starting a payment", 
   await checkout.submit();
   assert.equal(checkout.calls.length, 0);
   assert.match(checkout.dialog.querySelector('[role="alert"]').textContent, /Controlla i dati/);
+});
+
+
+test("simple tickets apply a verified code before payment and require the quoted net amount", async (context) => {
+  const checkout = await setup(context); await checkout.open(); await checkout.fill();
+  checkout.setQuoteResponse((body) => Promise.resolve({ ok: true, json: async () => ({ quote: { subtotalCents: 3000, discountCents: 500, totalCents: 2500, discount: { code: body.discountCode } } }) }));
+  await checkout.change(checkout.form.querySelector('input[name="discountCode"]'), " save5 ");
+  await act(async () => [...checkout.form.querySelectorAll("button")].find((button) => button.textContent === "Applica").click());
+  assert.equal(checkout.quoteCalls.at(-1).body.discountCode, "SAVE5");
+  assert.match(checkout.form.textContent, /Sconto.*SAVE5.*5,00/);
+  await checkout.submit();
+  assert.equal(checkout.calls.at(-1).body.discountCode, "SAVE5");
+  assert.equal(checkout.calls.at(-1).body.expectedTotalCents, 2500);
+  checkout.setQuoteResponse(() => Promise.resolve({ ok: true, json: async () => ({ quote: { totalCents: 2600, subtotalCents: 3100, discountCents: 500, discount: { code: "SAVE5" } } }) }));
+  await checkout.respond({ code: "price_changed", quote: { totalCents: 2600, subtotalCents: 3100, discountCents: 500, discount: { code: "SAVE5" } } });
+  assert.match(checkout.form.textContent, /26,00/);
+  assert.equal(checkout.calls.length, 1);
+  const oldAttempt = checkout.calls[0].body.checkoutAttemptId;
+  await checkout.submit();
+  assert.equal(checkout.calls[1].body.expectedTotalCents, 2600);
+  assert.notEqual(checkout.calls[1].body.checkoutAttemptId, oldAttempt);
+  await checkout.fail();
+});
+
+
+test("reopening an ambiguous discounted simple checkout reuses the held quote and exact attempt", async (context) => {
+  const checkout = await setup(context); await checkout.open(); await checkout.fill();
+  let held = false;
+  checkout.setQuoteResponse(() => Promise.resolve(held ? { ok: false, status: 409, json: async () => ({ code: "discount_exhausted" }) } : { ok: true, json: async () => ({ quote: { totalCents: 2400, subtotalCents: 3000, discountCents: 600, discount: { code: "ONLYONCE" } } }) }));
+  await checkout.change(checkout.form.querySelector('input[name="discountCode"]'), "onlyonce");
+  await act(async () => [...checkout.form.querySelectorAll("button")].find((button) => button.textContent === "Applica").click());
+  await checkout.submit(); held = true; await checkout.fail("Network timeout");
+  const quoted = checkout.quoteCalls.length;
+  await act(async () => checkout.closeButton.click()); await checkout.open();
+  assert.equal(checkout.quoteCalls.length, quoted);
+  assert.equal(checkout.submitButton.disabled, false);
+  assert.match(checkout.form.textContent, /Totale24,00/);
+  await checkout.submit();
+  assert.deepEqual(checkout.calls[1].body, checkout.calls[0].body);
+  await checkout.fail("Network timeout");
+  await checkout.change(checkout.form.querySelector('input[name="nome"]'), "Altro nome");
+  assert.equal(checkout.submitButton.disabled, true);
+  assert.equal(checkout.quoteCalls.length, quoted + 1);
+  assert.match(checkout.form.querySelector('[role="alert"]').textContent, /limite di utilizzi/);
+  assert.equal(checkout.calls.length, 2);
 });

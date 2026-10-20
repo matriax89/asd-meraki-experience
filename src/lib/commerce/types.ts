@@ -1,14 +1,16 @@
 export type CommerceActivityKind = 'workshop' | 'masterclass' | 'dinner' | 'extra';
-export type CommercePriceTier = { id: string; label: string; amountCents: number; startsAt: string | null; endsAt: string | null };
-export type CommerceActivity = { id: string; name: string; kind: CommerceActivityKind; capacity: number | null; startsAt: string | null; salesEnd: string | null; menuOptions: string[] };
-export type CommercePackage = { id: string; name: string; description: string; activityIds: string[]; prices: CommercePriceTier[] };
-export type CommerceAddon = { id: string; name: string; activityId: string; amountCents: number };
+export type CommerceTranslations = Partial<Record<'it' | 'en' | 'de' | 'es', string>>;
+export type CommercePriceTier = { id: string; label: string; labelTranslations?: CommerceTranslations; amountCents: number; activityAmounts?: Record<string, number>; startsAt: string | null; endsAt: string | null };
+export type CommerceActivity = { id: string; name: string; nameTranslations?: CommerceTranslations; kind: CommerceActivityKind; capacity: number | null; startsAt: string | null; salesEnd: string | null; menuOptions: string[]; menuTranslations?: Record<string, CommerceTranslations> };
+export type CommercePackage = { id: string; name: string; nameTranslations?: CommerceTranslations; description: string; descriptionTranslations?: CommerceTranslations; activityIds: string[]; prices: CommercePriceTier[] };
+export type CommerceAddon = { id: string; name: string; nameTranslations?: CommerceTranslations; activityId: string; amountCents: number };
 export type CommerceConfig = { version: 1; enabled: boolean; waitlistEnabled: boolean; upgradesEnabled: boolean; activities: CommerceActivity[]; packages: CommercePackage[]; addons: CommerceAddon[] };
 export type CommerceParticipant = { firstName: string; lastName: string; packageId: string; addonIds: string[]; menuChoices: Record<string, string> };
 /** Private checkout data. Never include this object in a ticket, QR, wallet, or Stripe metadata. */
 export type CommerceAttendee = { firstName: string; lastName: string; email: string; phone: string; documentType: 'codice_fiscale' | 'foreign_id'; documentCountry: string; documentNumber: string; marketingConsent: boolean };
-export type CommerceQuoteLine = { label: string; quantity: number; unitAmountCents: number; totalCents: number; kind: 'package' | 'addon' | 'upgrade'; packageId?: string; tierId?: string; activityIds: string[] };
-export type CommerceQuote = { totalCents: number; lines: CommerceQuoteLine[]; participants: CommerceParticipant[] };
+export type CommerceDiscountSnapshot = { id: string; code: string; discountType: 'percentage' | 'fixed_amount'; discountValue: number; targetType: 'order' | 'package' | 'activity' | 'addon'; targetIds: string[]; eligibleCents: number };
+export type CommerceQuoteLine = { label: string; quantity: number; unitAmountCents: number; totalCents: number; subtotalCents?: number; discountCents?: number; activityAmounts?: Record<string, number>; participantIndex?: number; kind: 'package' | 'addon' | 'upgrade'; packageId?: string; addonId?: string; tierId?: string; activityIds: string[] };
+export type CommerceQuote = { totalCents: number; subtotalCents?: number; discountCents?: number; discount?: CommerceDiscountSnapshot; lines: CommerceQuoteLine[]; participants: CommerceParticipant[] };
 export type CommerceOrderState = 'reserved' | 'awaiting_payment' | 'fulfilled' | 'expired' | 'payment_failed' | 'refund_required' | 'refund_pending' | 'refunded';
 export type CommerceOrder = {
   id: string; request_id: string; event_id: string; buyer_email: string; locale: 'it' | 'en' | 'de' | 'es'; state: CommerceOrderState;

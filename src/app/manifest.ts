@@ -7,14 +7,14 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Meraki",
     description: "Scopri gli eventi Meraki e acquista il tuo biglietto digitale.",
     lang: "it",
-    start_url: "/it/eventi",
+    start_url: "/eventi",
     scope: "/",
     display: "standalone",
     background_color: "#f5f4f0",
     theme_color: "#f5f4f0",
     shortcuts: [
-      { name: "Scopri gli eventi", short_name: "Eventi", url: "/it/eventi", icons: [{ src: "/icons/meraki-original-192.png", sizes: "192x192" }] },
-      { name: "I miei biglietti", short_name: "Biglietti", url: "/it/biglietti", icons: [{ src: "/icons/meraki-original-192.png", sizes: "192x192" }] },
+      { name: "Scopri gli eventi", short_name: "Eventi", url: "/eventi", icons: [{ src: "/icons/meraki-original-192.png", sizes: "192x192" }] },
+      { name: "I miei biglietti", short_name: "Biglietti", url: "/biglietti", icons: [{ src: "/icons/meraki-original-192.png", sizes: "192x192" }] },
     ],
     categories: ["entertainment", "sports"],
     icons: [

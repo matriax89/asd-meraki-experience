@@ -12,11 +12,11 @@ import { getCommercePass } from "@/lib/commerce/server";
 import { ticketViewCopy } from "@/lib/tickets/view-copy";
 import { eventTravelCopy, eventTravelPath } from "@/lib/events/travel-link";
 
-export const metadata: Metadata = {
-  title: "Il tuo biglietto · Meraki",
-  robots: { index: false, follow: false },
-  referrer: "no-referrer",
-};
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  const titles: Record<string, string> = { it: "Il tuo biglietto", en: "Your ticket", de: "Dein Ticket", es: "Tu entrada" };
+  return { title: `${titles[locale] || titles.it} · Meraki`, robots: { index: false, follow: false }, referrer: "no-referrer" };
+}
 
 export default async function BigliettoPage({ params, searchParams }: {
   params: Promise<{ id: string; locale: string }>;
@@ -35,7 +35,7 @@ export default async function BigliettoPage({ params, searchParams }: {
     .eq("id", id)
     .eq("qr_code", token)
     .single();
-  const commerce = legacyTicket?.event ? null : await getCommercePass(id, token);
+  const commerce = legacyTicket?.event ? null : await getCommercePass(id, token, locale);
   const rights = commerce?.entitlements || [];
   const availableRights = rights.filter((right) => right.status === "available");
   const commerceStatus = commerce?.pass.status !== "paid" ? "refunded" : availableRights.length ? "paid" : rights.some((right) => right.status === "used") ? "used" : "refunded";
