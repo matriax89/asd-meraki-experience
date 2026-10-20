@@ -32,12 +32,14 @@ const i18n = load("lib/i18n-utils.ts");
 const model = load("components/meraki/event-model.ts");
 const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n });
 const poster = load("components/meraki/event-poster.tsx", common);
-const card = load("components/meraki/event-card.tsx", { ...common, "./event-model": model, "./event-poster": poster });
+const commerceModel = load("components/meraki/commerce-public-model.ts");
+const priceSummary = load("components/meraki/event-price-summary.tsx", { "./event-model": model, "./commerce-public-model": commerceModel, "@/lib/commerce/localization": load("lib/commerce/localization.ts") });
+const card = load("components/meraki/event-card.tsx", { ...common, "./event-model": model, "./event-poster": poster, "./event-price-summary": priceSummary });
 const eventFeed = load("components/meraki/event-feed.tsx", { ...common, "./event-model": model, "./event-card": card });
 const past = { id: "past", slug: "old-event", tipo: "evento", titolo: { it: "Evento passato", en: "Past event", de: "Vergangenes Event", es: "Evento pasado" }, sottotitolo: null, data_inizio: "2026-08-04T18:00:00+02:00", data_fine: null, copertina_url: null, location: "Bolzano", indirizzo: null, prezzo_cents: 1000, capacity: 30, posti_venduti: 0 };
 const future = { ...past, id: "future", slug: "next-event", titolo: { it: "Evento futuro", en: "Future event", de: "Künftiges Event", es: "Evento futuro" }, data_inizio: "2026-12-01T18:00:00+01:00" };
 
-function catalogue(rows, error = null) {
+function catalogue(rows, error = null, packagePrices) {
   const requests = [];
   const supabase = { from(table) {
     const request = { table, filters: [] };
@@ -59,7 +61,7 @@ function catalogue(rows, error = null) {
     "@/lib/supabase/server": server,
     "@/lib/events/public-feed": feed,
     "@/components/meraki/event-feed": eventFeed,
-    "@/lib/commerce/feed": { enrichCommerceFeed: async (events) => { enrichment.push(events); return events.map((event) => ({ ...event, price: 1900, priceFrom: true })); } },
+    "@/lib/commerce/feed": { enrichCommerceFeed: async (events) => { enrichment.push(events); return events.map((event) => ({ ...event, price: 1900, priceFrom: true, packagePrices })); } },
     "@/lib/i18n-utils": i18n,
     "next-intl/server": { getTranslations: async () => (key) => key },
     "@/components/ui/fade-in": { FadeIn: Container, StaggerContainer: Container, StaggerItem: Container },
@@ -107,6 +109,23 @@ test("empty, archived-only and unavailable event catalogues preserve the general
     assert.doesNotMatch(html, /data-meraki-home-events/);
     assert.match(html, /hero.headline/);
     assert.equal(fixture.enrichment.length, 0);
+  }
+});
+
+test("the general homepage exposes package prices and the next-tier saving before checkout", async () => {
+  const packagePrices = [{ id: "bundle", name: "Workshop + Masterclass", prices: [
+    { id: "early", label: "Early Bird", amountCents: 6500, startsAt: null, endsAt: "2026-12-04T22:59:00Z" },
+    { id: "standard", label: "Standard", amountCents: 8500, startsAt: "2026-12-04T23:00:00Z", endsAt: null },
+  ] }];
+  for (const locale of ["it", "en", "de", "es"]) {
+    const html = await catalogue([future], null, packagePrices).renderHome(locale);
+    assert.match(html, /Workshop \+ Masterclass/);
+    assert.match(html, /Early Bird/);
+    assert.match(html, /23,5%/);
+    assert.match(html, /04\/12\/2026/);
+    assert.ok(html.includes(model.eventPrice(6500, locale)));
+    assert.ok(html.includes(model.eventPrice(8500, locale)));
+    assert.ok(!html.includes(`${model.eventLabels(locale).from} ${model.eventPrice(1900, locale)}`));
   }
 });
 

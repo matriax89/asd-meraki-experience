@@ -25,7 +25,8 @@ const logistics = load("lib/events/logistics.ts");
 const poster = load("components/meraki/event-poster.tsx", { "next/image": image });
 const travel = load("components/meraki/event-logistics-section.tsx", { "@/lib/events/logistics": logistics });
 const model = load("components/meraki/event-model.ts");
-const card = load("components/meraki/event-card.tsx", { "./event-poster": poster, "./event-model": model, "@/i18n/routing": link });
+const priceSummary = load("components/meraki/event-price-summary.tsx", { "./event-model": model, "./commerce-public-model": load("components/meraki/commerce-public-model.ts"), "@/lib/commerce/localization": load("lib/commerce/localization.ts") });
+const card = load("components/meraki/event-card.tsx", { "./event-poster": poster, "./event-model": model, "./event-price-summary": priceSummary, "@/i18n/routing": link });
 const detail = load("components/meraki/event-detail.tsx", {
   "./event-poster": poster, "./event-logistics-section": travel, "./event-model": model, "@/lib/events/logistics": logistics,
   "@/i18n/routing": link,
@@ -47,7 +48,7 @@ const render = (Component, props) => JSDOM.fragment(renderToStaticMarkup(React.c
 
 for (const locale of ["it", "en", "de", "es"]) {
   test(`${locale} detail and both card variants show the entire original 4:5 poster without overlays`, () => {
-    for (const [Component, props] of [[detail.EventDetail, { event, locale }], [card.MerakiEventCard, { event, locale, featured: true }], [card.MerakiEventCard, { event, locale }]]) {
+    for (const [Component, props] of [[detail.EventDetail, { event, locale }], [card.MerakiEventCard, { event, locale, now: Date.now(), featured: true }], [card.MerakiEventCard, { event, locale, now: Date.now() }]]) {
       const fragment = render(Component, props);
       const frame = fragment.querySelector("button[data-event-poster]");
       assert.ok(frame); assert.ok(frame.classList.contains("aspect-[4/5]"));

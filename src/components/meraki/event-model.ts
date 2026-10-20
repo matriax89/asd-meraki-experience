@@ -1,3 +1,10 @@
+import type { CommercePackage, CommercePriceTier } from "@/lib/commerce/types";
+
+export type EventPackagePrice = Pick<CommercePackage, "id" | "name" | "nameTranslations"> & {
+  prices: Pick<CommercePriceTier, "id" | "label" | "labelTranslations" | "amountCents" | "startsAt" | "endsAt">[];
+  salesCloseAt: string | null;
+};
+
 export type MerakiEvent = {
   id: string;
   slug: string;
@@ -12,6 +19,7 @@ export type MerakiEvent = {
   address: string | null;
   price: number | null;
   priceFrom?: boolean;
+  packagePrices?: EventPackagePrice[];
   capacity: number | null;
   sold: number;
 };

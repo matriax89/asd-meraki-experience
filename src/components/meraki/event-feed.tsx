@@ -68,7 +68,7 @@ export function EventFeed({ events, locale, now, initialType = "all", loadError 
 
       <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr] lg:items-start">
         <section aria-label={t.memories} className="min-w-0">
-          {featured ? <MerakiEventCard event={featured} locale={locale} featured past={featuredIsPast} /> : null}
+          {featured ? <MerakiEventCard event={featured} locale={locale} now={effectiveNow} featured past={featuredIsPast} /> : null}
           <div className={featured ? "mt-7" : ""}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold tracking-[-0.035em]">{query.trim() ? t.found : period === "past" ? t.memories : t.agenda}</h2>
@@ -84,7 +84,7 @@ export function EventFeed({ events, locale, now, initialType = "all", loadError 
                 <p className="mt-2 max-w-md text-[13px] leading-6 text-[#788170]">{hasFilters ? t.noResultsText : period === "past" ? t.archiveText : t.empty}</p>
                 {hasFilters ? <button type="button" onClick={reset} className="mt-4 min-h-10 text-sm font-semibold underline underline-offset-4">{t.clear}</button> : null}
               </div>
-            ) : list.length ? <div className="grid gap-3">{list.map((event) => <MerakiEventCard key={event.id} event={event} locale={locale} past={period === "past"} />)}</div> : <p className="text-xs leading-6 text-[#7f8777]">{featured?.title} <span className="px-1 text-[#b2b8aa]">·</span> {locale === "en" ? "Discover the experience above" : locale === "de" ? "Entdecke das Erlebnis oben" : locale === "es" ? "Descubre la experiencia de arriba" : "Scopri l’esperienza qui sopra"}</p>}
+            ) : list.length ? <div className="grid gap-3">{list.map((event) => <MerakiEventCard key={event.id} event={event} locale={locale} now={effectiveNow} past={period === "past"} />)}</div> : <p className="text-xs leading-6 text-[#7f8777]">{featured?.title} <span className="px-1 text-[#b2b8aa]">·</span> {locale === "en" ? "Discover the experience above" : locale === "de" ? "Entdecke das Erlebnis oben" : locale === "es" ? "Descubre la experiencia de arriba" : "Scopri l’esperienza qui sopra"}</p>}
           </div>
         </section>
 

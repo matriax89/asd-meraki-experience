@@ -21,11 +21,13 @@ after(() => { dom.window.close(); for (const [key, descriptor] of descriptors) {
 const modules = new Map();
 function load(name) {
   if (modules.has(name)) return modules.get(name);
-  const source = readFileSync(new URL(`../src/components/meraki/${name}.${name === "event-model" ? "ts" : "tsx"}`, import.meta.url), "utf8");
+  const sourcePath = name === "commerce-localization" ? "../src/lib/commerce/localization.ts" : `../src/components/meraki/${name}.${["event-model", "commerce-public-model"].includes(name) ? "ts" : "tsx"}`;
+  const source = readFileSync(new URL(sourcePath, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
   vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, window: dom.window, document: dom.window.document, Date, require: (specifier) => {
     if (specifier.startsWith("./")) return load(specifier.slice(2));
+    if (specifier === "@/lib/commerce/localization") return load("commerce-localization");
     if (specifier === "@/i18n/routing") return { Link: ({ children, ...props }) => React.createElement("a", props, children) };
     return require(specifier);
   } });
@@ -37,6 +39,10 @@ const { EventFeed } = load("event-feed");
 const now = Date.parse("2026-10-18T15:00:00Z");
 const past = { id: "past", slug: "outdoor-postal", type: "evento", title: "Outdoor Postal", subtitle: "Muoviti insieme a Denise", startsAt: "2026-08-04T18:30:00Z", endsAt: null, cover: null, location: "Postal", address: null, price: 1500, capacity: 20, sold: 10 };
 const future = { ...past, id: "future", slug: "workshop", type: "workshop", title: "Pratica con Meraki", startsAt: "2026-12-04T17:00:00Z", location: "Merano" };
+const packageEvent = { ...future, price: 4500, priceFrom: true, packagePrices: [{ id: "ws", name: "Workshop completo", prices: [
+  { id: "early", label: "Early Bird", amountCents: 4500, startsAt: null, endsAt: "2026-11-01T23:00:00Z" },
+  { id: "standard", label: "Standard", amountCents: 5500, startsAt: "2026-11-01T23:00:00Z", endsAt: null },
+] }] };
 function button(text) { return [...document.querySelectorAll("button")].find((element) => element.textContent === text); }
 async function render(events, locale = "it") { const host = document.createElement("div"); document.body.append(host); const root = createRoot(host); await act(async () => root.render(React.createElement(EventFeed, { events, locale, now }))); return { host, root, cleanup: async () => { await act(async () => root.unmount()); host.remove(); } }; }
 
@@ -79,6 +85,31 @@ test("event time uses Rome even around UTC midnight, and capacity zero stays sol
   assert.equal(model.availablePlaces({ capacity: 0, sold: 0 }), 0);
   assert.equal(model.availablePlaces({ capacity: 2, sold: 3 }), 0);
   assert.equal(model.availablePlaces({ capacity: null, sold: 8 }), null);
+});
+
+test("featured package prices replace the minimum price and refresh when returning after a tier change", async () => {
+  const screen = await render([packageEvent]);
+  const originalDateNow = Date.now;
+  try {
+    assert.match(screen.host.textContent, /Workshop completo/);
+    assert.match(screen.host.textContent, /Early Bird/);
+    assert.match(screen.host.textContent, /18,1%/);
+    assert.doesNotMatch(screen.host.textContent, /da 45/);
+    Date.now = () => Date.parse("2026-11-01T23:00:00Z");
+    await act(async () => window.dispatchEvent(new dom.window.Event("focus")));
+    assert.match(screen.host.textContent, /Workshop completo/);
+    assert.match(screen.host.textContent, /Standard/);
+    assert.doesNotMatch(screen.host.textContent, /Early Bird|18,1%|45\s*€/);
+  } finally { Date.now = originalDateNow; await screen.cleanup(); }
+});
+
+test("the archive does not promote an old Early Bird offer", async () => {
+  const screen = await render([{ ...packageEvent, startsAt: past.startsAt }]);
+  try {
+    await act(async () => button("Passati").click());
+    assert.match(screen.host.textContent, /Da ricordare/);
+    assert.doesNotMatch(screen.host.textContent, /Early Bird|18,1%|Workshop completo/);
+  } finally { await screen.cleanup(); }
 });
 
 test("workshop discovery includes masterclasses and keeps ongoing experiences out of the archive", () => {
