@@ -5,9 +5,11 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { EventDescription } from "@/components/public/event-description";
 import { getLocalizedText, getLocalizedArray } from "@/lib/i18n-utils";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string, locale: string }> }): Promise<Metadata> {
   const { slug, locale } = await params;
+  const t = await getTranslations({ locale, namespace: "PublicUi" });
   const supabase = await createClient();
 
   const { data: corso } = await supabase
@@ -17,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     .single();
 
   if (!corso) {
-    return { title: "Corso non trovato" };
+    return { title: t("courseNotFound") };
   }
 
   const title = getLocalizedText(corso.nome, locale);
@@ -46,6 +48,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function CorsoDetailPage({ params }: { params: Promise<{ slug: string, locale: string }> }) {
   const { slug, locale } = await params;
+  const t = await getTranslations({ locale, namespace: "PublicUi" });
   const supabase = await createClient();
 
   const { data: corso } = await supabase
@@ -91,7 +94,7 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
           <div className="max-w-4xl relative z-10 w-full flex flex-col md:flex-row md:items-end justify-between gap-8">
             <div>
               <div className="inline-flex items-center bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6">
-                {corso.disciplina}
+                {getLocalizedText(corso.disciplina, locale)}
               </div>
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-extrabold text-white mb-4 tracking-tight drop-shadow-md">
                 {getLocalizedText(corso.nome, locale)}
@@ -115,7 +118,7 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
                     )}
                  </div>
                  <div className="pr-4">
-                    <div className="text-[10px] uppercase tracking-widest text-white/70 font-bold mb-1">Il tuo Istruttore</div>
+                    <div className="text-[10px] uppercase tracking-widest text-white/70 font-bold mb-1">{t("instructor")}</div>
                     <div className="font-extrabold text-white text-base leading-tight">{corso.istruttore.nome} {corso.istruttore.cognome}</div>
                  </div>
               </div>
@@ -133,7 +136,7 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
 
           {corso.benefici && (
             <div>
-              <h2 className="text-3xl font-heading font-bold mb-6">Cosa imparerai</h2>
+              <h2 className="text-3xl font-heading font-bold mb-6">{t("learning")}</h2>
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {getLocalizedArray(corso.benefici, locale).map((ben, i) => (
                   <li key={i} className="flex items-start">
@@ -151,7 +154,7 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {corso.galleria_urls.map((url, i) => (
                 <div key={i} className="aspect-square bg-muted rounded-xl overflow-hidden border border-border">
-                  <img src={url} alt={`Galleria ${i}`} className="w-full h-full object-cover" />
+                  <img src={url} alt={t("galleryImage", { number: i + 1 })} className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>
@@ -161,30 +164,30 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
         {/* Sidebar */}
         <div className="space-y-8">
           <div className="bg-card border border-border rounded-xl p-8 space-y-6">
-            <h3 className="text-xl font-bold font-heading">Dettagli del Corso</h3>
+            <h3 className="text-xl font-bold font-heading">{t("courseDetails")}</h3>
             
             <div className="space-y-4">
               {corso.livello && (
                 <div>
-                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Livello</div>
-                  <div className="font-semibold">{corso.livello}</div>
+                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">{t("level")}</div>
+                  <div className="font-semibold">{getLocalizedText(corso.livello, locale)}</div>
                 </div>
               )}
               {corso.durata_minuti && (
                 <div>
-                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Durata</div>
-                  <div className="font-semibold">{corso.durata_minuti} minuti</div>
+                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">{t("duration")}</div>
+                  <div className="font-semibold">{t("minutes", { count: corso.durata_minuti })}</div>
                 </div>
               )}
               {corso.frequenza && (
                 <div>
-                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Frequenza</div>
-                  <div className="font-semibold">{corso.frequenza}</div>
+                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">{t("frequency")}</div>
+                  <div className="font-semibold">{getLocalizedText(corso.frequenza, locale)}</div>
                 </div>
               )}
               {corso.attrezzatura_richiesta && (
                 <div>
-                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Attrezzatura Richiesta</div>
+                  <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">{t("equipment")}</div>
                   <div className="font-semibold">{getLocalizedText(corso.attrezzatura_richiesta, locale)}</div>
                 </div>
               )}
@@ -192,14 +195,14 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
 
             <div className="pt-6 border-t border-border">
               <Link href={corso.cta_url || "/prova-gratuita"} className="w-full inline-block text-center bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-4 px-6 rounded-lg transition-colors">
-                Prenota una Prova
+                {t("bookTrial")}
               </Link>
             </div>
           </div>
 
           {corso.istruttore && (
             <div className="bg-card border border-border rounded-xl p-8 text-center">
-              <h3 className="text-sm text-muted-foreground uppercase tracking-wider mb-6">Il tuo istruttore</h3>
+              <h3 className="text-sm text-muted-foreground uppercase tracking-wider mb-6">{t("instructor")}</h3>
               <div className="w-24 h-24 mx-auto rounded-full overflow-hidden bg-muted mb-4 border-2 border-primary/20">
                 {corso.istruttore.foto_url ? (
                   <img src={corso.istruttore.foto_url} alt={corso.istruttore.nome} className="w-full h-full object-cover" />
@@ -210,7 +213,7 @@ export default async function CorsoDetailPage({ params }: { params: Promise<{ sl
                 )}
               </div>
               <h4 className="font-bold text-xl mb-1">{corso.istruttore.nome} {corso.istruttore.cognome}</h4>
-              <p className="text-primary text-sm font-medium">{corso.istruttore.ruolo}</p>
+              <p className="text-primary text-sm font-medium">{getLocalizedText(corso.istruttore.ruolo, locale)}</p>
             </div>
           )}
         </div>

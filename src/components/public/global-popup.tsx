@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
-import Link from "next/link";
+import { Link } from "@/i18n/routing";
+import { useLocale, useTranslations } from "next-intl";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 interface PopupData {
   attivo: boolean;
@@ -18,6 +20,8 @@ interface PopupData {
 
 export function GlobalPopup({ data }: { data?: PopupData | null }) {
   const [isOpen, setIsOpen] = useState(false);
+  const t = useTranslations("PublicUi");
+  const locale = useLocale();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -81,7 +85,7 @@ export function GlobalPopup({ data }: { data?: PopupData | null }) {
                   ? "bg-black/20 hover:bg-black/40 backdrop-blur-xl border border-white/20 text-white shadow-lg" 
                   : "bg-slate-200 hover:bg-slate-300 text-slate-500"
               }`}
-              aria-label="Chiudi popup"
+              aria-label={t("close")}
             >
               <X className="w-4 h-4" strokeWidth={2.5} />
             </button>
@@ -92,7 +96,7 @@ export function GlobalPopup({ data }: { data?: PopupData | null }) {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={data.foto_url}
-                  alt={data.titolo || "Promozione"}
+                  alt={getLocalizedText(data.titolo, locale) || t("promotion")}
                   className="w-full h-auto max-h-[55vh] object-contain"
                 />
               </div>
@@ -105,11 +109,11 @@ export function GlobalPopup({ data }: { data?: PopupData | null }) {
                 : 'bg-white p-10'
             }`}>
               <h3 className="text-2xl sm:text-[28px] font-extrabold text-slate-900 mb-3 tracking-tight leading-tight">
-                {data.titolo}
+                {getLocalizedText(data.titolo, locale)}
               </h3>
               
               <p className="text-slate-600 text-[15px] leading-relaxed mb-8 font-medium">
-                {data.descrizione}
+                {getLocalizedText(data.descrizione, locale)}
               </p>
 
               {data.link_bottone && data.testo_bottone && (
@@ -118,7 +122,7 @@ export function GlobalPopup({ data }: { data?: PopupData | null }) {
                   onClick={handleClose}
                   className="w-full inline-flex justify-center items-center px-6 py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[15px] font-bold rounded-[20px] hover:shadow-xl hover:shadow-slate-900/20 hover:-translate-y-0.5 transition-all duration-300 active:scale-[0.98]"
                 >
-                  {data.testo_bottone}
+                  {getLocalizedText(data.testo_bottone, locale)}
                 </Link>
               )}
             </div>

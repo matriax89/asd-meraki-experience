@@ -6,11 +6,12 @@ import { ArrowRight } from "lucide-react";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "Index" });
-  return { title: `Corsi · ${t("title")}` };
+  const t = await getTranslations({ locale, namespace: "PublicUi" });
+  return { title: `${t("coursesTitle")} · Meraki Experience` };
 }
 
 export default async function CorsiPage() {
+  const t = await getTranslations("PublicUi");
   const supabase = await createClient();
   const { data: corsi } = await supabase
     .from("courses")
@@ -24,12 +25,12 @@ export default async function CorsiPage() {
       <div className="container">
         {/* Header */}
         <div className="max-w-2xl mb-16 text-center mx-auto">
-          <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mb-4">La nostra offerta</p>
+          <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mb-4">{t("coursesBadge")}</p>
           <h1 className="text-5xl md:text-6xl font-heading font-extrabold text-slate-900 tracking-tight mb-6">
-            I Nostri Corsi
+            {t("coursesTitle")}
           </h1>
           <p className="text-lg text-slate-600 leading-relaxed">
-            Scopri la nostra offerta formativa. Dal potenziamento muscolare alle discipline aeree, troverai il percorso perfetto per te.
+            {t("coursesDescription")}
           </p>
         </div>
 
@@ -46,15 +47,15 @@ export default async function CorsiPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 mb-3">Nessun corso disponibile</h3>
+            <h3 className="text-2xl font-bold text-slate-900 mb-3">{t("coursesEmptyTitle")}</h3>
             <p className="text-slate-500 mb-8 max-w-md mx-auto">
-              Stiamo attualmente aggiornando il nostro palinsesto. Torna a trovarci presto per scoprire i nuovi corsi e le nuove masterclass.
+              {t("coursesEmptyDescription")}
             </p>
             <Link 
               href="/contatti" 
               className="inline-flex items-center justify-center gap-2 bg-slate-900 text-white font-bold py-4 px-8 rounded-2xl hover:bg-slate-800 transition-all hover:-translate-y-0.5 shadow-md"
             >
-              Richiedi informazioni <ArrowRight className="w-4 h-4" />
+              {t("requestInformation")} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         )}

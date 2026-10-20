@@ -8,7 +8,7 @@ import { ArrowRight, Check, LoaderCircle, LockKeyhole, Plus, Ticket, X } from "l
 import { activityAvailable, currentTier, eligiblePackages, nextTierComparison, packageAvailable, packageSavings, safeCommerceRedirect, type CommerceCatalog, type CommerceParticipant, type CommerceUpgrade } from "./commerce-public-model";
 import styles from "./commerce-purchase.module.css";
 import { attendeesSchema } from "@/lib/commerce/attendee";
-import { checkoutCopy } from "./checkout-copy";
+import { checkoutCopy, checkoutFailureCopy } from "./checkout-copy";
 import { CheckoutContactFields, emptyCheckoutContact, type CheckoutContact } from "./checkout-contact-fields";
 import { useCheckoutViewport } from "./use-checkout-viewport";
 import { commerceText, commerceQuoteLabel, commerceDiscountScope } from "@/lib/commerce/localization";
@@ -102,7 +102,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
       setQuoteLoading(true); setQuoteError(""); setQuote(null);
       void fetch("/api/commerce/quote", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(base), signal: controller.signal }).then(async (response) => {
         const result = await response.json();
-        if (!response.ok || !result.quote) throw new Error(discountError(result.code, locale) || (locale === "it" ? result.error : "") || copy.quoteError);
+        if (!response.ok || !result.quote) throw new Error(discountError(result.code, locale) || checkoutFailureCopy(result.code, locale) || (locale === "it" ? result.error : "") || copy.quoteError);
         if (!controller.signal.aborted) { setQuote(result.quote); setQuoteKey(JSON.stringify(base)); }
       }).catch((cause) => { if (!controller.signal.aborted) setQuoteError(cause instanceof Error && !/fetch|network|offline/i.test(cause.message) ? cause.message : copy.offline); }).finally(() => { if (!controller.signal.aborted) setQuoteLoading(false); });
     }, 250);
@@ -186,7 +186,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
         if (deterministic) { attempt.current = null; setCheckoutHold(null); setQuote(null); setQuoteRetry((value) => value + 1); }
         if (result.code === "request_expired" || result.code === "price_changed") attempt.current = null;
         if (result.code === "price_changed" && result.quote) { setQuote(result.quote); setQuoteKey(selectionKey); throw new Error(copy.priceChanged); }
-        throw new Error(result.code === "affiliate_unavailable" ? copy.affiliateUnavailable : discountError(result.code, locale) || (locale === "it" ? result.error : "") || copy.checkoutError);
+        throw new Error(discountError(result.code, locale) || checkoutFailureCopy(result.code, locale) || (locale === "it" ? result.error : "") || copy.checkoutError);
       }
       const url = safeCommerceRedirect(result.url, window.location.origin);
       if (!url) throw new Error(copy.redirectError);

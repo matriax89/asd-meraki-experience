@@ -5,8 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "Index" });
-  return { title: `Contatti · ${t("title")}` };
+  const t = await getTranslations({ locale, namespace: "Contact" });
+  return { title: `${t("title")} · Meraki Experience` };
 }
 
 export default async function ContattiPage({ params }: { params: Promise<{ locale: string }> }) {

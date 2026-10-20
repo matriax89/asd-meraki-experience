@@ -6,6 +6,7 @@ import vm from "node:vm";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { createTranslator } from "next-intl";
 
 const require = createRequire(import.meta.url);
 const now = Date.parse("2026-10-19T10:00:00Z");
@@ -61,7 +62,7 @@ function catalogue(rows, error = null, packagePrices) {
     "@/components/meraki/event-feed": eventFeed,
     "@/lib/commerce/feed": { enrichCommerceFeed: async (events) => { enrichment.push(events); return events.map((event) => ({ ...event, price: 1900, priceFrom: true, packagePrices })); } },
     "@/lib/i18n-utils": i18n,
-    "next-intl/server": { getTranslations: async () => (key) => key },
+    "next-intl/server": { getTranslations: async ({ locale, namespace }) => createTranslator({ locale, namespace, messages: JSON.parse(readFileSync(new URL(`../src/messages/${locale}.json`, import.meta.url), "utf8")), onError: error => { throw error; } }) },
     "@/components/ui/fade-in": { FadeIn: Container, StaggerContainer: Container, StaggerItem: Container },
     "@/components/public/course-card": { CourseCard: Empty },
     "@/components/public/youtube-carousel": { YoutubeCarousel: Empty },
@@ -93,7 +94,7 @@ test("active events replace only the general hero with the same localized app fe
     assert.match(html, /data-meraki-home-events/);
     assert.match(html, /href="\/eventi\/next-event"/);
     assert.doesNotMatch(html, /href="\/eventi\/old-event"/);
-    assert.doesNotMatch(html, /hero.headline/);
+    assert.ok(!html.includes(JSON.parse(readFileSync(new URL(`../src/messages/${locale}.json`, import.meta.url), "utf8")).Index.hero.headline), "active event replaces the localized general hero");
     assert.ok(!html.includes(model.eventPrice(1900, locale)), "homepage leaves prices on the event detail page");
     assert.ok(html.includes(model.eventLabels(locale).purchase), "the localized purchase action remains available");
     assert.match(html, /href="\/eventi\/next-event#top"/);
@@ -107,7 +108,7 @@ test("empty, archived-only and unavailable event catalogues preserve the general
   for (const fixture of [catalogue([]), catalogue([past]), catalogue([future], { message: "unavailable" })]) {
     const html = await fixture.renderHome();
     assert.doesNotMatch(html, /data-meraki-home-events/);
-    assert.match(html, /hero.headline/);
+    assert.ok(html.includes(JSON.parse(readFileSync(new URL("../src/messages/it.json", import.meta.url), "utf8")).Index.hero.headline), "without active events the actual general hero copy remains");
     assert.equal(fixture.enrichment.length, 0);
   }
 });

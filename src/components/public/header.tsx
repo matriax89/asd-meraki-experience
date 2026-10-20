@@ -13,6 +13,7 @@ import Image from "next/image";
 
 export function Header({ logoUrl, logoWhiteUrl, appearance }: { logoUrl?: string, logoWhiteUrl?: string, appearance?: "solid" }) {
   const t = useTranslations("Navigation");
+  const tUi = useTranslations("PublicUi");
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -103,6 +104,8 @@ export function Header({ logoUrl, logoWhiteUrl, appearance }: { logoUrl?: string
               <button
                 className="md:hidden p-2 rounded-lg hover:bg-secondary/20"
                 onClick={() => setOpen(!open)}
+                aria-label={open ? tUi("closeMenu") : tUi("openMenu")}
+                aria-expanded={open}
               >
                 {open ? <X className="w-[18px] h-[18px]" /> : <Menu className="w-[18px] h-[18px]" />}
               </button>

@@ -10,399 +10,129 @@ import { eventTravelCopy, eventTravelPath } from "@/lib/events/travel-link";
 const defaultResendApiKey = process.env.RESEND_API_KEY;
 const FROM_EMAIL = "noreply@merakiexperience.org";
 const DEFAULT_ADMIN_EMAIL = "info@merakiexperience.org";
-
-export async function sendLeadNotification(lead: any) {
-  // Fetch dynamic settings from database
-  const supabase = createAdminClient();
-  const { data: settings } = await supabase
-    .from("site_settings")
-    .select("value")
-    .eq("key", "homepage_content")
-    .single();
-
-  const integrations = (settings?.value as any)?.integrations;
-  
-  const emailProvider = integrations?.email_provider || "resend";
-  const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
-  const adminEmail = integrations?.admin_email || DEFAULT_ADMIN_EMAIL;
-
-  const subject = lead.source === "contact_form" 
-    ? `Nuovo Messaggio da ${lead.nome} ${lead.cognome}`
-    : `Nuova Richiesta Prova da ${lead.nome} ${lead.cognome}`;
-
-  const htmlContent = `<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nuovo Messaggio</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f5f5f7; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e5e5ea; overflow: hidden; margin: 0 auto;">
-          <tr>
-            <td style="padding: 48px 40px; text-align: left;">
-              <h1 style="color: #1d1d1f; margin: 0 0 8px 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">Nuovo Messaggio</h1>
-              <p style="color: #86868b; margin: 0 0 32px 0; font-size: 15px;">Hai ricevuto una nuova richiesta su ASD Meraki.</p>
-              
-              <hr style="border: none; border-top: 1px solid #e5e5ea; margin: 0 0 32px 0;" />
-
-              <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">Dettagli Contatto</h2>
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 32px;">
-                <tr>
-                  <td style="padding: 0 0 12px 0; font-size: 15px; color: #1d1d1f;">
-                    <span style="color: #86868b; display: inline-block; width: 80px;">Nome</span> ${lead.nome} ${lead.cognome}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 0 0 12px 0; font-size: 15px; color: #1d1d1f;">
-                    <span style="color: #86868b; display: inline-block; width: 80px;">Email</span> <a href="mailto:${lead.email}" style="color: #1d1d1f; text-decoration: underline;">${lead.email}</a>
-                  </td>
-                </tr>
-                ${lead.telefono && lead.telefono !== 'N/A' ? `
-                <tr>
-                  <td style="padding: 0 0 12px 0; font-size: 15px; color: #1d1d1f;">
-                    <span style="color: #86868b; display: inline-block; width: 80px;">Telefono</span> ${lead.telefono}
-                  </td>
-                </tr>` : ""}
-                <tr>
-                  <td style="padding: 0 0 0 0; font-size: 15px; color: #1d1d1f;">
-                    <span style="color: #86868b; display: inline-block; width: 80px;">Sorgente</span> ${lead.source}
-                  </td>
-                </tr>
-              </table>
-              
-              <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">Messaggio</h2>
-              <div style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin-bottom: 40px;">
-                ${lead.messaggio ? lead.messaggio.replace(/\\n/g, '<br />') : "<span style='color: #86868b; font-style: italic;'>Nessun messaggio fornito.</span>"}
-              </div>
-              
-              <div style="text-align: left;">
-                <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/it/admin/leads" style="display: inline-block; background-color: #1d1d1f; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 500; padding: 12px 24px; border-radius: 8px;">Gestisci nella Dashboard</a>
-              </div>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-
+type LeadEmail = Pick<Database["public"]["Tables"]["leads"]["Row"], "nome" | "cognome" | "email" | "telefono" | "messaggio" | "source">;
+type ShopOrderEmail = Pick<Database["public"]["Tables"]["orders"]["Row"], "numero_ordine" | "buyer_nome" | "buyer_cognome" | "buyer_email" | "ship_address_line1" | "ship_address_line2" | "ship_city" | "ship_postal_code" | "ship_state" | "ship_country" | "shipping_cents" | "total_cents">;
+type ShopItemEmail = Pick<Database["public"]["Tables"]["order_items"]["Row"], "product_nome" | "variant_descrizione" | "quantita" | "totale_cents">;
+type ServiceMessage = { to: string; subject: string; html: string; text: string; replyTo?: string };
+const emailAddress = (value: string) => /^[^\s@<>,;\r\n]+@[^\s@<>,;\r\n]+\.[^\s@<>,;\r\n]+$/.test(value);
+const html = (value: string | null | undefined) => escapeEmailHtml(value || "");
+const multiline = (value: string) => escapeEmailHtml(value).replace(/\r?\n/g, "<br/>");
+const eur = (cents: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(cents / 100);
+function siteOrigin() {
   try {
-    if (emailProvider === "smtp") {
-      const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
-      
-      if (!smtp_host || !smtp_user || !smtp_pass) {
-        console.warn("SMTP configurato in modo incompleto. Salto invio email.");
-        return { success: false, error: "Dati SMTP incompleti" };
-      }
+    const url = new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.merakiexperience.org");
+    if (url.protocol === "https:" || url.protocol === "http:") return url.origin;
+  } catch { /* A malformed optional origin must not break service email delivery. */ }
+  return "https://www.merakiexperience.org";
+}
 
-      const transporter = nodemailer.createTransport({
-        host: smtp_host,
-        port: parseInt(smtp_port) || 587,
-        secure: parseInt(smtp_port) === 465, // true for 465, false for other ports
-        auth: {
-          user: smtp_user,
-          pass: smtp_pass,
-        },
-      });
-
-      const info = await transporter.sendMail({
-        from: `"Meraki Experience" <${smtp_user}>`, // Use SMTP user as sender to avoid blocks
-        to: adminEmail,
-        subject: subject,
-        html: htmlContent,
-      });
-
-      return { success: true, data: info };
-
-    } else {
-      // Default to Resend
-      if (!activeApiKey) {
-        console.warn("RESEND_API_KEY non configurata. Salto invio email.");
-        return { success: false, error: "API Key non configurata" };
-      }
-
-      const resend = new Resend(activeApiKey);
-      const { data, error } = await resend.emails.send({
-        from: `Meraki Experience <${FROM_EMAIL}>`,
-        to: adminEmail,
-        subject,
-        html: htmlContent,
-      });
-
-      if (error) {
-        console.error("Resend API error:", error);
-        return { success: false, error };
-      }
-
+/** Every service email uses the same configured provider; never log credentials or private content. */
+async function sendServiceEmail(build: (adminEmail: string) => ServiceMessage, defaultAdminEmail = DEFAULT_ADMIN_EMAIL) {
+  try {
+    const { data: settings, error } = await createAdminClient().from("site_settings").select("value").eq("key", "homepage_content").single();
+    if (error) return { success: false };
+    const value = settings?.value;
+    const integrations: Record<string, unknown> = value && typeof value === "object" && !Array.isArray(value)
+      && value.integrations && typeof value.integrations === "object" && !Array.isArray(value.integrations) ? value.integrations : {};
+    const read = (name: string) => typeof integrations[name] === "string" ? integrations[name] as string : "";
+    const message = build(read("admin_email") || defaultAdminEmail);
+    if (!emailAddress(message.to) || /[\r\n]/.test(message.subject) || (message.replyTo && !emailAddress(message.replyTo))) return { success: false };
+    if (read("email_provider") === "smtp") {
+      const user = read("smtp_user"); const pass = read("smtp_pass"); const host = read("smtp_host");
+      const port = Number(read("smtp_port")) || 587;
+      if (!host || !emailAddress(user) || !pass) return { success: false };
+      const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
+      const data = await transporter.sendMail({ from: `Meraki Experience <${user}>`, ...message });
       return { success: true, data };
     }
-  } catch (error) {
-    console.error("Failed to send email:", error);
-    return { success: false, error };
-  }
-}
-
-export async function sendAutoReply(lead: any, locale: string = "it") {
-  const supabase = createAdminClient();
-  const { data: settings } = await supabase
-    .from("site_settings")
-    .select("value")
-    .eq("key", "homepage_content")
-    .single();
-
-  const integrations = (settings?.value as any)?.integrations;
-  const emailProvider = integrations?.email_provider || "resend";
-  const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
-
-  // Localized strings
-  const translations: Record<string, any> = {
-    it: {
-      subject: "Abbiamo ricevuto la tua richiesta - ASD Meraki Experience",
-      title: `Grazie per averci contattato, ${lead.nome}!`,
-      body: "Abbiamo ricevuto la tua richiesta e il nostro team la sta già esaminando. Ti risponderemo il prima possibile all'indirizzo email che ci hai fornito.",
-      messageLabel: "Il tuo messaggio",
-      defaultMessage: "Richiesta prova gratuita",
-      footer: "A presto",
-      team: "Il Team di ASD Meraki Experience"
-    },
-    en: {
-      subject: "We received your request - ASD Meraki Experience",
-      title: `Thanks for contacting us, ${lead.nome}!`,
-      body: "We have received your request and our team is already reviewing it. We will reply as soon as possible to the email address you provided.",
-      messageLabel: "Your message",
-      defaultMessage: "Free trial request",
-      footer: "See you soon",
-      team: "The ASD Meraki Experience Team"
-    },
-    de: {
-      subject: "Wir haben Ihre Anfrage erhalten - ASD Meraki Experience",
-      title: `Danke für Ihre Kontaktaufnahme, ${lead.nome}!`,
-      body: "Wir haben Ihre Anfrage erhalten und unser Team prüft sie bereits. Wir werden so schnell wie möglich an die von Ihnen angegebene E-Mail-Adresse antworten.",
-      messageLabel: "Ihre Nachricht",
-      defaultMessage: "Anfrage für ein kostenloses Probetraining",
-      footer: "Bis bald",
-      team: "Das Team von ASD Meraki Experience"
-    }
-  };
-
-  const t = translations[locale] || translations["it"];
-
-  const subject = t.subject;
-
-  const htmlContent = `<!DOCTYPE html>
-<html lang="${locale}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${t.title}</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f5f5f7; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e5e5ea; overflow: hidden; margin: 0 auto;">
-          <tr>
-            <td style="padding: 48px 40px; text-align: left;">
-              <h1 style="color: #1d1d1f; margin: 0 0 16px 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">${t.title}</h1>
-              <p style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin: 0 0 32px 0;">
-                ${t.body}
-              </p>
-              
-              <hr style="border: none; border-top: 1px solid #e5e5ea; margin: 0 0 32px 0;" />
-              
-              <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">${t.messageLabel}</h2>
-              <div style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin-bottom: 40px; font-style: italic; border-left: 3px solid #e5e5ea; padding-left: 16px;">
-                ${lead.messaggio ? lead.messaggio.replace(/\\n/g, '<br />') : t.defaultMessage}
-              </div>
-              
-              <p style="font-size: 15px; color: #86868b; margin: 0; line-height: 1.5;">
-                ${t.footer},<br />
-                <strong style="color: #1d1d1f; font-weight: 600;">${t.team}</strong>
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-
-  try {
-    if (emailProvider === "smtp") {
-      const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
-      
-      if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
-
-      const transporter = nodemailer.createTransport({
-        host: smtp_host,
-        port: parseInt(smtp_port) || 587,
-        secure: parseInt(smtp_port) === 465,
-        auth: { user: smtp_user, pass: smtp_pass },
-      });
-
-      await transporter.sendMail({
-        from: `"Meraki Experience" <${smtp_user}>`,
-        to: lead.email,
-        subject,
-        html: htmlContent,
-      });
-
-      return { success: true };
-    } else {
-      if (!activeApiKey) return { success: false };
-
-      const resend = new Resend(activeApiKey);
-      await resend.emails.send({
-        from: `Meraki Experience <${FROM_EMAIL}>`,
-        to: lead.email,
-        subject,
-        html: htmlContent,
-      });
-
-      return { success: true };
-    }
-  } catch (error) {
-    console.error("Failed to send auto-reply:", error);
+    const key = read("resend_api_key") || defaultResendApiKey;
+    if (!key) return { success: false };
+    const { data, error: deliveryError } = await new Resend(key).emails.send({
+      from: `Meraki Experience <${FROM_EMAIL}>`, to: message.to, subject: message.subject, html: message.html, text: message.text,
+      ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+    });
+    return deliveryError ? { success: false } : { success: true, data };
+  } catch {
+    console.error("Meraki service email delivery failed.");
     return { success: false };
   }
 }
 
-export async function sendOrderConfirmation(order: any, items: any[], locale: string = "it") {
-  const supabase = createAdminClient();
-  const { data: settings } = await supabase.from("site_settings").select("value").eq("key", "homepage_content").single();
-  const integrations = (settings?.value as any)?.integrations;
-  const emailProvider = integrations?.email_provider || "resend";
-  const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
-
-  const translations: Record<string, any> = {
-    it: { subject: `Conferma Ordine ${order.numero_ordine} - ASD Meraki Experience`, title: "Grazie per il tuo ordine!", body: "Abbiamo ricevuto il tuo ordine e lo stiamo preparando per la spedizione.", orderNum: "Numero Ordine", total: "Totale", shipTo: "Indirizzo di spedizione", footer: "A presto", team: "Il Team di ASD Meraki Experience" },
-    en: { subject: `Order Confirmation ${order.numero_ordine} - ASD Meraki Experience`, title: "Thank you for your order!", body: "We have received your order and are preparing it for shipment.", orderNum: "Order Number", total: "Total", shipTo: "Shipping Address", footer: "See you soon", team: "The ASD Meraki Experience Team" },
-    de: { subject: `Bestellbestätigung ${order.numero_ordine} - ASD Meraki Experience`, title: "Vielen Dank für Ihre Bestellung!", body: "Wir haben Ihre Bestellung erhalten und bereiten sie für den Versand vor.", orderNum: "Bestellnummer", total: "Gesamtbetrag", shipTo: "Lieferadresse", footer: "Bis bald", team: "Das Team von ASD Meraki Experience" }
-  };
-  const t = translations[locale] || translations["it"];
-
-  const itemsHtml = items.map(i => `
-    <tr>
-      <td style="padding: 12px 0; border-bottom: 1px solid #e5e5ea; color: #1d1d1f; font-size: 14px;">
-        <strong>${i.product_nome}</strong><br/>
-        <span style="color: #86868b; font-size: 12px;">${i.variant_descrizione || ''} x${i.quantita}</span>
-      </td>
-      <td style="padding: 12px 0; border-bottom: 1px solid #e5e5ea; text-align: right; color: #1d1d1f; font-size: 14px; font-weight: 600;">
-        €${(i.totale_cents / 100).toFixed(2)}
-      </td>
-    </tr>
-  `).join('');
-
-  const htmlContent = `<!DOCTYPE html>
-<html lang="\${locale}">
-<head>
-  <meta charset="utf-8">
-  <title>\${t.title}</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 20px;">
-    <tr><td align="center">
-      <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e5e5ea; overflow: hidden;">
-        <tr><td style="padding: 48px 40px; text-align: left;">
-          <h1 style="color: #1d1d1f; margin: 0 0 16px 0; font-size: 24px; font-weight: 600;">\${t.title}</h1>
-          <p style="font-size: 15px; line-height: 1.6; color: #1d1d1f; margin: 0 0 32px 0;">\${t.body}</p>
-          
-          <h2 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 16px 0; font-weight: 600;">\${t.orderNum}: \${order.numero_ordine}</h2>
-          
-          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
-            \${itemsHtml}
-            <tr>
-              <td style="padding: 16px 0 0 0; text-align: right; color: #86868b; font-size: 14px;">Spedizione:</td>
-              <td style="padding: 16px 0 0 0; text-align: right; color: #1d1d1f; font-size: 14px;">€\${(order.shipping_cents / 100).toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0 0 0; text-align: right; color: #1d1d1f; font-size: 16px; font-weight: 600;">\${t.total}:</td>
-              <td style="padding: 8px 0 0 0; text-align: right; color: #1d1d1f; font-size: 16px; font-weight: 600;">€\${(order.total_cents / 100).toFixed(2)}</td>
-            </tr>
-          </table>
-
-          <div style="background-color: #f5f5f7; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
-            <h3 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #86868b; margin: 0 0 8px 0; font-weight: 600;">\${t.shipTo}</h3>
-            <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #1d1d1f;">
-              \${order.buyer_nome} \${order.buyer_cognome}<br/>
-              \${order.ship_address_line1}<br/>
-              \${order.ship_address_line2 ? order.ship_address_line2 + '<br/>' : ''}
-              \${order.ship_city}, \${order.ship_postal_code} (\${order.ship_state})<br/>
-              \${order.ship_country}
-            </p>
-          </div>
-          
-          <p style="font-size: 15px; color: #86868b; margin: 0;">\${t.footer},<br/><strong style="color: #1d1d1f;">\${t.team}</strong></p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
-
-  try {
-    if (emailProvider === "smtp") {
-      const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
-      if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
-      const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: `"Meraki Experience" <\${smtp_user}>`, to: order.buyer_email, subject: t.subject, html: htmlContent });
-      return { success: true };
-    } else {
-      if (!activeApiKey) return { success: false };
-      const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: `Meraki Experience <\${FROM_EMAIL}>`, to: order.buyer_email, subject: t.subject, html: htmlContent });
-      return { success: true };
-    }
-  } catch (error) {
-    console.error("Failed to send order confirmation:", error);
-    return { success: false };
-  }
+export async function sendLeadNotification(lead: LeadEmail) {
+  return sendServiceEmail(adminEmail => {
+    const name = [lead.nome, lead.cognome].filter(Boolean).join(" ");
+    const contact = lead.source === "contact_form";
+    const title = contact ? "Nuovo messaggio dal sito" : "Nuova richiesta di prova gratuita";
+    const subject = `${title} · ${name}`.replace(/[\r\n]+/g, " ");
+    const message = lead.messaggio || "Nessun messaggio fornito.";
+    const fields = [["Nome", name], ["Email", lead.email || ""], ...(lead.telefono && lead.telefono !== "N/A" ? [["Telefono", lead.telefono]] : []), ["Sorgente", contact ? "Modulo contatti" : lead.source]];
+    const url = `${siteOrigin()}/it/admin/leads`;
+    return { to: adminEmail, ...(lead.email ? { replyTo: lead.email } : {}), subject,
+      html: renderMerakiEmail({ locale: "it", siteUrl: siteOrigin(), title, preheader: `${title} · ${name}`,
+        bodyHtml: `<p style="margin:0 0 20px;">Hai ricevuto una nuova richiesta su Meraki Experience.</p>${fields.map(([label, value]) => `<p style="margin:0 0 12px;"><strong>${html(label)}:</strong> ${html(value)}</p>`).join("")}<h2 style="font-size:18px;margin:26px 0 12px;">Messaggio</h2><p style="margin:0;">${multiline(message)}</p>`,
+        cta: { label: "Gestisci nella dashboard", url }, footerHtml: "Notifica di servizio per l’amministrazione Meraki Experience." }),
+      text: `${title}\n\n${fields.map(([label, value]) => `${label}: ${value}`).join("\n")}\n\nMessaggio\n${message}\n\nGestisci nella dashboard: ${url}`,
+    };
+  });
 }
 
-export async function sendOrderNotification(order: any, items: any[]) {
-  const supabase = createAdminClient();
-  const { data: settings } = await supabase.from("site_settings").select("value").eq("key", "homepage_content").single();
-  const integrations = (settings?.value as any)?.integrations;
-  const emailProvider = integrations?.email_provider || "resend";
-  const activeApiKey = integrations?.resend_api_key || defaultResendApiKey;
-  const targetEmail = integrations?.admin_email || "amministrazione.meraki@gmail.com";
+const autoReplyCopy = {
+  it: { subject: "Abbiamo ricevuto la tua richiesta · Meraki Experience", title: "Grazie per averci contattato", body: "Abbiamo ricevuto la tua richiesta. Il nostro team ti risponderà il prima possibile all’indirizzo email che ci hai fornito.", message: "Il tuo messaggio", trial: "Richiesta di prova gratuita", empty: "Richiesta di informazioni", action: "Scopri gli eventi Meraki", footer: "Questa email conferma la ricezione della tua richiesta. Non è un’iscrizione alle comunicazioni promozionali." },
+  en: { subject: "We received your request · Meraki Experience", title: "Thank you for contacting us", body: "We have received your request. Our team will reply as soon as possible to the email address you provided.", message: "Your message", trial: "Free trial request", empty: "Information request", action: "Discover Meraki events", footer: "This email confirms that we received your request. It does not subscribe you to promotional messages." },
+  de: { subject: "Wir haben deine Anfrage erhalten · Meraki Experience", title: "Vielen Dank für deine Nachricht", body: "Wir haben deine Anfrage erhalten. Unser Team antwortet dir so bald wie möglich an die angegebene E-Mail-Adresse.", message: "Deine Nachricht", trial: "Anfrage für ein kostenloses Probetraining", empty: "Informationsanfrage", action: "Meraki-Veranstaltungen entdecken", footer: "Diese E-Mail bestätigt den Eingang deiner Anfrage. Du wirst dadurch nicht für Werbemitteilungen angemeldet." },
+  es: { subject: "Hemos recibido tu solicitud · Meraki Experience", title: "Gracias por contactar con nosotros", body: "Hemos recibido tu solicitud. Nuestro equipo te responderá lo antes posible a la dirección de correo que nos has facilitado.", message: "Tu mensaje", trial: "Solicitud de clase de prueba gratuita", empty: "Solicitud de información", action: "Descubre los eventos Meraki", footer: "Este correo confirma que hemos recibido tu solicitud. No te suscribe a comunicaciones promocionales." },
+};
+export async function sendAutoReply(lead: LeadEmail, locale = "it") {
+  return sendServiceEmail(() => {
+    const language = emailLocale(locale); const t = autoReplyCopy[language];
+    const title = `${t.title}${lead.nome ? `, ${lead.nome}` : ""}!`;
+    const message = lead.messaggio || (lead.source === "contact_form" ? t.empty : t.trial);
+    const url = `${siteOrigin()}/${language}/eventi`;
+    return { to: lead.email || "", subject: t.subject,
+      html: renderMerakiEmail({ locale: language, siteUrl: siteOrigin(), title, preheader: t.body,
+        bodyHtml: `<p style="margin:0 0 24px;">${html(t.body)}</p><h2 style="font-size:18px;margin:0 0 12px;">${html(t.message)}</h2><div style="padding:18px;border-left:3px solid #c2a36b;border-radius:8px;background:#fffefa;">${multiline(message)}</div>`, cta: { label: t.action, url }, footerHtml: html(t.footer) }),
+      text: `${title}\n${t.body}\n\n${t.message}\n${message}\n\n${t.action}: ${url}\n\n${t.footer}`,
+    };
+  });
+}
 
-  const subject = `Nuovo Ordine Shop: \${order.numero_ordine}`;
-  
-  const itemsHtml = items.map(i => `<li>\${i.product_nome} (\${i.variant_descrizione || ''}) x\${i.quantita}</li>`).join('');
-
-  const htmlContent = `<!DOCTYPE html>
-<html lang="it">
-<head><meta charset="utf-8"></head>
-<body style="margin: 0; padding: 40px 20px; font-family: -apple-system, sans-serif; background-color: #f5f5f7;">
-  <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 16px;">
-    <h1 style="margin: 0 0 16px; font-size: 20px;">Nuovo Ordine Ricevuto</h1>
-    <p>È stato appena pagato l'ordine <strong>\${order.numero_ordine}</strong> da \${order.buyer_nome} \${order.buyer_cognome} (\${order.buyer_email}).</p>
-    <ul>\${itemsHtml}</ul>
-    <p>Totale: €\${(order.total_cents / 100).toFixed(2)}</p>
-    <a href="\${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.merakiexperience.org'}/it/admin/ordini" style="display: inline-block; background: #1d1d1f; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin-top: 16px;">Gestisci Ordini</a>
-  </div>
-</body></html>`;
-
-  try {
-    if (emailProvider === "smtp") {
-      const { smtp_host, smtp_port, smtp_user, smtp_pass } = integrations;
-      if (!smtp_host || !smtp_user || !smtp_pass) return { success: false };
-      const transporter = nodemailer.createTransport({ host: smtp_host, port: parseInt(smtp_port) || 587, secure: parseInt(smtp_port) === 465, auth: { user: smtp_user, pass: smtp_pass } });
-      await transporter.sendMail({ from: `"Sistema" <\${smtp_user}>`, to: targetEmail, subject, html: htmlContent });
-    } else {
-      if (!activeApiKey) return { success: false };
-      const resend = new Resend(activeApiKey);
-      await resend.emails.send({ from: `Sistema <\${FROM_EMAIL}>`, to: targetEmail, subject, html: htmlContent });
-    }
-  } catch (error) {
-    console.error("Failed to send admin order notification:", error);
-  }
+const orderCopy = {
+  it: { subject: "Conferma ordine", title: "Grazie per il tuo ordine!", body: "Il pagamento è confermato. Qui trovi il riepilogo del tuo acquisto e l’indirizzo di spedizione.", number: "Numero ordine", shipping: "Spedizione", total: "Totale pagato", subtotal: "Totale prodotti", saving: "Sconto applicato", address: "Indirizzo di spedizione", help: "Hai bisogno di aiuto?", contact: "Contattaci", footer: "Email di servizio relativa al tuo acquisto. Non è necessario il consenso alle comunicazioni promozionali per riceverla." },
+  en: { subject: "Order confirmation", title: "Thank you for your order!", body: "Your payment is confirmed. Here are your purchase summary and shipping address.", number: "Order number", shipping: "Shipping", total: "Total paid", subtotal: "Product total", saving: "Discount applied", address: "Shipping address", help: "Need help?", contact: "Contact us", footer: "Service email about your purchase. Promotional consent is not required to receive it." },
+  de: { subject: "Bestellbestätigung", title: "Vielen Dank für deine Bestellung!", body: "Deine Zahlung ist bestätigt. Hier findest du die Zusammenfassung deines Kaufs und die Lieferadresse.", number: "Bestellnummer", shipping: "Versand", total: "Bezahlter Gesamtbetrag", subtotal: "Warensumme", saving: "Angewandter Rabatt", address: "Lieferadresse", help: "Brauchst du Hilfe?", contact: "Kontaktiere uns", footer: "Service-E-Mail zu deinem Kauf. Du erhältst sie unabhängig von deiner Einwilligung in Werbemitteilungen." },
+  es: { subject: "Confirmación del pedido", title: "¡Gracias por tu pedido!", body: "Tu pago está confirmado. Aquí tienes el resumen de tu compra y la dirección de envío.", number: "Número de pedido", shipping: "Envío", total: "Total pagado", subtotal: "Total de productos", saving: "Descuento aplicado", address: "Dirección de envío", help: "¿Necesitas ayuda?", contact: "Contáctanos", footer: "Correo de servicio sobre tu compra. No se necesita consentimiento para promociones para recibirlo." },
+};
+const itemText = (item: ShopItemEmail) => `${item.product_nome}${item.variant_descrizione ? ` · ${item.variant_descrizione}` : ""} × ${item.quantita}: ${eur(item.totale_cents)}`;
+function orderItemsHtml(items: ShopItemEmail[]) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${items.map(item => `<tr><td style="padding:14px 10px 14px 0;border-bottom:1px solid #e3e5dd;"><strong>${html(item.product_nome)}</strong><br/><span style="font-size:13px;color:#626d63;">${html(item.variant_descrizione)} × ${item.quantita}</span></td><td style="padding:14px 0;border-bottom:1px solid #e3e5dd;text-align:right;white-space:nowrap;font-weight:650;">${html(eur(item.totale_cents))}</td></tr>`).join("")}</table>`;
+}
+export async function sendOrderConfirmation(order: ShopOrderEmail, items: ShopItemEmail[], locale = "it") {
+  return sendServiceEmail(() => {
+    const language = emailLocale(locale); const t = orderCopy[language];
+    const name = [order.buyer_nome, order.buyer_cognome].filter(Boolean).join(" ");
+    const address = [name, order.ship_address_line1, order.ship_address_line2, `${order.ship_postal_code} ${order.ship_city}${order.ship_state ? ` (${order.ship_state})` : ""}`, order.ship_country].filter(Boolean).join("\n");
+    const productTotal = items.reduce((sum, item) => sum + item.totale_cents, 0);
+    const savings = Math.max(0, productTotal + order.shipping_cents - order.total_cents);
+    const totals = [[t.subtotal, eur(productTotal)], ...(savings ? [[t.saving, `−${eur(savings)}`]] : []), [t.shipping, eur(order.shipping_cents)], [t.total, eur(order.total_cents)]];
+    const url = `${siteOrigin()}/${language}/contatti`;
+    return { to: order.buyer_email, subject: `${t.subject} ${order.numero_ordine} · Meraki Experience`.replace(/[\r\n]+/g, " "),
+      html: renderMerakiEmail({ locale: language, siteUrl: siteOrigin(), title: t.title, preheader: `${t.number}: ${order.numero_ordine}`,
+        bodyHtml: `<p style="margin:0 0 20px;">${html(t.body)}</p><p style="margin:0 0 18px;"><strong>${html(t.number)}:</strong> ${html(order.numero_ordine)}</p>${orderItemsHtml(items)}${totals.map(([label, value], index) => `<p style="margin:16px 0 0;text-align:right;${index === totals.length - 1 ? "font-size:18px;font-weight:700;" : "font-size:14px;"}">${html(label)}: <strong>${html(value)}</strong></p>`).join("")}<div style="margin:24px 0;padding:20px;border:1px solid #e3e5dd;border-radius:16px;background:#fffefa;"><h2 style="font-size:18px;margin:0 0 12px;">${html(t.address)}</h2><p style="margin:0;">${multiline(address)}</p></div><p style="margin:0;">${html(t.help)}</p>`, cta: { label: t.contact, url }, footerHtml: html(t.footer) }),
+      text: `${t.title}\n${t.body}\n\n${t.number}: ${order.numero_ordine}\n\n${items.map(itemText).join("\n")}\n\n${totals.map(([label, value]) => `${label}: ${value}`).join("\n")}\n\n${t.address}\n${address}\n\n${t.contact}: ${url}\n\n${t.footer}`,
+    };
+  });
+}
+export async function sendOrderNotification(order: ShopOrderEmail, items: ShopItemEmail[]) {
+  return sendServiceEmail(adminEmail => {
+    const title = "Nuovo ordine shop ricevuto";
+    const name = [order.buyer_nome, order.buyer_cognome].filter(Boolean).join(" ");
+    const url = `${siteOrigin()}/it/admin/ordini`;
+    return { to: adminEmail, subject: `Nuovo ordine shop: ${order.numero_ordine}`.replace(/[\r\n]+/g, " "),
+      html: renderMerakiEmail({ locale: "it", siteUrl: siteOrigin(), title, preheader: `Ordine ${order.numero_ordine} · ${eur(order.total_cents)}`,
+        bodyHtml: `<p style="margin:0 0 18px;">È stato pagato l’ordine <strong>${html(order.numero_ordine)}</strong>.</p><p style="margin:0 0 18px;"><strong>Cliente:</strong> ${html(name)}<br/><strong>Email:</strong> ${html(order.buyer_email)}</p>${orderItemsHtml(items)}<p style="margin:20px 0 0;font-size:18px;"><strong>Totale pagato: ${html(eur(order.total_cents))}</strong></p>`, cta: { label: "Gestisci ordini", url }, footerHtml: "Notifica di servizio per l’amministrazione Meraki Experience." }),
+      text: `${title}\nOrdine: ${order.numero_ordine}\nCliente: ${name}\nEmail: ${order.buyer_email}\n\n${items.map(itemText).join("\n")}\n\nTotale pagato: ${eur(order.total_cents)}\n\nGestisci ordini: ${url}`,
+    };
+  }, "amministrazione.meraki@gmail.com");
 }
 
 type TicketEmail = Pick<Database["public"]["Tables"]["tickets"]["Row"], "id" | "qr_code" | "buyer_email" | "buyer_nome" | "buyer_cognome">;

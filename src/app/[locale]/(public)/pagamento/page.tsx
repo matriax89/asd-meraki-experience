@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { PaymentStatus } from "./payment-status";
 
-export const metadata: Metadata = {
-  title: "Il tuo biglietto | Meraki",
-  robots: { index: false, follow: false },
-  referrer: "no-referrer",
-};
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  const titles: Record<string, string> = { it: "Il tuo biglietto", en: "Your ticket", de: "Dein Ticket", es: "Tu entrada" };
+  return { title: `${titles[locale] || titles.it} | Meraki`, robots: { index: false, follow: false }, referrer: "no-referrer" };
+}
 
 export default async function PaymentPage({ searchParams, params }: {
   params: Promise<{ locale: string }>;

@@ -6,6 +6,7 @@ import { useTranslations, useLocale } from "next-intl";
 
 export function ContactForm() {
   const t = useTranslations("Contact");
+  const tUi = useTranslations("PublicUi");
   const locale = useLocale();
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null);
@@ -53,7 +54,7 @@ export function ContactForm() {
 
       {result?.error && (
         <div className="p-4 bg-red-50 text-red-700 text-sm font-medium rounded-xl border border-red-200">
-          {result.error}
+          {tUi("formError")}
         </div>
       )}
 

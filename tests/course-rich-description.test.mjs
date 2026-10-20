@@ -7,6 +7,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import ts from "typescript";
+import { createTranslator } from "next-intl";
 import { eventDescription } from "./helpers/rich-text-modules.mjs";
 
 const require = createRequire(import.meta.url);
@@ -23,6 +24,7 @@ const texts = { it: "Descrizione italiana", en: "English description", de: "Deut
 const full = Object.fromEntries(Object.entries(texts).map(([locale, value]) => [locale, `<p><strong>${value}</strong> <em>Meraki</em></p><ul><li>Primo punto</li></ul><img src=x onerror=alert(1)><script>alert(2)</script>`]));
 const row = { nome: names, slug: "corso-meraki", descrizione_breve: texts, descrizione_lunga: full, copertina_url: null, benefici: null, galleria_urls: [], istruttore: null };
 const course = load("app/[locale]/(public)/corsi/[slug]/page.tsx", {
+  "next-intl/server": { getTranslations: async ({ locale, namespace }) => createTranslator({ locale, namespace, messages: JSON.parse(readFileSync(new URL(`../src/messages/${locale}.json`, import.meta.url), "utf8")), onError: error => { throw error; } }) },
   "next/navigation": { notFound() { throw Error("Not found"); } },
   "@/lib/supabase/server": { createClient: async () => ({ from() { return { select() { return this; }, eq() { return this; }, single: async () => ({ data: row }) }; } }) },
   "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) },

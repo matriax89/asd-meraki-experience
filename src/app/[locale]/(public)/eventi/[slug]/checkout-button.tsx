@@ -6,7 +6,7 @@ import { useLocale } from "next-intl";
 import { ArrowRight, LoaderCircle, LockKeyhole, Ticket, X } from "lucide-react";
 import { attendeeSchema } from "@/lib/commerce/attendee";
 import { CheckoutContactFields, emptyCheckoutContact } from "@/components/meraki/checkout-contact-fields";
-import { checkoutCopy } from "@/components/meraki/checkout-copy";
+import { checkoutCopy, checkoutFailureCopy } from "@/components/meraki/checkout-copy";
 import { safeCommerceRedirect } from "@/components/meraki/commerce-public-model";
 import { useCheckoutViewport } from "@/components/meraki/use-checkout-viewport";
 import styles from "@/components/meraki/commerce-purchase.module.css";
@@ -48,7 +48,7 @@ export function CheckoutButton({ eventId, affiliates = [] }: { eventId: string; 
     const controller = new AbortController();
     void fetch("/api/checkout/ticket/quote", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", signal: controller.signal, body: JSON.stringify({ eventId, ...(discountCode ? { discountCode } : {}) }) }).then(async (response) => {
       const result = await response.json();
-      if (!response.ok || !result.quote) throw new Error(discountError(result.code, locale) || (locale === "it" ? result.error : "") || copy.quoteError);
+      if (!response.ok || !result.quote) throw new Error(discountError(result.code, locale) || checkoutFailureCopy(result.code, locale) || (locale === "it" ? result.error : "") || copy.quoteError);
       if (!controller.signal.aborted) { setQuote(result.quote); setQuoteKey(requestKey); }
     }).catch((cause) => { if (!controller.signal.aborted) { setQuote(null); setQuoteError(cause instanceof Error && !/fetch|network|offline/i.test(cause.message) ? cause.message : copy.offline); } }).finally(() => { if (!controller.signal.aborted) setQuoteLoading(false); });
     return () => controller.abort();
@@ -97,7 +97,7 @@ export function CheckoutButton({ eventId, affiliates = [] }: { eventId: string; 
         if (deterministic) { resetCheckoutAttempt(); setCheckoutHold(null); setQuote(null); setQuoteLoading(true); setQuoteRetry((value) => value + 1); }
         if (data.code === "request_expired" || data.code === "price_changed") attempt.current = null;
         if (data.code === "price_changed" && data.quote) { setQuote(data.quote); setQuoteKey(requestKey); throw new Error(copy.priceChanged); }
-        throw new Error(data.code === "affiliate_unavailable" ? copy.affiliateUnavailable : discountError(data.code, locale) || (locale === "it" ? data.error : "") || copy.checkoutError);
+        throw new Error(discountError(data.code, locale) || checkoutFailureCopy(data.code, locale) || (locale === "it" ? data.error : "") || copy.checkoutError);
       }
       const checkoutUrl = safeCommerceRedirect(data.url, window.location.origin);
       if (!checkoutUrl) throw new Error(copy.redirectError);

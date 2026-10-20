@@ -5,13 +5,15 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 
 export async function generateMetadata() {
+  const t = await getTranslations("PublicUi");
   return {
-    title: "Diventa Sponsor | ASD Meraki Experience",
-    description: "Scopri come supportare il nostro progetto sportivo e i vantaggi di diventare un nostro partner ufficiale.",
+    title: `${t("sponsorTitle")} | ASD Meraki Experience`,
+    description: t("sponsorDescription"),
   };
 }
 
 export default async function SponsorsPage() {
+  const t = await getTranslations("PublicUi");
   const supabase = await createClient();
   const { data: sponsorsList } = await supabase
     .from("sponsors")
@@ -19,12 +21,7 @@ export default async function SponsorsPage() {
     .eq("attivo", true)
     .order("ordine_display", { ascending: true });
 
-  const benefits = [
-    "Visibilità Premium del tuo brand all'interno delle nostre sedi e sui nostri canali digitali.",
-    "Accesso esclusivo a eventi, workshop e masterclass organizzati dall'associazione.",
-    "Associare il tuo marchio a valori di eccellenza, salute, benessere e dedizione sportiva.",
-    "Iniziative di co-marketing personalizzate per raggiungere una community attiva e fedele."
-  ];
+  const benefits = [t("sponsorBenefit1"), t("sponsorBenefit2"), t("sponsorBenefit3"), t("sponsorBenefit4")];
 
   return (
     <div className="flex flex-col min-h-screen pt-24 pb-12">
@@ -32,16 +29,16 @@ export default async function SponsorsPage() {
       {/* Header & Intro */}
       <section className="py-12 md:py-20">
         <div className="container max-w-4xl text-center">
-          <p className="text-[13px] font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-4">Partnership</p>
+          <p className="text-[13px] font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-4">{t("partnership")}</p>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tighter mb-6 text-foreground leading-[1.1]">
-            Diventa nostro Sponsor
+            {t("sponsorTitle")}
           </h1>
           <p className="text-lg text-muted-foreground leading-relaxed mb-10 max-w-2xl mx-auto">
-            Unisciti alla nostra missione. Sostenere ASD Meraki Experience significa investire nel benessere, nello sport e in una community in continua crescita.
+            {t("sponsorDescription")}
           </p>
           
           <div className="bg-secondary/40 border border-border/50 p-8 md:p-12 rounded-[2rem] text-left">
-            <h3 className="text-2xl font-bold mb-6 tracking-tight">Perché diventare partner?</h3>
+            <h3 className="text-2xl font-bold mb-6 tracking-tight">{t("sponsorBenefits")}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {benefits.map((b, i) => (
                 <div key={i} className="flex gap-3">
@@ -53,7 +50,7 @@ export default async function SponsorsPage() {
             
             <div className="mt-10 pt-8 border-t border-border/50 text-center">
               <Link href="/contatti" className="inline-flex h-12 items-center gap-2 rounded-full bg-foreground text-background px-8 text-sm font-bold transition-all hover:opacity-90 active:scale-[0.97]">
-                Contattaci per una proposta
+                {t("sponsorContact")}
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
@@ -61,22 +58,22 @@ export default async function SponsorsPage() {
 
           {/* Erogazione Liberale */}
           <div className="mt-8 bg-amber-50/50 border border-amber-100 p-8 md:p-12 rounded-[2rem] text-left">
-            <h3 className="text-2xl font-bold mb-4 tracking-tight text-amber-900">Supportaci con un'Erogazione Liberale</h3>
+            <h3 className="text-2xl font-bold mb-4 tracking-tight text-amber-900">{t("donationTitle")}</h3>
             <div className="space-y-4 text-[15px] text-amber-800/80 leading-relaxed">
               <p>
-                Oltre alla sponsorizzazione commerciale, puoi sostenere ASD Meraki Experience attraverso un'<strong>Erogazione Liberale</strong> (donazione volontaria). 
+                {t("donationDescription")}
               </p>
               <p>
-                Le erogazioni liberali a favore delle Associazioni Sportive Dilettantistiche (ASD) godono di importanti <strong>agevolazioni fiscali</strong> previste dalla normativa italiana (art. 15, comma 1, lett. i-ter del TUIR per le persone fisiche e art. 100, comma 2, lett. m del TUIR per i soggetti IRES). 
+                {t("donationTax")}
               </p>
               <p>
-                Privati cittadini e aziende possono così contribuire attivamente alla crescita dello sport e del benessere sul territorio, deducendo o detraendo l'importo donato nella propria dichiarazione dei redditi.
+                {t("donationTaxDescription")}
               </p>
             </div>
             
             <div className="mt-8 pt-6 border-t border-amber-200/50">
               <Link href="/contatti" className="inline-flex h-12 items-center gap-2 rounded-full bg-amber-600 text-white px-8 text-sm font-bold transition-all hover:bg-amber-700 active:scale-[0.97]">
-                Richiedi informazioni per donare
+                {t("donationContact")}
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
@@ -88,7 +85,7 @@ export default async function SponsorsPage() {
       <section className="py-16 bg-secondary/20">
         <div className="container max-w-6xl">
           <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Chi ci sostiene già</h2>
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{t("sponsorsCurrent")}</h2>
           </div>
           
           <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6">
@@ -118,7 +115,7 @@ export default async function SponsorsPage() {
               </Link>
             )) : (
               <div className="w-full text-center text-muted-foreground py-12">
-                Diventa il nostro primo sponsor! Contattaci per scoprire i vantaggi.
+                {t("sponsorsEmpty")}
               </div>
             )}
           </div>

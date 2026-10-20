@@ -1,6 +1,6 @@
 import { Link } from "@/i18n/routing";
 
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { EventPoster } from "@/components/meraki/event-poster";
 
@@ -29,6 +29,7 @@ export async function EventCard({
   prezzo_cents,
 }: EventCardProps) {
   const locale = await getLocale();
+  const t = await getTranslations({ locale, namespace: "PublicUi" });
   const date = new Date(data_inizio);
   const formattedDate = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Rome" }).format(date);
   const formattedTime = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Rome" }).format(date);
@@ -45,7 +46,7 @@ export async function EventCard({
       <div className="mx-auto w-full max-w-[420px] p-4"><EventPoster src={copertina_url || null} title={getLocalizedText(titolo, locale)} locale={locale} /></div>
       
       <div className="p-6 md:p-8 flex flex-col flex-1 relative z-20 bg-background">
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{tipo}</p>
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t(tipo === "evento" ? "event" : tipo)}</p>
         <div className="flex items-center text-[12px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 gap-2">
           <span>{formattedDate}</span>
           <span className="text-border">•</span>
@@ -64,18 +65,18 @@ export async function EventCard({
         
         <div className="mt-auto pt-6 flex items-end justify-between border-t border-border/40">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Prezzo</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">{t("price")}</span>
             <span className="text-xl font-extrabold text-foreground tracking-tight">
-              {prezzo_cents ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(prezzo_cents / 100) : "Gratis"}
+              {prezzo_cents ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(prezzo_cents / 100) : t("free")}
             </span>
           </div>
           
           <div className="flex flex-col items-end">
             {isEsaurito ? (
-              <span className="text-red-500 font-bold text-xs uppercase tracking-widest px-3 py-1.5 bg-red-50 dark:bg-red-950/30 rounded-lg">Esaurito</span>
+              <span className="text-red-500 font-bold text-xs uppercase tracking-widest px-3 py-1.5 bg-red-50 dark:bg-red-950/30 rounded-lg">{t("soldOut")}</span>
             ) : postiDisponibili !== null ? (
               <span className="text-sm font-medium text-muted-foreground bg-secondary/50 px-3 py-1 rounded-lg">
-                <strong className="text-foreground">{postiDisponibili}</strong> posti
+                {t("spots", { count: postiDisponibili })}
               </span>
             ) : null}
           </div>

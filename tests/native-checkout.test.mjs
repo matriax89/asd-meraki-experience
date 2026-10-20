@@ -389,3 +389,12 @@ for (const locale of ["it", "en", "de", "es"]) test(`${locale} legacy checkout l
   assert.equal(checkout.calls.at(-1).body.buyerEmail, "buyer@example.test");
   await checkout.fail();
 });
+
+for (const locale of ["it", "en", "de", "es"]) test(`${locale} legacy checkout keeps the pending-payment instruction translated`, async (context) => {
+  const checkout = await setup(context, { locale });
+  await checkout.open(); await checkout.fill(); await checkout.submit();
+  await checkout.respond({ code: "checkout_pending", error: "MESSAGGIO SERVER ITALIANO" });
+  assert.equal(checkout.form.querySelector('[role="alert"]').textContent, checkoutCopy.checkoutFailureCopy("checkout_pending", locale));
+  assert.equal(checkout.dialog.open, true);
+  assert.ok(!checkout.form.textContent.includes("MESSAGGIO SERVER ITALIANO"));
+});

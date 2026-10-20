@@ -852,3 +852,13 @@ for (const locale of ["it", "en", "de", "es"]) test(`${locale} unavailable affil
   assert.equal("affiliateId" in retry, false);
   assert.equal(retry.attendees[0].email, "matias@example.test");
 });
+
+for (const locale of ["it", "en", "de", "es"]) test(`${locale} sold-out quotes show the specific localized reason instead of an Italian API message`, async (context) => {
+  const ui = await setup(context, catalog, locale);
+  ui.setQuoteResponse(() => ({ ok: false, json: async () => ({ code: "sold_out", error: "MESSAGGIO SERVER ITALIANO" }) }));
+  await ui.open(); await ui.settleQuote();
+  assert.equal(window.document.querySelector('[role="alert"]').textContent, checkoutCopy.checkoutFailureCopy("sold_out", locale));
+  assert.equal(window.document.querySelector('button[type="submit"]').disabled, true);
+  assert.ok(ui.calls.filter((call) => call.url === "/api/commerce/quote").every((call) => call.body.locale === locale));
+  assert.ok(!window.document.body.textContent.includes("MESSAGGIO SERVER ITALIANO"));
+});

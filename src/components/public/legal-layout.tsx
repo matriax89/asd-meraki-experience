@@ -3,21 +3,24 @@
 import { usePathname } from "next/navigation";
 import { Link } from "@/i18n/routing";
 import { ShieldCheck, FileText, Cookie } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function LegalLayout({ children, title, lastUpdated }: { children: React.ReactNode, title: string, lastUpdated: string }) {
   const pathname = usePathname();
+  const t = useTranslations("Legal");
+  const tUi = useTranslations("PublicUi");
 
   const links = [
-    { href: "/legal/privacy-policy", label: "Privacy Policy", icon: ShieldCheck },
-    { href: "/legal/termini-e-condizioni", label: "Termini e Condizioni", icon: FileText },
-    { href: "/legal/cookie-policy", label: "Cookie Policy", icon: Cookie },
+    { href: "/legal/privacy-policy", label: t("privacy.title"), icon: ShieldCheck },
+    { href: "/legal/termini-e-condizioni", label: t("terms.title"), icon: FileText },
+    { href: "/legal/cookie-policy", label: t("cookie.title"), icon: Cookie },
   ];
 
   return (
     <div className="container py-12 md:py-24 max-w-6xl">
       <div className="mb-12">
         <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-foreground tracking-tight">{title}</h1>
-        <p className="text-muted-foreground mt-3">Ultimo aggiornamento: {lastUpdated}</p>
+        <p className="text-muted-foreground mt-3">{tUi("lastUpdated", { date: lastUpdated })}</p>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8 lg:gap-16 relative items-start">

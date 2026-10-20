@@ -1,6 +1,6 @@
 "use client";
 
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
 import { useState, useTransition, useRef, useEffect } from "react";
 import { ChevronDown, Check } from "lucide-react";
@@ -17,6 +17,7 @@ export function LanguageSwitcher() {
   const [isPending, startTransition] = useTransition();
   const [isOpen, setIsOpen] = useState(false);
   const locale = useLocale();
+  const t = useTranslations("PublicUi");
   const router = useRouter();
   const pathname = usePathname();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -44,6 +45,8 @@ export function LanguageSwitcher() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={isPending}
+        aria-label={t("language")}
+        aria-expanded={isOpen}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors opacity-90 hover:opacity-100"
       >
         <span className="text-[13px] font-bold uppercase tracking-wider">{locale}</span>

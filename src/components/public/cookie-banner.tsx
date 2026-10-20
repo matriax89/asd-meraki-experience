@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { useCookieConsent } from "@/hooks/use-cookie-consent";
 import { X, Check, Settings2, ShieldCheck } from "lucide-react";
 import { Link } from "@/i18n/routing";
+import { useTranslations } from "next-intl";
 
 export function CookieBanner() {
+  const t = useTranslations("PublicUi");
   const { hasConsented, preferences, acceptAll, rejectAll, savePreferences } = useCookieConsent();
   const [showSettings, setShowSettings] = useState(false);
   const [localPreferences, setLocalPreferences] = useState(preferences);
@@ -55,15 +57,15 @@ export function CookieBanner() {
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 leading-tight">
-                  {showSettings ? "Personalizza Cookie" : "La tua Privacy"}
+                  {showSettings ? t("cookieCustomizeTitle") : t("cookieTitle")}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Gestiamo i tuoi dati con cura.
+                  {t("cookieCare")}
                 </p>
               </div>
             </div>
             {showSettings && (
-              <button onClick={() => setShowSettings(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+              <button aria-label={t("close")} onClick={() => setShowSettings(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             )}
@@ -75,19 +77,19 @@ export function CookieBanner() {
               // Simple View
               <div className="space-y-5">
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  Utilizziamo cookie per assicurarti la migliore esperienza sul nostro sito, analizzare il traffico e proporti contenuti in linea con i tuoi interessi. Leggi la nostra <Link href="/legal/cookie-policy" className="text-slate-900 font-semibold underline underline-offset-2">Cookie Policy</Link>.
+                  {t("cookieDescription")} <Link href="/legal/cookie-policy" className="text-slate-900 font-semibold underline underline-offset-2">{t("cookiePolicy")}</Link>.
                 </p>
                 <div className="flex flex-col gap-2.5">
                   <button onClick={acceptAll} className="w-full bg-slate-900 text-white font-semibold py-3 px-4 rounded-xl hover:bg-slate-800 hover:-translate-y-0.5 transition-all shadow-md">
-                    Accetta Tutti
+                    {t("acceptAll")}
                   </button>
                   <div className="grid grid-cols-2 gap-2.5">
                     <button onClick={rejectAll} className="w-full bg-white border border-slate-200 text-slate-700 font-semibold py-2.5 px-4 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all">
-                      Rifiuta
+                      {t("reject")}
                     </button>
                     <button onClick={() => setShowSettings(true)} className="w-full bg-slate-100 text-slate-700 font-semibold py-2.5 px-4 rounded-xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2">
                       <Settings2 className="w-4 h-4" />
-                      Personalizza
+                      {t("customize")}
                     </button>
                   </div>
                 </div>
@@ -97,22 +99,22 @@ export function CookieBanner() {
               <div className="space-y-5">
                 <div className="space-y-3">
                   <CookieToggle 
-                    title="Strettamente Necessari" 
-                    description="Cookie indispensabili per il funzionamento del sito (navigazione, login, sicurezza)."
+                    title={t("cookieNecessary")}
+                    description={t("cookieNecessaryDescription")}
                     checked={true}
                     disabled={true}
                     onChange={() => {}}
                   />
                   <CookieToggle 
-                    title="Statistiche" 
-                    description="Ci aiutano a capire come i visitatori interagiscono con il sito in modo anonimo."
+                    title={t("cookieAnalytics")}
+                    description={t("cookieAnalyticsDescription")}
                     checked={localPreferences.analytics}
                     disabled={false}
                     onChange={() => togglePreference("analytics")}
                   />
                   <CookieToggle 
-                    title="Marketing" 
-                    description="Utilizzati per tracciare i visitatori sui siti web e proporre annunci pertinenti."
+                    title={t("cookieMarketing")}
+                    description={t("cookieMarketingDescription")}
                     checked={localPreferences.marketing}
                     disabled={false}
                     onChange={() => togglePreference("marketing")}
@@ -122,7 +124,7 @@ export function CookieBanner() {
                 <div className="pt-2">
                   <button onClick={handleSaveSettings} className="w-full bg-slate-900 text-white font-semibold py-3 px-4 rounded-xl hover:bg-slate-800 hover:-translate-y-0.5 transition-all shadow-md flex items-center justify-center gap-2">
                     <Check className="w-4 h-4" />
-                    Salva Preferenze
+                    {t("savePreferences")}
                   </button>
                 </div>
               </div>

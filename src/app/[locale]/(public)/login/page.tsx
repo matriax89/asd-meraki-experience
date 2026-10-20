@@ -71,7 +71,11 @@ export default function LoginPage() {
     try {
       const { error: requestError } = await supabase.auth.signInWithOtp({
         email: normalizedEmail,
-        options: { shouldCreateUser: false },
+        options: {
+          shouldCreateUser: false,
+          // Select the email language without changing the staff account metadata.
+          emailRedirectTo: `${window.location.origin}/${locale}/admin`,
+        },
       });
       if (requestError) throw requestError;
 

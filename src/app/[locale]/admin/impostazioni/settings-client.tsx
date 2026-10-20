@@ -7,6 +7,11 @@ import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions
 import { compressImageToWebp } from "@/lib/image-utils";
 import { useModal } from "@/components/ui/modal-provider";
 import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail } from "lucide-react";
+import { MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
+
+type LocalizedSetting = string | Partial<Record<"it" | "en" | "de" | "es", string>>;
+type FooterTextSettings = { about_us: LocalizedSetting; copyright: LocalizedSetting };
+type ContactSettings = { email: string; pec: string; phone: string; vat: string; address: string; address_short: LocalizedSetting };
 
 export function SettingsClient({ initialData, initialIstruttori }: { initialData: any, initialIstruttori?: any[] }) {
   const [loading, setLoading] = useState(false);
@@ -85,7 +90,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     excellence_desc: "Puntiamo al massimo in ogni dettaglio, per offrirti sempre il meglio."
   });
 
-  const [footerText, setFooterText] = useState(initialData?.footer_text || {
+  const [footerText, setFooterText] = useState<FooterTextSettings>(initialData?.footer_text || {
     about_us: "Siamo un'associazione sportiva dilettantistica dedicata al benessere, con l'obiettivo di accompagnare i nostri soci in un percorso di cambiamento fisico e mentale attraverso allenamenti di altissima qualità in un ambiente accogliente ed esclusivo.",
     copyright: "Tutti i diritti riservati."
   });
@@ -120,7 +125,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     image_text: "TRASFORMA IL TUO FITNESS IN ALLENAMENTO."
   });
 
-  const [contacts, setContacts] = useState(initialData?.contacts || {
+  const [contacts, setContacts] = useState<ContactSettings>(initialData?.contacts || {
     email: "info@merakiexperience.org",
     pec: "merakiexperience@pec.it",
     phone: "+39 333 1234567",
@@ -877,20 +882,23 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
             <h3 className="text-lg font-semibold text-slate-800">6. Testi Footer</h3>
           </div>
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
+            <p className="text-sm text-slate-500">Compila le schede IT, EN, DE ed ES. Le traduzioni vuote usano il testo italiano.</p>
             <div>
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Chi Siamo (Testo Footer)</label>
-              <textarea 
+              <MultilingualTextarea
+                id="footer-about-us"
+                label="Chi Siamo (Testo Footer)"
                 value={footerText.about_us}
-                onChange={(e) => setFooterText({...footerText, about_us: e.target.value})}
+                onChange={(value: LocalizedSetting) => setFooterText({...footerText, about_us: value})}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm resize-y"
                 rows={3}
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 block">Testo Copyright</label>
-              <input 
+              <MultilingualInput
+                id="footer-copyright"
+                label="Testo Copyright"
                 value={footerText.copyright}
-                onChange={(e) => setFooterText({...footerText, copyright: e.target.value})}
+                onChange={(value: LocalizedSetting) => setFooterText({...footerText, copyright: value})}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-sm"
               />
             </div>
@@ -1360,12 +1368,13 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Indirizzo Breve (Footer)</label>
-                <input 
+                <MultilingualInput
+                  id="footer-address-short"
+                  label="Indirizzo Breve (Footer)"
                   type="text" 
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   value={contacts.address_short}
-                  onChange={(e) => setContacts({...contacts, address_short: e.target.value})}
+                  onChange={(value: LocalizedSetting) => setContacts({...contacts, address_short: value})}
                   placeholder="Bolzano, Alto Adige, Italia"
                 />
               </div>

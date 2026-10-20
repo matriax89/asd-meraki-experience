@@ -1,3 +1,6 @@
+import { useTranslations, useLocale } from "next-intl";
+import { getLocalizedText } from "@/lib/i18n-utils";
+
 type TeamMember = {
   id: string;
   nome: string;
@@ -9,8 +12,10 @@ type TeamMember = {
 };
 
 export function TeamGrid({ members }: { members: TeamMember[] }) {
+  const t = useTranslations("PublicUi");
+  const locale = useLocale();
   if (!members || members.length === 0) {
-    return <p className="text-muted-foreground text-center py-12">Nessun membro del team trovato.</p>;
+    return <p className="text-muted-foreground text-center py-12">{t("emptyTeam")}</p>;
   }
 
   return (
@@ -35,7 +40,7 @@ export function TeamGrid({ members }: { members: TeamMember[] }) {
             {member.nome} {member.cognome}
           </h3>
           <div className="flex flex-col items-center gap-0.5 mb-4">
-            {member.ruolo?.split('\n').map((r, i) => r.trim() && (
+            {getLocalizedText(member.ruolo, locale).split('\n').map((r, i) => r.trim() && (
               <p key={i} className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
                 {r.trim()}
               </p>
@@ -44,7 +49,7 @@ export function TeamGrid({ members }: { members: TeamMember[] }) {
           
           {member.bio && (
             <p className="text-slate-500 text-[14px] leading-relaxed line-clamp-3 max-w-xs">
-              {member.bio}
+              {getLocalizedText(member.bio, locale)}
             </p>
           )}
 

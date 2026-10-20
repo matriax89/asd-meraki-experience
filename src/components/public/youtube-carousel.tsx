@@ -3,9 +3,11 @@
 import React, { useRef, useEffect, useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function YoutubeCarousel({ videoUrls }: { videoUrls: string[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const t = useTranslations("PublicUi");
   const [isPaused, setIsPaused] = useState(false);
 
   // Extrai gli ID di Youtube dai link
@@ -86,7 +88,7 @@ export function YoutubeCarousel({ videoUrls }: { videoUrls: string[] }) {
       {/* Frecce di controllo (visibili solo su Desktop quando si passa col mouse) */}
       <button 
         onClick={scrollLeft}
-        aria-label="Scorri a sinistra"
+        aria-label={t("scrollLeft")}
         className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-white/90 shadow-lg flex items-center justify-center text-slate-800 opacity-0 md:group-hover:opacity-100 transition-opacity disabled:opacity-0 hidden md:flex hover:scale-110 active:scale-95"
       >
         <ChevronLeft className="w-6 h-6" />
@@ -94,7 +96,7 @@ export function YoutubeCarousel({ videoUrls }: { videoUrls: string[] }) {
       
       <button 
         onClick={scrollRight}
-        aria-label="Scorri a destra"
+        aria-label={t("scrollRight")}
         className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-white/90 shadow-lg flex items-center justify-center text-slate-800 opacity-0 md:group-hover:opacity-100 transition-opacity disabled:opacity-0 hidden md:flex hover:scale-110 active:scale-95"
       >
         <ChevronRight className="w-6 h-6" />

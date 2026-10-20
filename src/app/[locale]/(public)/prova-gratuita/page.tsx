@@ -1,14 +1,17 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { LeadForm } from "@/components/public/lead-form";
 import { createClient } from "@/lib/supabase/server";
+import { getLocalizedText } from "@/lib/i18n-utils";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "Index" });
-  return { title: `Prova Gratuita · ${t("title")}` };
+  const t = await getTranslations({ locale, namespace: "PublicUi" });
+  return { title: `${t("freeTrialTitle")} · Meraki Experience` };
 }
 
 export default async function ProvaGratuitaPage() {
+  const locale = await getLocale();
+  const t = await getTranslations("PublicUi");
   const supabase = await createClient();
   const { data: settings } = await supabase
     .from("site_settings")
@@ -18,13 +21,13 @@ export default async function ProvaGratuitaPage() {
 
   const content = (settings?.value as any) || {};
 
-  const badge = content.badge || "Posti disponibili";
-  const titolo = content.titolo || "Prova gratuita";
-  const sottotitolo = content.sottotitolo || "Compila il modulo, verrai ricontattato entro 24 ore per fissare la tua prova.";
+  const badge = getLocalizedText(content.badge, locale) || t("freeTrialBadge");
+  const titolo = getLocalizedText(content.titolo, locale) || t("freeTrialTitle");
+  const sottotitolo = getLocalizedText(content.sottotitolo, locale) || t("freeTrialDescription");
   const steps = content.steps || [
-    { n: "1", title: "Compila", desc: "Lascia i tuoi dati e le preferenze." },
-    { n: "2", title: "Ti chiamiamo", desc: "Scegliamo insieme il giorno." },
-    { n: "3", title: "Allenati", desc: "La prima lezione è offerta." },
+    { n: "1", title: t("freeTrialStep1"), desc: t("freeTrialStep1Description") },
+    { n: "2", title: t("freeTrialStep2"), desc: t("freeTrialStep2Description") },
+    { n: "3", title: t("freeTrialStep3"), desc: t("freeTrialStep3Description") },
   ];
 
   return (
@@ -53,8 +56,8 @@ export default async function ProvaGratuitaPage() {
               <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center mx-auto mb-3">
                 <span className="text-xs font-bold text-muted-foreground">{s.n}</span>
               </div>
-              <h3 className="text-sm font-bold mb-1">{s.title}</h3>
-              <p className="text-xs text-muted-foreground">{s.desc}</p>
+              <h3 className="text-sm font-bold mb-1">{getLocalizedText(s.title, locale)}</h3>
+              <p className="text-xs text-muted-foreground">{getLocalizedText(s.desc, locale)}</p>
             </div>
           ))}
         </div>

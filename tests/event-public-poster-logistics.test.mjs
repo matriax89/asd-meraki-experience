@@ -8,6 +8,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import ts from "typescript";
+import { createTranslator } from "next-intl";
 
 const require = createRequire(import.meta.url);
 function load(file, mocks = {}, environment = {}) {
@@ -162,7 +163,7 @@ for (const locale of ["it", "en", "de", "es"]) {
 }
 
 test("legacy event cards also preserve poster geometry and leave the event title outside the image", async () => {
-  const { EventCard } = load("components/public/event-card.tsx", { "@/components/meraki/event-poster": poster, "@/i18n/routing": link, "next-intl/server": { getLocale: async () => "it" }, "@/lib/i18n-utils": load("lib/i18n-utils.ts") });
+  const { EventCard } = load("components/public/event-card.tsx", { "@/components/meraki/event-poster": poster, "@/i18n/routing": link, "next-intl/server": { getLocale: async () => "it", getTranslations: async ({ locale, namespace }) => createTranslator({ locale, namespace, messages: JSON.parse(readFileSync(new URL(`../src/messages/${locale}.json`, import.meta.url), "utf8")), onError: error => { throw error; } }) }, "@/lib/i18n-utils": load("lib/i18n-utils.ts") });
   const fragment = JSDOM.fragment(renderToStaticMarkup(await EventCard({ id: event.id, slug: event.slug, tipo: "evento", titolo: event.title, data_inizio: event.startsAt, copertina_url: event.cover, prezzo_cents: 3025, capacity: 0, posti_venduti: 0 })));
   const frame = fragment.querySelector("[data-event-poster]");
   assert.ok(frame.classList.contains("aspect-[4/5]")); assert.equal(frame.children.length, 1);

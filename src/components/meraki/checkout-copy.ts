@@ -47,3 +47,97 @@ const copies: Record<CheckoutLocale, CheckoutCopy> = {
   },
 };
 export function checkoutCopy(locale: string): CheckoutCopy { return copies[locale as CheckoutLocale] || copies.it; }
+
+const failureCopy = {
+  it: {
+    soldOut: "I posti per una delle attività sono esauriti o temporaneamente prenotati. Riprova più tardi o scegli un’altra formula.",
+    closed: "Le vendite per una delle attività selezionate sono chiuse.",
+    unavailable: "Questa formula non è disponibile per l’acquisto in questo momento.",
+    selection: "Controlla la formula, gli extra e le scelte del menù.",
+    menu: "Seleziona un menù valido per ogni attività che lo richiede.",
+    addon: "Controlla gli extra selezionati: alcuni potrebbero essere già compresi nella formula.",
+    upgrade: "Questo cambio formula non è disponibile per il tuo biglietto.",
+    pending: "Un precedente pagamento è ancora in verifica. Completa quel pagamento o attendi la scadenza della prenotazione prima di riprovare.",
+    email: "Per aggiornare il biglietto usa l’email dell’acquisto originale.",
+    expired: "Il tempo per completare l’acquisto è scaduto. Avvia un nuovo acquisto.",
+    changed: "La selezione è cambiata. Avvia un nuovo acquisto.",
+    unchanged: "Questo biglietto comprende già gli accessi selezionati.",
+    advanced: "Questo evento prevede formule e pacchetti. Riapri la pagina dell’evento e scegli la formula.",
+    upgradeDiscount: "I codici sconto valgono per i nuovi acquisti. Nei cambi formula viene mantenuto il credito già pagato.",
+  },
+  en: {
+    soldOut: "Places for one of the activities are sold out or temporarily reserved. Try again later or choose another package.",
+    closed: "Sales for one of the selected activities have closed.",
+    unavailable: "This package is not available to buy right now.",
+    selection: "Check your package, extras and menu choices.",
+    menu: "Select a valid menu for each activity that requires one.",
+    addon: "Check your selected extras: some may already be included in the package.",
+    upgrade: "This package change is not available for your ticket.",
+    pending: "A previous payment is still being checked. Complete that payment or wait for its reservation to expire before trying again.",
+    email: "To update your ticket, use the email address from the original purchase.",
+    expired: "The time to complete your purchase has expired. Start a new purchase.",
+    changed: "Your selection has changed. Start a new purchase.",
+    unchanged: "Your ticket already includes the selected admissions.",
+    advanced: "This event offers packages. Reopen the event page and choose your package.",
+    upgradeDiscount: "Discount codes apply to new purchases. Package changes retain the amount you have already paid as credit.",
+  },
+  de: {
+    soldOut: "Die Plätze für eine der Aktivitäten sind ausverkauft oder vorübergehend reserviert. Versuche es später erneut oder wähle ein anderes Paket.",
+    closed: "Der Verkauf für eine der ausgewählten Aktivitäten ist geschlossen.",
+    unavailable: "Dieses Paket kann derzeit nicht gekauft werden.",
+    selection: "Prüfe dein Paket, die Extras und die Menüauswahl.",
+    menu: "Wähle für jede Aktivität, die ein Menü erfordert, ein gültiges Menü.",
+    addon: "Prüfe die ausgewählten Extras: Einige sind möglicherweise bereits im Paket enthalten.",
+    upgrade: "Dieser Paketwechsel ist für dein Ticket nicht verfügbar.",
+    pending: "Eine vorherige Zahlung wird noch geprüft. Schließe diese Zahlung ab oder warte, bis die Reservierung abläuft, bevor du es erneut versuchst.",
+    email: "Verwende zum Aktualisieren deines Tickets die E-Mail-Adresse des ursprünglichen Kaufs.",
+    expired: "Die Zeit zum Abschließen des Kaufs ist abgelaufen. Beginne einen neuen Kauf.",
+    changed: "Deine Auswahl hat sich geändert. Beginne einen neuen Kauf.",
+    unchanged: "Dein Ticket enthält die ausgewählten Eintritte bereits.",
+    advanced: "Für dieses Event gibt es Pakete. Öffne die Veranstaltungsseite erneut und wähle dein Paket.",
+    upgradeDiscount: "Rabattcodes gelten für neue Käufe. Bei einem Paketwechsel wird der bereits gezahlte Betrag angerechnet.",
+  },
+  es: {
+    soldOut: "Las plazas de una de las actividades están agotadas o reservadas temporalmente. Inténtalo más tarde o elige otra modalidad.",
+    closed: "La venta de una de las actividades seleccionadas ha cerrado.",
+    unavailable: "Esta modalidad no está disponible para la compra en este momento.",
+    selection: "Revisa la modalidad, los complementos y las opciones de menú.",
+    menu: "Selecciona un menú válido para cada actividad que lo requiera.",
+    addon: "Revisa los complementos seleccionados: algunos podrían estar incluidos en la modalidad.",
+    upgrade: "Este cambio de modalidad no está disponible para tu entrada.",
+    pending: "Todavía se está comprobando un pago anterior. Completa ese pago o espera a que caduque su reserva antes de volver a intentarlo.",
+    email: "Para actualizar tu entrada, usa el email de la compra original.",
+    expired: "El plazo para completar la compra ha caducado. Inicia una nueva compra.",
+    changed: "Tu selección ha cambiado. Inicia una nueva compra.",
+    unchanged: "Tu entrada ya incluye los accesos seleccionados.",
+    advanced: "Este evento ofrece modalidades y paquetes. Vuelve a abrir la página del evento y elige tu modalidad.",
+    upgradeDiscount: "Los códigos de descuento se aplican a compras nuevas. Los cambios de modalidad conservan como crédito el importe ya pagado.",
+  },
+};
+
+/** Public API codes must retain their useful meaning in every checkout language. */
+export function checkoutFailureCopy(code: unknown, locale: string): string | null {
+  const text = failureCopy[locale as CheckoutLocale] || failureCopy.it;
+  switch (code) {
+    case "sold_out": return text.soldOut;
+    case "sales_closed": return text.closed;
+    case "unavailable": case "event_unavailable": case "invalid_config": case "no_active_price":
+    case "commerce_unavailable": case "invalid_price": case "pricing_unavailable": return text.unavailable;
+    case "invalid_selection": return text.selection;
+    case "invalid_package": return checkoutCopy(locale).chooseFormula;
+    case "invalid_menu": return text.menu;
+    case "invalid_addon": return text.addon;
+    case "invalid_participants": case "invalid_attendees": return checkoutCopy(locale).invalidData;
+    case "invalid_upgrade": case "upgrade_unavailable": return text.upgrade;
+    case "checkout_pending": case "upgrade_pending": case "upgrade_in_progress": return text.pending;
+    case "email_mismatch": return text.email;
+    case "request_expired": return text.expired;
+    case "invalid_request": case "request_conflict": return text.changed;
+    case "no_change": return text.unchanged;
+    case "advanced_checkout_required": return text.advanced;
+    case "discount_upgrade_unsupported": return text.upgradeDiscount;
+    case "affiliate_unavailable": return checkoutCopy(locale).affiliateUnavailable;
+    case "price_changed": return checkoutCopy(locale).priceChanged;
+    default: return null;
+  }
+}

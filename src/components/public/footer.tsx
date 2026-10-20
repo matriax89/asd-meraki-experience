@@ -1,5 +1,6 @@
 import { Link } from "@/i18n/routing";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { getLocalizedText } from "@/lib/i18n-utils";
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 
@@ -33,6 +34,8 @@ function YouTubeIcon({ className }: { className?: string }) {
 
 export function Footer({ logoUrl, locations = [], branding, contacts, footerData }: { logoUrl?: string, locations?: string[], branding?: any, contacts?: any, footerData?: any }) {
   const t = useTranslations("Footer");
+  const locale = useLocale();
+  const tUi = useTranslations("PublicUi");
   const tNav = useTranslations("Navigation");
   const currentYear = new Date().getFullYear();
 
@@ -59,7 +62,7 @@ export function Footer({ logoUrl, locations = [], branding, contacts, footerData
               )}
             </div>
             <p className="text-[14px] text-slate-500 leading-relaxed whitespace-pre-line">
-              {footerData?.about_us || t("about_us")}
+              {getLocalizedText(footerData?.about_us, locale) || t("about_us")}
             </p>
           </div>
 
@@ -89,9 +92,9 @@ export function Footer({ logoUrl, locations = [], branding, contacts, footerData
           <div className="space-y-5">
             <h4 className="text-[11px] font-extrabold text-slate-900 uppercase tracking-widest">{t("nav_title")}</h4>
             <ul className="space-y-3 text-[14px] text-slate-500 font-medium">
-              <li><a href="/#chi-siamo" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("chi_siamo")}</a></li>
-              <li><a href="/#corsi" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("corsi")}</a></li>
-              <li><a href="/#orario" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("orario")}</a></li>
+              <li><Link href="/#chi-siamo" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("chi_siamo")}</Link></li>
+              <li><Link href="/#corsi" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("corsi")}</Link></li>
+              <li><Link href="/#orario" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("orario")}</Link></li>
               <li><Link href="/contatti" className="hover:text-slate-900 hover:translate-x-1 inline-block transition-transform duration-300">{tNav("contatti")}</Link></li>
             </ul>
           </div>
@@ -142,9 +145,9 @@ export function Footer({ logoUrl, locations = [], branding, contacts, footerData
         {/* Bottom bar */}
         <div className="pt-8 border-t border-slate-200/60 flex flex-col sm:flex-row justify-between items-center gap-4 text-[12px] font-medium text-slate-400 relative z-10">
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 text-center sm:text-left">
-            <p>&copy; {currentYear} ASD Meraki Experience. P.IVA / C.F.: {contacts?.vat || "IT03224340210"}. {footerData?.copyright || t("rights_reserved")}</p>
+            <p>&copy; {currentYear} ASD Meraki Experience. P.IVA / C.F.: {contacts?.vat || "IT03224340210"}. {getLocalizedText(footerData?.copyright, locale) || t("rights_reserved")}</p>
             <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-slate-300 shrink-0" />
-            <p>{contacts?.address_short || "Bolzano, Alto Adige, Italia"}</p>
+            <p>{getLocalizedText(contacts?.address_short, locale) || tUi("italyAddress")}</p>
           </div>
           
           <Link href="/admin" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 font-semibold transition-all duration-300">

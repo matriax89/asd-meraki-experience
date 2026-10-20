@@ -1,6 +1,6 @@
 import { Link } from "@/i18n/routing";
 
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
 
 type CourseCardProps = {
@@ -21,6 +21,9 @@ export async function CourseCard({
   orari
 }: CourseCardProps) {
   const locale = await getLocale();
+  const t = await getTranslations({ locale, namespace: "PublicUi" });
+  const tCommon = await getTranslations({ locale, namespace: "Common" });
+  const tDays = await getTranslations({ locale, namespace: "Index.schedule.days" });
   return (
     <div className="group relative flex flex-col h-full rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden transition-all duration-300 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] hover:-translate-y-1 bg-slate-50">
       
@@ -30,7 +33,7 @@ export async function CourseCard({
           {copertina_url ? (
             <img 
               src={copertina_url} 
-              alt={nome} 
+              alt={getLocalizedText(nome, locale)}
               className="w-full h-full object-contain object-top group-hover:scale-105 transition-transform duration-700 ease-out bg-white" 
             />
           ) : (
@@ -38,7 +41,7 @@ export async function CourseCard({
           )}
         </div>
         <div className="absolute top-4 left-4 z-20 bg-white/90 backdrop-blur-md text-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-          {disciplina}
+          {getLocalizedText(disciplina, locale)}
         </div>
       </Link>
       
@@ -60,7 +63,7 @@ export async function CourseCard({
                 className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-[10px] sm:text-[11px] px-2.5 py-1.5 rounded-full shadow-sm hover:border-slate-300 hover:shadow-md transition-all cursor-default group/badge"
               >
                 <div className="flex items-center gap-1">
-                  <span className="font-extrabold text-slate-900 uppercase tracking-wider">{orario.giorno}</span>
+                  <span className="font-extrabold text-slate-900 uppercase tracking-wider">{["lun", "mar", "mer", "gio", "ven", "sab", "dom"].includes(orario.giorno) ? tDays(orario.giorno) : orario.giorno}</span>
                   <span className="font-medium text-slate-500">{orario.ora_inizio}</span>
                 </div>
                 
@@ -80,13 +83,13 @@ export async function CourseCard({
         
         {/* Description */}
         <p className="text-slate-500 text-[15px] leading-relaxed mb-6 line-clamp-3 flex-1">
-          {getLocalizedText(descrizione_breve, locale) || "Scopri i nostri corsi e migliora il tuo benessere fisico e mentale."}
+          {getLocalizedText(descrizione_breve, locale) || t("courseFallback")}
         </p>
         
         {/* Footer Action */}
         <div className="mt-auto pt-2">
           <Link href={`/corsi/${slug}`} className="block w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-6 py-3 rounded-xl shadow-md transition-colors text-center">
-            Scopri di più
+            {tCommon("read_more")}
           </Link>
         </div>
       </div>

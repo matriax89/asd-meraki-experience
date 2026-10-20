@@ -13,6 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function ChiSiamoPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "AboutPage" });
+  const tCommon = await getTranslations({ locale, namespace: "Common" });
   const supabase = await createClient();
   const { data: teamMembers } = await supabase
     .from("team_members")
@@ -82,7 +83,7 @@ export default async function ChiSiamoPage({ params }: { params: Promise<{ local
             href="/prova-gratuita"
             className="group inline-flex h-14 items-center gap-2 rounded-full bg-foreground px-8 text-sm font-bold text-background transition-all shadow-md hover:bg-foreground/90 hover:-translate-y-0.5"
           >
-            Prova Gratuita
+            {tCommon("free_trial")}
             <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>

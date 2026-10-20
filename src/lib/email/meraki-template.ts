@@ -36,7 +36,7 @@ export function renderMerakiEmail({ locale, title, preheader, bodyHtml, cta, cta
 <tr><td class="meraki-email-main" style="padding:24px 20px 28px;font-size:15px;line-height:1.65;overflow-wrap:anywhere;word-break:break-word;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#18251f" style="width:100%;table-layout:fixed;background:#18251f;border-radius:22px;border-spacing:0;">
 <tr><td style="padding:25px 22px 26px;">
-<p style="margin:0 0 12px;color:#c2a36b;font-size:10px;line-height:16px;font-weight:700;letter-spacing:2.2px;">MERAKI MOMENTS</p>
+<p style="margin:0 0 12px;color:#c2a36b;font-size:10px;line-height:16px;font-weight:700;letter-spacing:2.2px;">MERAKI EXPERIENCE</p>
 <h1 style="margin:0;color:#ffffff;font-size:28px;line-height:1.18;font-weight:650;letter-spacing:-.8px;">${escape(title)}</h1>
 </td></tr></table>
 ${ctaAtTop ? primaryCtaHtml : ""}
