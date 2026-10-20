@@ -62,24 +62,6 @@ test("a past-only catalogue stays honest while preserving the event in the archi
   } finally { await screen.cleanup(); }
 });
 
-test("searching a place and changing categories filters genuine event links and offers reset", async () => {
-  const screen = await render([past, future]);
-  try {
-    const input = screen.host.querySelector('input[type="search"]');
-    const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
-    await act(async () => { setter.call(input, "MERANO"); input.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
-    assert.ok(screen.host.querySelector('a[href="/workshop/workshop"]'));
-    assert.equal(screen.host.querySelector('[aria-live="polite"]').textContent, "1 esperienza");
-    await act(async () => button("Eventi").click());
-    assert.match(screen.host.textContent, /Nessuna esperienza trovata/);
-    assert.equal(screen.host.querySelector('a[href="/workshop/workshop"]'), null);
-    await act(async () => button("Azzera i filtri").click());
-    assert.equal(input.value, "");
-    assert.equal(button("Tutti").getAttribute("aria-pressed"), "true");
-    assert.ok(screen.host.querySelector('a[href="/workshop/workshop"]'));
-  } finally { await screen.cleanup(); }
-});
-
 test("event time uses Rome even around UTC midnight, and capacity zero stays sold out", () => {
   assert.equal(model.eventDate("2026-08-04T22:30:00Z", "it", { day: "2-digit", month: "2-digit", year: "numeric" }), "05/08/2026");
   assert.equal(model.availablePlaces({ capacity: 0, sold: 0 }), 0);
@@ -158,13 +140,10 @@ test("past-only catalogues keep their archive separate in every supported langua
 });
 
 
-test("Spanish discovery translates filters, counts, event actions and archive labels", async () => {
+test("Spanish discovery translates periods, counts, event actions and archive labels", async () => {
   const screen = await render([past, future], "es");
   try {
-    assert.ok(button("Todos"));
-    assert.ok(button("Eventos"));
     assert.ok(button("Próximos"));
-    assert.equal(screen.host.querySelector('input[type="search"]').getAttribute("aria-label"), "Busca un evento o un lugar");
     assert.equal(screen.host.querySelector('[aria-live="polite"]').textContent, "1 experiencia");
     await act(async () => button("Pasados").click());
     assert.match(screen.host.textContent, /Para recordar/);
