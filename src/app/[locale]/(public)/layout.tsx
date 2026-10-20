@@ -5,6 +5,7 @@ import { Footer } from "@/components/public/footer";
 import { CookieBanner } from "@/components/public/cookie-banner";
 import { GlobalPopup } from "@/components/public/global-popup";
 import { createClient } from "@/lib/supabase/server";
+import { hasCommerceStaffAccess } from "@/lib/commerce/admin-auth";
 
 type HomepageSettings = {
   popup?: React.ComponentProps<typeof GlobalPopup>["data"];
@@ -22,7 +23,10 @@ export default async function PublicLayout({
   // Fetch popup settings
   const locale = await getLocale();
   const supabase = await createClient();
-  const { data: settings } = await supabase.from("site_settings").select("value").eq("key", "homepage_content").single();
+  const [{ data: settings }, staffAccess] = await Promise.all([
+    supabase.from("site_settings").select("value").eq("key", "homepage_content").single(),
+    hasCommerceStaffAccess(),
+  ]);
   const homepageContent = settings?.value as HomepageSettings | undefined;
     
   const popupData = homepageContent?.popup || null;
@@ -37,6 +41,7 @@ export default async function PublicLayout({
     <>
       <PublicSurface
         locale={locale}
+        staffAccess={staffAccess}
         logoUrl={brandingData?.logo_url}
         header={<Header logoUrl={brandingData?.logo_url} logoWhiteUrl={brandingData?.logo_white_url} appearance="solid" />}
         footer={<Footer logoUrl={brandingData?.logo_url} locations={locations} branding={brandingData} contacts={contactsData} footerData={footerData} />}

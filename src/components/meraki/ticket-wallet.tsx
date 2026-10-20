@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { walletCopy } from "./wallet-copy";
-import { ArrowRight, Check, ChevronRight, Link2, LoaderCircle, MapPin, QrCode, RefreshCw, Smartphone, Ticket, Trash2, WifiOff } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Link2, LoaderCircle, Mail, MapPin, QrCode, RefreshCw, Smartphone, Ticket, Trash2, WifiOff } from "lucide-react";
 import { parseTicketLink, readWallet, WALLET_CHANGED_EVENT, WALLET_KEY, walletResponseTickets, walletTicketUrl, writeWallet, type WalletTicket } from "@/lib/tickets/wallet";
 
 function isPast(ticket: WalletTicket) {
@@ -140,6 +140,12 @@ export function TicketWallet({ locale, siteOrigin }: { locale: string; siteOrigi
   const past = tickets.filter(isPast);
   const visible = (filter === "active" ? active : past).slice().sort((a, b) => filter === "active" ? Date.parse(a.date) - Date.parse(b.date) : Date.parse(b.date) - Date.parse(a.date));
 
+  const emptyWallet = ready && tickets.length === 0;
+  const importPanel = <section aria-labelledby="meraki-wallet-import" className="my-6 rounded-[22px] border border-[#e3e0d7] bg-white p-5">
+      <h2 id="meraki-wallet-import" className="mb-4 flex items-center gap-3 text-sm font-semibold"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#efeee7] text-[#a28b5e]"><Link2 aria-hidden="true" className="h-4 w-4" /></span>{copy.alreadyTicket}</h2>
+      <form onSubmit={importTicket}><label htmlFor="meraki-ticket-link" className="mb-2 block text-xs leading-5 text-[#7f8275]">{copy.importLabel}</label><input id="meraki-ticket-link" type="text" inputMode="url" autoComplete="off" autoCorrect="off" spellCheck={false} maxLength={2048} value={link} onChange={(event) => setLink(event.target.value)} placeholder="https://…/biglietto/…" required aria-describedby={importMessage ? "meraki-import-message" : undefined} className="h-12 w-full min-w-0 rounded-xl border border-[#ddd9cd] bg-white px-3 text-sm outline-none placeholder:text-[#aaa99d] focus:border-[#bda16d] focus:ring-2 focus:ring-[#c2a36b]/20" /><button disabled={importing || refreshing || !ready} type="submit" className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#18251f] px-4 text-xs font-semibold text-white disabled:opacity-50">{importing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />}{importing ? copy.checking : copy.add}</button>{importMessage ? <p role="status" id="meraki-import-message" className="mt-3 text-xs leading-5 text-[#706e60]">{importMessage}</p> : null}</form>
+    </section>;
+
   return <div className="mx-auto w-full max-w-3xl px-5 pb-12 pt-7 text-[#18251f] sm:px-8 sm:pt-10">
     <div className="mb-7 flex items-start justify-between gap-4">
       <div>
@@ -149,6 +155,20 @@ export function TicketWallet({ locale, siteOrigin }: { locale: string; siteOrigi
       </div>
       <span className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#deddd5] bg-white text-[#a88c58]"><Ticket className="h-6 w-6" strokeWidth={1.5} /></span>
     </div>
+
+    {emptyWallet ? <section aria-labelledby="meraki-wallet-guide" className="mb-6 rounded-[24px] border border-[#dfdfd2] bg-[#efeee7]/70 p-5 sm:p-6">
+      <h2 id="meraki-wallet-guide" className="text-base font-semibold tracking-[-0.025em]">{copy.guideTitle}</h2>
+      <ol className="mt-4 grid gap-4 sm:grid-cols-2">
+        {[
+          { title: copy.emailStepTitle, body: copy.emailStepBody, Icon: Mail },
+          { title: copy.deviceStepTitle, body: copy.deviceStepBody, Icon: Smartphone },
+        ].map(({ title, body, Icon }, index) => <li key={title} className="flex items-start gap-3">
+          <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#223b2e] text-xs font-semibold text-white">{index + 1}</span>
+          <div className="min-w-0"><p className="flex items-center gap-2 text-sm font-semibold"><Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#8d7549]" />{title}</p><p className="mt-1 text-xs leading-5 text-[#6c7468]">{body}</p></div>
+        </li>)}
+      </ol>
+      <p className="mt-4 border-t border-[#ddded2] pt-4 text-xs leading-5 text-[#6c7468]">{copy.newDevice}</p>
+    </section> : null}
 
     <div className="mb-6 flex gap-1 rounded-2xl bg-[#eae9e2] p-1" aria-label={copy.filter}>
       {([['active', copy.upcoming, active.length], ['past', copy.past, past.length]] as const).map(([value, label, count]) => <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value}
@@ -160,6 +180,8 @@ export function TicketWallet({ locale, siteOrigin }: { locale: string; siteOrigi
     {storageBlocked ? <p role="status" className="mb-5 flex items-start gap-2 rounded-2xl bg-[#eee7d9] px-4 py-3 text-xs leading-5 text-[#715b34]"><Smartphone className="mt-0.5 h-4 w-4 shrink-0" />{copy.storageBlocked}</p> : null}
     {notice ? <p role="status" className="mb-5 flex items-start gap-2 rounded-2xl border border-[#ddd6c9] bg-white/70 px-4 py-3 text-xs leading-5 text-[#767669]"><WifiOff className="mt-0.5 h-4 w-4 shrink-0" />{notice}</p> : null}
     {removed ? <div role="status" className="mb-5 flex items-center justify-between gap-3 rounded-2xl bg-[#e7ede5] px-4 py-3 text-xs text-[#375a42]"><span>{copy.removed}</span><button type="button" className="min-h-10 shrink-0 font-bold underline underline-offset-4" onClick={() => { persist([removed, ...tickets.filter((ticket) => ticket.id !== removed.id)]); setRemoved(null); }}>{copy.undo}</button></div> : null}
+
+    {emptyWallet ? importPanel : null}
 
     {!ready ? <div role="status" className="flex min-h-72 items-center justify-center rounded-[28px] border border-[#e9e7df] bg-white"><LoaderCircle className="h-6 w-6 animate-spin text-[#a88c58]" aria-hidden="true" /><span className="sr-only">{copy.loading}</span></div> : visible.length === 0 ? <section className="relative overflow-hidden rounded-[28px] border border-[#e8e6de] bg-white px-7 pb-9 pt-10 text-center">
       <div className="relative mx-auto mb-7 flex h-28 w-28 items-center justify-center rounded-full bg-[#f5f2e9]">
@@ -185,10 +207,7 @@ export function TicketWallet({ locale, siteOrigin }: { locale: string; siteOrigi
       })}
     </div>}
 
-    <details className="group mt-6 rounded-[22px] border border-[#e3e0d7] bg-[#efeee7]/70">
-      <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 px-5 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#a28b5e]"><Link2 className="h-4 w-4" /></span>{copy.alreadyTicket}<ChevronRight className="ml-auto h-4 w-4 text-[#9d9e8f] transition-transform group-open:rotate-90" /></summary>
-      <form onSubmit={importTicket} className="px-5 pb-5"><label htmlFor="meraki-ticket-link" className="mb-2 block text-xs leading-5 text-[#7f8275]">{copy.importLabel}</label><input id="meraki-ticket-link" type="text" inputMode="url" autoComplete="off" autoCorrect="off" spellCheck={false} maxLength={2048} value={link} onChange={(event) => setLink(event.target.value)} placeholder="https://…/biglietto/…" required aria-describedby={importMessage ? "meraki-import-message" : undefined} className="h-12 w-full min-w-0 rounded-xl border border-[#ddd9cd] bg-white px-3 text-sm outline-none placeholder:text-[#aaa99d] focus:border-[#bda16d] focus:ring-2 focus:ring-[#c2a36b]/20" /><button disabled={importing || refreshing || !ready} type="submit" className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#18251f] px-4 text-xs font-semibold text-white disabled:opacity-50">{importing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />}{importing ? copy.checking : copy.add}</button>{importMessage ? <p role="status" id="meraki-import-message" className="mt-3 text-xs leading-5 text-[#706e60]">{importMessage}</p> : null}</form>
-    </details>
+    {!emptyWallet ? importPanel : null}
     <p className="mx-auto mt-5 max-w-sm px-3 text-center text-[10px] leading-[1.8] text-[#9b9d90]">{copy.deviceHint}</p>
   </div>;
 }

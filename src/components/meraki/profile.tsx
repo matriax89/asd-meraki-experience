@@ -9,36 +9,36 @@ import styles from "./profile.module.css";
 
 const copy = {
   it: {
-    eyebrow: "IL TUO SPAZIO", title: "Ciao, sei a casa.", description: "Le tue esperienze iniziano da qui.",
-    ticket: "I miei biglietti", ticketDescription: "Ritrova i tuoi QR e preparati a partire.",
+    eyebrow: "MERAKI, A PORTATA DI MANO", title: "Biglietti e informazioni", description: "Non serve un account: acquisti e ricevi il biglietto via email.",
+    ticket: "I miei biglietti", ticketDescription: "Apri il link nell’email per ritrovare il tuo QR su questo dispositivo.",
     preferences: "A modo tuo", language: "Lingua dell’app", install: "Meraki sulla tua Home", installDescription: "Su iPhone e Android, aggiungi Meraki alla Home per aprirla come un’app.",
     support: "Siamo qui per te", help: "Hai bisogno di una mano?", helpDescription: "Contattaci per eventi e biglietti.", staff: "Accesso staff", staffDescription: "Check-in e gestione dei biglietti.",
     legal: "Info e privacy", privacy: "Informativa privacy", terms: "Termini e condizioni", cookies: "Cookie policy", footer: "Il tempo per stare bene è adesso.", switching: "Cambio lingua…",
   },
   en: {
-    eyebrow: "YOUR SPACE", title: "Make yourself at home.", description: "Your experiences begin here.",
-    ticket: "My tickets", ticketDescription: "Find your QR codes and get ready to go.",
+    eyebrow: "MERAKI, ALWAYS AT HAND", title: "Tickets and information", description: "No account needed: buy your ticket and receive it by email.",
+    ticket: "My tickets", ticketDescription: "Open the link in your email to find your QR code on this device.",
     preferences: "Your way", language: "App language", install: "Meraki on your Home Screen", installDescription: "On iPhone and Android, add Meraki to your Home Screen to open it like an app.",
     support: "Here for you", help: "Need a hand?", helpDescription: "Contact us about events and tickets.", staff: "Staff access", staffDescription: "Check-in and ticket management.",
     legal: "Info and privacy", privacy: "Privacy policy", terms: "Terms and conditions", cookies: "Cookie policy", footer: "Make time to feel good.", switching: "Changing language…",
   },
   de: {
-    eyebrow: "DEIN BEREICH", title: "Fühl dich wie zu Hause.", description: "Deine Erlebnisse beginnen hier.",
-    ticket: "Meine Tickets", ticketDescription: "Finde deine QR-Codes und sei bereit.",
+    eyebrow: "MERAKI, IMMER GRIFFBEREIT", title: "Tickets und Informationen", description: "Kein Konto nötig: Kaufe dein Ticket und erhalte es per E-Mail.",
+    ticket: "Meine Tickets", ticketDescription: "Öffne den Link in deiner E-Mail, um deinen QR-Code auf diesem Gerät zu finden.",
     preferences: "So, wie du magst", language: "App-Sprache", install: "Meraki auf deinem Home-Bildschirm", installDescription: "Füge Meraki auf iPhone und Android zum Home-Bildschirm hinzu und öffne es wie eine App.",
     support: "Wir sind für dich da", help: "Brauchst du Hilfe?", helpDescription: "Kontaktiere uns zu Events und Tickets.", staff: "Zugang für das Team", staffDescription: "Check-in und Ticketverwaltung.",
     legal: "Info und Datenschutz", privacy: "Datenschutzerklärung", terms: "Allgemeine Geschäftsbedingungen", cookies: "Cookie-Richtlinie", footer: "Jetzt ist Zeit, dich wohlzufühlen.", switching: "Sprache wird geändert…",
   },
   es: {
-    eyebrow: "TU ESPACIO", title: "Estás en casa.", description: "Tus experiencias empiezan aquí.",
-    ticket: "Mis entradas", ticketDescription: "Encuentra tus códigos QR y prepárate para disfrutar.",
+    eyebrow: "MERAKI, SIEMPRE A MANO", title: "Entradas e información", description: "No necesitas una cuenta: compra tu entrada y recíbela por email.",
+    ticket: "Mis entradas", ticketDescription: "Abre el enlace del email para encontrar tu QR en este dispositivo.",
     preferences: "A tu manera", language: "Idioma de la app", install: "Meraki en tu pantalla de inicio", installDescription: "En iPhone y Android, añade Meraki a la pantalla de inicio para abrirla como una app.",
     support: "Estamos para ayudarte", help: "¿Necesitas ayuda?", helpDescription: "Contacta con nosotros sobre eventos y entradas.", staff: "Acceso del equipo", staffDescription: "Control de acceso y gestión de entradas.",
     legal: "Información y privacidad", privacy: "Política de privacidad", terms: "Términos y condiciones", cookies: "Política de cookies", footer: "Es momento de sentirte bien.", switching: "Cambiando idioma…",
   },
 };
 
-export function MerakiProfile({ locale }: { locale: string }) {
+export function MerakiProfile({ locale, staffAccess = false }: { locale: string; staffAccess?: boolean }) {
   const text = copy[locale as keyof typeof copy] ?? copy.it;
   const router = useRouter();
   const pathname = usePathname();
@@ -90,9 +90,9 @@ export function MerakiProfile({ locale }: { locale: string }) {
           <Link href="/profilo/assistenza" className={styles.row}>
             <LifeBuoy size={21} strokeWidth={1.6} aria-hidden="true" /><span><strong>{text.help}</strong><small>{text.helpDescription}</small></span><ArrowUpRight size={18} aria-hidden="true" />
           </Link>
-          <Link href="/admin/biglietti" className={styles.row}>
+          {staffAccess && <Link href="/admin/biglietti" className={styles.row}>
             <ScanLine size={21} strokeWidth={1.6} aria-hidden="true" /><span><strong>{text.staff}</strong><small>{text.staffDescription}</small></span><LockKeyhole size={16} aria-hidden="true" />
-          </Link>
+          </Link>}
         </div>
       </section>
 

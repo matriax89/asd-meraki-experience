@@ -36,6 +36,39 @@ async function mount(context, Component, props) {
   await act(async () => new Promise((resolve) => window.setTimeout(resolve, 20)));
 }
 
+for (const [locale, noAccount, openEmail, deviceOnly, emptyTitle] of [
+  ["it", "Non serve creare un account.", "Apri il biglietto nell’email", "Biglietti salvati solo in questo browser", "Nessun biglietto salvato qui"],
+  ["en", "No account is needed.", "Open the ticket in your email", "Tickets saved only in this browser", "No tickets saved here yet"],
+  ["de", "Du brauchst kein Konto.", "Öffne das Ticket in deiner E-Mail", "Tickets nur in diesem Browser gespeichert", "Hier sind noch keine Tickets gespeichert"],
+  ["es", "No necesitas crear una cuenta.", "Abre la entrada desde tu email", "Entradas guardadas solo en este navegador", "Todavía no hay entradas guardadas aquí"],
+]) {
+  test(`empty ${locale} wallet explains email access without an account and exposes the import form`, async (context) => {
+    window.localStorage.clear();
+    let requests = 0;
+    const { TicketWallet } = compile("components/meraki/ticket-wallet.tsx", {
+      "@/lib/tickets/wallet": wallet, "./wallet-copy": copy,
+      "next/link": { default: Anchor, __esModule: true },
+      fetch: async () => { requests++; throw new Error("An empty wallet must not fetch tickets by identity"); },
+    });
+    await mount(context, TicketWallet, { locale, siteOrigin: "https://meraki.test" });
+    assert.ok(window.document.body.textContent.includes(noAccount));
+    const guide = window.document.querySelector('section[aria-labelledby="meraki-wallet-guide"]');
+    assert.equal(guide.querySelectorAll("ol > li").length, 2);
+    assert.ok(guide.textContent.includes(openEmail));
+    assert.ok(window.document.body.textContent.includes(deviceOnly));
+    const emptyHeading = [...window.document.querySelectorAll("h2")].find((heading) => heading.textContent === emptyTitle);
+    assert.ok(emptyHeading);
+    const linkInput = window.document.querySelector("#meraki-ticket-link");
+    assert.ok(linkInput);
+    assert.equal(window.document.querySelectorAll("form").length, 1);
+    assert.ok(linkInput.compareDocumentPosition(emptyHeading) & window.Node.DOCUMENT_POSITION_FOLLOWING, "email-link import precedes the empty-state illustration and discovery link");
+    assert.equal(linkInput.closest("details"), null, "the emailed-link import stays visible without opening another control");
+    assert.equal(linkInput.required, true);
+    assert.equal(window.document.querySelector('input[type="email"], input[type="password"]'), null);
+    assert.equal(requests, 0);
+  });
+}
+
 test("Spanish wallet validates imports in Spanish and submits the Spanish locale", async (context) => {
   window.localStorage.clear();
   const requests = [];
@@ -56,8 +89,12 @@ test("Spanish wallet validates imports in Spanish and submits the Spanish locale
   await change(`/es/biglietto/${ticket.id}?token=${ticket.token}`);
   await submit();
   assert.equal(requests[0].locale, "es");
+  assert.deepEqual(requests[0], { locale: "es", tickets: [{ id: ticket.id, token: ticket.token }] });
   assert.ok(window.document.querySelector(`a[href="/es/biglietto/${ticket.id}?token=${ticket.token}"]`));
   assert.match(window.document.body.textContent, /Mostrar entrada/);
+  assert.equal(window.document.querySelector("#meraki-wallet-guide"), null, "saved tickets take priority over the first-use guide");
+  assert.equal(window.document.querySelectorAll("form").length, 1);
+  assert.ok(window.document.querySelector("article").compareDocumentPosition(window.document.querySelector("form")) & window.Node.DOCUMENT_POSITION_FOLLOWING, "saved tickets precede the additional import form");
   assert.deepEqual(Object.keys(JSON.parse(window.localStorage.getItem(wallet.WALLET_KEY))[0]).sort(), ["date", "id", "location", "status", "title", "token"]);
 });
 

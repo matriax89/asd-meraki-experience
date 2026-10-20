@@ -45,7 +45,7 @@ const copy = {
     desktop: "Puoi installare Meraki dal menu del browser, quando l’opzione è disponibile.",
     dismissed: "Puoi aggiungere Meraki in un secondo momento dal menu del browser.",
     unavailable: "Usa le istruzioni qui sotto per aggiungere Meraki alla schermata Home.",
-    connection: "Per acquistare e convalidare i biglietti serve una connessione Internet.",
+    connection: "Per acquistare e aggiornare i biglietti serve una connessione Internet. Puoi salvare il QR sul telefono per mostrarlo all’ingresso.",
   },
   en: {
     title: "Keep Meraki close at hand",
@@ -59,7 +59,7 @@ const copy = {
     desktop: "You can install Meraki from your browser menu when the option is available.",
     dismissed: "You can add Meraki later from your browser menu.",
     unavailable: "Follow the instructions below to add Meraki to your Home Screen.",
-    connection: "An Internet connection is needed to purchase and validate tickets.",
+    connection: "An Internet connection is needed to buy and refresh tickets. You can save the QR code on your phone to show it at the entrance.",
   },
   de: {
     title: "Meraki immer griffbereit",
@@ -73,7 +73,7 @@ const copy = {
     desktop: "Du kannst Meraki über das Browsermenü installieren, wenn die Option verfügbar ist.",
     dismissed: "Du kannst Meraki später über das Browsermenü hinzufügen.",
     unavailable: "Folge der Anleitung unten, um Meraki zum Home-Bildschirm hinzuzufügen.",
-    connection: "Zum Kaufen und Prüfen der Tickets ist eine Internetverbindung erforderlich.",
+    connection: "Zum Kaufen und Aktualisieren der Tickets ist eine Internetverbindung erforderlich. Speichere den QR-Code auf deinem Handy, um ihn am Eingang vorzuzeigen.",
   },
   es: {
     title: "Meraki, siempre a mano",
@@ -85,7 +85,7 @@ const copy = {
     desktop: "Puedes instalar Meraki desde el menú del navegador cuando la opción esté disponible.",
     dismissed: "Puedes añadir Meraki más adelante desde el menú del navegador.",
     unavailable: "Sigue las instrucciones de abajo para añadir Meraki a la pantalla de inicio.",
-    connection: "Para comprar y validar las entradas necesitas conexión a Internet.",
+    connection: "Para comprar y actualizar las entradas necesitas conexión a Internet. Puedes guardar el QR en el teléfono para mostrarlo en la entrada.",
   },
 };
 

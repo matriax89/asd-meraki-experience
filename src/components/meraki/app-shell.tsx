@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useLocale } from "next-intl";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, Compass, Ticket, UserRound } from "lucide-react";
+import { ArrowLeft, Compass, Info, Ticket, UserRound } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { getMerakiRouteState } from "@/lib/meraki-routes";
 import styles from "./app-shell.module.css";
@@ -12,19 +12,19 @@ import styles from "./app-shell.module.css";
 export { isMerakiRoute } from "@/lib/meraki-routes";
 
 const copy = {
-  it: { discover: "Scopri", tickets: "Biglietti", profile: "Tu", back: "Indietro", navigation: "Navigazione Meraki", skip: "Vai al contenuto", experience: "Esperienze", ticket: "Il tuo biglietto", payment: "Pagamento" },
-  en: { discover: "Discover", tickets: "Tickets", profile: "You", back: "Back", navigation: "Meraki navigation", skip: "Skip to content", experience: "Experiences", ticket: "Your ticket", payment: "Payment" },
-  de: { discover: "Entdecken", tickets: "Tickets", profile: "Du", back: "Zurück", navigation: "Meraki-Navigation", skip: "Zum Inhalt", experience: "Erlebnisse", ticket: "Dein Ticket", payment: "Zahlung" },
-  es: { discover: "Descubre", tickets: "Entradas", profile: "Tú", back: "Volver", navigation: "Navegación de Meraki", skip: "Ir al contenido", experience: "Experiencias", ticket: "Tu entrada", payment: "Pago" },
+  it: { discover: "Scopri", tickets: "Biglietti", profile: "Info", signIn: "Accesso staff", staffArea: "Area staff", back: "Indietro", navigation: "Navigazione Meraki", skip: "Vai al contenuto", experience: "Esperienze", ticket: "Il tuo biglietto", payment: "Pagamento" },
+  en: { discover: "Discover", tickets: "Tickets", profile: "Info", signIn: "Staff sign-in", staffArea: "Staff area", back: "Back", navigation: "Meraki navigation", skip: "Skip to content", experience: "Experiences", ticket: "Your ticket", payment: "Payment" },
+  de: { discover: "Entdecken", tickets: "Tickets", profile: "Info", signIn: "Team-Anmeldung", staffArea: "Teambereich", back: "Zurück", navigation: "Meraki-Navigation", skip: "Zum Inhalt", experience: "Erlebnisse", ticket: "Dein Ticket", payment: "Zahlung" },
+  es: { discover: "Descubre", tickets: "Entradas", profile: "Info", signIn: "Acceso del equipo", staffArea: "Área del equipo", back: "Volver", navigation: "Navegación de Meraki", skip: "Ir al contenido", experience: "Experiencias", ticket: "Tu entrada", payment: "Pago" },
 };
 
 const destinations = [
   { key: "discover", href: "/eventi", icon: Compass },
   { key: "tickets", href: "/biglietti", icon: Ticket },
-  { key: "profile", href: "/profilo", icon: UserRound },
+  { key: "profile", href: "/profilo", icon: Info },
 ] as const;
 
-export function MerakiAppShell({ children, locale, logoUrl }: { children: ReactNode; locale?: string; logoUrl?: string }) {
+export function MerakiAppShell({ children, locale, logoUrl, staffAccess = false }: { children: ReactNode; locale?: string; logoUrl?: string; staffAccess?: boolean }) {
   const contextLocale = useLocale();
   const pathname = usePathname();
   const text = copy[(locale ?? contextLocale) as keyof typeof copy] ?? copy.it;
@@ -55,7 +55,7 @@ export function MerakiAppShell({ children, locale, logoUrl }: { children: ReactN
             />
           </Link>
           <div className={`${styles.headerSide} ${styles.headerEnd}`}>
-            <Link href="/profilo" className={styles.iconButton} aria-label={text.profile} aria-current={route.active === "profile" ? "page" : undefined}>
+            <Link href={staffAccess ? "/admin/biglietti" : "/login"} className={styles.iconButton} aria-label={staffAccess ? text.staffArea : text.signIn} title={staffAccess ? text.staffArea : text.signIn}>
               <UserRound size={19} strokeWidth={1.7} aria-hidden="true" />
             </Link>
           </div>

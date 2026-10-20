@@ -83,13 +83,50 @@ test("discovery details and checkout stay in discovery with a fixed events retur
   }
 });
 
-test("profile navigation localizes and selects the profile destination", () => {
+test("information navigation localizes and selects preferences separately from staff sign-in", () => {
   pathname = "/de/profilo";
   locale = "de";
   const html = renderShell();
   assert.match(html, /aria-label="Meraki-Navigation"/);
   assert.match(html, /href="\/profilo"[^>]+aria-current="page"/);
   assert.match(html, />Entdecken<\/span>/);
-  assert.match(html, />Du<\/span>/);
+  assert.match(html, />Info<\/span>/);
   assert.doesNotMatch(html, /aria-label="Zurück"/);
+});
+
+test("the header icon opens sign-in for visitors and the roster for verified staff", () => {
+  const labels = { it: ["Accesso staff", "Area staff"], en: ["Staff sign-in", "Staff area"], de: ["Team-Anmeldung", "Teambereich"], es: ["Acceso del equipo", "Área del equipo"] };
+  for (const [lang, [signIn, staffArea]] of Object.entries(labels)) {
+    locale = lang;
+    pathname = `/${lang}/profilo`;
+    for (const staffAccess of [false, true]) {
+      const { document } = new JSDOM(renderShell({ staffAccess })).window;
+      const access = document.querySelector(`header a[aria-label="${staffAccess ? staffArea : signIn}"]`);
+      assert.equal(access?.getAttribute("href"), staffAccess ? "/admin/biglietti" : "/login");
+      assert.equal(access.hasAttribute("aria-current"), false, "access is separate from the active information tab");
+      assert.equal(document.querySelector('nav a[href="/profilo"]').getAttribute("aria-current"), "page");
+    }
+  }
+});
+
+const { MerakiProfile } = loadTs("../src/components/meraki/profile.tsx", (id) => {
+  if (id === "next/navigation") return { usePathname: () => pathname, useRouter: () => ({ replace() {} }) };
+  if (id === "@/components/pwa/install-card") return { InstallCard: () => null };
+  if (id === "@/i18n/routing") return { Link: ({ children, ...props }) => createElement("a", props, children) };
+  if (id.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
+  return require(id);
+});
+
+test("public information explains guest tickets and shows operational tools only to verified staff", () => {
+  const guestCopy = { it: "Non serve un account", en: "No account needed", de: "Kein Konto nötig", es: "No necesitas una cuenta" };
+  for (const lang of ["it", "en", "de", "es"]) {
+    for (const staffAccess of [undefined, false, true]) {
+      const html = renderToStaticMarkup(createElement(MerakiProfile, { locale: lang, staffAccess }));
+      const { document } = new JSDOM(html).window;
+      assert.equal(document.querySelectorAll('a[href="/admin/biglietti"]').length, staffAccess ? 1 : 0);
+      assert.ok(document.querySelector('a[href="/biglietti"]'));
+      assert.match(document.body.textContent, new RegExp(guestCopy[lang]));
+      assert.equal(document.querySelector('video,canvas'), null);
+    }
+  }
 });
