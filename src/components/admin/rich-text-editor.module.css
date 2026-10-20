@@ -4,6 +4,7 @@
 .tool{display:inline-flex;min-width:44px;min-height:44px;align-items:center;justify-content:center;border:1px solid transparent;border-radius:10px;background:transparent;color:#52604e;cursor:pointer}
 .tool:hover:not(:disabled){background:#eae9dd}
 .tool[aria-pressed=true]{border-color:#d5d6c4;background:#263d30;color:#fffefa}
+.tool[aria-pressed=true]:hover:not(:disabled){background:#263d30}
 .tool:focus-visible,.linkControls button:focus-visible,.linkControls input:focus-visible{outline:2px solid #9c8654;outline-offset:2px}
 .tool:disabled{opacity:.35;cursor:default}
 .surface{min-width:0}
