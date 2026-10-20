@@ -34,7 +34,7 @@ const detail = load("components/meraki/event-detail.tsx", {
   "@/components/public/event-description": { EventDescription: ({ description }) => React.createElement("p", null, description) },
   "@/lib/tickets/event-availability": load("lib/tickets/event-availability.ts"),
   "@/app/[locale]/(public)/eventi/[slug]/checkout-button": { CheckoutButton: () => React.createElement("button", null, "Checkout") },
-  "./commerce-purchase": { CommercePurchase: ({ fallback }) => fallback },
+  "./commerce-purchase": { CommercePurchase: ({ fallback, presentation, ended }) => React.createElement("div", { "data-commerce-presentation": presentation, "data-commerce-ended": String(ended) }, fallback) },
 });
 const event = { id: "test", slug: "meraki-test", type: "evento", title: "Meraki Workshop", subtitle: "Muoviti insieme", startsAt: "2027-11-21T17:00:00Z", endsAt: null, cover: "https://assets.example.test/original-poster.png", location: "Bolzano", address: "Via Meraki 1", price: 6000, capacity: 30, sold: 0, description: "Descrizione", ctaType: "stripe", ctaUrl: null };
 const localized = (it, other = {}) => ({ it, en: "", de: "", es: "", ...other });
@@ -48,6 +48,51 @@ const data = {
 const render = (Component, props) => JSDOM.fragment(renderToStaticMarkup(React.createElement(Component, props)));
 
 for (const locale of ["it", "en", "de", "es"]) {
+  test(`${locale} package purchase belongs after the description and before ticket and travel information`, () => {
+    const fragment = render(detail.EventDetail, { event: { ...event, logistics: data }, locale });
+    const description = fragment.querySelector('[aria-labelledby="about-experience"]');
+    const ticketing = fragment.querySelector("#quote-partecipazione[data-event-ticketing]");
+    const digitalTicket = fragment.querySelector(`section[aria-label="${model.eventLabels(locale).digitalTicket}"]`);
+    const guide = fragment.querySelector("#viaggio-soggiorno");
+    assert.ok(description && ticketing && digitalTicket && guide);
+    assert.equal(description.nextElementSibling, ticketing);
+    assert.equal(ticketing.nextElementSibling, digitalTicket);
+    assert.equal(digitalTicket.nextElementSibling, guide);
+    assert.equal(ticketing.getAttribute("aria-label"), model.eventLabels(locale).packages);
+    assert.equal(ticketing.querySelector("[data-commerce-presentation]").dataset.commercePresentation, "packages");
+    assert.equal(fragment.querySelector("aside"), null, "purchase no longer overlays the event content");
+    assert.equal(ticketing.classList.contains("fixed"), false);
+    assert.equal(fragment.querySelector("article").classList.contains("pb-36"), false, "no space is reserved for the removed fixed purchase panel");
+  });
+
+  test(`${locale} the inline purchase preserves legacy checkout, external booking, contact and closed states`, () => {
+    const labels = model.eventLabels(locale);
+    const ticketing = (changes = {}) => render(detail.EventDetail, { event: { ...event, ...changes }, locale }).querySelector("[data-event-ticketing]");
+    const legacy = ticketing();
+    assert.equal(legacy.querySelector("button").textContent, "Checkout");
+    assert.ok(legacy.textContent.includes(labels.secure));
+    assert.ok(legacy.textContent.includes(`30 ${labels.places}`));
+    const external = ticketing({ ctaType: "external_url", ctaUrl: "https://booking.example.test/meraki" });
+    assert.equal(external.querySelector("button"), null);
+    assert.equal(external.querySelector("a").href, "https://booking.example.test/meraki");
+    assert.equal(external.querySelector("a").rel, "noopener noreferrer");
+    const contact = ticketing({ ctaType: "info_only" });
+    assert.equal(contact.querySelector("a").getAttribute("href"), "/profilo/assistenza");
+    assert.equal(contact.querySelector("a").textContent, labels.contact);
+    assert.equal(ticketing({ price: null }).querySelector("a").textContent, labels.contact);
+    for (const [changes, status, body] of [
+      [{ capacity: 0 }, labels.soldOut, null],
+      [{ startsAt: "2000-01-01T12:00:00Z", endsAt: "2000-01-01T18:00:00Z" }, labels.ended, labels.endedBody],
+      [{ startsAt: "2000-01-01T12:00:00Z", endsAt: "2999-01-01T18:00:00Z" }, labels.salesClosed, labels.closedBody],
+    ]) {
+      const panel = ticketing(changes);
+      assert.ok(panel.textContent.includes(status));
+      if (body) assert.ok(panel.textContent.includes(body));
+      assert.equal(panel.querySelector("button,a"), null, "unavailable legacy events cannot start checkout");
+    }
+    assert.equal(ticketing({ description: "" }).parentElement.firstElementChild.id, "quote-partecipazione", "missing descriptions do not prevent a direct purchase target");
+  });
+
   test(`${locale} detail and both card variants show the entire original 4:5 poster without overlays`, () => {
     for (const [Component, props] of [[detail.EventDetail, { event, locale }], [card.MerakiEventCard, { event, locale, now: Date.now(), featured: true }], [card.MerakiEventCard, { event, locale, now: Date.now() }]]) {
       const fragment = render(Component, props);

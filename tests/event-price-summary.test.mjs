@@ -25,11 +25,11 @@ const now = Date.parse("2026-10-20T15:00:00Z");
 const earlyEnd = "2026-12-04T22:59:00Z";
 const nextStart = "2026-12-04T23:00:00Z";
 const tier = (id, label, amountCents, startsAt = null, endsAt = null) => ({ id, label, amountCents, startsAt, endsAt });
-const offer = (id, name, early, next) => ({
-  id, name, salesCloseAt: null,
+const offer = (id, name, early, next, activityIds = [id]) => ({
+  id, name, activityIds, salesCloseAt: null,
   prices: [tier("early", "Early Bird", early, null, earlyEnd), tier("standard", "Standard", next, nextStart)],
 });
-const packages = [offer("ws", "Workshop", 4500, 5500), offer("mc", "Masterclass", 3500, 4500), offer("bundle", "Workshop + Masterclass", 6500, 8500)];
+const packages = [offer("ws", "Workshop", 4500, 5500), offer("mc", "Masterclass", 3500, 4500), offer("bundle", "Workshop + Masterclass", 6500, 8500, ["ws", "mc"])];
 function render(props = {}) {
   return new JSDOM(renderToStaticMarkup(React.createElement(EventPriceSummary, { packages, locale: "it", now, ...props }))).window.document;
 }
@@ -52,6 +52,43 @@ test("event card exposes all current package prices with next-price savings and 
   assert.ok(plain(document.querySelector("[data-price-deadline]")).includes("04/12/2026, 23:59"));
   assert.match(plain(document.body), /Prezzi a persona · Ora italiana \(Europe\/Rome\)/);
   assert.equal(document.querySelector("del,s"), null, "a future price must not masquerade as an old price");
+});
+
+test("combos come first with a distinct dark card and readable price details without changing configured order", () => {
+  const original = structuredClone(packages);
+  const document = render();
+  const rows = [...document.querySelectorAll("[data-event-package-price]")];
+  assert.deepEqual(rows.map(item => item.getAttribute("data-event-package-price")), ["bundle", "ws", "mc"]);
+  assert.match(rows[0].className, /bg-\[#17281f\].*text-white/);
+  assert.equal(rows[0].getAttribute("data-package-combo"), "true");
+  assert.match(rows[0].querySelector("[data-next-price]").className, /text-\[#d4dfd2\]/);
+  assert.match(rows[0].querySelector("[data-price-tier]").className, /bg-\[#e9d9ae\].*text-\[#2b281f\]/);
+  for (const single of rows.slice(1)) {
+    assert.equal(single.hasAttribute("data-package-combo"), false);
+    assert.match(single.className, /bg-\[#faf9f5\]/);
+  }
+  assert.deepEqual(packages, original, "presentation must not reorder or edit the commerce configuration");
+});
+
+test("combo priority uses included activities, preserves groups and supports legacy data without name heuristics", () => {
+  const multiple = [
+    offer("named-combo", "Workshop + Masterclass", 2000, 2500, ["ws"]),
+    offer("real-combo", "Completo", 4000, 4500, ["ws", "mc"]),
+    { ...offer("legacy", "Combo legacy", 2000, 2500), activityIds: undefined },
+    offer("other-combo", "Together", 5000, 5500, ["mc", "dinner"]),
+  ];
+  const document = render({ packages: multiple });
+  assert.deepEqual([...document.querySelectorAll("[data-event-package-price]")].map(item => item.getAttribute("data-event-package-price")), ["real-combo", "other-combo", "named-combo", "legacy"]);
+  assert.equal(document.querySelectorAll("[data-package-combo]").length, 2);
+  assert.equal(row(document, "named-combo").hasAttribute("data-package-combo"), false);
+  assert.equal(row(document, "legacy").hasAttribute("data-package-combo"), false);
+});
+
+test("the shared price section can use a level-two heading in the event details", () => {
+  assert.equal(render().querySelector("h3").textContent, "Formule e prezzi");
+  const document = render({ headingLevel: 2 });
+  assert.equal(document.querySelector("h2").textContent, "Formule e prezzi");
+  assert.equal(document.querySelector("h3"), null);
 });
 
 test("different package deadlines remain attached to their own price", () => {

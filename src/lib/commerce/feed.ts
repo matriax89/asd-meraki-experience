@@ -25,6 +25,7 @@ export async function enrichCommerceFeed(events: MerakiEvent[]): Promise<MerakiE
       return {
         id: pkg.id,
         name: pkg.name,
+        activityIds: [...pkg.activityIds],
         ...(pkg.nameTranslations && { nameTranslations: pkg.nameTranslations }),
         prices: pkg.prices.map(tier => ({
           id: tier.id,

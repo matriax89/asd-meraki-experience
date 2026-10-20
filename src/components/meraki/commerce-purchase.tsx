@@ -14,6 +14,7 @@ import { useCheckoutViewport } from "./use-checkout-viewport";
 import { commerceText, commerceQuoteLabel, commerceDiscountScope } from "@/lib/commerce/localization";
 import { DiscountBreakdown, DiscountCodeFields, discountCodeValue, type DiscountQuote } from "./discount-code-fields";
 import { discountError } from "./discount-copy";
+import { EventPriceSummary } from "./event-price-summary";
 
 type Quote = DiscountQuote & { lines: { label: string; quantity: number; unitAmountCents: number; totalCents: number; subtotalCents?: number; kind: string; packageId?: string; tierId?: string; addonId?: string; activityIds?: string[] }[] };
 type Selection = { participants: CommerceParticipant[]; contacts: CheckoutContact[]; buyerEmail: string };
@@ -22,7 +23,7 @@ const deadline = (value: string) => new Intl.DateTimeFormat("it-IT", { day: "num
 const priceDeadline = (value: string) => new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date(value));
 const percentage = (value: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(value);
 
-export function CommercePurchase({ eventId, locale, ended, fallback, upgrade }: { eventId: string; locale: string; ended: boolean; fallback?: ReactNode; upgrade?: CommerceUpgrade }) {
+export function CommercePurchase({ eventId, locale, ended, fallback, upgrade, presentation = "compact" }: { eventId: string; locale: string; ended: boolean; fallback?: ReactNode; upgrade?: CommerceUpgrade; presentation?: "compact" | "packages" }) {
   const copy = checkoutCopy(locale);
   const [catalog, setCatalog] = useState<CommerceCatalog | null | undefined>(undefined);
   const [catalogError, setCatalogError] = useState(false);
@@ -41,10 +42,10 @@ export function CommercePurchase({ eventId, locale, ended, fallback, upgrade }: 
   if (catalogError) return <div role="status"><p className={styles.muted}>{copy.catalogError}</p><button className={styles.smallButton} type="button" onClick={() => { setCatalogError(false); setReload((value) => value + 1); }}>{copy.retry}</button></div>;
   if (!catalog) return <p role="status" className={styles.muted}><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" /> {copy.checkingOffers}</p>;
   if (upgrade && !catalog.config.upgradesEnabled) return null;
-  return <Purchase catalog={catalog} locale={locale} upgrade={upgrade} />;
+  return <Purchase catalog={catalog} locale={locale} upgrade={upgrade} presentation={presentation} />;
 }
 
-function Purchase({ catalog, locale, upgrade }: { catalog: CommerceCatalog; locale: string; upgrade?: CommerceUpgrade }) {
+function Purchase({ catalog, locale, upgrade, presentation }: { catalog: CommerceCatalog; locale: string; upgrade?: CommerceUpgrade; presentation: "compact" | "packages" }) {
   const copy = checkoutCopy(locale);
   const offers = eligiblePackages(catalog, upgrade);
   const [now, setNow] = useState(() => Date.now());
@@ -161,9 +162,21 @@ function Purchase({ catalog, locale, upgrade }: { catalog: CommerceCatalog; loca
   const canWaitlist = !upgrade && !available && future && catalog.config.waitlistEnabled;
   const canUpgrade = upgrade && (offers.some((offer) => offer.id !== upgrade.packageId && packageAvailable(catalog, offer.id, upgrade.activityIds, now)) || catalog.config.addons.some((addon) => !upgrade.activityIds.includes(addon.activityId) && activityAvailable(catalog, addon.activityId, now)));
   if (upgrade && !canUpgrade) return null;
+  const packagePrices = offers.map((offer) => {
+    const closingTimes = catalog.config.activities.filter((activity) => offer.activityIds.includes(activity.id))
+      .flatMap((activity) => [activity.salesEnd, activity.startsAt])
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => Date.parse(value)).filter(Number.isFinite);
+    return { id: offer.id, name: offer.name, nameTranslations: offer.nameTranslations, activityIds: offer.activityIds, prices: offer.prices, salesCloseAt: closingTimes.length ? new Date(Math.min(...closingTimes)).toISOString() : null };
+  });
 
   return <>
     {upgrade ? <div className="mt-6 rounded-[22px] border border-[#dedfd3] bg-white p-5"><p className={styles.eyebrow}>{copy.complete}</p><p className="my-3 text-sm leading-6 text-[#64705f]">{copy.upgradeIntro}</p><button ref={trigger} className={styles.button} type="button" onClick={() => show()}><Plus className="h-4 w-4" /> {copy.upgradeAction}</button></div>
+      : presentation === "packages" ? <div className={styles.packagePresentation} data-commerce-package-presentation>
+        <EventPriceSummary packages={packagePrices} locale={locale} now={now} headingLevel={2} />
+        {!available && <p className={styles.unavailableMessage}>{copy.unavailableOffers}</p>}
+        <div className={styles.packagePurchaseAction}><button ref={trigger} className={styles.button} type="button" disabled={!available && !canWaitlist} onClick={() => show(!available)}>{available ? copy.purchaseLabel : canWaitlist ? copy.joinWaitlist : copy.closed}<ArrowRight className="h-4 w-4" /></button><p className={`${styles.muted} mt-2 text-center`}>{available ? copy.purchaseHint : canWaitlist ? copy.waitlistHint : copy.closedHint}</p></div>
+      </div>
       : <div><p className={styles.eyebrow}>{copy.chooseExperience}</p>{available && prices.length ? <p className={styles.price}><span className="mr-2 text-xs font-normal tracking-normal text-[#7c8676]">{copy.from}</span>{money(Math.min(...prices))}</p> : <p className="my-3 text-sm font-semibold">{copy.unavailableOffers}</p>}<button ref={trigger} className={styles.button} type="button" disabled={!available && !canWaitlist} onClick={() => show(!available)}>{available ? copy.chooseTickets : canWaitlist ? copy.joinWaitlist : copy.closed}<ArrowRight className="h-4 w-4" /></button><p className={`${styles.muted} mt-2 text-center`}>{available ? copy.purchaseHint : canWaitlist ? copy.waitlistHint : copy.closedHint}</p></div>}
 
     <dialog ref={dialog} className={styles.dialog} aria-labelledby={`commerce-title-${catalog.event.id}`} onCancel={(event) => { if (submitting.current) event.preventDefault(); }} onClose={() => { setOpen(false); opened.current = false; document.body.style.overflow = previousOverflow.current; trigger.current?.focus(); }} onClick={(event) => { if (event.target === event.currentTarget && !submitting.current) dialog.current?.close(); }}>
@@ -186,7 +199,7 @@ function Purchase({ catalog, locale, upgrade }: { catalog: CommerceCatalog; loca
                 const savings = packageSavings(catalog.config, offer.id, now);
                 const comparison = !waitlist && !upgrade && catalog.available && valid ? nextTierComparison(offer.prices, now) : null;
                 const tierLabel = tier && commerceText(tier.label, tier.labelTranslations, locale);
-                return <div key={offer.id}><label className={`${styles.option} ${styles.packageOption}`}><input type="radio" name={`package-${index}`} value={offer.id} checked={participant.packageId === offer.id} disabled={!waitlist && !valid} required onChange={() => updateParticipant(index, { packageId: offer.id, addonIds: participant.addonIds.filter((id) => !catalog.config.addons.some((addon) => addon.id === id && offer.activityIds.includes(addon.activityId))), menuChoices: {} })} /><span className={styles.optionBody}>
+                return <div key={offer.id}><label className={`${styles.option} ${styles.packageOption} ${offer.activityIds.length > 1 ? styles.comboOption : ""}`} data-package-combo={offer.activityIds.length > 1 ? "true" : undefined}><input type="radio" name={`package-${index}`} value={offer.id} checked={participant.packageId === offer.id} disabled={!waitlist && !valid} required onChange={() => updateParticipant(index, { packageId: offer.id, addonIds: participant.addonIds.filter((id) => !catalog.config.addons.some((addon) => addon.id === id && offer.activityIds.includes(addon.activityId))), menuChoices: {} })} /><span className={styles.optionBody}>
                   <span className={`${styles.optionTop} ${styles.offerTop}`}><span className={styles.offerName}>{commerceText(offer.name, offer.nameTranslations, locale)}</span><span className={upgrade && offer.id === upgrade.packageId ? styles.purchasedLabel : styles.offerPrice}>{upgrade && offer.id === upgrade.packageId ? copy.purchased : tier ? money(tier.amountCents) : "—"}</span></span>
                   <span className={styles.offerDescription}>{commerceText(offer.description, offer.descriptionTranslations, locale) || offer.activityIds.map((id) => { const activity = catalog.config.activities.find((item) => item.id === id); return activity ? commerceText(activity.name, activity.nameTranslations, locale) : ""; }).filter(Boolean).join(" + ")}</span>
                   {!waitlist && tier && !(upgrade && offer.id === upgrade.packageId) && <span className={styles.tierDetails}>

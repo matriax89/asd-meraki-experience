@@ -22,6 +22,8 @@ const discountCopyModule = compile("../src/components/meraki/discount-copy.ts");
 const localization = compile("../src/lib/commerce/localization.ts");
 const cssModule = { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
 const model = compile("../src/components/meraki/commerce-public-model.ts");
+const eventModel = compile("../src/components/meraki/event-model.ts");
+const eventPriceSummary = compile("../src/components/meraki/event-price-summary.tsx", { modules: { "@/lib/commerce/localization": localization, "./commerce-public-model": model, "./event-model": eventModel } });
 const tier = (id, amountCents, startsAt = null, endsAt = null) => ({ id, label: id, amountCents, startsAt, endsAt });
 const config = {
   version: 1, enabled: true, waitlistEnabled: true, upgradesEnabled: true,
@@ -51,9 +53,17 @@ test("shared sold-out activities disable bundles and upgrades preserve existing 
   assert.equal(model.packageAvailable({ ...catalog, availability: { ...catalog.availability, mc: 0 } }, "bundle"), false);
   assert.equal(model.packageAvailable({ ...catalog, availability: { ...catalog.availability, mc: 0 } }, "bundle", ["mc"]), true);
   const offers = model.eligiblePackages(catalog, { packageId: "only-ws", activityIds: ["ws", "dinner"] });
-  assert.deepEqual(Array.from(offers, (offer) => offer.id), ["only-ws", "bundle"]);
+  assert.deepEqual(Array.from(offers, (offer) => offer.id), ["bundle", "only-ws"]);
   assert.equal(model.packageAvailable({ ...catalog, availability: { ...catalog.availability, _event: 0 } }, "bundle"), false);
   assert.equal(model.packageAvailable({ ...catalog, availability: { ...catalog.availability, _event: 0 } }, "bundle", ["ws"]), true);
+});
+
+test("combo prioritization is stable and never mutates the configured package order", () => {
+  const input = Object.freeze([{ id: "solo-a", activityIds: ["a"] }, { id: "combo-a", activityIds: ["a", "b"] }, { id: "plain" }, { id: "combo-b", activityIds: ["b", "c"] }, { id: "solo-b", activityIds: ["b"] }]);
+  const sorted = model.prioritizePackages(input);
+  assert.deepEqual(Array.from(sorted, (offer) => offer.id), ["combo-a", "combo-b", "solo-a", "plain", "solo-b"]);
+  assert.deepEqual(input.map((offer) => offer.id), ["solo-a", "combo-a", "plain", "combo-b", "solo-b"]);
+  assert.equal(sorted[0], input[1]);
 });
 
 test("checkout redirects only accept exact Stripe hosts or the local success endpoint", () => {
@@ -95,6 +105,7 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
     window, document: window.document, Date: TestDate, crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++uuidCalls).padStart(12, "0")}` },
     modules: {
       "./commerce-public-model": model, "./commerce-purchase.module.css": cssModule,
+      "./event-price-summary": eventPriceSummary,
       "@/lib/commerce/localization": localization, "./discount-copy": discountCopyModule,
       "./discount-code-fields": compile("../src/components/meraki/discount-code-fields.tsx", { modules: { "./discount-copy": discountCopyModule, "./commerce-purchase.module.css": cssModule } }),
       "./checkout-copy": checkoutCopy, "@/lib/commerce/attendee": attendeeModel,
@@ -116,7 +127,7 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
   });
   const root = createRoot(window.document.getElementById("root"));
   context.after(async () => act(async () => root.unmount()));
-  await act(async () => root.render(React.createElement(exports.CommercePurchase, { eventId: catalog.event.id, locale, upgrade, ended: false, fallback: React.createElement("button", null, "Legacy checkout") })));
+  await act(async () => root.render(React.createElement(exports.CommercePurchase, { eventId: catalog.event.id, locale, upgrade, ended: controls.ended || false, presentation: controls.presentation, fallback: React.createElement("button", null, "Legacy checkout") })));
   const open = async () => act(async () => window.document.querySelector("button").click());
   const settleQuote = async () => act(async () => new Promise((resolve) => window.setTimeout(resolve, 300)));
   const change = async (element, value) => act(async () => { const prototype = element.tagName === "SELECT" ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(prototype, "value").set.call(element, value); element.dispatchEvent(new window.Event(element.tagName === "SELECT" ? "change" : "input", { bubbles: true })); });
@@ -142,11 +153,96 @@ test("catalog failures never expose the legacy checkout for a potentially config
   assert.equal(window.document.querySelector("button").textContent, "Riprova");
 });
 
+test("a new purchase selects the first available combo and the quote uses that exact package", async (context) => {
+  const ui = await setup(context); await ui.open(); await ui.settleQuote();
+  const radios = [...window.document.querySelectorAll('input[name="package-0"]')];
+  assert.deepEqual(radios.map((input) => input.value), ["bundle", "only-ws", "only-mc"]);
+  assert.equal(radios[0].checked, true);
+  assert.ok(radios[0].closest("label").classList.contains("comboOption"));
+  assert.equal(radios[0].closest("label").getAttribute("data-package-combo"), "true");
+  assert.equal(radios[1].closest("label").hasAttribute("data-package-combo"), false);
+  const request = ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1);
+  assert.equal(request.body.participants[0].packageId, "bundle");
+  assert.match(window.document.querySelector("form").textContent, /Totale60,00/);
+  assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
+});
+
+test("a sold-out combo remains first but the available solo is selected without requesting an invalid bundle", async (context) => {
+  const ui = await setup(context, { ...catalog, availability: { ws: 20, mc: 0, dinner: 10 } }); await ui.open(); await ui.settleQuote();
+  const radios = [...window.document.querySelectorAll('input[name="package-0"]')];
+  assert.equal(radios[0].value, "bundle"); assert.equal(radios[0].disabled, true);
+  assert.equal(window.document.querySelector('input[value="only-ws"]').checked, true);
+  assert.equal(ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1).body.participants[0].packageId, "only-ws");
+});
+
+for (const [locale, purchase] of [["it", "Acquista quota partecipazione"], ["en", "Buy ticket"], ["de", "Ticket kaufen"], ["es", "Comprar entrada"]]) {
+  test(`${locale} inline prices show the complete combo-first list and open the translated purchase flow`, async (context) => {
+    const ui = await setup(context, scheduledPriceCatalog(), locale, undefined, { presentation: "packages" });
+    const presentation = window.document.querySelector("[data-commerce-package-presentation]");
+    assert.ok(presentation.querySelector("h2"));
+    assert.equal(presentation.querySelector(".price, .eyebrow"), null, "The old minimum-price card is absent");
+    const offers = [...presentation.querySelectorAll("[data-event-package-price]")];
+    assert.deepEqual(offers.map((offer) => offer.getAttribute("data-event-package-price")), ["bundle", "only-ws", "only-mc"]);
+    assert.equal(offers[0].getAttribute("data-package-combo"), "true");
+    assert.match(offers[0].className, /bg-\[#17281f\].*text-white/);
+    assert.match(offers[1].querySelector("[data-price-saving]").textContent, /18,1%/);
+    const trigger = presentation.querySelector("button");
+    assert.equal(trigger.textContent, purchase); assert.equal(trigger.disabled, false);
+    await ui.open(); await ui.settleQuote();
+    assert.equal(window.document.querySelector("dialog").open, true);
+    assert.equal(ui.calls.filter((call) => call.url === "/api/commerce/quote").at(-1).body.participants[0].packageId, "bundle");
+    assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
+  });
+}
+
+test("inline sold-out prices offer a separate waitlist rather than a payment action", async (context) => {
+  const ui = await setup(context, { ...catalog, availability: { ws: 0, mc: 0, dinner: 0 } }, "it", undefined, { presentation: "packages" });
+  const presentation = window.document.querySelector("[data-commerce-package-presentation]");
+  assert.equal(presentation.querySelectorAll("[data-event-package-price]").length, 3);
+  assert.match(presentation.querySelector("button").textContent, /lista d’attesa/);
+  await ui.open(); await ui.settleQuote();
+  assert.equal(ui.calls.some((call) => call.url === "/api/commerce/quote" || call.url === "/api/commerce/checkout"), false);
+  assert.match(window.document.querySelector("dialog h2").textContent, /prossimo posto/);
+});
+
+test("inline closed sales disable purchase and suppress prices after their activities close", async (context) => {
+  const closed = structuredClone(catalog); closed.available = false; closed.event.date = "2000-01-01T08:00:00Z";
+  closed.config.activities.forEach((activity) => { activity.startsAt = "2000-01-01T08:00:00Z"; });
+  const ui = await setup(context, closed, "it", undefined, { presentation: "packages" });
+  const presentation = window.document.querySelector("[data-commerce-package-presentation]");
+  assert.equal(presentation.querySelector("[data-event-price-summary]"), null);
+  assert.equal(presentation.querySelector("button").disabled, true);
+  assert.equal(presentation.querySelector("button").textContent, "Vendite chiuse");
+  await ui.open();
+  assert.equal(window.document.querySelector("dialog").open, false);
+  assert.equal(ui.calls.some((call) => call.url === "/api/commerce/quote" || call.url === "/api/commerce/checkout"), false);
+});
+
+test("inline zero-price offers remain purchasable and quote zero without falling through to legacy checkout", async (context) => {
+  const free = structuredClone(catalog); free.config.packages = [free.config.packages[0]]; free.config.packages[0].prices[0].amountCents = 0;
+  const ui = await setup(context, free, "it", undefined, { presentation: "packages" });
+  const presentation = window.document.querySelector("[data-commerce-package-presentation]");
+  assert.match(presentation.querySelector("[data-event-package-price]").textContent, /Gratis/);
+  assert.equal(presentation.querySelector("button").disabled, false);
+  ui.setQuoteResponse(() => ({ ok: true, json: async () => ({ quote: { totalCents: 0, lines: [] } }) }));
+  await ui.open(); await ui.settleQuote();
+  assert.equal(window.document.querySelector('button[type="submit"]').disabled, false);
+  assert.match(window.document.querySelector("form").textContent, /Totale0,00/);
+  assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
+});
+
+test("ended inline events retain their fallback without loading a purchase catalog", async (context) => {
+  const ui = await setup(context, catalog, "it", undefined, { presentation: "packages", ended: true });
+  assert.equal(window.document.querySelector("button").textContent, "Legacy checkout");
+  assert.equal(ui.calls.length, 0);
+});
+
 test("group purchase keeps independent formulas, optional dinner and menus for each person", async (context) => {
   const ui = await setup(context);
   await ui.open();
   assert.equal(window.document.querySelector("dialog").open, true);
   assert.equal(window.document.body.style.overflow, "hidden");
+  await act(async () => window.document.querySelector('input[value="only-ws"]').click());
   await ui.change(window.document.querySelector('select[aria-label="Numero di partecipanti"]'), "2");
   assert.equal(window.document.querySelectorAll("fieldset").length, 2);
   const second = window.document.querySelectorAll("fieldset")[1];
@@ -198,6 +294,7 @@ test("an unavailable formula has its own waitlist even while other formulas rema
 test("a group checkout submits the authoritative selection once despite two rapid submissions", async (context) => {
   const ui = await setup(context);
   await ui.open();
+  await act(async () => window.document.querySelector('input[value="only-ws"]').click());
   await ui.settleQuote();
   await ui.fillPerson();
   await ui.settleQuote();
@@ -331,6 +428,7 @@ test("verified upgrade preserves existing attendee details without requesting ta
   const ui = await setup(context, catalog, "it", upgrade);
   await ui.open();
   assert.equal(window.document.querySelector('input[name="firstName-0"]').readOnly, true);
+  assert.equal(window.document.querySelector('input[value="only-ws"]').checked, true, "An existing ticket keeps its purchased package even when the combo is listed first");
   assert.equal(window.document.querySelector('input[name="participant-0-email"]').value, "original@example.test");
   assert.equal(window.document.querySelector('input[name="participant-0-document-number"]'), null);
   assert.equal(window.document.querySelector('input[role="switch"]'), null);
@@ -346,7 +444,7 @@ test("verified upgrade preserves existing attendee details without requesting ta
 
 test("discount application and removal keep the server total and block stale payment", async (context) => {
   const ui = await setup(context);
-  await ui.open(); await ui.fillPerson(); await ui.settleQuote();
+  await ui.open(); await act(async () => window.document.querySelector('input[value="only-ws"]').click()); await ui.fillPerson(); await ui.settleQuote();
   ui.setQuoteResponse((body) => ({ ok: true, json: async () => ({ quote: { subtotalCents: 3000, discountCents: body.discountCode ? 600 : 0, totalCents: body.discountCode ? 2400 : 3000, discount: body.discountCode ? { code: body.discountCode, targetType: "activity", targetIds: ["ws"] } : null, lines: [{ label: "Solo Workshop", packageId: "only-ws", tierId: "Standard", quantity: 1, subtotalCents: 3000, totalCents: body.discountCode ? 2400 : 3000, kind: "package" }] } }) }));
   await ui.change(window.document.querySelector('input[name="discountCode"]'), " meraki20 ");
   await act(async () => [...window.document.querySelectorAll("button")].find((button) => button.textContent === "Applica").click());
@@ -378,7 +476,7 @@ test("invalid discount errors are localized and cannot silently charge the full 
 });
 
 test("a late quote for an old discount cannot replace a newer selection", async (context) => {
-  const ui = await setup(context); await ui.open(); await ui.settleQuote();
+  const ui = await setup(context); await ui.open(); await act(async () => window.document.querySelector('input[value="only-ws"]').click()); await ui.settleQuote();
   let resolveOld;
   ui.setQuoteResponse((body) => body.participants[0].packageId === "only-ws" ? new Promise((resolve) => { resolveOld = resolve; }) : ({ ok: true, json: async () => ({ quote: { totalCents: 5400, subtotalCents: 6000, discountCents: 600, discount: { code: "CODE" }, lines: [] } }) }));
   await ui.change(window.document.querySelector('input[name="discountCode"]'), "code");

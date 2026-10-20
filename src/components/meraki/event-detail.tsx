@@ -27,7 +27,7 @@ export function EventDetail({ event, locale }: { event: MerakiEventDetail; local
   const state = salesClosed ? (isEnded ? text.ended : text.salesClosed) : soldOut ? text.soldOut : null;
 
   return (
-    <article className="mx-auto w-full max-w-[1120px] px-5 pb-36 pt-3 text-[#18251f] sm:px-8 md:pb-8 md:pt-6">
+    <article className="mx-auto w-full max-w-[1120px] px-5 pb-8 pt-3 text-[#18251f] sm:px-8 md:pt-6">
       <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:gap-10">
         <div className="mx-auto w-full max-w-[420px]"><EventPoster src={event.cover} title={event.title} locale={locale} eager /></div>
         <div className="min-w-0">
@@ -44,27 +44,28 @@ export function EventDetail({ event, locale }: { event: MerakiEventDetail; local
           </div>
 
           {showLogistics && <a href="#viaggio-soggiorno" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#758367] underline underline-offset-4"><MapPin className="h-4 w-4" aria-hidden="true" />{travel.jump}</a>}
-        <aside className="fixed inset-x-0 bottom-[var(--meraki-nav-height,86px)] z-30 rounded-t-[24px] border-t border-[#e7e7dd] bg-[#fdfdfb]/95 px-5 py-4 shadow-[0_-8px_30px_#18251f08] backdrop-blur-xl md:static md:inset-auto md:mt-6 md:z-auto md:rounded-[24px] md:border md:bg-white md:p-6 md:shadow-none">
-          <CommercePurchase eventId={event.id} locale={locale} ended={isEnded} fallback={<>
-          <p className="mb-5 hidden text-[10px] font-semibold uppercase tracking-[0.15em] text-[#9b855c] md:block">{text.makeMoment}</p>
-          <div className="flex items-center gap-5 md:block">
-            <div className="shrink-0 md:mb-6"><p className="mb-1 text-[10px] text-[#8a917f]">{text.perPerson}</p><p className="text-[23px] font-semibold leading-7 tracking-[-0.04em] md:text-[30px]">{eventPrice(event.price, locale)}</p></div>
-            <div className="min-w-0 flex-1">
-              {state ? <div className={`flex min-h-12 items-center justify-center gap-2 rounded-[16px] px-4 py-3 text-center text-xs font-semibold ${soldOut && !salesClosed ? "bg-[#f4e8df] text-[#9a6143]" : "bg-[#edf0e7] text-[#738065]"}`}>{isEnded ? <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> : <Info className="h-4 w-4 shrink-0" aria-hidden="true" />}{state}</div>
-                : external ? <a href={event.ctaUrl!} rel="noopener noreferrer" target="_blank" className="flex min-h-[52px] items-center justify-center rounded-[16px] bg-[#263a2c] px-4 py-3 text-center text-xs font-semibold text-white">{text.book}<span className="ml-2" aria-hidden="true">↗</span></a>
-                : infoOnly ? <Link href="/profilo/assistenza" className="flex min-h-[52px] items-center justify-center rounded-[16px] bg-[#263a2c] px-4 py-3 text-center text-xs font-semibold text-white">{text.contact}</Link>
-                : <CheckoutButton eventId={event.id} />}
-            </div>
-          </div>
-          {!salesClosed && remaining !== null && !soldOut ? <p className="mt-3 text-center text-[10px] leading-5 text-[#7f8972]">{`${remaining} ${remaining === 1 ? text.place : text.places}`}</p> : null}
-          {!salesClosed && !infoOnly && !external && !soldOut ? <p className="mt-5 hidden items-center gap-2 text-[10px] leading-5 text-[#89917e] md:flex"><ShieldCheck className="h-4 w-4 shrink-0 text-[#a08b61]" aria-hidden="true" />{text.secure}</p> : null}
-          {salesClosed ? <p className="mt-4 hidden text-xs leading-6 text-[#858d7b] md:block">{isEnded ? text.endedBody : text.closedBody}</p> : null}
-          </>} />
-        </aside>
         </div>
       </div>
       <div className="mt-9 min-w-0 lg:mt-12">
           {event.description ? <section aria-labelledby="about-experience"><h2 id="about-experience" className="mb-4 text-xl font-semibold tracking-[-0.035em]">{text.experience}</h2><div className="text-[14px] [&>div]:text-[#727b6a] [&_h2]:text-[#18251f] [&_h3]:text-[#18251f] [&_h4]:text-[#18251f]"><EventDescription description={event.description} /></div></section> : null}
+
+          <section id="quote-partecipazione" data-event-ticketing aria-label={text.packages} className="mt-8 min-w-0 scroll-mt-28 rounded-[24px] border border-[#e7e7dd] bg-white p-5 sm:p-6">
+            <CommercePurchase eventId={event.id} locale={locale} ended={isEnded} presentation="packages" fallback={<>
+              <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#9b855c]">{text.makeMoment}</p>
+              <div className="grid items-center gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="min-w-0"><p className="mb-1 text-[10px] text-[#8a917f]">{text.perPerson}</p><p className="text-[30px] font-semibold leading-tight tracking-[-0.04em]">{eventPrice(event.price, locale)}</p></div>
+                <div className="min-w-0">
+                  {state ? <div className={`flex min-h-12 items-center justify-center gap-2 rounded-[16px] px-4 py-3 text-center text-xs font-semibold ${soldOut && !salesClosed ? "bg-[#f4e8df] text-[#9a6143]" : "bg-[#edf0e7] text-[#738065]"}`}>{isEnded ? <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> : <Info className="h-4 w-4 shrink-0" aria-hidden="true" />}{state}</div>
+                    : external ? <a href={event.ctaUrl!} rel="noopener noreferrer" target="_blank" className="flex min-h-[52px] items-center justify-center rounded-[16px] bg-[#263a2c] px-4 py-3 text-center text-xs font-semibold text-white">{text.book}<span className="ml-2" aria-hidden="true">↗</span></a>
+                    : infoOnly ? <Link href="/profilo/assistenza" className="flex min-h-[52px] items-center justify-center rounded-[16px] bg-[#263a2c] px-4 py-3 text-center text-xs font-semibold text-white">{text.contact}</Link>
+                    : <CheckoutButton eventId={event.id} />}
+                </div>
+              </div>
+              {!salesClosed && remaining !== null && !soldOut ? <p className="mt-3 text-center text-[10px] leading-5 text-[#7f8972]">{`${remaining} ${remaining === 1 ? text.place : text.places}`}</p> : null}
+              {!salesClosed && !infoOnly && !external && !soldOut ? <p className="mt-5 flex items-center gap-2 text-[10px] leading-5 text-[#89917e]"><ShieldCheck className="h-4 w-4 shrink-0 text-[#a08b61]" aria-hidden="true" />{text.secure}</p> : null}
+              {salesClosed ? <p className="mt-4 text-xs leading-6 text-[#858d7b]">{isEnded ? text.endedBody : text.closedBody}</p> : null}
+            </>} />
+          </section>
 
           {!external && !infoOnly ? <section className="mt-8 flex items-start gap-3 rounded-[22px] border border-[#dedfd3] p-5" aria-label={text.digitalTicket}>
             <Ticket className="mt-0.5 h-5 w-5 shrink-0 text-[#a38a59]" aria-hidden="true" />

@@ -9,6 +9,8 @@ export function MerakiEventCard({ event, locale, now, featured = false, past = f
   const type = event.type === "evento" ? text.event : event.type === "masterclass" ? "Masterclass" : "Workshop";
   const places = availablePlaces(event);
   const price = event.priceFrom ? event.price === null ? text.packages : `${text.from} ${eventPrice(event.price, locale)}` : eventPrice(event.price, locale);
+  const purchase = !past && (Boolean(event.packagePrices?.length) || (event.price ?? 0) > 0);
+  const destination = `${eventHref(event)}${purchase ? "#quote-partecipazione" : ""}`;
 
   if (featured) return <article className="grid min-w-0 gap-5 rounded-[28px] border border-[#18251f]/5 bg-white p-4 text-[#18251f] shadow-[0_14px_40px_-20px_#18251f30] sm:grid-cols-[minmax(0,42%)_minmax(0,1fr)] sm:items-center sm:p-5">
     <div className="mx-auto w-full max-w-[420px]"><EventPoster src={event.cover} title={event.title} locale={locale} eager /></div>
@@ -21,7 +23,7 @@ export function MerakiEventCard({ event, locale, now, featured = false, past = f
     <div className="min-w-0 px-1 pb-2 sm:col-span-2 sm:px-0 sm:pb-0">
       {!past && event.packagePrices?.length ? <EventPriceSummary packages={event.packagePrices} locale={locale} now={now} /> : <p className="mt-4 text-base font-semibold">{price}</p>}
       {past ? <p className="mt-1 text-xs text-[#858b81]">{text.past}</p> : places === 0 ? <p className="mt-1 text-xs text-[#a04d3a]">{text.soldOut}</p> : null}
-      <Link href={eventHref(event)} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#dce0d2] px-4 py-2 text-xs font-semibold text-[#4f6344] hover:bg-[#f5f4f0]">{past ? text.experience : text.book}<ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link>
+      <Link href={destination} className={`mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-5 py-3 text-center text-sm font-semibold ${purchase ? "w-full bg-[#263a2c] text-white hover:bg-[#17281f]" : "border border-[#dce0d2] text-[#4f6344] hover:bg-[#f5f4f0]"}`} data-event-purchase-cta={purchase || undefined}>{past ? text.experience : purchase ? text.purchase : text.book}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>
     </div>
   </article>;
 
@@ -31,7 +33,7 @@ export function MerakiEventCard({ event, locale, now, featured = false, past = f
       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8a7450]">{eventDate(event.startsAt, locale, { day: "numeric", month: "short" })} <span className="px-1 text-[#c8c8bd]">·</span> {type}</p>
       <h3 className="mt-1.5 text-base font-semibold leading-5 tracking-[-0.025em] sm:text-lg"><Link href={eventHref(event)} className="line-clamp-2 outline-offset-4 hover:underline">{event.title}</Link></h3>
       {event.location ? <p className="mt-1.5 truncate text-xs text-[#727b72]">{event.location}</p> : null}
-      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-xs"><span className="font-semibold">{price}</span>{past ? <span className="text-[#858b81]">{text.past}</span> : places === 0 ? <span className="text-[#a04d3a]">{text.soldOut}</span> : <Link href={eventHref(event)} aria-label={`${text.book} · ${event.title}`} className="flex min-h-9 min-w-9 items-center justify-center rounded-full border border-[#dce0d2]"><ArrowUpRight aria-hidden="true" className="h-4 w-4 text-[#737d70]" /></Link>}</div>
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-xs"><span className="font-semibold">{price}</span>{past ? <span className="text-[#858b81]">{text.past}</span> : places === 0 ? <span className="text-[#a04d3a]">{text.soldOut}</span> : <Link href={destination} aria-label={`${purchase ? text.purchase : text.book} · ${event.title}`} className="flex min-h-9 min-w-9 items-center justify-center rounded-full border border-[#dce0d2]"><ArrowUpRight aria-hidden="true" className="h-4 w-4 text-[#737d70]" /></Link>}</div>
     </div>
   </article>;
 }

@@ -51,7 +51,7 @@ function feed(rows = [], error = null) {
   return { enrich: feedModule.enrichCommerceFeed, calls, warnings };
 }
 
-test("the feed makes one bulk read and publishes only package prices, translations and sales deadlines", async () => {
+test("the feed makes one bulk read and publishes package prices, activity IDs, translations and sales deadlines", async () => {
   const original = config();
   const source = [event(), event("legacy")];
   const api = feed([{ id: "legacy", commerce_config: null }, { id: "event-1", cta_tipo: "stripe", commerce_config: original }]);
@@ -64,9 +64,11 @@ test("the feed makes one bulk read and publishes only package prices, translatio
   assert.deepEqual(projection[0].nameTranslations, original.packages[0].nameTranslations);
   assert.deepEqual(projection[2].prices[0].labelTranslations, { de: "Frühbucher" });
   assert.deepEqual(projection[0].prices.map(value => value.amountCents), [4500, 5500]);
-  assert.deepEqual(Object.keys(projection[2]).sort(), ["id", "name", "prices", "salesCloseAt"]);
+  assert.deepEqual(Object.keys(projection[2]).sort(), ["activityIds", "id", "name", "prices", "salesCloseAt"]);
+  assert.deepEqual(projection.map(pkg => pkg.activityIds), [["ws"], ["mc"], ["ws", "mc"]]);
+  assert.notEqual(enriched[0].packagePrices[2].activityIds, original.packages[2].activityIds, "copy activity identifiers for the public projection");
   assert.deepEqual(Object.keys(projection[2].prices[0]).sort(), ["amountCents", "endsAt", "id", "label", "labelTranslations", "startsAt"]);
-  for (const privateKey of ["activityAmounts", "activityIds", "description", "capacity", "menuOptions", "activities", "addons", "upgradesEnabled"]) {
+  for (const privateKey of ["activityAmounts", "description", "capacity", "menuOptions", "activities", "addons", "upgradesEnabled"]) {
     assert.equal(JSON.stringify(projection).includes(`"${privateKey}"`), false, privateKey);
   }
   assert.equal(enriched[1], source[1]);

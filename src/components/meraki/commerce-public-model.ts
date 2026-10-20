@@ -72,11 +72,16 @@ export function activityAvailable(catalog: CommerceCatalog, id: string, now = Da
   return !!activity && (!activity.startsAt || Date.parse(activity.startsAt) > now) && (!activity.salesEnd || Date.parse(activity.salesEnd) > now) && catalog.availability[id] !== 0;
 }
 
+/** Show complete experiences first, preserving the configured order within each group. */
+export function prioritizePackages<T extends { activityIds?: readonly string[] }>(items: readonly T[]): T[] {
+  return [...items.filter((item) => (item.activityIds?.length || 0) > 1), ...items.filter((item) => (item.activityIds?.length || 0) <= 1)];
+}
+
 export function eligiblePackages(catalog: CommerceCatalog, upgrade?: CommerceUpgrade) {
-  if (!upgrade) return catalog.config.packages;
+  if (!upgrade) return prioritizePackages(catalog.config.packages);
   const current = catalog.config.packages.find((item) => item.id === upgrade.packageId);
   const base = current?.activityIds || upgrade.activityIds.filter((id) => !catalog.config.addons.some((addon) => addon.activityId === id));
-  return catalog.config.packages.filter((item) => base.every((id) => item.activityIds.includes(id)));
+  return prioritizePackages(catalog.config.packages.filter((item) => base.every((id) => item.activityIds.includes(id))));
 }
 
 export function safeCommerceRedirect(value: unknown, origin: string) {
