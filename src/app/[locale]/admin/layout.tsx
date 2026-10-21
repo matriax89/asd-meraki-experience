@@ -37,6 +37,7 @@ export default async function AdminLayout({
     { name: "Corsi", href: "/admin/corsi", icon: Dumbbell },
     { name: "Eventi", href: "/admin/eventi", icon: CalendarDays },
     { name: "Iscritti e check-in", href: "/admin/biglietti", icon: Ticket },
+    { name: "Affiliati", href: "/admin/affiliati", icon: Users },
     { name: "Contatti e consensi", href: "/admin/contatti", icon: Users },
     { name: "Impostazioni", href: "/admin/impostazioni", icon: Settings },
     { name: "Prova Gratuita", href: "/admin/prova-gratuita", icon: Sparkles },

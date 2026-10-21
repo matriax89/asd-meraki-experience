@@ -104,7 +104,7 @@ async function setup(context, { initialEventId = "", initialAffiliateId = "", ti
     const selected = new URL(window.location.href).searchParams.get("event") || "";
     render(selected);
   } };
-  const { TicketsClient } = compile("../src/app/[locale]/admin/biglietti/tickets-client.tsx", { "next/navigation": { useRouter: () => router }, "@/app/api/admin/biglietti/actions": actions, "@/components/admin/data-table": dataTable, "./qr-scanner": scanner });
+  const { TicketsClient } = compile("../src/app/[locale]/admin/biglietti/tickets-client.tsx", { "next/navigation": { useRouter: () => router }, "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) }, "@/app/api/admin/biglietti/actions": actions, "@/components/admin/data-table": dataTable, "./qr-scanner": scanner });
   const root = createRoot(window.document.getElementById("tickets-root"));
   const render = (id) => root.render(React.createElement(TicketsClient, { initialTickets: storedTickets.filter((ticket) => ticket.event_id === id), events: eventRows, initialEventId: id, initialAffiliateId: new URL(window.location.href).searchParams.get("affiliate") || initialAffiliateId }));
   context.after(async () => { await act(async () => root.unmount()); });
@@ -137,6 +137,7 @@ test("the participant list requires an explicit event and keeps the URL event fi
   assert.match(window.document.body.textContent, /Seleziona un evento per vedere gli iscritti/);
   await ui.selectEvent(eventA);
   assert.equal(ui.rows().length, 6);
+  assert.equal(window.document.querySelector('a[href^="/admin/affiliati"]').getAttribute("href"), `/admin/affiliati?event=${eventA}`);
   assert.ok(ui.row("Ada Rossi"));
   assert.equal(ui.row("Bruno Neri"), undefined);
   assert.equal(new URL(window.location.href).searchParams.get("event"), eventA);
