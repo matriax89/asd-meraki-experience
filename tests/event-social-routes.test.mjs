@@ -32,6 +32,7 @@ function fixture(rows, error = null) {
       select(columns) { record.columns = columns; return this; },
       eq(column, value) { record.filters.push(["eq", column, value]); predicates.push(entry => entry[column] === value); return this; },
       in(column, values) { record.filters.push(["in", column, values]); predicates.push(entry => values.includes(entry[column])); return this; },
+      not(column, operator, value) { assert.equal(operator, "is"); assert.equal(value, null); record.filters.push(["not", column, operator, value]); predicates.push(entry => entry[column] != null); return this; },
       order(column, options) { record.orders.push([column, options]); return this; },
       limit(value) { limit = value; return this; },
       result(single = false) {
@@ -47,7 +48,7 @@ function fixture(rows, error = null) {
     return query;
   } };
   const modules = new Map();
-  const server = { createClient: async () => supabase };
+  const server = { createClient: async () => supabase, createAdminClient: () => supabase };
   const emptyUi = new Proxy({}, { get: () => () => null });
   function load(file) {
     if (modules.has(file)) return modules.get(file);

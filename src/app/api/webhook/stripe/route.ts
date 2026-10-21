@@ -35,6 +35,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true });
     }
     if (event.type === "refund.created" || event.type === "refund.updated" || event.type === "refund.failed") {
+      // Panel refunds have explicit amounts and admission targets. They must
+      // never enter the older automatic full-payment revocation path.
+      const { syncMerakiRefund } = await import("@/lib/refunds/service");
+      const handled = await syncMerakiRefund(event.data.object);
+      if (handled || event.data.object.metadata?.meraki_refund_id) return NextResponse.json({ received: true });
       if (event.data.object.metadata?.meraki_commerce_order_id) await (await import("@/lib/stripe/commerce")).updateCommerceRefund(event.data.object);
       else await updateTicketRefund(event.data.object);
       return NextResponse.json({ received: true });

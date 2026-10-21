@@ -14,7 +14,7 @@ const DEFAULT_ADMIN_EMAIL = "info@merakiexperience.org";
 type LeadEmail = Pick<Database["public"]["Tables"]["leads"]["Row"], "nome" | "cognome" | "email" | "telefono" | "messaggio" | "source">;
 type ShopOrderEmail = Pick<Database["public"]["Tables"]["orders"]["Row"], "numero_ordine" | "buyer_nome" | "buyer_cognome" | "buyer_email" | "ship_address_line1" | "ship_address_line2" | "ship_city" | "ship_postal_code" | "ship_state" | "ship_country" | "shipping_cents" | "total_cents">;
 type ShopItemEmail = Pick<Database["public"]["Tables"]["order_items"]["Row"], "product_nome" | "variant_descrizione" | "quantita" | "totale_cents">;
-type ServiceMessage = { to: string; subject: string; html: string; text: string; replyTo?: string };
+export type ServiceMessage = { to: string; subject: string; html: string; text: string; replyTo?: string; deliveryId?: string };
 const emailAddress = (value: string) => /^[^\s@<>,;\r\n]+@[^\s@<>,;\r\n]+\.[^\s@<>,;\r\n]+$/.test(value);
 const html = (value: string | null | undefined) => escapeEmailHtml(value || "");
 const multiline = (value: string) => escapeEmailHtml(value).replace(/\r?\n/g, "<br/>");
@@ -28,7 +28,7 @@ function siteOrigin() {
 }
 
 /** Every service email uses the same configured provider; never log credentials or private content. */
-async function sendServiceEmail(build: (adminEmail: string) => ServiceMessage, defaultAdminEmail = DEFAULT_ADMIN_EMAIL) {
+export async function sendServiceEmail(build: (adminEmail: string) => ServiceMessage, defaultAdminEmail = DEFAULT_ADMIN_EMAIL) {
   try {
     const { data: settings, error } = await createAdminClient().from("site_settings").select("value").eq("key", "homepage_content").single();
     if (error) return { success: false };
@@ -38,12 +38,16 @@ async function sendServiceEmail(build: (adminEmail: string) => ServiceMessage, d
     const read = (name: string) => typeof integrations[name] === "string" ? integrations[name] as string : "";
     const message = build(read("admin_email") || defaultAdminEmail);
     if (!emailAddress(message.to) || /[\r\n]/.test(message.subject) || (message.replyTo && !emailAddress(message.replyTo))) return { success: false };
+    if (message.deliveryId && !/^[a-zA-Z0-9._:-]{1,160}$/.test(message.deliveryId)) return { success: false };
     if (read("email_provider") === "smtp") {
       const user = read("smtp_user"); const pass = read("smtp_pass"); const host = read("smtp_host");
       const port = Number(read("smtp_port")) || 587;
       if (!host || !emailAddress(user) || !pass) return { success: false };
       const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
-      const data = await transporter.sendMail({ from: `Meraki Experience <${user}>`, ...message });
+      const { deliveryId, ...content } = message;
+      const data = await transporter.sendMail({ from: `Meraki Experience <${user}>`, ...content,
+        ...(deliveryId ? { messageId: `<meraki-service-${deliveryId}@merakiexperience.org>` } : {}),
+      });
       return { success: true, data };
     }
     const key = read("resend_api_key") || defaultResendApiKey;
@@ -51,7 +55,7 @@ async function sendServiceEmail(build: (adminEmail: string) => ServiceMessage, d
     const { data, error: deliveryError } = await new Resend(key).emails.send({
       from: `Meraki Experience <${FROM_EMAIL}>`, to: message.to, subject: message.subject, html: message.html, text: message.text,
       ...(message.replyTo ? { replyTo: message.replyTo } : {}),
-    });
+    }, message.deliveryId ? { idempotencyKey: `meraki-service-${message.deliveryId}` } : undefined);
     return deliveryError ? { success: false } : { success: true, data };
   } catch {
     console.error("Meraki service email delivery failed.");

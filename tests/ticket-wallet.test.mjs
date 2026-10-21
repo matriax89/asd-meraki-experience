@@ -77,6 +77,18 @@ test("verified updates replace one saved ticket and invalid or blocked storage f
   assert.equal(wallet.writeWallet(blocked, [ticket]), false);
 });
 
+test("wallet preserves explicit cancellation separately from a financial refund", async () => {
+  const device = storage(JSON.stringify([ticket]));
+  assert.equal(wallet.saveVerifiedTicket(device, { ...ticket, status: "canceled" }), true);
+  assert.equal(JSON.parse(device.value())[0].status, "canceled");
+  const api = endpoint([{ ...row, event: { ...row.event, canceled_at: "2026-10-21T10:00:00Z" } }]);
+  const response = await api.post({ tickets: [{ id, token: ticket.token }] });
+  const body = await response.json();
+  assert.equal(body.tickets[0].status, "canceled");
+  assert.equal(body.tickets[0].canceled_at, undefined);
+  assert.equal(body.tickets[0].cancellation_reason, undefined);
+});
+
 test("optional opening times survive verified storage without invalidating older wallet entries", () => {
   const opening = "2026-11-18T18:30:00+01:00";
   const device = storage(JSON.stringify([ticket]));

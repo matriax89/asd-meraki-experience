@@ -98,6 +98,8 @@ for (const route of ["eventi", "workshop"]) test(`${route}: missing event metada
     "next/navigation": {}, "@/lib/supabase/server": { createClient: async () => chain }, "@/lib/i18n-utils": {},
     "@/components/meraki/event-detail": {}, "@/components/meraki/events-data": {}, "@/lib/events/logistics": {}, "@/lib/events/affiliates": {}, "@/lib/rich-text": {},
     "@/lib/events/social-data": { getSocialEvent: async () => null }, "@/lib/events/social-metadata": {},
+    "@/lib/events/canceled-public-event": { getCanceledPublicEvent: async () => null },
+    "@/lib/events/cancellation-copy": load("lib/events/cancellation-copy.ts"), "@/components/meraki/canceled-event": {},
     "@/lib/commerce/config": {},
   });
   assert.equal((await page.generateMetadata({ params: Promise.resolve({ locale: "es", slug: "missing" }) })).title, "Evento no encontrado");

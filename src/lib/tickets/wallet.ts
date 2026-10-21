@@ -3,7 +3,7 @@ export const WALLET_KEY = "meraki_ticket_wallet_v1";
 export const WALLET_LIMIT = 50;
 export const WALLET_CHANGED_EVENT = "meraki-wallet-changed";
 
-export type WalletStatus = "pending" | "paid" | "used" | "refunded";
+export type WalletStatus = "pending" | "paid" | "used" | "refunded" | "canceled";
 export type WalletTicket = {
   id: string;
   token: string;
@@ -18,7 +18,7 @@ type WalletStorage = Pick<Storage, "getItem" | "setItem">;
 
 const ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOKEN_PATTERN = /^[a-z0-9_-]{1,256}$/i;
-const statuses: readonly string[] = ["pending", "paid", "used", "refunded"];
+const statuses: readonly string[] = ["pending", "paid", "used", "refunded", "canceled"];
 
 export function walletCredential(value: unknown): WalletCredential | null {
   if (!value || typeof value !== "object") return null;

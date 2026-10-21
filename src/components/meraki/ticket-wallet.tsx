@@ -10,11 +10,11 @@ function isPast(ticket: WalletTicket) {
   // Keep tickets available for the whole event day (end time is not stored).
   const eventDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ticket.date));
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  return ticket.status === "used" || ticket.status === "refunded" || eventDay < today;
+  return ticket.status === "used" || ticket.status === "refunded" || ticket.status === "canceled" || eventDay < today;
 }
 
 function statusLabel(status: WalletTicket["status"], copy: ReturnType<typeof walletCopy>) {
-  return status === "paid" ? copy.ready : status === "used" ? copy.used : status === "refunded" ? copy.refunded : copy.pending;
+  return status === "paid" ? copy.ready : status === "used" ? copy.used : status === "refunded" ? copy.refunded : status === "canceled" ? copy.canceled : copy.pending;
 }
 
 export function TicketWallet({ locale, siteOrigin }: { locale: string; siteOrigin: string }) {

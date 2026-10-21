@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     // The token is the buyer's credential, not a public lookup by id or email.
     // Batched IN filters alone form a cross-product: verify EACH exact pair below.
     const { data, error } = await createAdminClient().from("tickets")
-      .select("id,qr_code,status,event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at)")
+      .select("id,qr_code,status,event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at,canceled_at)")
       .in("id", body.tickets.map((ticket) => ticket.id))
       .in("qr_code", body.tickets.map((ticket) => ticket.token));
     if (error) return respond({ error: "Impossibile aggiornare i biglietti. Riprova tra poco." }, 503);
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
         date: row.event.data_inizio,
         checkInStartsAt: row.event.check_in_starts_at,
         location: [row.event.location, row.event.indirizzo].filter(Boolean).join(" · ").slice(0, 320),
-        status: row.status || "pending",
+        status: row.event.canceled_at ? "canceled" : row.status || "pending",
       });
       return ticket ? [ticket] : [];
     });

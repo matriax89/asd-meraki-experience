@@ -45,7 +45,7 @@ export async function getCommercePass(id: string, token: string, locale = "it") 
   if (!data) return null;
   const pass = data as CommercePass;
   const [eventResult, rightsResult] = await Promise.all([
-    db.from("events").select("titolo,data_inizio,location,indirizzo,check_in_starts_at,commerce_config,slug,tipo,logistics,attivo").eq("id", pass.event_id).single(),
+    db.from("events").select("titolo,data_inizio,location,indirizzo,check_in_starts_at,commerce_config,slug,tipo,logistics,attivo,canceled_at,cancellation_reason").eq("id", pass.event_id).single(),
     db.from("commerce_entitlements").select("*").eq("pass_id", id).order("created_at"),
   ]);
   if (eventResult.error || rightsResult.error || !eventResult.data) throw new Error("Impossibile leggere gli accessi del biglietto.");
@@ -64,7 +64,15 @@ export async function getCommercePass(id: string, token: string, locale = "it") 
   // A later dinner upgrade must not rename an already issued workshop admission.
   const packageOrder = (ordersResult.data || []).find((order) => order.state === "fulfilled" && (order.id === pass.order_id || order.upgrade_pass_id === pass.id) && snapshots.get(order.id)?.packages.some((item) => item.id === pass.package_id));
   const packageConfig = (packageOrder ? snapshots.get(packageOrder.id) : snapshots.get(pass.order_id)) || currentConfig;
+  // A refund changes the payment credit used by upgrades. Until a new purchase,
+  // refunded admissions must not be offered an upgrade using the old credit.
+  let upgradesAllowed = !event.canceled_at && pass.status === "paid" && !rights.some(right => ["refunded", "canceled"].includes(right.status));
+  if (upgradesAllowed && orderIds.length) {
+    const { data: refunds, error: refundsError } = await db.from("meraki_refunds").select("id").in("order_id", orderIds).in("status", ["preparing", "pending", "requires_action", "unknown", "succeeded"]).limit(1);
+    upgradesAllowed = !refundsError && !(refunds || []).length;
+  }
   return {
+    upgradesAllowed,
     pass: { ...pass, buyer_nome: pass.first_name, buyer_cognome: pass.last_name, package_name: commercePackageName(packageConfig, pass.package_id, pass.package_name, locale) },
     entitlements: rights.map((right) => ({
       ...right, status: right.status === "valid" ? "available" : right.status === "used" ? "used" : "revoked",
@@ -73,7 +81,7 @@ export async function getCommercePass(id: string, token: string, locale = "it") 
       activity_name: commerceActivityName(snapshots.get(right.order_id) || currentConfig, right.activity_id, right.activity_name, locale),
       menu_choice: right.menu_choice ? commerceMenuName(snapshots.get(right.order_id) || currentConfig, right.activity_id, right.menu_choice, locale) : null,
     })),
-    event: { slug: event.slug as string, tipo: event.tipo as string, logistics: event.logistics, attivo: event.attivo as boolean, titolo: event.titolo, data_inizio: event.data_inizio as string, check_in_starts_at: event.check_in_starts_at as string | null, location: event.location as string | null, indirizzo: event.indirizzo as string | null },
+    event: { slug: event.slug as string, tipo: event.tipo as string, logistics: event.logistics, attivo: event.attivo as boolean, canceled_at: event.canceled_at as string | null, cancellation_reason: event.cancellation_reason as string | null, titolo: event.titolo, data_inizio: event.data_inizio as string, check_in_starts_at: event.check_in_starts_at as string | null, location: event.location as string | null, indirizzo: event.indirizzo as string | null },
     config: currentConfig,
   };
 }
@@ -82,7 +90,7 @@ export async function getCommerceWalletTickets(credentials: WalletCredential[], 
   if (!credentials.length) return [];
   const db = commerceClient();
   const { data, error } = await db.from("commerce_passes")
-    .select("id,qr_code,status,event_id,event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at)")
+    .select("id,qr_code,status,event_id,event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at,canceled_at)")
     .in("id", credentials.map(item => item.id)).in("qr_code", credentials.map(item => item.token));
   if (missingCommerceMigration(error)) return [];
   if (error) throw error;
@@ -95,7 +103,7 @@ export async function getCommerceWalletTickets(credentials: WalletCredential[], 
     const event = Array.isArray(row.event) ? row.event[0] : row.event;
     if (!event) return [];
     const active = (rights || []).filter(right => right.pass_id === row.id && ["valid", "used"].includes(right.status));
-    const status = row.status !== "paid" || !active.length ? "refunded" : active.some(right => right.status === "valid") ? "paid" : "used";
+    const status = event.canceled_at || row.status === "canceled" ? "canceled" : row.status !== "paid" || !active.length ? "refunded" : active.some(right => right.status === "valid") ? "paid" : "used";
     const ticket = walletTicket({ id: row.id, token: row.qr_code, title: getLocalizedText(event.titolo, locale).slice(0, 240), date: event.data_inizio, checkInStartsAt: event.check_in_starts_at,
       location: [event.location, event.indirizzo].filter(Boolean).join(" · ").slice(0, 320), status });
     return ticket ? [ticket] : [];

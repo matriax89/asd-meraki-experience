@@ -212,6 +212,9 @@ for (const type of ["evento", "workshop", "masterclass"]) {
     const page = load(`app/[locale]/(public)/${type === "evento" ? "eventi" : "workshop"}/[slug]/page.tsx`, {
       "@/lib/supabase/server": server,
       "@/lib/events/social-data": { getSocialEvent: async () => row },
+      "@/lib/events/canceled-public-event": { getCanceledPublicEvent: async () => null },
+      "@/lib/events/cancellation-copy": load("lib/events/cancellation-copy.ts"),
+      "@/components/meraki/canceled-event": { CanceledEvent: () => null },
       "@/lib/events/social-metadata": socialMetadata,
       "@/lib/commerce/config": load("lib/commerce/config.ts"),
       "@/lib/i18n-utils": i18n,

@@ -12,6 +12,7 @@ import { getCommercePass } from "@/lib/commerce/server";
 import { ticketViewCopy } from "@/lib/tickets/view-copy";
 import { eventTravelCopy, eventTravelPath } from "@/lib/events/travel-link";
 import { activityTimingCopy, activityTimingRows, hasActivityTiming } from "@/lib/events/activity-timing";
+import { eventCancellationCopy } from "@/lib/events/cancellation-copy";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -32,7 +33,7 @@ export default async function BigliettoPage({ params, searchParams }: {
   // SELECT policy or retrieve a ticket by its ID alone.
   const { data: legacyTicket } = await createAdminClient()
     .from("tickets")
-    .select("id,buyer_nome,buyer_cognome,qr_code,status,used_at,event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at,slug,tipo,logistics,attivo)")
+    .select("id,buyer_nome,buyer_cognome,qr_code,status,used_at,event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at,slug,tipo,logistics,attivo,canceled_at,cancellation_reason)")
     .eq("id", id)
     .eq("qr_code", token)
     .single();
@@ -47,7 +48,9 @@ export default async function BigliettoPage({ params, searchParams }: {
   if (!ticket?.event || !ticket.qr_code) notFound();
 
   const event = ticket.event;
-  const travelPath = eventTravelPath(event, locale);
+  const canceled = Boolean(event.canceled_at);
+  const cancellationCopy = eventCancellationCopy(locale);
+  const travelPath = canceled ? null : eventTravelPath(event, locale);
   const travelCopy = eventTravelCopy[locale as keyof typeof eventTravelCopy] || eventTravelCopy.it;
   const title = getLocalizedText(event.titolo, locale);
   const date = new Date(event.data_inizio);
@@ -56,8 +59,8 @@ export default async function BigliettoPage({ params, searchParams }: {
   const individualSchedule = rights.some(hasActivityTiming);
   const timingCopy = activityTimingCopy(locale);
   const displayDate = new Intl.DateTimeFormat("it-IT", { dateStyle: "long", timeStyle: individualSchedule ? undefined : "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(date);
-  const valid = ticket.status === "paid";
-  const status = valid ? (commerce ? `${availableRights.length} ${availableRights.length === 1 ? t.accessOne : t.accessMany}` : t.valid) : ticket.status === "used" ? t.used : ticket.status === "refunded" ? t.refunded : t.pending;
+  const valid = !canceled && ticket.status === "paid";
+  const status = canceled ? cancellationCopy.title : valid ? (commerce ? `${availableRights.length} ${availableRights.length === 1 ? t.accessOne : t.accessMany}` : t.valid) : ticket.status === "used" ? t.used : ticket.status === "refunded" ? t.refunded : t.pending;
   const qr = valid ? await QRCode.toDataURL(ticket.qr_code, { width: 640, margin: 4, errorCorrectionLevel: "M", color: { dark: "#111111", light: "#ffffff" } }) : null;
 
   return (
@@ -66,6 +69,7 @@ export default async function BigliettoPage({ params, searchParams }: {
         <div><p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[#8f784e]">{t.entry}</p><h1 className="text-[30px] font-bold tracking-tight text-[#18251f]">{t.title}</h1></div>
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#e3dfd3] bg-[#ece7dc] text-[#8f784e]"><Ticket className="h-5 w-5" aria-hidden="true" /></span>
       </div>
+      {canceled && event.cancellation_reason ? <section className="mb-5 rounded-2xl border border-[#e3dfd3] bg-[#f4efe5] p-5" aria-label={cancellationCopy.reason}><h2 className="text-sm font-semibold">{cancellationCopy.reason}</h2><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[#67716b]">{event.cancellation_reason}</p></section> : null}
       <article className="overflow-hidden rounded-[28px] border border-[#e3e5dd] bg-white shadow-[0_14px_45px_-20px_rgba(24,37,31,0.2)]">
         <div className="relative overflow-hidden bg-[#182b21] p-7 text-[#f5f3ed]">
           <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full border-[28px] border-white/5" aria-hidden="true" />
@@ -80,7 +84,7 @@ export default async function BigliettoPage({ params, searchParams }: {
           {qr ? <div className="text-center">
             <Image src={qr} alt={t.qrAlt} width={256} height={256} unoptimized className="mx-auto h-auto w-full max-w-60 rounded-xl bg-white" />
             <p className="mt-4 text-xs leading-5 text-[#7a837b]">{t.show}<br />{commerce ? t.multi : t.single}</p>
-          </div> : <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-2xl bg-[#f7f7f2] px-5 text-center"><ShieldCheck className="h-10 w-10 text-[#a08c67]" /><p className="text-sm leading-6 text-[#67716b]">{ticket.status === "used" ? t.usedBody : ticket.status === "refunded" ? t.refundedBody : t.pendingBody}</p></div>}
+          </div> : <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-2xl bg-[#f7f7f2] px-5 text-center"><ShieldCheck className="h-10 w-10 text-[#a08c67]" /><p className="text-sm leading-6 text-[#67716b]">{canceled ? cancellationCopy.ticketBody : ticket.status === "used" ? t.usedBody : ticket.status === "refunded" ? t.refundedBody : t.pendingBody}</p></div>}
         </div>
         <dl className="grid gap-5 p-6 text-sm">
           {commerce && <div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{t.package}</dt><dd className="font-semibold text-[#18251f]">{commerce.pass.package_name}</dd></div>}
@@ -97,7 +101,7 @@ export default async function BigliettoPage({ params, searchParams }: {
             return <li key={right.activity_id} className="rounded-2xl bg-[#f5f5ef] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0"><p className="text-sm font-semibold">{right.activity_name}</p>{right.menu_choice && <p className="mt-1 text-xs text-[#73806d]">{t.menu}: {right.menu_choice}</p>}</div>
-                <span className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold ${right.status === "available" ? "bg-[#e5edde] text-[#41663d]" : "bg-[#e9e7df] text-[#777b70]"}`}>{right.status === "available" ? t.available : right.status === "used" ? t.accessUsed : t.revoked}</span>
+                <span className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold ${!canceled && right.status === "available" ? "bg-[#e5edde] text-[#41663d]" : "bg-[#e9e7df] text-[#777b70]"}`}>{canceled ? t.revoked : right.status === "available" ? t.available : right.status === "used" ? t.accessUsed : t.revoked}</span>
               </div>
               {schedule.length > 0 && <div className="mt-3 border-t border-[#e2e4da] pt-3">
                 <dl className="space-y-2 text-xs">{schedule.map((row) => <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"><dt className="text-[#67716b]">{row.label}</dt><dd className="font-semibold text-[#18251f]"><time dateTime={row.dateTime}>{row.value}</time></dd></div>)}</dl>
@@ -110,13 +114,13 @@ export default async function BigliettoPage({ params, searchParams }: {
       </article>
       <div className="mt-6 space-y-3">
         {travelPath && <a href={travelPath} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b5a07c] bg-[#f5f4f0] px-5 text-center text-sm font-semibold text-[#263a2c]"><MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />{travelCopy.action}</a>}
-        <RegisterTicket locale={locale} ticket={{ id: ticket.id, token: ticket.qr_code, title, date: event.data_inizio, checkInStartsAt: event.check_in_starts_at || undefined, location: [event.location, event.indirizzo].filter(Boolean).join(" · "), status: valid ? "paid" : ticket.status === "used" ? "used" : ticket.status === "refunded" ? "refunded" : "pending" }} />
+        <RegisterTicket locale={locale} ticket={{ id: ticket.id, token: ticket.qr_code, title, date: event.data_inizio, checkInStartsAt: event.check_in_starts_at || undefined, location: [event.location, event.indirizzo].filter(Boolean).join(" · "), status: canceled ? "canceled" : valid ? "paid" : ticket.status === "used" ? "used" : ticket.status === "refunded" ? "refunded" : "pending" }} />
         {valid && <a href={qr!} download={`Meraki-${id}.png`} className="flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-[#18251f] px-5 font-semibold text-white active:scale-[0.98]"><Download className="h-4 w-4" /> {t.download}</a>}
         <Link href="/biglietti" className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#dedfd5] px-4 text-sm font-semibold text-[#18251f]">{t.all}</Link>
       </div>
-      {commerce?.config?.upgradesEnabled && commerce.pass.status === "paid" && <CommercePurchase eventId={commerce.pass.event_id} locale={locale} ended={false} upgrade={{ passId: commerce.pass.id, token: commerce.pass.qr_code, firstName: commerce.pass.buyer_nome, lastName: commerce.pass.buyer_cognome, packageId: commerce.pass.package_id, activityIds: rights.filter((right) => right.status !== "revoked").map((right) => right.activity_id) }} />}
+      {!canceled && commerce?.upgradesAllowed && commerce.config?.upgradesEnabled && commerce.pass.status === "paid" && <CommercePurchase eventId={commerce.pass.event_id} locale={locale} ended={false} upgrade={{ passId: commerce.pass.id, token: commerce.pass.qr_code, firstName: commerce.pass.buyer_nome, lastName: commerce.pass.buyer_cognome, packageId: commerce.pass.package_id, activityIds: rights.filter((right) => right.status !== "revoked").map((right) => right.activity_id) }} />}
       {valid && <details className="mt-5 rounded-2xl bg-[#eeede7] p-4 text-sm text-[#67716b]"><summary className="flex min-h-7 cursor-pointer items-center gap-2 font-medium"><ScanLine className="h-4 w-4" /> {t.manual}</summary><p className="mt-3 break-all font-mono text-xs">{ticket.qr_code}</p></details>}
-      <p className="mt-5 px-2 text-center text-[11px] leading-5 text-[#8a9289]">{t.private}</p>
+      <p className="mt-5 px-2 text-center text-[11px] leading-5 text-[#8a9289]">{canceled ? cancellationCopy.ticketBody : t.private}</p>
     </div>
   );
 }

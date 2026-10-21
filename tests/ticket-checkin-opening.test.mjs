@@ -22,33 +22,36 @@ const id = "79bb5f6a-2f35-40d6-9ad5-1d54dc109076";
 const token = "private-fixture-ticket-token";
 const event = { titolo: { it: "Meraki prova", en: "Meraki test", de: "Meraki Test", es: "Meraki prueba" }, data_inizio: "2026-11-18T23:30:00Z", check_in_starts_at: "2026-11-18T22:00:00Z", location: "Bolzano", indirizzo: null };
 const copy = load("src/lib/tickets/view-copy.ts").ticketViewCopy;
+const cancellationCopy = load("src/lib/events/cancellation-copy.ts");
 const i18n = load("src/lib/i18n-utils.ts");
 function value(document, label) {
   const term = [...document.querySelectorAll("dt")].find((element) => element.textContent === label);
   assert.ok(term, `Missing ticket detail: ${label}`);
   return term.nextElementSibling.textContent;
 }
-async function renderTicket(locale, { commerce = false, opening = true, used = false, guide = false, rightsOverride, packageName = "Workshop + Masterclass" } = {}) {
+async function renderTicket(locale, { commerce = false, opening = true, used = false, guide = false, canceled = false, unpublished = false, upgrades = false, refunded = false, rightsOverride, packageName = "Workshop + Masterclass" } = {}) {
   const selected = [], filters = [];
+  let qrCalls = 0, purchaseCalls = 0;
   let registered;
   const information = logistics.emptyEventLogistics(); information.accessibility.it = "Ingresso accessibile";
-  const details = { ...event, check_in_starts_at: opening ? event.check_in_starts_at : null, ...(guide ? { slug: "esperienza-meraki", tipo: "evento", attivo: true, logistics: information } : {}) };
+  const details = { ...event, check_in_starts_at: opening ? event.check_in_starts_at : null, ...(guide ? { slug: "esperienza-meraki", tipo: "evento", attivo: true, logistics: information } : {}), ...(canceled ? { canceled_at: "2026-10-21T10:00:00Z", cancellation_reason: "Cambio programma <annullato>", attivo: false } : unpublished ? { attivo: false } : {}) };
   const query = { select(fields) { selected.push(fields); return this; }, eq(...args) { filters.push(args); return this; }, single: async () => ({ data: commerce ? null : { id, qr_code: token, buyer_nome: "Ada", buyer_cognome: "Prova", status: used ? "used" : "paid", used_at: used ? "2026-11-18T22:20:00Z" : null, event: details } }) };
   const page = load("src/app/[locale]/(public)/biglietto/[id]/page.tsx", {
     "@/lib/supabase/server": { createAdminClient: () => ({ from: () => query }) },
     "@/lib/i18n-utils": i18n,
     "@/lib/tickets/view-copy": { ticketViewCopy: copy },
-    "@/lib/commerce/server": { getCommercePass: async () => commerce ? { pass: { id, qr_code: token, status: "paid", buyer_nome: "Ada", buyer_cognome: "Prova", package_name: packageName }, event: details, config: null, entitlements: rightsOverride || [{ activity_id: "ws", activity_name: "Workshop", status: "used", used_at: "2026-11-18T22:20:00Z" }, { activity_id: "mc", activity_name: "Masterclass", status: "available", used_at: null }] } : null },
+    "@/lib/events/cancellation-copy": cancellationCopy,
+    "@/lib/commerce/server": { getCommercePass: async () => commerce ? { pass: { id, qr_code: token, status: "paid", buyer_nome: "Ada", buyer_cognome: "Prova", package_name: packageName }, event: details, upgradesAllowed: !canceled && !refunded, config: upgrades ? { upgradesEnabled: true } : null, entitlements: rightsOverride || [{ activity_id: "ws", activity_name: "Workshop", status: "used", used_at: "2026-11-18T22:20:00Z" }, { activity_id: "mc", activity_name: "Masterclass", status: "available", used_at: null }] } : null },
     "@/components/meraki/register-ticket": { RegisterTicket: ({ ticket }) => { registered = ticket; return null; } },
-    "@/components/meraki/commerce-purchase": { CommercePurchase: () => null },
+    "@/components/meraki/commerce-purchase": { CommercePurchase: () => { purchaseCalls++; return null; } },
     "@/i18n/routing": { Link: ({ children, ...props }) => createElement("a", props, children) },
     "next/image": { __esModule: true, default: (props) => { const imageProps = { ...props }; delete imageProps.unoptimized; return createElement("img", imageProps); } },
     "next/navigation": { notFound() { throw Error("not found"); } },
-    qrcode: { toDataURL: async () => "data:image/png;base64,cXItc3ludGhldGlj" },
+    qrcode: { toDataURL: async () => { qrCalls++; return "data:image/png;base64,cXItc3ludGhldGlj"; } },
   });
   const rendered = await page.default({ params: Promise.resolve({ id, locale }), searchParams: Promise.resolve({ token }) });
   const dom = new JSDOM(renderToStaticMarkup(rendered));
-  return { dom, registered, selected, filters };
+  return { dom, registered, selected, filters, qrCalls, purchaseCalls };
 }
 
 test("ticket pages distinguish opening, event start and a recorded admission using Italian dates in every language", async () => {
@@ -118,12 +121,48 @@ test("legacy and commerce tickets link to public trip information in every langu
   }
 });
 
+test("explicit cancellation blocks ticket QR, manual code, downloads and upgrades before a refund succeeds", async () => {
+  for (const commerce of [false, true]) for (const locale of ["it", "en", "de", "es"]) {
+    const { dom, registered, qrCalls, purchaseCalls } = await renderTicket(locale, { commerce, canceled: true, guide: true, upgrades: true });
+    const { document } = dom.window;
+    const t = cancellationCopy.eventCancellationCopy(locale);
+    assert.ok(document.body.textContent.includes(t.title));
+    assert.ok(document.body.textContent.includes(t.ticketBody));
+    assert.ok(document.body.textContent.includes("Cambio programma <annullato>"));
+    assert.equal(document.querySelector('img[alt*="QR"]'), null);
+    assert.equal(document.querySelector('a[download]'), null);
+    assert.equal(document.querySelector('a[href$="#viaggio-soggiorno"]'), null);
+    assert.equal(document.body.textContent.includes(token), false);
+    assert.equal(document.body.textContent.includes(copy[locale].available), false);
+    assert.equal(registered.status, "canceled");
+    assert.equal(qrCalls, 0);
+    assert.equal(purchaseCalls, 0);
+    dom.window.close();
+  }
+});
+
+test("ordinary unpublishing does not revoke a paid ticket or silently disable its QR", async () => {
+  const { dom, registered, qrCalls, purchaseCalls } = await renderTicket("it", { commerce: true, unpublished: true, upgrades: true });
+  assert.equal(registered.status, "paid");
+  assert.equal(qrCalls, 1);
+  assert.equal(purchaseCalls, 1);
+  dom.window.close();
+});
+
+test("a confirmed monetary refund preserves valid QR admissions but hides upgrades based on outdated payment credit", async () => {
+  const { dom, registered, qrCalls, purchaseCalls } = await renderTicket("it", { commerce: true, refunded: true, upgrades: true });
+  assert.equal(registered.status, "paid");
+  assert.equal(qrCalls, 1);
+  assert.equal(purchaseCalls, 0);
+  dom.window.close();
+});
+
 test("commerce pass loading and verified wallet refresh preserve the actual event opening", async () => {
   const selected = [];
   const pass = { id, qr_code: token, event_id: "event-fixture", status: "paid", first_name: "Ada", last_name: "Prova" };
   const db = { from(table) {
     return {
-      select(fields) { selected.push([table, fields]); return this; }, eq() { return this; }, in() { return this; }, order() { return this; },
+      select(fields) { selected.push([table, fields]); return this; }, eq() { return this; }, in() { return this; }, order() { return this; }, limit() { return this; },
       maybeSingle: async () => ({ data: pass, error: null }),
       single: async () => ({ data: { ...event, commerce_config: null }, error: null }),
       then(resolve) { return resolve({ data: table === "commerce_passes" ? [{ ...pass, event }] : [{ pass_id: id, status: "valid", checked_in_at: null }], error: null }); },
@@ -141,7 +180,7 @@ test("commerce pass loading and verified wallet refresh preserve the actual even
   assert.equal(refreshed[0].title, "Meraki test");
   assert.equal(refreshed[0].status, "paid");
   assert.ok(selected.some(([table, fields]) => table === "events" && fields.includes("check_in_starts_at")));
-  assert.ok(selected.some(([table, fields]) => table === "commerce_passes" && fields.includes("event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at)")));
+  assert.ok(selected.some(([table, fields]) => table === "commerce_passes" && fields.includes("event:events(titolo,data_inizio,location,indirizzo,check_in_starts_at,canceled_at)")));
 });
 
 test("ticket translations use each paid admission snapshot even after catalogue names change", async () => {
@@ -154,7 +193,7 @@ test("ticket translations use each paid admission snapshot even after catalogue 
   const orders = [{ id: "upgrade-order", state: "fulfilled", upgrade_pass_id: id, event_snapshot: { commerce_config: upgraded } }, { id: "original-order", state: "fulfilled", upgrade_pass_id: null, event_snapshot: { commerce_config: original } }];
   const filters = [];
   const db = { from(table) { return {
-    select() { return this; }, eq(key, value) { filters.push([table, key, value]); return this; }, in() { return this; }, order() { return this; },
+    select() { return this; }, eq(key, value) { filters.push([table, key, value]); return this; }, in() { return this; }, order() { return this; }, limit() { return this; },
     maybeSingle: async () => ({ data: pass }), single: async () => ({ data: { ...event, commerce_config: current } }),
     then(resolve) { return resolve({ data: table === "commerce_orders" ? orders : rights, error: null }); },
   }; } };

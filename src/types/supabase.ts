@@ -205,6 +205,8 @@ export type Database = {
         Row: {
           affiliates: Json
           attivo: boolean | null
+          canceled_at: string | null
+          cancellation_reason: string | null
           capacity: number | null
           check_in_starts_at: string | null
           commerce_config: Json | null
@@ -235,6 +237,8 @@ export type Database = {
         Insert: {
           affiliates?: Json
           attivo?: boolean | null
+          canceled_at?: string | null
+          cancellation_reason?: string | null
           capacity?: number | null
           check_in_starts_at?: string | null
           commerce_config?: Json | null
@@ -265,6 +269,8 @@ export type Database = {
         Update: {
           affiliates?: Json
           attivo?: boolean | null
+          canceled_at?: string | null
+          cancellation_reason?: string | null
           capacity?: number | null
           check_in_starts_at?: string | null
           commerce_config?: Json | null

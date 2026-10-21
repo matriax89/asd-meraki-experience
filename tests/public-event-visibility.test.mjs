@@ -34,16 +34,20 @@ function fixture(type, published, withSchedule = true) {
     { id: "10000000-0000-4000-8000-000000000001", name: "Referente attivo", active: true },
     { id: "10000000-0000-4000-8000-000000000002", name: "Referente disattivato", active: false },
   ];
-  const server = { createClient: async () => ({ from(table) {
+  const client = { from(table) {
     assert.equal(table, "events");
     const predicates = [];
-    const query = { select(columns) { selections.push(columns); return this; }, eq(column, value) { predicates.push((entry) => entry[column] === value); queries.push([column, value]); return this; }, in(column, values) { predicates.push((entry) => values.includes(entry[column])); return this; }, async single() { return { data: predicates.every((predicate) => predicate(row)) ? row : null, error: null }; } };
+    const query = { select(columns) { selections.push(columns); return this; }, eq(column, value) { predicates.push((entry) => entry[column] === value); queries.push([column, value]); return this; }, in(column, values) { predicates.push((entry) => values.includes(entry[column])); return this; }, not(column, operator, value) { assert.equal(operator, "is"); assert.equal(value, null); predicates.push((entry) => entry[column] != null); return this; }, async single() { return { data: predicates.every((predicate) => predicate(row)) ? row : null, error: null }; }, async maybeSingle() { return this.single(); } };
     return query;
-  } }) };
+  } };
+  const server = { createClient: async () => client, createAdminClient: () => client };
   const socialData = load("lib/events/social-data.ts", { react: { cache: callback => callback }, "@/lib/supabase/server": server });
   const page = load(`app/[locale]/(public)/${type === "evento" ? "eventi" : "workshop"}/[slug]/page.tsx`, {
     "@/lib/supabase/server": server,
     "@/lib/events/social-data": socialData,
+    "@/lib/events/canceled-public-event": load("lib/events/canceled-public-event.ts", { "server-only": {}, "@/lib/supabase/server": server }),
+    "@/lib/events/cancellation-copy": load("lib/events/cancellation-copy.ts"),
+    "@/components/meraki/canceled-event": { CanceledEvent: () => null },
     "@/lib/events/social-metadata": socialMetadata,
     "@/lib/i18n-utils": i18n,
     "@/components/meraki/events-data": eventsData,
