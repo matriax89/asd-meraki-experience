@@ -171,9 +171,10 @@ test("purchase opens an accessible native dialog and preserves required/email va
   assert.equal(checkout.dialog.contains(window.document.activeElement), true);
 
   const inputs = [...checkout.form.querySelectorAll("input")];
-  assert.deepEqual(inputs.map((input) => input.name), ["nome", "cognome", "email", "buyer-phone", "buyer-document-number", "discountCode"]);
+  assert.deepEqual(inputs.map((input) => input.name), ["nome", "cognome", "email", "buyer-phone", "buyer-document-number", "buyer-marketing-consent", "discountCode"]);
   assert.ok(inputs.filter((input) => input.type !== "checkbox" && input.name !== "discountCode").every((input) => input.required));
-  assert.equal(inputs.find((input) => input.type === "checkbox"), undefined);
+  assert.equal(inputs.find((input) => input.type === "checkbox").checked, false);
+  assert.equal(inputs.find((input) => input.type === "checkbox").required, false);
   assert.equal(inputs.at(-1).required, false);
   assert.equal(inputs[2].type, "email");
   assert.equal(inputs[2].autocomplete, "email");

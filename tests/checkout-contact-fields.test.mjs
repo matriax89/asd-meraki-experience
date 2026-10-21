@@ -63,12 +63,20 @@ for (const locale of ["it", "en", "de", "es"]) {
     assert.equal(host.querySelector("#guest-operational-email-hint").textContent, copy.operationalEmailHint);
     assert.ok(email.getAttribute("aria-describedby").split(" ").includes("guest-operational-email-hint"));
     assert.equal(host.querySelector('[role="switch"]'), null);
-    assert.equal(host.querySelector('input[type="checkbox"]'), null);
+    const promotion = host.querySelector('input[type="checkbox"]');
+    assert.equal(promotion.checked, false);
+    assert.equal(promotion.required, false);
+    assert.equal(promotion.closest("label").textContent, copy.marketing);
+    assert.ok(copy.marketing.length < 70, "Consent uses one short sentence");
     assert.equal(host.querySelector("#guest-marketing-hint"), null);
-    assert.equal(host.textContent.includes(copy.marketing), false);
     assert.equal(contactModule.emptyCheckoutContact(locale).marketingConsent, false);
     assert.equal(form.checkValidity(), true, "The required attendee data permits purchase without promotions");
     assert.deepEqual(changes, [], "Ticket/service email information must not create consent");
+    await act(async () => promotion.click());
+    assert.equal(promotion.checked, true);
+    assert.deepEqual(JSON.parse(JSON.stringify(changes)), [{ marketingConsent: true }]);
+    await act(async () => promotion.click());
+    assert.equal(promotion.checked, false);
     assert.equal(email.value, "guest@example.test");
     assert.equal(form.checkValidity(), true);
     assert.equal(host.querySelector("#guest-operational-email-hint").textContent, copy.operationalEmailHint);
@@ -84,9 +92,12 @@ test("waiting-list and original-email forms do not promise automatic ticket deli
   assert.equal(form.checkValidity(), true);
 });
 
-test("pending purchase locks the contact fields without enrolling anyone", async (context) => {
+test("pending purchase locks the contact fields and optional consent without enrolling anyone", async (context) => {
   const { host, changes } = await mount(context, "it", { disabled: true });
-  assert.equal(host.querySelector('input[type="checkbox"]'), null);
+  const promotion = host.querySelector('input[type="checkbox"]');
+  assert.equal(promotion.checked, false);
+  assert.equal(promotion.disabled, true);
+  await act(async () => promotion.click());
   assert.deepEqual(changes, []);
   assert.equal(host.querySelector('input[type="email"]').disabled, true);
 });

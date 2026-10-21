@@ -518,18 +518,20 @@ test("payment confirmation displays every named participant without redirecting 
 });
 
 
-test("guest checkout collects each participant without a promotional choice or implied opt-in", async (context) => {
+test("guest checkout keeps the short optional consent independent for each participant", async (context) => {
   const ui = await setup(context);
   await ui.open();
   await ui.change(window.document.querySelector('select[aria-label="Numero di partecipanti"]'), "2");
   await ui.fillPerson(0);
   await ui.fillPerson(1);
   const toggles = [...window.document.querySelectorAll('input[name$="-marketing-consent"]')];
-  assert.equal(toggles.length, 0);
+  assert.equal(toggles.length, 2);
+  assert.ok(toggles.every((toggle) => !toggle.checked && !toggle.required));
+  await act(async () => toggles[0].click());
   await ui.settleQuote();
   await act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
   const request = ui.calls.find((call) => call.url === "/api/commerce/checkout").body;
-  assert.equal(request.attendees[0].marketingConsent, false);
+  assert.equal(request.attendees[0].marketingConsent, true);
   assert.equal(request.attendees[1].marketingConsent, false);
   assert.equal(request.attendees[1].email, "anna@example.test");
   assert.ok(window.document.querySelector('a[href="/it/legal/privacy-policy"]'));
