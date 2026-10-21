@@ -144,6 +144,18 @@ test("staff with read access sees history without financial or cancellation cont
   assert.equal(requests.length, 0);
 });
 
+test("a pending partial refund blocks a new request even when a refundable balance remains", async context => {
+  const initial = fixture();
+  initial.payments[0].pendingCents = 1000;
+  initial.payments[0].availableCents = 6500;
+  initial.payments[0].refunds = [{ id: "pending-refund", amountCents: 1000, status: "pending", reason: "Rinuncia parziale", createdAt: "2026-10-21T12:00:00Z", error: null, emailSentAt: null }];
+  const requests = await setup(context, initial);
+  assert.equal(button("Prepara rimborso"), undefined);
+  assert.ok(window.document.body.textContent.includes("C’è già un rimborso in lavorazione"));
+  assert.ok(button("Verifica / riprendi questo tentativo"));
+  assert.equal(requests.length, 0);
+});
+
 test("cancellation needs the exact event title and prepares a queue before an explicit processing action", async context => {
   const initial = fixture();
   const canceled = fixture({ event: { ...initial.event, canceledAt: "2026-10-21T12:00:00Z", cancellationReason: "Problema alla sede" }, cancellation: { id: "cancel", status: "processing", totalPayments: 1, completed: 0, pending: 0, remaining: 1, failed: 0, emailsRemaining: 1 } });
