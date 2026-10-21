@@ -14,6 +14,8 @@ const compiledModule = { exports: {} };
 vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => {
   if (id === "next-intl/middleware") return { __esModule: true, default: () => () => null };
   if (id === "./i18n/routing") return { routing: { locales: ["it", "en", "de", "es"], defaultLocale: "it" } };
+  if (id === "./i18n/locale-choice") return { LOCALE_CHOICE_COOKIE: "MERAKI_LOCALE_CHOICE" };
+  if (id === "./i18n/locale-preference") return { publicLocaleRedirect: () => null };
   return require(id);
 } });
 

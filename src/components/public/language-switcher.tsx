@@ -2,83 +2,130 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
-import { useState, useTransition, useRef, useEffect } from "react";
-import { ChevronDown, Check } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useTransition, useRef, useEffect, useId, type KeyboardEvent } from "react";
+import { ChevronDown, Check, Globe2 } from "lucide-react";
+import { isSupportedLocale, rememberLocaleChoice, SUPPORTED_LOCALES, type SupportedLocale } from "@/i18n/locale-choice";
+import styles from "./language-switcher.module.css";
 
-const localeLabels: Record<string, string> = {
+const localeLabels: Record<SupportedLocale, string> = {
   it: "Italiano",
   en: "English",
   de: "Deutsch",
   es: "Español",
 };
 
-export function LanguageSwitcher() {
+export function LanguageSwitcher({ compact = false, align = "end" }: { compact?: boolean; align?: "start" | "end" }) {
   const [isPending, startTransition] = useTransition();
   const [isOpen, setIsOpen] = useState(false);
-  const locale = useLocale();
+  const contextLocale = useLocale();
+  const locale = isSupportedLocale(contextLocale) ? contextLocale : "it";
   const t = useTranslations("PublicUi");
   const router = useRouter();
   const pathname = usePathname();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const focusOnOpen = useRef(SUPPORTED_LOCALES.indexOf(locale));
+  const menuId = useId();
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+    if (!isOpen) return;
+    optionRefs.current[focusOnOpen.current]?.focus();
+    function closeOutside(event: Event) {
+      if (!dropdownRef.current?.contains(event.target as Node)) setIsOpen(false);
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("focusin", closeOutside);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("focusin", closeOutside);
+    };
+  }, [isOpen]);
 
-  const handleLocaleChange = (newLocale: string) => {
+  function openMenu(index = SUPPORTED_LOCALES.indexOf(locale)) {
+    focusOnOpen.current = index;
+    setIsOpen(true);
+  }
+
+  function handleLocaleChange(nextLocale: SupportedLocale) {
+    rememberLocaleChoice(nextLocale);
     setIsOpen(false);
-    if (newLocale === locale) return;
+    triggerRef.current?.focus();
+    if (nextLocale === locale) return;
     startTransition(() => {
-      router.replace(`${pathname}${window.location.search}${window.location.hash}`, { locale: newLocale });
+      router.replace(`${pathname}${window.location.search}${window.location.hash}`, { locale: nextLocale, scroll: false });
     });
-  };
+  }
+
+  function handleMenuKeys(event: KeyboardEvent<HTMLDivElement>) {
+    const index = optionRefs.current.findIndex((option) => option === document.activeElement);
+    let nextIndex: number;
+    switch (event.key) {
+      case "ArrowDown": nextIndex = (index + 1) % SUPPORTED_LOCALES.length; break;
+      case "ArrowUp": nextIndex = (index - 1 + SUPPORTED_LOCALES.length) % SUPPORTED_LOCALES.length; break;
+      case "Home": nextIndex = 0; break;
+      case "End": nextIndex = SUPPORTED_LOCALES.length - 1; break;
+      case "Escape":
+        event.preventDefault();
+        event.stopPropagation();
+        setIsOpen(false);
+        triggerRef.current?.focus();
+        return;
+      case "Tab":
+        triggerRef.current?.focus();
+        setIsOpen(false);
+        return;
+      default: return;
+    }
+    event.preventDefault();
+    optionRefs.current[nextIndex]?.focus();
+  }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className={`${styles.root}${compact ? ` ${styles.compact}` : ""}`} ref={dropdownRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={triggerRef}
+        type="button"
+        onClick={() => isOpen ? setIsOpen(false) : openMenu()}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            openMenu(event.key === "ArrowUp" ? SUPPORTED_LOCALES.length - 1 : SUPPORTED_LOCALES.indexOf(locale));
+          }
+        }}
         disabled={isPending}
-        aria-label={t("language")}
+        aria-label={`${t("language")}: ${localeLabels[locale]}`}
+        aria-haspopup="menu"
         aria-expanded={isOpen}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors opacity-90 hover:opacity-100"
+        aria-controls={isOpen ? menuId : undefined}
+        aria-busy={isPending || undefined}
+        className={styles.trigger}
       >
-        <span className="text-[13px] font-bold uppercase tracking-wider">{locale}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
+        <Globe2 size={16} strokeWidth={1.7} className={styles.globe} aria-hidden="true" />
+        <span>{locale.toUpperCase()}</span>
+        <ChevronDown size={12} className={isOpen ? styles.chevronOpen : undefined} aria-hidden="true" />
       </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-slate-900 rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 dark:border-slate-800 overflow-hidden z-50 py-2"
-          >
-            {Object.entries(localeLabels).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => handleLocaleChange(key)}
-                className={`w-full flex items-center justify-between px-4 py-2.5 text-[14px] text-left transition-colors ${
-                  locale === key 
-                    ? "bg-slate-50 dark:bg-slate-800/50 font-bold text-slate-900 dark:text-white" 
-                    : "font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                {label}
-                {locale === key && <Check className="w-4 h-4 text-slate-900 dark:text-white" />}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isOpen ? (
+        <div id={menuId} role="menu" aria-label={t("language")} className={`${styles.menu} ${align === "start" ? styles.menuStart : styles.menuEnd}`} onKeyDown={handleMenuKeys}>
+          {SUPPORTED_LOCALES.map((key, index) => (
+            <button
+              key={key}
+              ref={(element) => { optionRefs.current[index] = element; }}
+              type="button"
+              role="menuitemradio"
+              aria-checked={locale === key}
+              lang={key}
+              tabIndex={-1}
+              onClick={() => handleLocaleChange(key)}
+              className={`${styles.option}${locale === key ? ` ${styles.selected}` : ""}`}
+            >
+              <span>{localeLabels[key]}</span>
+              {locale === key ? <Check size={16} strokeWidth={2} aria-hidden="true" /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

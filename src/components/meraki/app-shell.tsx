@@ -7,6 +7,7 @@ import Image from "next/image";
 import { ArrowLeft, Compass, Info, Ticket, UserRound } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { getMerakiRouteState } from "@/lib/meraki-routes";
+import { LanguageSwitcher } from "@/components/public/language-switcher";
 import styles from "./app-shell.module.css";
 
 export { isMerakiRoute } from "@/lib/meraki-routes";
@@ -48,13 +49,14 @@ export function MerakiAppShell({ children, locale, logoUrl, staffAccess = false 
     <div className={`meraki-app ${styles.shell}${standalone ? ` ${styles.standalone}` : ""}`} data-meraki-app>
       <a className={styles.skipLink} href="#meraki-content">{text.skip}</a>
       <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <div className={styles.headerSide}>
+        <div className={`${styles.headerInner}${route.isDetail ? ` ${styles.detailHeader}` : ""}`}>
+          <div className={`${styles.headerSide} ${styles.headerStart}`}>
             {route.isDetail ? (
               <Link href={route.backHref} className={styles.iconButton} aria-label={text.back}>
                 <ArrowLeft size={20} strokeWidth={1.8} aria-hidden="true" />
               </Link>
             ) : null}
+            <LanguageSwitcher compact align="start" />
           </div>
           <Link href="/eventi" className={styles.wordmark} aria-label="Meraki Experience">
             <Image

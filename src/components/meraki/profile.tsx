@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowUpRight, Check, ChevronRight, Globe2, HeartHandshake, LifeBuoy, LockKeyhole, ScanLine, ShieldCheck, Smartphone, Ticket } from "lucide-react";
 import { Link } from "@/i18n/routing";
+import { rememberLocaleChoice } from "@/i18n/locale-choice";
 import { InstallCard } from "@/components/pwa/install-card";
 import styles from "./profile.module.css";
 
@@ -45,6 +46,7 @@ export function MerakiProfile({ locale, staffAccess = false }: { locale: string;
   const [isPending, startTransition] = useTransition();
 
   function changeLanguage(nextLocale: string) {
+    rememberLocaleChoice(nextLocale);
     if (nextLocale === locale) return;
     const path = pathname.replace(/^\/(it|en|de|es)(?=\/|$)/, "");
     startTransition(() => router.replace(`/${nextLocale}${path}${window.location.search}${window.location.hash}`, { scroll: false }));

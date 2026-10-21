@@ -87,8 +87,8 @@ export function Header({ logoUrl, logoWhiteUrl, appearance }: { logoUrl?: string
 
             {/* Right */}
             <div className={`flex items-center gap-2 transition-colors duration-300 ${textColorClass}`}>
-              <div className="hidden sm:flex items-center">
-                <LanguageSwitcher />
+              <div className="flex items-center">
+                <LanguageSwitcher compact />
               </div>
 
               <Link
@@ -142,9 +142,6 @@ export function Header({ logoUrl, logoWhiteUrl, appearance }: { logoUrl?: string
                 {t("sponsor")}
                 <ArrowRight className="w-4 h-4" />
               </Link>
-              <div className="mt-6 pt-6 border-t border-border">
-                <LanguageSwitcher />
-              </div>
             </nav>
           </motion.div>
         )}

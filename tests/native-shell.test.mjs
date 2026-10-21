@@ -27,6 +27,7 @@ function requireShell(id) {
   if (id === "next-intl") return { useLocale: () => locale };
   if (id === "next/navigation") return { usePathname: () => pathname };
   if (id === "@/lib/meraki-routes") return routes;
+  if (id === "@/components/public/language-switcher") return { LanguageSwitcher: () => createElement("button", { type: "button", "aria-haspopup": "menu", "aria-label": "Language" }, locale.toUpperCase()) };
   if (id === "@/i18n/routing") return { Link: ({ children, ...props }) => createElement("a", props, children) };
   if (id.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
   return require(id);
@@ -50,6 +51,7 @@ test("the app header displays the original artwork and follows the site's config
     assert.equal(imageUrl.searchParams.get("url") || imageUrl.pathname, expectedSource);
     assert.ok(Number(artwork.getAttribute("width")) > 0);
     assert.ok(Number(artwork.getAttribute("height")) > 0);
+    assert.ok(document.querySelector('header button[aria-haspopup="menu"]'), "the language chooser stays at the top on app routes");
   }
 });
 
@@ -110,6 +112,7 @@ test("the header icon opens sign-in for visitors and the roster for verified sta
 const { MerakiProfile } = loadTs("../src/components/meraki/profile.tsx", (id) => {
   if (id === "next/navigation") return { usePathname: () => pathname, useRouter: () => ({ replace() {} }) };
   if (id === "@/components/pwa/install-card") return { InstallCard: () => null };
+  if (id === "@/i18n/locale-choice") return { rememberLocaleChoice() {} };
   if (id === "@/i18n/routing") return { Link: ({ children, ...props }) => createElement("a", props, children) };
   if (id.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
   return require(id);
