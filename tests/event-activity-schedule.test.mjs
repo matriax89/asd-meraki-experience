@@ -101,8 +101,6 @@ test("a scheduled optional dinner appears once, while menu choices and package d
 test("long names remain complete and layout can stack or wrap without fixed-width text", () => {
   const longName = "Workshop " + "MovimentoConsapevole".repeat(12);
   const document = render([{ ...workshop, name: longName }]);
-  const grid = document.querySelector("ul");
-  assert.ok(grid.className.includes("sm:grid-cols-2"));
   const heading = document.querySelector("h3");
   assert.equal(heading.textContent, longName);
   assert.ok(heading.className.includes("break-words"));

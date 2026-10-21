@@ -51,6 +51,26 @@ const labels = {
 };
 const render = (event, locale) => JSDOM.fragment(renderToStaticMarkup(React.createElement(EventDetail, { event, locale })));
 
+test("the venue opens directions to the complete address with a localized accessible label", () => {
+  const names = { it: "Apri il navigatore", en: "Open directions", de: "Route öffnen", es: "Abrir indicaciones" };
+  for (const [locale, label] of Object.entries(names)) {
+    const event = { ...base, location: "Black Box - Laives (BZ)", address: "Via Galizia 30, 39055 Laives (BZ)" };
+    const link = render(event, locale).querySelector('[data-event-directions]');
+    assert.ok(link.textContent.includes(event.address));
+    assert.ok(link.getAttribute('aria-label').startsWith(label));
+    const url = new URL(link.href);
+    assert.equal(url.origin, 'https://www.google.com');
+    assert.equal(url.searchParams.get('destination'), `${event.location}, ${event.address}`);
+    assert.equal(url.searchParams.get('dir_action'), 'navigate');
+    assert.equal(url.searchParams.get('origin'), null, 'let the participant choose or use their location');
+    assert.equal(link.getAttribute('target'), '_blank');
+    assert.equal(link.getAttribute('rel'), 'noopener noreferrer');
+  }
+  assert.equal(render({ ...base, location: null, address: null }, 'it').querySelector('[data-event-directions]'), null);
+  const unusual = render({ ...base, location: 'Sala & Studio', address: 'Via Roma 1/A #2' }, 'it').querySelector('[data-event-directions]');
+  assert.equal(new URL(unusual.href).searchParams.get('destination'), 'Sala & Studio, Via Roma 1/A #2');
+});
+
 for (const [locale, text] of Object.entries(labels)) {
   test(`${locale} event, workshop and masterclass details label the previous-day check-in in Italian date and Rome time`, () => {
     for (const type of ["evento", "workshop", "masterclass"]) {

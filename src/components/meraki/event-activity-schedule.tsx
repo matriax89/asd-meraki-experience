@@ -1,4 +1,3 @@
-import { Clock3, DoorOpen, Music2, Sparkles } from "lucide-react";
 import type { CommerceActivity } from "@/lib/commerce/types";
 import { commerceText } from "@/lib/commerce/localization";
 
@@ -33,42 +32,38 @@ export function EventActivitySchedule({ activities, locale, eventStartsAt }: { a
   const copy = labels[locale as keyof typeof labels] || labels.it;
   const reference = instant(eventStartsAt) || scheduled[0].start || scheduled[0].checkIn || scheduled[0].end;
   return (
-    <section data-activity-schedule aria-label={copy.title} className="min-w-0 py-5">
-      <h2 className="mb-3 text-sm font-semibold tracking-[-0.01em]">{copy.title}</h2>
-      <ul className="grid min-w-0 gap-3 sm:grid-cols-2" role="list">
+    <section data-activity-schedule aria-label={copy.title} className="min-w-0 py-3">
+      <h2 className="mb-1 text-xs font-medium text-[#727b6a]">{copy.title}</h2>
+      <ul className="min-w-0 divide-y divide-[#e5e6df]" role="list">
         {scheduled.map(({ activity, start, end, checkIn }) => {
           const name = commerceText(activity.name, activity.nameTranslations, locale);
-          const Icon = activity.kind === "workshop" ? Sparkles : activity.kind === "masterclass" ? Music2 : Clock3;
-          const gold = activity.kind === "workshop";
           const date = start || checkIn || end!;
           return (
-            <li key={activity.id} data-activity-id={activity.id} className={`min-w-0 rounded-[18px] border p-4 sm:p-5 ${gold ? "border-[#e5ddc8] bg-[#faf8f2]" : "border-[#dde4d7] bg-[#f4f7f0]"}`}>
+            <li key={activity.id} data-activity-id={activity.id} className="min-w-0 py-3">
               <article aria-label={name} className="min-w-0">
-                <header className="mb-4 flex min-w-0 items-start gap-2.5">
-                  <Icon className={`mt-0.5 h-[18px] w-[18px] shrink-0 ${gold ? "text-[#9e885d]" : "text-[#738463]"}`} aria-hidden="true" />
-                  <div className="min-w-0">
-                    <h3 className="break-words text-sm font-semibold leading-5 text-[#18251f]">{name}</h3>
-                    {reference && day(date) !== day(reference) ? <time dateTime={date} className="mt-1 block text-xs text-[#727b6a]">{day(date)}</time> : null}
+                <header className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <div className="min-w-0 flex-[1_1_8rem]">
+                    <h3 className="break-words text-[15px] font-semibold leading-6 text-[#18251f]">{name}</h3>
+                    {reference && day(date) !== day(reference) ? <time dateTime={date} className="block text-xs leading-5 text-[#727b6a]">{day(date)}</time> : null}
                   </div>
+                  {start || end ? <dl className="min-w-0 max-w-full">
+                    <dt className={start && end ? "sr-only" : "text-[11px] leading-4 text-[#727b6a]"}>{start && end ? copy.schedule : start ? copy.start : copy.end}</dt>
+                    <dd data-activity-time className="flex min-w-0 flex-wrap items-baseline gap-x-1 gap-y-0.5 text-[15px] font-semibold leading-6 tabular-nums text-[#18251f]">
+                      {start ? <time dateTime={start}>{clock(start, date)}</time> : null}
+                      {start && end ? <span aria-hidden="true">–</span> : null}
+                      {end ? <time dateTime={end}>{clock(end, date)}</time> : null}
+                    </dd>
+                  </dl> : null}
                 </header>
-                {checkIn ? <div data-activity-check-in className="mb-4 flex min-w-0 items-start gap-2 rounded-[12px] border border-[#18251f]/5 bg-white/80 px-3 py-2.5">
-                  <DoorOpen className="mt-0.5 h-4 w-4 shrink-0 text-[#738463]" aria-hidden="true" />
-                  <div className="min-w-0"><p className="text-[11px] font-medium leading-4 text-[#69755f]">{copy.checkIn}</p><time dateTime={checkIn} className="mt-1 block break-words text-lg font-semibold leading-6 tracking-[-0.02em] text-[#263a2c]">{clock(checkIn, date)}</time></div>
-                </div> : null}
-                {start || end ? <dl className="min-w-0">
-                  <dt className="mb-1 text-[11px] leading-4 text-[#727b6a]">{start && end ? copy.schedule : start ? copy.start : copy.end}</dt>
-                  <dd data-activity-time className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1 text-base font-semibold leading-6 text-[#18251f]">
-                    {start ? <time dateTime={start}>{clock(start, date)}</time> : null}
-                    {start && end ? <span aria-hidden="true">–</span> : null}
-                    {end ? <time dateTime={end}>{clock(end, date)}</time> : null}
-                  </dd>
-                </dl> : null}
+                {checkIn ? <p data-activity-check-in className="mt-0.5 break-words text-[13px] leading-5 text-[#727b6a]">
+                  {copy.checkIn}{" "}<time dateTime={checkIn} className="font-medium tabular-nums">{clock(checkIn, date)}</time>
+                </p> : null}
               </article>
             </li>
           );
         })}
       </ul>
-      <p className="mt-3 text-[11px] leading-5 text-[#7f8777]">{copy.zone}</p>
+      <p className="mt-1 text-[10px] leading-4 text-[#7f8777]">{copy.zone}</p>
     </section>
   );
 }
