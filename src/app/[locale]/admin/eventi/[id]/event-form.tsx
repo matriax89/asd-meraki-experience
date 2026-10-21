@@ -88,6 +88,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
     slug: initialData?.slug || "",
     tipo: initialData?.tipo || "evento",
     descrizione: initialData?.descrizione || "",
+    descrizione_breve: initialData?.descrizione_breve || "",
     data_inizio: initialData?.data_inizio ? toRomeInput(initialData.data_inizio) : "",
     data_fine: initialData?.data_fine ? toRomeInput(initialData.data_fine) : "",
     check_in_starts_at: initialData?.check_in_starts_at ? toRomeInput(initialData.check_in_starts_at) : "",
@@ -142,6 +143,15 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       if (step === 0) {
         if (!localizedCopy(formData.titolo).trim()) throw new Error("Inserisci il titolo in italiano.");
         if (!formData.slug.trim()) throw new Error("Inserisci lo slug dell’evento.");
+        const invalidIntroductionLanguage = Object.keys(languageNames).find((language) => {
+          const introduction = localizedCopy(formData.descrizione_breve, language);
+          return richTextPlainText(introduction).length > 3000 || introduction.length > richTextSerializedLimit(3000);
+        });
+        if (invalidIntroductionLanguage) {
+          target = "[data-event-short-description]";
+          language = invalidIntroductionLanguage;
+          throw new Error("La presentazione breve è troppo lunga. Usa al massimo 3000 caratteri nella lingua indicata.");
+        }
         const invalidLanguage = Object.keys(languageNames).find((language) => {
           const description = localizedCopy(formData.descrizione, language);
           return richTextPlainText(description).length > 20000 || description.length > richTextSerializedLimit(20000);
@@ -265,6 +275,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       id: formData.id === "nuovo" ? undefined : formData.id,
       titolo: formData.titolo, sottotitolo: formData.sottotitolo,
       slug: formData.slug, tipo: formData.tipo, descrizione: formData.descrizione,
+      descrizione_breve: formData.descrizione_breve,
       data_inizio: startsAt, data_fine: endsAt, check_in_starts_at: checkInStartsAt,
       location: formData.location, indirizzo: formData.indirizzo,
       prezzo_cents: ticketPrice(),
@@ -375,6 +386,17 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
           />
         </div>
 
+        <div data-event-short-description><MultilingualTextarea
+          label="Presentazione breve"
+          richText
+          disabled={isPending}
+          maxLength={3000}
+          className="min-h-[120px]"
+          value={formData.descrizione_breve}
+          onChange={val => setFormData({...formData, descrizione_breve: val})}
+          aria-describedby={`${dateFieldId}-intro-help`}
+        /><p id={`${dateFieldId}-intro-help`} className="mt-2 text-xs leading-5 text-muted-foreground">Facoltativa. Compare nella scheda dell’evento in homepage, prima del pulsante di acquisto. Puoi formattare il testo e inserire le traduzioni IT, EN, DE ed ES.</p></div>
+
         <div data-event-description><MultilingualTextarea
           label="Descrizione Completa" 
           richText
@@ -465,6 +487,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         <div><h2 className="text-xl font-semibold text-[#18251f]">Controlla prima di confermare</h2><p className="mt-2 text-sm leading-6 text-[#7a8272]">I dati vengono salvati solo con il pulsante finale. Puoi tornare ai passaggi precedenti per modificarli.</p></div>
         <section className="space-y-3" aria-label="Riepilogo dettagli"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Dettagli</h3><button type="button" onClick={() => changeStep(0)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica dettagli</button></div>
           <dl className="grid gap-3 sm:grid-cols-2">{Object.entries(languageNames).map(([language, name]) => <div key={language} className="rounded-xl bg-[#f3f2ed] p-3"><dt className="text-xs text-[#7a8272]">{name}</dt><dd className="mt-1 break-words text-sm font-semibold">{localizedCopy(formData.titolo, language) || "Titolo non inserito"}</dd>{localizedCopy(formData.sottotitolo, language) && <dd className="mt-1 text-sm text-[#7a8272]">{localizedCopy(formData.sottotitolo, language)}</dd>}</div>)}</dl>
+          <details data-event-introduction-review className="rounded-xl border border-[#e4e5dc] p-3"><summary className="cursor-pointer text-sm font-semibold text-[#52604f]">Rivedi la presentazione breve</summary><div className="mt-3 space-y-4">{Object.entries(languageNames).map(([language, name]) => <div key={language}><h4 className="text-xs font-semibold text-[#7a8272]">{name}</h4><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">{richTextPlainText(localizedCopy(formData.descrizione_breve, language)).trim() || "Presentazione non inserita"}</p></div>)}</div></details>
           <details className="rounded-xl border border-[#e4e5dc] p-3"><summary className="cursor-pointer text-sm font-semibold text-[#52604f]">Rivedi le descrizioni</summary><div className="mt-3 space-y-4">{Object.entries(languageNames).map(([language, name]) => <div key={language}><h4 className="text-xs font-semibold text-[#7a8272]">{name}</h4><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">{richTextPlainText(localizedCopy(formData.descrizione, language)).trim() || "Descrizione non inserita"}</p></div>)}</div></details>
           <p className="break-all text-xs text-[#7a8272]">{formData.tipo === "evento" ? "/eventi/" : "/workshop/"}{formData.slug}</p>
         </section>

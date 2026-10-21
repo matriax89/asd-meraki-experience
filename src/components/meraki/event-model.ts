@@ -1,4 +1,5 @@
 import type { CommercePackage, CommercePriceTier } from "@/lib/commerce/types";
+import { formatEventDate } from "@/lib/events/date-format";
 
 export type EventPackagePrice = Pick<CommercePackage, "id" | "name" | "nameTranslations"> & {
   activityIds?: readonly string[];
@@ -12,6 +13,8 @@ export type MerakiEvent = {
   type: "evento" | "workshop" | "masterclass";
   title: string;
   subtitle: string;
+  /** Server-sanitized introductory HTML. */
+  shortDescription?: string;
   startsAt: string;
   endsAt: string | null;
   checkInStartsAt?: string | null;
@@ -29,8 +32,8 @@ export function eventHref(event: Pick<MerakiEvent, "type" | "slug">) {
   return `/${event.type === "evento" ? "eventi" : "workshop"}/${event.slug}`;
 }
 
-export function eventDate(value: string, _locale: string, options: Intl.DateTimeFormatOptions = {}) {
-  return new Intl.DateTimeFormat("it-IT", { ...options, timeZone: "Europe/Rome", hourCycle: "h23" }).format(new Date(value));
+export function eventDate(value: string, locale: string, options: Intl.DateTimeFormatOptions = {}) {
+  return formatEventDate(value, locale, options);
 }
 
 export function eventPrice(value: number | null, locale: string) {

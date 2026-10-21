@@ -1,3 +1,4 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -16,7 +17,7 @@ function load(relativePath, mocks = {}, env = {}) {
   }).outputText;
   const sandboxModule = { exports: {} };
   vm.runInNewContext(source, {
-    module: sandboxModule, exports: sandboxModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : require(name),
+    module: sandboxModule, exports: sandboxModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : require(name),
     process: { env }, console: { error() {}, warn() {}, log() {} }, Buffer, URL, Request, Response,
     setTimeout, clearTimeout,
   }, { filename });

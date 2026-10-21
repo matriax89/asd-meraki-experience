@@ -1,3 +1,5 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
+import { eventIntroModule } from "./helpers/event-intro-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -15,12 +17,12 @@ function load(file, mocks = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, Date: FixedDate, Intl, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name) });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, Date: FixedDate, Intl, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/date-format" ? dateFormatModule : require(name) });
   return compiledModule.exports;
 }
 const model = load("components/meraki/event-model.ts");
 const i18n = load("lib/i18n-utils.ts");
-const data = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n });
+const data = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n, "@/lib/events/intro": eventIntroModule });
 const logistics = load("lib/events/logistics.ts");
 const poster = load("components/meraki/event-poster.tsx", { "next/image": { __esModule: true, default: () => null } });
 const travel = load("components/meraki/event-logistics-section.tsx", { "@/lib/events/logistics": logistics });
@@ -44,10 +46,10 @@ const base = {
   cover: null, location: "Merano", address: "Via Meraki 1", price: 1500, capacity: 30, sold: 0, description: "", ctaType: "stripe", ctaUrl: null,
 };
 const labels = {
-  it: { opening: "Apertura check-in", start: "Inizio evento", zone: "ora italiana" },
-  en: { opening: "Check-in opens", start: "Event starts", zone: "Italian time" },
-  de: { opening: "Check-in öffnet", start: "Veranstaltungsbeginn", zone: "italienische Zeit" },
-  es: { opening: "Apertura del check-in", start: "Inicio del evento", zone: "hora de Italia" },
+  it: { opening: "Apertura check-in", start: "Inizio evento", zone: "ora italiana", date: "domenica 1 agosto" },
+  en: { opening: "Check-in opens", start: "Event starts", zone: "Italian time", date: "Sunday 1 August" },
+  de: { opening: "Check-in öffnet", start: "Veranstaltungsbeginn", zone: "italienische Zeit", date: "Sonntag, 1. August" },
+  es: { opening: "Apertura del check-in", start: "Inicio del evento", zone: "hora de Italia", date: "domingo, 1 de agosto" },
 };
 const render = (event, locale) => JSDOM.fragment(renderToStaticMarkup(React.createElement(EventDetail, { event, locale })));
 
@@ -72,7 +74,7 @@ test("the venue opens directions to the complete address with a localized access
 });
 
 for (const [locale, text] of Object.entries(labels)) {
-  test(`${locale} event, workshop and masterclass details label the previous-day check-in in Italian date and Rome time`, () => {
+  test(`${locale} details translate calendar words while preserving numeric check-in dates and Rome time`, () => {
     for (const type of ["evento", "workshop", "masterclass"]) {
       const opening = "2027-07-31T17:30:00Z";
       const document = render({ ...base, type, checkInStartsAt: opening }, locale);
@@ -83,7 +85,7 @@ for (const [locale, text] of Object.entries(labels)) {
       assert.equal(block.querySelector("time").dateTime, opening);
       assert.equal(block.querySelector("time").textContent, "31/07/2027, 19:30");
       assert.ok(document.textContent.includes(text.start));
-      assert.ok(document.textContent.includes("domenica 1 agosto"));
+      assert.ok(document.textContent.includes(text.date));
       assert.ok(document.textContent.includes("10:30"));
       assert.doesNotMatch(block.textContent, /AM|PM|July|Juli/);
     }

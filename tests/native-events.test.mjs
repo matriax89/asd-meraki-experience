@@ -1,3 +1,4 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -28,6 +29,7 @@ function load(name) {
   vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, window: dom.window, document: dom.window.document, Date, require: (specifier) => {
     if (specifier.startsWith("./")) return load(specifier.slice(2));
     if (specifier === "@/i18n/routing") return { Link: ({ children, ...props }) => React.createElement("a", props, children) };
+    if (specifier === "@/lib/events/date-format") return dateFormatModule;
     return require(specifier);
   } });
   modules.set(name, compiledModule.exports);

@@ -87,10 +87,87 @@ function eventFormFixture({ realLogistics = false } = {}) {
     "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) },
     "next/navigation": { useRouter: () => ({ push() {} }) },
   });
-  return { EventForm, saved };
+  return { EventForm, saved, actions };
 }
 
 const flushFocus = () => act(async () => { await new Promise((resolve) => dom.window.setTimeout(resolve, 0)); });
+
+test("optional event introductions preserve formatted translations through review, editing and server save", async (context) => {
+  const { EventForm, saved } = eventFormFixture();
+  const screen = await mount(context, EventForm, { initialData: baseEvent });
+  const label = "Presentazione breve";
+  assert.equal(screen.input(label).hasAttribute("data-rich-text-fixture"), true);
+  assert.equal(screen.input(label).value, "", "existing events have no invented introduction");
+  const introductions = {
+    it: "<h3>VIBRA — One Day Experience</h3><p>Un giorno. <strong>Un’esperienza.</strong></p><p>— Alejandro Angulo</p>",
+    en: "<h3>VIBRA — One Day Experience</h3><p>One day. <em>An experience.</em></p><p>— Alejandro Angulo</p>",
+    de: "<h3>VIBRA — One Day Experience</h3><p>Ein Tag. <strong>Ein Erlebnis.</strong></p><p>— Alejandro Angulo</p>",
+    es: "<h3>VIBRA — One Day Experience</h3><p>Un día. <em>Una experiencia.</em></p><p>— Alejandro Angulo</p>",
+  };
+  for (const [language, value] of Object.entries(introductions)) {
+    await screen.language(label, language);
+    await screen.change(screen.input(label), value);
+  }
+  for (let index = 0; index < 4; index += 1) await screen.click("Avanti");
+  const review = screen.host.querySelector("[data-event-introduction-review]");
+  assert.ok(review);
+  for (const phrase of ["Un giorno.", "One day.", "Ein Tag.", "Un día."]) assert.ok(review.textContent.includes(phrase));
+  assert.doesNotMatch(review.textContent, /<strong>|<h3>|<em>/);
+  assert.equal(saved.length, 0);
+  await screen.click("Modifica dettagli");
+  for (const [language, value] of Object.entries(introductions)) {
+    await screen.language(label, language);
+    assert.equal(screen.input(label).value, value, `${language} introduction remains in its own field`);
+  }
+  for (let index = 0; index < 4; index += 1) await screen.click("Avanti");
+  await screen.submit();
+  assert.equal(saved.length, 1);
+  assert.deepEqual(saved[0].descrizione_breve, introductions);
+  assert.deepEqual(saved[0].descrizione, baseEvent.descrizione, "the separate full description is preserved");
+});
+
+test("an oversized hidden translation of the introduction blocks the wizard and focuses its language", async (context) => {
+  const { EventForm, saved } = eventFormFixture();
+  const italian = "<p>Presentazione italiana.</p>";
+  const english = `<p>${"x".repeat(3001)}</p>`;
+  const screen = await mount(context, EventForm, { initialData: { ...baseEvent, descrizione_breve: { it: italian, en: english } } });
+  const label = "Presentazione breve";
+  assert.equal(screen.input(label).value, italian);
+  await screen.click("Avanti");
+  await flushFocus();
+  assert.equal(screen.host.querySelector('[data-event-step="0"]').hidden, false);
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /presentazione breve è troppo lunga/);
+  assert.equal(screen.input(label).value, english);
+  assert.equal(screen.input(label).closest("[data-multilingual-field]").querySelector('button[aria-pressed="true"]').textContent, "en");
+  assert.equal(document.activeElement, screen.input(label));
+  assert.equal(saved.length, 0);
+  await screen.change(screen.input(label), "<p>A shorter introduction.</p>");
+  await screen.language(label, "it");
+  assert.equal(screen.input(label).value, italian);
+  await screen.click("Avanti");
+  assert.equal(screen.host.querySelector('[data-event-step="1"]').hidden, false);
+});
+
+test("introduction server validation accepts optional data and rejects malformed or oversized copies before saving", async () => {
+  for (const [value, expected] of [
+    [undefined, undefined], [null, null], ["", null], [{ it: "<p><br></p>", en: "" }, null],
+    ["Testo semplice", { it: "Testo semplice" }],
+    [{ it: "<p>Italiano</p>", en: "<p>English</p>", de: "<p>Deutsch</p>", es: "<p>Español</p>" }, { it: "<p>Italiano</p>", en: "<p>English</p>", de: "<p>Deutsch</p>", es: "<p>Español</p>" }],
+  ]) {
+    const { actions, saved } = eventFormFixture();
+    const payload = { ...baseEvent, ...(value === undefined ? {} : { descrizione_breve: value }) };
+    assert.equal((await actions.upsertEvent(payload)).success, true);
+    assert.deepEqual(saved[0].descrizione_breve, expected);
+    assert.deepEqual(saved[0].descrizione, baseEvent.descrizione);
+  }
+  for (const value of [[], 42, { it: 42 }, { fr: "Unexpected language" }, { en: "x".repeat(3001) }, { it: "<span></span>".repeat(3000) }]) {
+    const { actions, saved } = eventFormFixture();
+    const result = await actions.upsertEvent({ ...baseEvent, descrizione_breve: value });
+    assert.equal(result.success, false);
+    assert.match(result.error, /presentazione breve/);
+    assert.equal(saved.length, 0);
+  }
+});
 
 test("formatted event descriptions retain every language through the full wizard and server save", async (context) => {
   const { EventForm, saved } = eventFormFixture();

@@ -1,3 +1,4 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -21,7 +22,7 @@ function compile(path, mocks = {}) {
   const exports = {};
   const source = readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  vm.runInNewContext(compiled, { exports, window, document: window.document, Event: window.Event, AbortController, URL, fetch: mocks.fetch, require: (name) => mocks[name] || require(name) });
+  vm.runInNewContext(compiled, { exports, window, document: window.document, Event: window.Event, AbortController, URL, fetch: mocks.fetch, require: (name) => mocks[name] || (name === "@/lib/events/date-format" ? dateFormatModule : require(name)) });
   return exports;
 }
 const wallet = compile("lib/tickets/wallet.ts");
@@ -127,7 +128,7 @@ test("canceled event tickets appear in the past collection with a cancellation l
 });
 
 
-test("wallet cards keep Italian dates and show optional check-in opening separately in every interface language", async (context) => {
+test("wallet cards translate calendar words and show optional check-in opening separately in Italian time", async (context) => {
   const configured = { ...ticket, date: "2099-11-19T00:30:00+01:00", checkInStartsAt: "2099-11-18T23:00:00+01:00" };
   const expectedLabels = { it: "Apertura check-in", en: "Check-in opens", de: "Check-in öffnet", es: "Apertura del check-in" };
   for (const locale of ["it", "en", "de", "es"]) {
@@ -142,7 +143,8 @@ test("wallet cards keep Italian dates and show optional check-in opening separat
     assert.ok(text.includes(expectedLabels[locale]));
     assert.ok(text.includes("18/11/2099, 23:00"));
     assert.ok(text.includes("00:30"));
-    assert.ok(text.includes("nov"), "month stays Italian even in another interface language");
+    assert.ok(text.includes({ it: "nov", en: "Nov", de: "Nov", es: "nov" }[locale]), "month follows the interface language");
+    assert.ok(text.includes({ it: "gio", en: "Thu", de: "Do.", es: "jue" }[locale]), "weekday follows the interface language");
     assert.equal(/\b[AP]M\b/.test(text), false);
     const saved = JSON.parse(window.localStorage.getItem(wallet.WALLET_KEY))[0];
     assert.equal(saved.checkInStartsAt, configured.checkInStartsAt);

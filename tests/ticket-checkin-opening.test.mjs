@@ -1,3 +1,4 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -13,7 +14,7 @@ const require = createRequire(import.meta.url);
 function load(file, mocks = {}) {
   const compiled = ts.transpileModule(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : require(name), process: { env: {} }, URL, Buffer, console });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : require(name), process: { env: {} }, URL, Buffer, console });
   return compiledModule.exports;
 }
 const logistics = load("src/lib/events/logistics.ts");
@@ -54,12 +55,19 @@ async function renderTicket(locale, { commerce = false, opening = true, used = f
   return { dom, registered, selected, filters, qrCalls, purchaseCalls };
 }
 
-test("ticket pages distinguish opening, event start and a recorded admission using Italian dates in every language", async () => {
+const ticketDates = {
+  it: { start: "19 novembre 2026 alle ore 00:30", opening: "18 novembre 2026 alle ore 23:00", date: "19 novembre 2026" },
+  en: { start: "19 November 2026 at 00:30", opening: "18 November 2026 at 23:00", date: "19 November 2026" },
+  de: { start: "19. November 2026 um 00:30", opening: "18. November 2026 um 23:00", date: "19. November 2026" },
+  es: { start: "19 de noviembre de 2026, 00:30", opening: "18 de noviembre de 2026, 23:00", date: "19 de noviembre de 2026" },
+};
+
+test("ticket pages translate calendar words while distinguishing opening, event start and a recorded admission in Italian time", async () => {
   for (const locale of ["it", "en", "de", "es"]) {
     const { dom, registered, selected, filters } = await renderTicket(locale, { used: true });
     const { document } = dom.window;
-    assert.equal(value(document, copy[locale].when), "19 novembre 2026 alle ore 00:30");
-    assert.equal(value(document, copy[locale].checkInOpens), "18 novembre 2026 alle ore 23:00");
+    assert.equal(value(document, copy[locale].when), ticketDates[locale].start);
+    assert.equal(value(document, copy[locale].checkInOpens), ticketDates[locale].opening);
     assert.equal(value(document, copy[locale].checkedIn), "18/11/26, 23:20");
     assert.equal(registered.checkInStartsAt, event.check_in_starts_at);
     assert.equal(registered.status, "used");
@@ -72,7 +80,7 @@ test("ticket pages distinguish opening, event start and a recorded admission usi
 test("commerce tickets retain the opening schedule and label each already recorded activity separately", async () => {
   const { dom, registered } = await renderTicket("en", { commerce: true });
   const { document } = dom.window;
-  assert.equal(value(document, copy.en.checkInOpens), "18 novembre 2026 alle ore 23:00");
+  assert.equal(value(document, copy.en.checkInOpens), ticketDates.en.opening);
   assert.ok(document.querySelector("#ticket-accesses").parentElement.textContent.includes("Admission recorded: 18/11/26, 23:20"));
   assert.equal(registered.checkInStartsAt, event.check_in_starts_at);
   assert.equal(registered.status, "paid");
@@ -89,7 +97,7 @@ test("Masterclass-only tickets show its own check-in and schedule in all languag
     assert.equal(value(document, labels.checkIn), "19/11/2026, 16:00");
     assert.equal(value(document, labels.start), "19/11/2026, 16:30");
     assert.equal(value(document, labels.end), "19/11/2026, 18:00");
-    assert.equal(value(document, labels.date), "19 novembre 2026");
+    assert.equal(value(document, labels.date), ticketDates[locale].date);
     assert.ok(document.body.textContent.includes(labels.timezone));
     assert.equal(document.querySelectorAll("#ticket-accesses + ul").length, 1);
     assert.equal(document.body.textContent.includes("00:30"), false);
@@ -103,7 +111,7 @@ test("Masterclass-only tickets show its own check-in and schedule in all languag
 test("older tickets without an opening schedule remain complete and do not invent one", async () => {
   const { dom, registered } = await renderTicket("es", { opening: false });
   assert.equal([...dom.window.document.querySelectorAll("dt")].some((term) => term.textContent === copy.es.checkInOpens), false);
-  assert.equal(value(dom.window.document, copy.es.when), "19 novembre 2026 alle ore 00:30");
+  assert.equal(value(dom.window.document, copy.es.when), ticketDates.es.start);
   assert.equal(registered.checkInStartsAt, undefined);
   assert.equal(registered.status, "paid");
   assert.ok(dom.window.document.querySelector('img[alt="Código QR personal para mostrar al personal en el control de acceso"]'));

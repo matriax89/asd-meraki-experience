@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { formatEventDate } from "@/lib/events/date-format";
 import nodemailer from "nodemailer";
 import QRCode from "qrcode";
 import { getLocalizedText } from "@/lib/i18n-utils";
@@ -199,7 +200,7 @@ export async function sendTicketConfirmation(ticket: TicketEmail, eventData: Tic
     const title = getLocalizedText(eventData.titolo, language);
     const participantName = [ticket.buyer_nome, ticket.buyer_cognome].filter(Boolean).join(" ");
     const eventDate = new Date(eventData.data_inizio);
-    const date = new Intl.DateTimeFormat("it-IT", { dateStyle: "full", timeZone: "Europe/Rome" }).format(eventDate);
+    const date = formatEventDate(eventDate, language, { dateStyle: "full" });
     const time = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Rome" }).format(eventDate);
     const checkInDate = eventData.check_in_starts_at ? new Date(eventData.check_in_starts_at) : null;
     const checkInOpening = checkInDate && Number.isFinite(checkInDate.getTime()) ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Rome" }).format(checkInDate) : null;

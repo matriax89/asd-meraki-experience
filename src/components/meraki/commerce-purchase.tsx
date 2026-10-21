@@ -1,5 +1,7 @@
 "use client";
 
+import { formatEventDate } from "@/lib/events/date-format";
+
 import { CustomSelect } from "@/components/ui/custom-select";
 
 
@@ -19,7 +21,7 @@ import { EventPriceSummary } from "./event-price-summary";
 type Quote = DiscountQuote & { lines: { label: string; quantity: number; unitAmountCents: number; totalCents: number; subtotalCents?: number; kind: string; packageId?: string; tierId?: string; addonId?: string; activityIds?: string[] }[] };
 type Selection = { participants: CommerceParticipant[]; contacts: CheckoutContact[]; buyerEmail: string };
 const money = (amount: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(amount / 100);
-const deadline = (value: string) => new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date(value));
+const deadline = (value: string, locale: string) => formatEventDate(value, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const priceDeadline = (value: string) => new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date(value));
 const percentage = (value: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(value);
 
@@ -271,7 +273,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
                   const menuChoices = { ...participant.menuChoices };
                   if (!event.target.checked) delete menuChoices[addon.activityId];
                   updateParticipant(index, { addonIds: event.target.checked ? [...participant.addonIds, addon.id] : participant.addonIds.filter((id) => id !== addon.id), menuChoices });
-                }} /><span className={styles.optionBody}><span className={styles.optionTop}><span>{commerceText(addon.name, addon.nameTranslations, locale)}</span><span>+{money(addon.amountCents)}</span></span><span className={`${styles.muted} block`}>{closed ? copy.unavailable : activity?.salesEnd ? `${copy.bookBy} ${deadline(activity.salesEnd)}` : copy.optionalExtra}</span></span></label>;
+                }} /><span className={styles.optionBody}><span className={styles.optionTop}><span>{commerceText(addon.name, addon.nameTranslations, locale)}</span><span>+{money(addon.amountCents)}</span></span><span className={`${styles.muted} block`}>{closed ? copy.unavailable : activity?.salesEnd ? `${copy.bookBy} ${deadline(activity.salesEnd, locale)}` : copy.optionalExtra}</span></span></label>;
               })}</div></div>}
               {!waitlist && menuActivities.map((activity) => <label key={activity.id} className={`${styles.label} mt-4`}>{commerceText(activity.name, activity.nameTranslations, locale)}: {copy.chooseMenu}<CustomSelect aria-label={`${commerceText(activity.name, activity.nameTranslations, locale)}: ${copy.chooseMenu}`} className={styles.input} value={participant.menuChoices[activity.id] || ""} required onChange={(event) => updateParticipant(index, { menuChoices: { ...participant.menuChoices, [activity.id]: event.target.value } })}><option value="">{copy.selectMenu}</option>{activity.menuOptions.map((option) => <option key={option} value={option}>{commerceText(option, activity.menuTranslations?.[option], locale)}</option>)}</CustomSelect></label>)}
             </fieldset>;

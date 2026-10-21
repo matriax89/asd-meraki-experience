@@ -1,3 +1,4 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -13,7 +14,7 @@ function compile(path, overrides = {}) {
   const exports = {};
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  vm.runInNewContext(compiled, { exports, URL, Date, Set, JSON, console, AbortController, ...overrides, require: (name) => overrides.modules?.[name] || nativeFormControlMocks[name] || require(name) });
+  vm.runInNewContext(compiled, { exports, URL, Date, Set, JSON, console, AbortController, ...overrides, require: (name) => overrides.modules?.[name] || nativeFormControlMocks[name] || (name === "@/lib/events/date-format" ? dateFormatModule : require(name)) });
   return exports;
 }
 const attendeeModel = compile("../src/lib/commerce/attendee.ts");
@@ -658,14 +659,14 @@ test("the selected language translates formulas, tiers, extras and menu labels w
   assert.match(ui.calls.find((call) => call.url.startsWith("/api/commerce/catalog")).url, /locale=en/);
 });
 
-for (const locale of ["en", "es"]) test(`${locale} keeps sale deadlines in Italian 24-hour Rome time`, async (context) => {
+for (const locale of ["en", "es"]) test(`${locale} localizes sale deadline month names while keeping Italian 24-hour Rome time`, async (context) => {
   const dated = structuredClone(catalog);
   dated.config.packages[0].prices[0].endsAt = "2099-05-01T22:30:00Z";
   dated.config.activities[2].salesEnd = "2099-05-01T22:30:00Z";
   const ui = await setup(context, dated, locale); await ui.open();
   const text = window.document.querySelector("form").textContent;
   assert.match(text, locale === "es" ? /hasta el 02\/05\/2099, 00:30/ : /until 02\/05\/2099, 00:30/);
-  assert.match(text, locale === "es" ? /Reserva antes del 2 mag, 00:30/ : /Book by 2 mag, 00:30/);
+  assert.match(text, locale === "es" ? /Reserva antes del 2 may, 00:30/ : /Book by 2 May, 00:30/);
   assert.equal(/10:30 PM|22:30/.test(text), false);
 });
 

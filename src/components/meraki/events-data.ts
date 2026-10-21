@@ -1,10 +1,11 @@
 import { getLocalizedText } from "@/lib/i18n-utils";
+import { sanitizeEventIntro } from "@/lib/events/intro";
 import type { Database } from "@/types/supabase";
 import type { MerakiEvent } from "./event-model";
 
-export const eventFeedColumns = "id, slug, tipo, titolo, sottotitolo, data_inizio, data_fine, copertina_url, location, indirizzo, prezzo_cents, capacity, posti_venduti";
+export const eventFeedColumns = "id, slug, tipo, titolo, sottotitolo, descrizione_breve, data_inizio, data_fine, copertina_url, location, indirizzo, prezzo_cents, capacity, posti_venduti";
 
-type EventRow = Pick<Database["public"]["Tables"]["events"]["Row"], "id" | "slug" | "tipo" | "titolo" | "sottotitolo" | "data_inizio" | "data_fine" | "copertina_url" | "location" | "indirizzo" | "prezzo_cents" | "capacity" | "posti_venduti"> & Partial<Pick<Database["public"]["Tables"]["events"]["Row"], "check_in_starts_at">>;
+type EventRow = Pick<Database["public"]["Tables"]["events"]["Row"], "id" | "slug" | "tipo" | "titolo" | "sottotitolo" | "data_inizio" | "data_fine" | "copertina_url" | "location" | "indirizzo" | "prezzo_cents" | "capacity" | "posti_venduti"> & Partial<Pick<Database["public"]["Tables"]["events"]["Row"], "check_in_starts_at" | "descrizione_breve">>;
 
 // Translate JSON on the server, so the app only receives the copy it displays.
 export function toMerakiEvent(event: EventRow, locale: string): MerakiEvent {
@@ -14,6 +15,7 @@ export function toMerakiEvent(event: EventRow, locale: string): MerakiEvent {
     type: event.tipo,
     title: getLocalizedText(event.titolo, locale),
     subtitle: getLocalizedText(event.sottotitolo, locale),
+    shortDescription: sanitizeEventIntro(getLocalizedText(event.descrizione_breve, locale)),
     startsAt: event.data_inizio,
     endsAt: event.data_fine,
     checkInStartsAt: event.check_in_starts_at ?? null,

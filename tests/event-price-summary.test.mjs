@@ -1,3 +1,4 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -13,7 +14,7 @@ function load(path, mocks = {}) {
   const source = readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
-  vm.runInNewContext(compiled, { exports, Date, Intl, require: (name) => mocks[name] || require(name) });
+  vm.runInNewContext(compiled, { exports, Date, Intl, require: (name) => mocks[name] || (name === "@/lib/events/date-format" ? dateFormatModule : require(name)) });
   return exports;
 }
 const { EventPriceSummary } = load("components/meraki/event-price-summary.tsx", {

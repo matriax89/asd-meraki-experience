@@ -1,3 +1,5 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
+import { eventIntroModule } from "./helpers/event-intro-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -15,7 +17,7 @@ function load(path, mocks = {}) {
   const source = readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, Date: SnapshotDate, require: (id) => mocks[id] || require(id) });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, Date: SnapshotDate, require: (id) => mocks[id] || (id === "@/lib/events/date-format" ? dateFormatModule : require(id)) });
   return compiledModule.exports;
 }
 const Anchor = ({ children, ...props }) => React.createElement("a", props, children);
@@ -31,7 +33,7 @@ const Empty = () => null;
 const common = { "@/i18n/routing": { Link: Anchor }, "next/image": { __esModule: true, default: Image } };
 const i18n = load("lib/i18n-utils.ts");
 const model = load("components/meraki/event-model.ts");
-const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n });
+const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n, "@/lib/events/intro": eventIntroModule });
 const poster = load("components/meraki/event-poster.tsx", common);
 const card = load("components/meraki/event-card.tsx", { ...common, "./event-model": model, "./event-poster": poster });
 const eventFeed = load("components/meraki/event-feed.tsx", { ...common, "./event-model": model, "./event-card": card });

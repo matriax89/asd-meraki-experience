@@ -1,6 +1,7 @@
 import { Accessibility, BedDouble, Bus, Car, ExternalLink, Footprints, Mail, MapPin, Phone, Plane, Route, TrainFront } from "lucide-react";
 import { EventDescription } from "@/components/public/event-description";
 import { richTextHasContent } from "@/lib/rich-text";
+import { formatEventDate } from "@/lib/events/date-format";
 import { hasEventLogistics, logisticsText, parseEventLogistics, type EventLogistics } from "@/lib/events/logistics";
 
 const copy = {
@@ -46,7 +47,7 @@ export function EventLogisticsSection({ logistics, locale }: { logistics: EventL
           {(distance || rate) && <dl className="space-y-3 text-sm">{distance && <div><dt className="text-xs text-[#818a76]">{text.distance}</dt><dd className="mt-1 whitespace-pre-line leading-6">{distance}</dd></div>}{rate && <div><dt className="text-xs text-[#818a76]">{text.rate}</dt><dd className="mt-1 whitespace-pre-line leading-6">{rate}</dd></div>}</dl>}
           {richTextHasContent(benefits) && <div><h5 className="text-xs font-semibold text-[#8a7450]">{hotel.kind === "partner" ? text.benefits : text.services}</h5><EventDescription description={benefits} compact className="mt-1 text-[#65715d]" /></div>}
           {richTextHasContent(instructions) && <div><h5 className="text-xs font-semibold text-[#8a7450]">{text.instructions}</h5><EventDescription description={instructions} compact className="mt-1 text-[#65715d]" /></div>}
-          {hotel.validUntil && <p data-expired-offer={expired || undefined} className={`text-xs leading-5 ${expired ? "text-[#9a6143]" : "text-[#7f8874]"}`}>{hotel.kind === "partner" ? expired ? text.expired : text.valid : text.infoValid} <time dateTime={hotel.validUntil}>{new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", dateStyle: "long" }).format(new Date(`${hotel.validUntil}T12:00:00Z`))}</time>{expired && hotel.kind === "suggested" ? ` · ${text.checkInfo}` : ""}</p>}
+          {hotel.validUntil && <p data-expired-offer={expired || undefined} className={`text-xs leading-5 ${expired ? "text-[#9a6143]" : "text-[#7f8874]"}`}>{hotel.kind === "partner" ? expired ? text.expired : text.valid : text.infoValid} <time dateTime={hotel.validUntil}>{formatEventDate(`${hotel.validUntil}T12:00:00Z`, locale, { dateStyle: "long" })}</time>{expired && hotel.kind === "suggested" ? ` · ${text.checkInfo}` : ""}</p>}
           <div className="flex flex-wrap gap-2">{webLink(hotel.mapUrl) && <a href={hotel.mapUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.map}<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>}{webLink(hotel.bookingUrl) && <a href={hotel.bookingUrl} target="_blank" rel="noopener noreferrer" className={external}>{text.book}<ExternalLink className="h-3 w-3" aria-hidden="true" /></a>}{hotel.phone && /\d/.test(telephone) && <a href={`tel:${telephone}`} className={`${external} break-all`}><Phone className="h-3 w-3 shrink-0" aria-hidden="true" />{hotel.phone}</a>}{hotel.email && <a href={`mailto:${hotel.email}`} className={`${external} min-w-0 break-all`}><Mail className="h-3 w-3 shrink-0" aria-hidden="true" />{hotel.email}</a>}</div>
         </article>;
       })}</div>

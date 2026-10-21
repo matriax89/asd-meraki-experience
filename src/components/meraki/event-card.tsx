@@ -14,7 +14,7 @@ export function MerakiEventCard({ event, locale, featured = false, past = false 
     <div className="min-w-0 px-1 pb-2 sm:px-0 sm:pb-0">
       <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#8a7450]">{past ? text.remember : text.next}</p>
       <div className="mt-4 flex justify-center">
-        <time dateTime={event.startsAt} data-event-date className="inline-flex min-h-11 max-w-full items-center justify-center gap-2.5 rounded-2xl border border-[#d8c89f] bg-[#f3eddf] px-4 py-3 text-center text-sm font-bold capitalize leading-6 text-[#263a2c]">
+        <time dateTime={event.startsAt} data-event-date className="inline-flex min-h-11 max-w-full items-center justify-center gap-2.5 rounded-2xl border border-[#d8c89f] bg-[#f3eddf] px-4 py-3 text-center text-sm font-bold leading-6 text-[#263a2c]">
           <CalendarDays className="h-5 w-5 shrink-0 text-[#8a7042]" aria-hidden="true" />
           {eventDate(event.startsAt, locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         </time>
@@ -23,6 +23,7 @@ export function MerakiEventCard({ event, locale, featured = false, past = false 
       {event.location && <p className="mt-3 flex items-start gap-1.5 text-xs leading-5 text-[#727b6a]"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{event.location}</p>}
     </div>
     <div className="min-w-0 px-1 pb-2 sm:col-span-2 sm:px-0 sm:pb-0">
+      {event.shortDescription ? <div data-event-introduction className="mb-6 space-y-3 break-words text-sm leading-6 text-[#5f6b5b] [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:border-l-2 [&_blockquote]:border-[#d8c89f] [&_blockquote]:pl-4 [&_em]:italic [&_i]:italic [&_ol]:list-decimal [&_ol]:pl-5 [&_s]:line-through [&_strike]:line-through [&_strong]:font-semibold [&_b]:font-semibold [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: event.shortDescription }} /> : null}
       {past ? <p className="mt-1 text-xs text-[#858b81]">{text.past}</p> : places === 0 ? <p className="mt-1 text-xs text-[#a04d3a]">{text.soldOut}</p> : null}
       <Link href={destination} className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-5 py-3 text-center text-sm font-semibold ${purchase ? "w-full bg-[#263a2c] text-white hover:bg-[#17281f]" : "border border-[#dce0d2] text-[#4f6344] hover:bg-[#f5f4f0]"}`} data-event-purchase-cta={purchase || undefined}>{past ? text.experience : purchase ? text.purchase : text.book}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>
     </div>

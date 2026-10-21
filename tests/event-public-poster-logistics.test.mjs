@@ -1,3 +1,4 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -15,7 +16,7 @@ function load(file, mocks = {}, environment = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, console, ...environment, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name) });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, console, ...environment, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/date-format" ? dateFormatModule : require(name) });
   return compiledModule.exports;
 }
 const image = { __esModule: true, default: (props) => {
@@ -111,14 +112,14 @@ for (const locale of ["it", "en", "de", "es"]) {
     }
   });
 
-  test(`${locale} travel displays real fields, translated labels, safe links and Italian validity dates`, () => {
+  test(`${locale} travel displays real fields, translated labels, safe links and localized validity dates`, () => {
     const fragment = render(detail.EventDetail, { event: { ...event, logistics: data }, locale });
     const section = fragment.querySelector("#viaggio-soggiorno");
     assert.ok(section); assert.ok(fragment.querySelector('a[href="#viaggio-soggiorno"]'));
     assert.equal(section.querySelector("h2").textContent, travel.eventLogisticsLabels(locale).title);
     assert.ok(section.textContent.includes(travel.eventLogisticsLabels(locale).partner));
     assert.ok(section.textContent.includes(travel.eventLogisticsLabels(locale).suggested));
-    assert.equal(section.querySelector("time").textContent, "20 novembre 2027");
+    assert.equal(section.querySelector("time").textContent, { it: "20 novembre 2027", en: "20 November 2027", de: "20. November 2027", es: "20 de noviembre de 2027" }[locale]);
     assert.equal(section.querySelector("time").getAttribute("datetime"), "2027-11-20");
     assert.ok(section.textContent.includes(logistics.logisticsText(data.accommodations[0].rate, locale)));
     assert.ok([...section.querySelectorAll("[data-rich-text] p")].some((node) => node.textContent === "Colazione inclusa"));
@@ -178,7 +179,7 @@ test("expired partner offers show their actual past date with a clear label", ()
     const expired = { ...data, accommodations: [{ ...data.accommodations[0], validUntil: "2020-01-02" }] };
     const fragment = render(travel.EventLogisticsSection, { logistics: expired, locale });
     assert.ok(fragment.querySelector("[data-expired-offer]").textContent.includes(travel.eventLogisticsLabels(locale).expired));
-    assert.equal(fragment.querySelector("time").textContent, "2 gennaio 2020");
+    assert.equal(fragment.querySelector("time").textContent, { it: "2 gennaio 2020", en: "2 January 2020", de: "2. Januar 2020", es: "2 de enero de 2020" }[locale]);
   }
 });
 

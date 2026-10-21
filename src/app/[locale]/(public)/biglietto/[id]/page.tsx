@@ -13,6 +13,7 @@ import { ticketViewCopy } from "@/lib/tickets/view-copy";
 import { eventTravelCopy, eventTravelPath } from "@/lib/events/travel-link";
 import { activityTimingCopy, activityTimingRows, hasActivityTiming } from "@/lib/events/activity-timing";
 import { eventCancellationCopy } from "@/lib/events/cancellation-copy";
+import { formatEventDate } from "@/lib/events/date-format";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -58,7 +59,7 @@ export default async function BigliettoPage({ params, searchParams }: {
   const checkInOpening = opening && Number.isFinite(opening.getTime()) ? opening : null;
   const individualSchedule = rights.some(hasActivityTiming);
   const timingCopy = activityTimingCopy(locale);
-  const displayDate = new Intl.DateTimeFormat("it-IT", { dateStyle: "long", timeStyle: individualSchedule ? undefined : "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(date);
+  const displayDate = formatEventDate(date, locale, { dateStyle: "long", timeStyle: individualSchedule ? undefined : "short" });
   const valid = !canceled && ticket.status === "paid";
   const status = canceled ? cancellationCopy.title : valid ? (commerce ? `${availableRights.length} ${availableRights.length === 1 ? t.accessOne : t.accessMany}` : t.valid) : ticket.status === "used" ? t.used : ticket.status === "refunded" ? t.refunded : t.pending;
   const qr = valid ? await QRCode.toDataURL(ticket.qr_code, { width: 640, margin: 4, errorCorrectionLevel: "M", color: { dark: "#111111", light: "#ffffff" } }) : null;
@@ -75,7 +76,7 @@ export default async function BigliettoPage({ params, searchParams }: {
           <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full border-[28px] border-white/5" aria-hidden="true" />
           <p className="relative mb-7 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#cfb683]"><span className="h-1.5 w-1.5 rounded-full bg-current" /> Meraki Experience</p>
           <h2 className="relative max-w-[20ch] text-[26px] font-bold leading-tight tracking-tight">{title}</h2>
-          <p className="mt-3 text-xs leading-5 text-[#c9d1ca]">{new Intl.DateTimeFormat("it-IT", { dateStyle: "long", timeZone: "Europe/Rome" }).format(date)}</p>
+          <p className="mt-3 text-xs leading-5 text-[#c9d1ca]">{formatEventDate(date, locale, { dateStyle: "long" })}</p>
         </div>
         <div className="relative border-b border-dashed border-[#dddcd3] px-6 pb-7 pt-6">
           <span className="absolute -bottom-3 -left-3 h-6 w-6 rounded-full border border-[#e3e5dd] bg-[#f5f4f0]" aria-hidden="true" />
@@ -90,7 +91,7 @@ export default async function BigliettoPage({ params, searchParams }: {
           {commerce && <div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{t.package}</dt><dd className="font-semibold text-[#18251f]">{commerce.pass.package_name}</dd></div>}
           <div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{t.holder}</dt><dd className="break-words font-semibold text-[#18251f]">{[ticket.buyer_nome, ticket.buyer_cognome].filter(Boolean).join(" ") || t.participant}</dd></div>
           <div className="flex items-start gap-3"><CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{individualSchedule ? timingCopy.date : t.when}</dt><dd className="font-medium text-[#18251f]">{displayDate}</dd></div></div>
-          {!individualSchedule && checkInOpening && <div className="flex items-start gap-3 rounded-2xl bg-[#f4efe5] p-4"><ScanLine className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a784f]">{t.checkInOpens}</dt><dd className="font-semibold text-[#18251f]">{new Intl.DateTimeFormat("it-IT", { dateStyle: "long", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(checkInOpening)}</dd></div></div>}
+          {!individualSchedule && checkInOpening && <div className="flex items-start gap-3 rounded-2xl bg-[#f4efe5] p-4"><ScanLine className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a784f]">{t.checkInOpens}</dt><dd className="font-semibold text-[#18251f]">{formatEventDate(checkInOpening, locale, { dateStyle: "long", timeStyle: "short" })}</dd></div></div>}
           {(event.location || event.indirizzo) && <div className="flex items-start gap-3"><MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{t.where}</dt><dd className="break-words font-medium text-[#18251f]">{[event.location, event.indirizzo].filter(Boolean).join(" · ")}</dd></div></div>}
           {ticket.used_at && <div className="flex gap-3 text-[#3d6c4b]"><Check className="h-5 w-5 shrink-0" aria-hidden="true" /><div><dt className="text-xs">{t.checkedIn}</dt><dd className="mt-1 text-sm font-medium">{new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date(ticket.used_at))}</dd></div></div>}
         </dl>

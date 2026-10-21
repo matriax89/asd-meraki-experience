@@ -1,3 +1,4 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,7 +11,7 @@ const require = createRequire(import.meta.url);
 function load(path, mocks = {}, env = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : require(name), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : require(name), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
   return compiledModule.exports;
 }
 const logistics = load("src/lib/events/logistics.ts");
@@ -101,8 +102,8 @@ test('all four ticket emails use the original PNG logo, readable ticket details 
     const bodyText = document.body.textContent.replace(/\s+/g, ' ');
     const labels = ticketLabels[locale];
     assert.equal(detailValue(document, labels.participant), '<Ada> Rossi');
-    const localDate = new Intl.DateTimeFormat('it-IT', { dateStyle: 'long', timeZone: 'Europe/Rome' }).format(new Date('2026-11-18T23:30:00Z'));
-    assert.ok(detailValue(document, labels.date).includes(localDate), 'event date must use the Italian calendar day after UTC midnight');
+    const localDate = { it: '19 novembre 2026', en: '19 November 2026', de: '19. November 2026', es: '19 de noviembre de 2026' }[locale];
+    assert.ok(detailValue(document, labels.date).includes(localDate), 'event date uses localized words and the Italian calendar day after UTC midnight');
     assert.equal(detailValue(document, labels.time), '00:30', 'event time stays in the Italian timezone and 24-hour format in every language');
     assert.equal(detailValue(document, labels.checkInOpens), '18/11/2026, 23:00', 'opening time is distinct from the later event start and always uses Italian formatting');
     assert.ok(sent.text.includes(`${labels.checkInOpens}: 18/11/2026, 23:00 (${labels.timezone})`));
@@ -292,7 +293,7 @@ test('public preferences never confirm on open and require explicit confirmation
   const path = 'src/components/meraki/email-preferences.tsx';
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name === '@/i18n/routing' ? { Link: Anchor } : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name), AbortController, fetch: async (url, options) => {
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name === '@/i18n/routing' ? { Link: Anchor } : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/date-format" ? dateFormatModule : require(name), AbortController, fetch: async (url, options) => {
     calls.push([url, options]);
     return { ok: true, json: async () => options.method === 'POST' ? { status: 'subscribed' } : { status: 'pending', canConfirm: true, canUnsubscribe: false } };
   } });

@@ -1,3 +1,4 @@
+import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -68,7 +69,7 @@ function fixture(rows, error = null) {
       if (name === "@/i18n/routing" || name.startsWith("@/components/") || name === "./orario/schedule-client") return emptyUi;
       if (name.startsWith("@/")) return load(`${name.slice(2)}.ts`);
       if (name.startsWith(".")) return load(new URL(`${name}.ts`, new URL(file, sourceRoot)).pathname.slice(sourceRoot.pathname.length));
-      return require(name);
+      return name === "@/lib/events/date-format" ? dateFormatModule : require(name);
     } });
     return exported;
   }

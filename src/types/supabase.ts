@@ -217,6 +217,7 @@ export type Database = {
           data_fine: string | null
           data_inizio: string
           descrizione: Json | null
+          descrizione_breve: Json | null
           galleria_urls: string[] | null
           id: string
           in_evidenza: boolean | null
@@ -249,6 +250,7 @@ export type Database = {
           data_fine?: string | null
           data_inizio: string
           descrizione?: Json | null
+          descrizione_breve?: Json | null
           galleria_urls?: string[] | null
           id?: string
           in_evidenza?: boolean | null
@@ -281,6 +283,7 @@ export type Database = {
           data_fine?: string | null
           data_inizio?: string
           descrizione?: Json | null
+          descrizione_breve?: Json | null
           galleria_urls?: string[] | null
           id?: string
           in_evidenza?: boolean | null

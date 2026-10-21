@@ -6,11 +6,20 @@ import { z } from "zod";
 import { parseCommerceConfig } from "@/lib/commerce/config";
 import { eventLogisticsSchema } from "@/lib/events/logistics";
 import { eventAffiliatesSchema, parseEventAffiliates } from "@/lib/events/affiliates";
+import { richTextHasContent, richTextPlainText, richTextSerializedLimit } from "@/lib/rich-text";
 
 const localized = z.union([z.string().max(200_000), z.record(z.string(), z.string().max(200_000))]);
+const shortDescriptionText = z.string().max(richTextSerializedLimit(3000))
+  .refine((value) => richTextPlainText(value).length <= 3000, "Usa al massimo 3000 caratteri per lingua nella presentazione breve.");
+const shortDescription = z.union([shortDescriptionText, z.object({
+  it: shortDescriptionText.optional(), en: shortDescriptionText.optional(),
+  de: shortDescriptionText.optional(), es: shortDescriptionText.optional(),
+}).strict()]).transform((value) => typeof value === "string" ? { it: value } : value)
+  .transform((value) => Object.values(value).some((text) => text && richTextHasContent(text)) ? value : null);
 const eventSchema = z.object({
   id: z.string().uuid().optional(), slug: z.string().trim().max(160).optional(), titolo: localized,
   sottotitolo: localized.nullable().optional(), descrizione: localized.nullable().optional(),
+  descrizione_breve: shortDescription.nullable().optional(),
   tipo: z.enum(["evento", "workshop", "masterclass"]), data_inizio: z.iso.datetime({ offset: true }),
   data_fine: z.iso.datetime({ offset: true }).nullable().optional(),
   check_in_starts_at: z.iso.datetime({ offset: true }).nullable().optional(),
@@ -44,6 +53,9 @@ export async function upsertEvent(raw: unknown) {
   const supabase = await requireCommerceStaff();
   const validation = eventSchema.safeParse(raw);
   if (!validation.success) {
+    if (validation.error.issues.some((issue) => issue.path[0] === "descrizione_breve")) {
+      return { success: false, error: "Controlla la presentazione breve: usa IT, EN, DE o ES e al massimo 3000 caratteri per lingua." };
+    }
     if (validation.error.issues.some((issue) => issue.path[0] === "affiliates")) {
       return { success: false, error: "Controlla gli affiliati: inserisci nomi validi e diversi per gli affiliati attivi, senza duplicare gli identificativi." };
     }

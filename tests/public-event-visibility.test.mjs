@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { eventIntroModule } from "./helpers/event-intro-modules.mjs";
 
 const require = createRequire(import.meta.url);
 function load(file, mocks = {}) {
@@ -16,7 +17,7 @@ function load(file, mocks = {}) {
 const i18n = load("lib/i18n-utils.ts");
 const richText = load("lib/rich-text.ts");
 const socialMetadata = load("lib/events/social-metadata.ts", { "@/lib/i18n-utils": i18n, "@/lib/rich-text": richText });
-const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n });
+const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n, "@/lib/events/intro": eventIntroModule });
 const logistics = load("lib/events/logistics.ts", { "@/lib/rich-text": richText });
 const affiliates = load("lib/events/affiliates.ts");
 const commerceConfig = load("lib/commerce/config.ts");
