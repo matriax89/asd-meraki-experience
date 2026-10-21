@@ -11,6 +11,7 @@ import { CommercePurchase } from "@/components/meraki/commerce-purchase";
 import { getCommercePass } from "@/lib/commerce/server";
 import { ticketViewCopy } from "@/lib/tickets/view-copy";
 import { eventTravelCopy, eventTravelPath } from "@/lib/events/travel-link";
+import { activityTimingCopy, activityTimingRows, hasActivityTiming } from "@/lib/events/activity-timing";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -52,6 +53,9 @@ export default async function BigliettoPage({ params, searchParams }: {
   const date = new Date(event.data_inizio);
   const opening = event.check_in_starts_at ? new Date(event.check_in_starts_at) : null;
   const checkInOpening = opening && Number.isFinite(opening.getTime()) ? opening : null;
+  const individualSchedule = rights.some(hasActivityTiming);
+  const timingCopy = activityTimingCopy(locale);
+  const displayDate = new Intl.DateTimeFormat("it-IT", { dateStyle: "long", timeStyle: individualSchedule ? undefined : "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(date);
   const valid = ticket.status === "paid";
   const status = valid ? (commerce ? `${availableRights.length} ${availableRights.length === 1 ? t.accessOne : t.accessMany}` : t.valid) : ticket.status === "used" ? t.used : ticket.status === "refunded" ? t.refunded : t.pending;
   const qr = valid ? await QRCode.toDataURL(ticket.qr_code, { width: 640, margin: 4, errorCorrectionLevel: "M", color: { dark: "#111111", light: "#ffffff" } }) : null;
@@ -81,12 +85,28 @@ export default async function BigliettoPage({ params, searchParams }: {
         <dl className="grid gap-5 p-6 text-sm">
           {commerce && <div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{t.package}</dt><dd className="font-semibold text-[#18251f]">{commerce.pass.package_name}</dd></div>}
           <div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{t.holder}</dt><dd className="break-words font-semibold text-[#18251f]">{[ticket.buyer_nome, ticket.buyer_cognome].filter(Boolean).join(" ") || t.participant}</dd></div>
-          <div className="flex items-start gap-3"><CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{t.when}</dt><dd className="font-medium text-[#18251f]">{new Intl.DateTimeFormat("it-IT", { dateStyle: "long", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(date)}</dd></div></div>
-          {checkInOpening && <div className="flex items-start gap-3 rounded-2xl bg-[#f4efe5] p-4"><ScanLine className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a784f]">{t.checkInOpens}</dt><dd className="font-semibold text-[#18251f]">{new Intl.DateTimeFormat("it-IT", { dateStyle: "long", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(checkInOpening)}</dd></div></div>}
+          <div className="flex items-start gap-3"><CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{individualSchedule ? timingCopy.date : t.when}</dt><dd className="font-medium text-[#18251f]">{displayDate}</dd></div></div>
+          {!individualSchedule && checkInOpening && <div className="flex items-start gap-3 rounded-2xl bg-[#f4efe5] p-4"><ScanLine className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a784f]">{t.checkInOpens}</dt><dd className="font-semibold text-[#18251f]">{new Intl.DateTimeFormat("it-IT", { dateStyle: "long", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(checkInOpening)}</dd></div></div>}
           {(event.location || event.indirizzo) && <div className="flex items-start gap-3"><MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{t.where}</dt><dd className="break-words font-medium text-[#18251f]">{[event.location, event.indirizzo].filter(Boolean).join(" · ")}</dd></div></div>}
           {ticket.used_at && <div className="flex gap-3 text-[#3d6c4b]"><Check className="h-5 w-5 shrink-0" aria-hidden="true" /><div><dt className="text-xs">{t.checkedIn}</dt><dd className="mt-1 text-sm font-medium">{new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date(ticket.used_at))}</dd></div></div>}
         </dl>
-        {commerce && <section className="border-t border-[#eeeee5] px-6 pb-6 pt-5" aria-labelledby="ticket-accesses"><h3 id="ticket-accesses" className="mb-4 text-sm font-semibold">{t.accesses}</h3><ul className="space-y-3">{rights.map((right) => <li key={right.activity_id} className="flex items-start justify-between gap-3 rounded-2xl bg-[#f5f5ef] p-3.5"><div className="min-w-0"><p className="text-sm font-semibold">{right.activity_name}</p>{right.menu_choice && <p className="mt-1 text-xs text-[#73806d]">{t.menu}: {right.menu_choice}</p>}{right.used_at && <p className="mt-1 text-[11px] text-[#73806d]">{t.checkedIn}: {new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date(right.used_at))}</p>}</div><span className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold ${right.status === "available" ? "bg-[#e5edde] text-[#41663d]" : "bg-[#e9e7df] text-[#777b70]"}`}>{right.status === "available" ? t.available : right.status === "used" ? t.accessUsed : t.revoked}</span></li>)}</ul></section>}
+        {commerce && <section className="border-t border-[#eeeee5] px-6 pb-6 pt-5" aria-labelledby="ticket-accesses">
+          <h3 id="ticket-accesses" className="mb-4 text-sm font-semibold">{t.accesses}</h3>
+          <ul className="space-y-3">{rights.map((right) => {
+            const schedule = activityTimingRows(right, locale);
+            return <li key={right.activity_id} className="rounded-2xl bg-[#f5f5ef] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0"><p className="text-sm font-semibold">{right.activity_name}</p>{right.menu_choice && <p className="mt-1 text-xs text-[#73806d]">{t.menu}: {right.menu_choice}</p>}</div>
+                <span className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold ${right.status === "available" ? "bg-[#e5edde] text-[#41663d]" : "bg-[#e9e7df] text-[#777b70]"}`}>{right.status === "available" ? t.available : right.status === "used" ? t.accessUsed : t.revoked}</span>
+              </div>
+              {schedule.length > 0 && <div className="mt-3 border-t border-[#e2e4da] pt-3">
+                <dl className="space-y-2 text-xs">{schedule.map((row) => <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"><dt className="text-[#67716b]">{row.label}</dt><dd className="font-semibold text-[#18251f]"><time dateTime={row.dateTime}>{row.value}</time></dd></div>)}</dl>
+                <p className="mt-2 text-[10px] text-[#73806d]">{timingCopy.timezone}</p>
+              </div>}
+              {right.used_at && <p className="mt-2 text-[11px] text-[#73806d]">{t.checkedIn}: {new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date(right.used_at))}</p>}
+            </li>;
+          })}</ul>
+        </section>}
       </article>
       <div className="mt-6 space-y-3">
         {travelPath && <a href={travelPath} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b5a07c] bg-[#f5f4f0] px-5 text-center text-sm font-semibold text-[#263a2c]"><MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />{travelCopy.action}</a>}

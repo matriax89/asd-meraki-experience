@@ -30,6 +30,7 @@ const model = load("components/meraki/event-model.ts");
 const priceSummary = load("components/meraki/event-price-summary.tsx", { "./event-model": model, "./commerce-public-model": load("components/meraki/commerce-public-model.ts"), "@/lib/commerce/localization": load("lib/commerce/localization.ts") });
 const card = load("components/meraki/event-card.tsx", { "./event-poster": poster, "./event-model": model, "./event-price-summary": priceSummary, "@/i18n/routing": link });
 const detail = load("components/meraki/event-detail.tsx", {
+  "./event-activity-schedule": load("components/meraki/event-activity-schedule.tsx", { "@/lib/commerce/localization": load("lib/commerce/localization.ts") }),
   "./event-poster": poster, "./event-logistics-section": travel, "./event-model": model, "@/lib/events/logistics": logistics,
   "@/i18n/routing": link,
   "@/components/public/event-description": { EventDescription: ({ description }) => React.createElement("p", null, description) },

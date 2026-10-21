@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 function load(file, mocks = {}) {
   const compiled = ts.transpileModule(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : require(name), process: { env: {} }, URL, Buffer, console });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : require(name), process: { env: {} }, URL, Buffer, console });
   return compiledModule.exports;
 }
 const logistics = load("src/lib/events/logistics.ts");
@@ -28,7 +28,7 @@ function value(document, label) {
   assert.ok(term, `Missing ticket detail: ${label}`);
   return term.nextElementSibling.textContent;
 }
-async function renderTicket(locale, { commerce = false, opening = true, used = false, guide = false } = {}) {
+async function renderTicket(locale, { commerce = false, opening = true, used = false, guide = false, rightsOverride, packageName = "Workshop + Masterclass" } = {}) {
   const selected = [], filters = [];
   let registered;
   const information = logistics.emptyEventLogistics(); information.accessibility.it = "Ingresso accessibile";
@@ -38,7 +38,7 @@ async function renderTicket(locale, { commerce = false, opening = true, used = f
     "@/lib/supabase/server": { createAdminClient: () => ({ from: () => query }) },
     "@/lib/i18n-utils": i18n,
     "@/lib/tickets/view-copy": { ticketViewCopy: copy },
-    "@/lib/commerce/server": { getCommercePass: async () => commerce ? { pass: { id, qr_code: token, status: "paid", buyer_nome: "Ada", buyer_cognome: "Prova", package_name: "Workshop + Masterclass" }, event: details, config: null, entitlements: [{ activity_id: "ws", activity_name: "Workshop", status: "used", used_at: "2026-11-18T22:20:00Z" }, { activity_id: "mc", activity_name: "Masterclass", status: "available", used_at: null }] } : null },
+    "@/lib/commerce/server": { getCommercePass: async () => commerce ? { pass: { id, qr_code: token, status: "paid", buyer_nome: "Ada", buyer_cognome: "Prova", package_name: packageName }, event: details, config: null, entitlements: rightsOverride || [{ activity_id: "ws", activity_name: "Workshop", status: "used", used_at: "2026-11-18T22:20:00Z" }, { activity_id: "mc", activity_name: "Masterclass", status: "available", used_at: null }] } : null },
     "@/components/meraki/register-ticket": { RegisterTicket: ({ ticket }) => { registered = ticket; return null; } },
     "@/components/meraki/commerce-purchase": { CommercePurchase: () => null },
     "@/i18n/routing": { Link: ({ children, ...props }) => createElement("a", props, children) },
@@ -74,6 +74,27 @@ test("commerce tickets retain the opening schedule and label each already record
   assert.equal(registered.checkInStartsAt, event.check_in_starts_at);
   assert.equal(registered.status, "paid");
   dom.window.close();
+});
+
+test("Masterclass-only tickets show its own check-in and schedule in all languages without the general event times", async () => {
+  const timing = load("src/lib/events/activity-timing.ts");
+  const masterclass = { activity_id: "mc", activity_name: "Masterclass", status: "available", used_at: null, checkInStartsAt: "2026-11-19T15:00:00Z", startsAt: "2026-11-19T15:30:00Z", endsAt: "2026-11-19T17:00:00Z" };
+  for (const locale of ["it", "en", "de", "es"]) {
+    const { dom } = await renderTicket(locale, { commerce: true, rightsOverride: [masterclass], packageName: "Masterclass" });
+    const { document } = dom.window;
+    const labels = timing.activityTimingCopy(locale);
+    assert.equal(value(document, labels.checkIn), "19/11/2026, 16:00");
+    assert.equal(value(document, labels.start), "19/11/2026, 16:30");
+    assert.equal(value(document, labels.end), "19/11/2026, 18:00");
+    assert.equal(value(document, labels.date), "19 novembre 2026");
+    assert.ok(document.body.textContent.includes(labels.timezone));
+    assert.equal(document.querySelectorAll("#ticket-accesses + ul").length, 1);
+    assert.equal(document.body.textContent.includes("00:30"), false);
+    assert.equal(document.body.textContent.includes("23:00"), false);
+    assert.equal(document.body.textContent.includes("Workshop"), false);
+    assert.deepEqual([...document.querySelectorAll("time")].map(element => element.dateTime), [masterclass.checkInStartsAt, masterclass.startsAt, masterclass.endsAt]);
+    dom.window.close();
+  }
 });
 
 test("older tickets without an opening schedule remain complete and do not invent one", async () => {
@@ -127,7 +148,7 @@ test("ticket translations use each paid admission snapshot even after catalogue 
   const localization = load("src/lib/commerce/localization.ts");
   const original = { packages: [{ id: "bundle", name: "Formula originale", nameTranslations: { en: "Original package" }, prices: [] }], activities: [{ id: "ws", name: "Workshop originale", nameTranslations: { en: "Original workshop" }, menuTranslations: {} }] };
   const upgraded = { packages: [{ id: "bundle", name: "Formula con cena", nameTranslations: { en: "Package with dinner" }, prices: [] }], activities: [{ id: "dinner", name: "Cena originale", nameTranslations: { en: "Original dinner" }, menuTranslations: { Vegetariano: { en: "Vegetarian dinner" } } }] };
-  const current = { packages: [{ id: "bundle", name: "Formula rinominata", nameTranslations: { en: "Renamed package" }, prices: [] }], activities: [{ id: "ws", name: "Workshop rinominato", nameTranslations: { en: "Renamed workshop" } }, { id: "dinner", name: "Cena rinominata", nameTranslations: { en: "Renamed dinner" } }] };
+  const current = { packages: [{ id: "bundle", name: "Formula rinominata", nameTranslations: { en: "Renamed package" }, prices: [] }], activities: [{ id: "ws", name: "Workshop rinominato", nameTranslations: { en: "Renamed workshop" }, checkInStartsAt: "2026-12-19T11:00:00Z", startsAt: "2026-12-19T11:30:00Z", endsAt: "2026-12-19T14:30:00Z" }, { id: "dinner", name: "Cena rinominata", nameTranslations: { en: "Renamed dinner" } }] };
   const pass = { id, qr_code: token, event_id: "event", order_id: "original-order", package_id: "bundle", package_name: "Formula con cena", status: "paid", first_name: "Ada", last_name: "Prova" };
   const rights = [{ order_id: "original-order", activity_id: "ws", activity_name: "Workshop originale", menu_choice: null, status: "valid" }, { order_id: "upgrade-order", activity_id: "dinner", activity_name: "Cena originale", menu_choice: "Vegetariano", status: "valid" }];
   const orders = [{ id: "upgrade-order", state: "fulfilled", upgrade_pass_id: id, event_snapshot: { commerce_config: upgraded } }, { id: "original-order", state: "fulfilled", upgrade_pass_id: null, event_snapshot: { commerce_config: original } }];
@@ -143,6 +164,10 @@ test("ticket translations use each paid admission snapshot even after catalogue 
   assert.equal(ticket.entitlements[0].activity_name, "Original workshop");
   assert.equal(ticket.entitlements[1].activity_name, "Original dinner");
   assert.equal(ticket.entitlements[1].menu_choice, "Vegetarian dinner");
+  assert.equal(ticket.entitlements[0].checkInStartsAt, current.activities[0].checkInStartsAt);
+  assert.equal(ticket.entitlements[0].startsAt, current.activities[0].startsAt);
+  assert.equal(ticket.entitlements[0].endsAt, current.activities[0].endsAt);
+  assert.equal(ticket.entitlements[1].startsAt, undefined, "a dinner without confirmed times must not inherit workshop times");
   assert.ok(filters.some(([table, key, value]) => table === "commerce_passes" && key === "qr_code" && value === token));
   assert.equal(localization.commerceActivityName(original, "ws", "legacy", "de"), "Workshop originale");
   assert.equal(localization.commerceMenuName(upgraded, "dinner", "Vegetariano", "es"), "Vegetariano");

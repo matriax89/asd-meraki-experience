@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 function load(path, mocks = {}, env = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : require(name), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
   return compiledModule.exports;
 }
 const logistics = load("src/lib/events/logistics.ts");
@@ -33,6 +33,33 @@ function detailValue(document, label) {
   assert.ok(field, `Missing visible ticket label: ${label}`);
   return field.nextElementSibling?.textContent.trim();
 }
+
+test('Masterclass-only email HTML and text show its own check-in, start and finish in every language and both transports', async () => {
+  const timing = load('src/lib/events/activity-timing.ts');
+  for (const provider of ['resend', 'smtp']) for (const locale of ['it', 'en', 'de', 'es']) {
+    let sent;
+    const mail = load('src/lib/resend/client.ts', {
+      '@/lib/email/meraki-template': templates,
+      '@/lib/i18n-utils': { getLocalizedText: value => value[locale] || value.it },
+      '@/lib/supabase/server': { createAdminClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: {value:{integrations:{email_provider:provider,smtp_host:'smtp.example.test',smtp_user:'tickets@example.test',smtp_pass:'synthetic-only'}}} }) }) }) }) }) },
+      resend: { Resend: class { emails = { send: async value => { sent = value; return { error: null }; } }; } },
+      nodemailer: {createTransport:()=>({sendMail:async value=>{sent=value;}})}, qrcode: { toBuffer: async () => Buffer.from('png') },
+    }, { RESEND_API_KEY: 'test-only', NEXT_PUBLIC_SITE_URL: 'https://meraki.example' });
+    assert.equal((await mail.sendTicketConfirmation({id:'mc-ticket',qr_code:'opaque',buyer_email:'participant@example.test',buyer_nome:'Ada',buyer_cognome:'Rossi'}, {
+      titolo:{it:'Meraki Day'},data_inizio:'2026-12-19T11:30:00Z',check_in_starts_at:'2026-12-19T11:00:00Z',location:'Bolzano',indirizzo:null,
+    },locale,{deliveryId:'mc-delivery',packageName:'Masterclass',accessNames:['Masterclass'],accessDetails:[{name:'Masterclass',checkInStartsAt:'2026-12-19T15:00:00Z',startsAt:'2026-12-19T15:30:00Z',endsAt:'2026-12-19T17:00:00Z'}]})).success,true);
+    const dom = new JSDOM(sent.html);
+    const visible = dom.window.document.body.textContent;
+    const labels = timing.activityTimingCopy(locale);
+    for (const output of [visible,sent.text]) {
+      for (const expected of [labels.checkIn,labels.start,labels.end,labels.timezone,'19/12/2026, 16:00','19/12/2026, 16:30','19/12/2026, 18:00']) assert.ok(output.includes(expected),`${provider}/${locale}: missing ${expected}`);
+      for (const wrong of ['12:00','12:30','Workshop']) assert.equal(output.includes(wrong),false,`${provider}/${locale}: leaked unrelated schedule ${wrong}`);
+    }
+    assert.equal(sent.to,'participant@example.test');
+    assert.equal(sent.attachments[0].cid || sent.attachments[0].contentId,'meraki-ticket');
+    dom.window.close();
+  }
+});
 const token = 'a'.repeat(64);
 const request = (method, body, origin = 'https://meraki.example') => new Request(`https://meraki.example/api/marketing/preferences${method === 'GET' ? `?token=${token}` : ''}`, { method, ...(method === 'POST' ? { headers: { Origin: origin }, body: JSON.stringify(body) } : {}) });
 function preferences(result) {

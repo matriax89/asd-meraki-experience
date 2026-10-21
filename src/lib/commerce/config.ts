@@ -10,7 +10,7 @@ const descriptions = z.object({ it: z.string().trim().max(1000).optional(), en: 
 const priceSchema = z.object({ id, label: name, labelTranslations: translations.optional(), amountCents: amount, activityAmounts: z.record(id, amount).optional(), startsAt: date, endsAt: date }).strict();
 export const configSchema = z.object({
   version: z.literal(1), enabled: z.boolean(), waitlistEnabled: z.boolean(), upgradesEnabled: z.boolean(),
-  activities: z.array(z.object({ id, name, nameTranslations: translations.optional(), kind: z.enum(['workshop', 'masterclass', 'dinner', 'extra']), capacity: z.number().int().min(0).max(100_000).nullable(), startsAt: date, salesEnd: date, menuOptions: z.array(name).max(30), menuTranslations: z.record(name, translations).optional() }).strict()).max(30),
+  activities: z.array(z.object({ id, name, nameTranslations: translations.optional(), kind: z.enum(['workshop', 'masterclass', 'dinner', 'extra']), capacity: z.number().int().min(0).max(100_000).nullable(), startsAt: date, endsAt: date.optional(), checkInStartsAt: date.optional(), salesEnd: date, menuOptions: z.array(name).max(30), menuTranslations: z.record(name, translations).optional() }).strict()).max(30),
   packages: z.array(z.object({ id, name, nameTranslations: translations.optional(), description: z.string().trim().max(1000), descriptionTranslations: descriptions.optional(), activityIds: z.array(id).min(1).max(30), prices: z.array(priceSchema).min(1).max(20) }).strict()).max(30),
   addons: z.array(z.object({ id, name, nameTranslations: translations.optional(), activityId: id, amountCents: amount }).strict()).max(30),
 }).strict().superRefine((config, ctx) => {
@@ -25,6 +25,8 @@ export const configSchema = z.object({
     unique(a.menuOptions, ['activities', i, 'menuOptions']);
     if (Object.keys(a.menuTranslations || {}).some(key => !a.menuOptions.includes(key))) issue('Menù inesistente', ['activities', i, 'menuTranslations']);
     if (a.salesEnd && a.startsAt && Date.parse(a.salesEnd) > Date.parse(a.startsAt)) issue('Le vendite devono terminare entro l’inizio dell’attività', ['activities', i, 'salesEnd']);
+    if (a.endsAt && a.startsAt && Date.parse(a.endsAt) < Date.parse(a.startsAt)) issue('La fine dell’attività non può precedere l’inizio', ['activities', i, 'endsAt']);
+    if (a.checkInStartsAt && a.startsAt && Date.parse(a.checkInStartsAt) > Date.parse(a.startsAt)) issue('L’apertura del check-in non può essere successiva all’inizio dell’attività', ['activities', i, 'checkInStartsAt']);
   });
   config.packages.forEach((p, i) => {
     unique(p.activityIds, ['packages', i, 'activityIds']); unique(p.prices.map(t => t.id), ['packages', i, 'prices']);

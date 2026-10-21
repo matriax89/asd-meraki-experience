@@ -1,7 +1,7 @@
 export type CommerceActivityKind = 'workshop' | 'masterclass' | 'dinner' | 'extra';
 export type CommerceTranslations = Partial<Record<'it' | 'en' | 'de' | 'es', string>>;
 export type CommercePriceTier = { id: string; label: string; labelTranslations?: CommerceTranslations; amountCents: number; activityAmounts?: Record<string, number>; startsAt: string | null; endsAt: string | null };
-export type CommerceActivity = { id: string; name: string; nameTranslations?: CommerceTranslations; kind: CommerceActivityKind; capacity: number | null; startsAt: string | null; salesEnd: string | null; menuOptions: string[]; menuTranslations?: Record<string, CommerceTranslations> };
+export type CommerceActivity = { id: string; name: string; nameTranslations?: CommerceTranslations; kind: CommerceActivityKind; capacity: number | null; startsAt: string | null; endsAt?: string | null; checkInStartsAt?: string | null; salesEnd: string | null; menuOptions: string[]; menuTranslations?: Record<string, CommerceTranslations> };
 export type CommercePackage = { id: string; name: string; nameTranslations?: CommerceTranslations; description: string; descriptionTranslations?: CommerceTranslations; activityIds: string[]; prices: CommercePriceTier[] };
 export type CommerceAddon = { id: string; name: string; nameTranslations?: CommerceTranslations; activityId: string; amountCents: number };
 export type CommerceConfig = { version: 1; enabled: boolean; waitlistEnabled: boolean; upgradesEnabled: boolean; activities: CommerceActivity[]; packages: CommercePackage[]; addons: CommerceAddon[] };

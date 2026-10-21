@@ -5,6 +5,7 @@ import { commerceActivityName, commerceMenuName, commercePackageName, commerceQu
 import { getVerifiedStripe } from "./client";
 import { sendTicketConfirmation } from "@/lib/resend/client";
 import { ticketUrl } from "./ticket-status";
+import { resolveActivityTiming } from "@/lib/events/activity-timing";
 
 export const isCommerceSession = (session: Pick<Stripe.Checkout.Session, "metadata">) => session.metadata?.flow_type === "event_commerce";
 
@@ -38,7 +39,7 @@ export async function deliverCommerceOrder(order: CommerceOrder, passes?: Commer
   if (!claimed) throw new Error("Commerce email delivery is already being processed; retry later.");
   try {
     const [eventResult, passResult] = await Promise.all([
-      db.from("events").select("titolo,data_inizio,location,indirizzo,copertina_url,check_in_starts_at,slug,tipo,logistics,attivo").eq("id", order.event_id).single(),
+      db.from("events").select("titolo,data_inizio,location,indirizzo,copertina_url,check_in_starts_at,slug,tipo,logistics,attivo,commerce_config").eq("id", order.event_id).single(),
       passes ? Promise.resolve({ data: passes, error: null }) : db.from("commerce_passes").select("*").eq("order_id", order.id),
     ]);
     const issued = passResult.data as CommercePass[] | null;
@@ -55,7 +56,7 @@ export async function deliverCommerceOrder(order: CommerceOrder, passes?: Commer
       }
       const accessDetails = (rights || []).map(right => {
         const config = snapshots.get(right.order_id) || order.event_snapshot.commerce_config;
-        return { name: commerceActivityName(config, right.activity_id, right.activity_name, order.locale),
+        return { ...resolveActivityTiming(eventResult.data.commerce_config, config, right.activity_id), name: commerceActivityName(config, right.activity_id, right.activity_name, order.locale),
           menuChoice: right.menu_choice ? commerceMenuName(config, right.activity_id, right.menu_choice, order.locale) : null };
       });
       const { data: contact, error: contactError } = await db.from("commerce_attendee_contacts")

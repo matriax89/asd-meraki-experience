@@ -19,7 +19,7 @@ function load(file, overrides = {}) {
   vm.runInNewContext(source, {
     module: compiledModule, exports: compiledModule.exports, Buffer, URL, console,
     process: { env: { RESEND_API_KEY: "synthetic-test-only", NEXT_PUBLIC_SITE_URL: "https://meraki.example.test" } },
-    require: (name) => name in overrides ? overrides[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : require(name),
+    require: (name) => name in overrides ? overrides[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("lib/events/activity-timing.ts") : require(name),
   });
   return compiledModule.exports;
 }

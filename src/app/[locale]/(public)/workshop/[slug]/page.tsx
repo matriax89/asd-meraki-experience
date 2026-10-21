@@ -8,6 +8,7 @@ import { parseEventLogistics } from "@/lib/events/logistics";
 import { publicEventAffiliates } from "@/lib/events/affiliates";
 import { getSocialEvent } from "@/lib/events/social-data";
 import { eventSocialMetadata } from "@/lib/events/social-metadata";
+import { parseCommerceConfig } from "@/lib/commerce/config";
 
 type PageParams = { params: Promise<{ slug: string; locale: string }> };
 
@@ -21,7 +22,8 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 export default async function DetailPage({ params }: PageParams) {
   const { slug, locale } = await params;
   const supabase = await createClient();
-  const { data: event } = await supabase.from("events").select(`${eventFeedColumns}, check_in_starts_at, descrizione, cta_tipo, cta_url, logistics, affiliates`).eq("slug", slug).in("tipo", ["workshop", "masterclass"]).eq("attivo", true).single();
+  const { data: event } = await supabase.from("events").select(`${eventFeedColumns}, check_in_starts_at, descrizione, cta_tipo, cta_url, logistics, affiliates, commerce_config`).eq("slug", slug).in("tipo", ["workshop", "masterclass"]).eq("attivo", true).single();
   if (!event) notFound();
-  return <EventDetail event={{ ...toMerakiEvent(event, locale), description: getLocalizedText(event.descrizione, locale), ctaType: event.cta_tipo, ctaUrl: event.cta_url, logistics: parseEventLogistics(event.logistics), affiliates: publicEventAffiliates(event.affiliates) }} locale={locale} />;
+  const commerce = parseCommerceConfig(event.commerce_config);
+  return <EventDetail event={{ ...toMerakiEvent(event, locale), description: getLocalizedText(event.descrizione, locale), ctaType: event.cta_tipo, ctaUrl: event.cta_url, logistics: parseEventLogistics(event.logistics), affiliates: publicEventAffiliates(event.affiliates), activities: commerce?.enabled ? commerce.activities : undefined }} locale={locale} />;
 }

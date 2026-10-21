@@ -58,6 +58,20 @@ test("configuration validates on the server before the service-only save RPC", a
   assert.equal(rpc[2].p_event_id, eventId);
 });
 
+test("activity schedule validation precedes the save RPC and valid separate check-in/end values reach persistence", async () => {
+  const configured = JSON.parse(JSON.stringify(validConfig));
+  Object.assign(configured.activities[0], { startsAt: "2026-12-19T11:30:00Z", checkInStartsAt: "2026-12-19T11:00:00Z", endsAt: "2026-12-19T14:30:00Z" });
+  const valid = setup();
+  assert.equal((await valid.actions.saveCommerceAdmin(eventId, configured)).success, true);
+  assert.deepEqual(valid.calls.find(([kind]) => kind === "rpc")[2].p_config.activities[0], configured.activities[0]);
+  for (const invalid of [{ checkInStartsAt: "2026-12-19T12:00:00Z" }, { endsAt: "2026-12-19T10:00:00Z" }]) {
+    const fixture = setup();
+    const input = { ...configured, activities: [{ ...configured.activities[0], ...invalid }] };
+    assert.equal((await fixture.actions.saveCommerceAdmin(eventId, input)).success, false);
+    assert.equal(fixture.calls.some(([kind]) => kind === "rpc"), false);
+  }
+});
+
 test("missing migration is reported without pretending the config was saved", async () => {
   const fixture = setup({ rpcError: { code: "PGRST202", message: "Function not found" } });
   const result = await fixture.actions.saveCommerceAdmin(eventId, validConfig);
@@ -198,7 +212,7 @@ test("the four-step draft retains dates and amounts, summarizes real values, and
     assert.equal(document.querySelector("details").open, false);
     await click("Usa esempio WS + MC + cena");
     assert.equal(document.querySelectorAll("textarea").length, 3);
-    assert.equal(document.querySelectorAll("input[type='datetime-local']").length, 12);
+    assert.equal(document.querySelectorAll("input[type='datetime-local']").length, 18);
     assert.equal(panel(1).hidden, true); assert.equal(panel(1).disabled, true);
     const option = document.createElement("div"); option.setAttribute("role", "option");
     document.querySelector("form").append(option);
@@ -248,6 +262,59 @@ test("the four-step draft retains dates and amounts, summarizes real values, and
     assert.deepEqual(saved[1].config.packages, saved[0].config.packages);
     assert.match(document.body.textContent, /Evento pubblicato/);
     assert.equal(button("Salva e pubblica evento"), undefined);
+  } finally { await fixture.close(); }
+});
+
+test("activity check-in/start/end survive the wizard, persistence and a fresh editor in Italian time", async () => {
+  const initial = JSON.parse(JSON.stringify(validConfig));
+  initial.activities[0].startsAt = "2026-12-19T11:30:00Z";
+  let persisted;
+  const fixture = await editorFixture({ initialConfig: initial });
+  const dateInput = (current, label) => [...current.panel(0).querySelectorAll("label")].find((node) => node.textContent.startsWith(label)).querySelector("input");
+  try {
+    assert.equal(dateInput(fixture, "Inizio attività").value, "2026-12-19T12:30");
+    assert.equal(dateInput(fixture, "Apertura check-in attività").value, "");
+    assert.equal(dateInput(fixture, "Fine attività").value, "");
+    await fixture.input(dateInput(fixture, "Apertura check-in attività"), "2026-12-19T12:00");
+    await fixture.input(dateInput(fixture, "Fine attività"), "2026-12-19T15:30");
+    await fixture.click("Avanti"); await fixture.click("Avanti"); await fixture.click("Avanti");
+    const review = fixture.panel(3).querySelector('[aria-labelledby="review-activities"]');
+    assert.match(review.textContent, /Apertura check-in: 19\/12\/26, 12:00/);
+    assert.match(review.textContent, /Inizio: 19\/12\/26, 12:30/);
+    assert.match(review.textContent, /Fine attività: 19\/12\/26, 15:30/);
+    await fixture.click("Salva bozza");
+    assert.equal(fixture.saved.length, 1);
+    persisted = fixture.saved[0].config;
+    assert.equal(persisted.activities[0].checkInStartsAt, "2026-12-19T11:00:00.000Z");
+    assert.equal(persisted.activities[0].startsAt, "2026-12-19T11:30:00Z");
+    assert.equal(persisted.activities[0].endsAt, "2026-12-19T14:30:00.000Z");
+    assert.equal(persisted.activities[0].salesEnd, null, "check-in never overwrites sales closing");
+  } finally { await fixture.close(); }
+  const fresh = await editorFixture({ initialConfig: persisted, isPublished: true });
+  try {
+    assert.equal(dateInput(fresh, "Apertura check-in attività").value, "2026-12-19T12:00");
+    assert.equal(dateInput(fresh, "Inizio attività").value, "2026-12-19T12:30");
+    assert.equal(dateInput(fresh, "Fine attività").value, "2026-12-19T15:30");
+  } finally { await fresh.close(); }
+});
+
+test("invalid activity check-in or finishing times keep the wizard on activities without saving", async () => {
+  const configured = JSON.parse(JSON.stringify(validConfig));
+  configured.activities[0].startsAt = "2026-12-19T11:30:00Z";
+  const fixture = await editorFixture({ initialConfig: configured });
+  const dateInput = label => [...fixture.panel(0).querySelectorAll("label")].find((node) => node.textContent.startsWith(label)).querySelector("input");
+  try {
+    await fixture.input(dateInput("Apertura check-in attività"), "2026-12-19T13:00");
+    await fixture.click("Avanti");
+    assert.equal(fixture.currentStep(), 0);
+    assert.match(fixture.document.body.textContent, /check-in non può essere successiva/);
+    assert.equal(fixture.saved.length, 0);
+    await fixture.input(dateInput("Apertura check-in attività"), "2026-12-19T12:00");
+    await fixture.input(dateInput("Fine attività"), "2026-12-19T12:15");
+    await fixture.click("Salva bozza");
+    assert.equal(fixture.currentStep(), 0);
+    assert.match(fixture.document.body.textContent, /fine dell’attività non può precedere/);
+    assert.equal(fixture.saved.length, 0);
   } finally { await fixture.close(); }
 });
 

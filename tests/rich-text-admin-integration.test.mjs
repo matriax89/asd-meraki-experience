@@ -213,6 +213,7 @@ for (const type of ["evento", "workshop", "masterclass"]) {
       "@/lib/supabase/server": server,
       "@/lib/events/social-data": { getSocialEvent: async () => row },
       "@/lib/events/social-metadata": socialMetadata,
+      "@/lib/commerce/config": load("lib/commerce/config.ts"),
       "@/lib/i18n-utils": i18n,
       "@/components/meraki/event-detail": { EventDetail: () => null },
       "@/components/meraki/events-data": {},

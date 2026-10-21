@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 function load(path, mocks = {}, env = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : require(name), process: { env }, URL, Buffer, console: { error() {} } });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : require(name), process: { env }, URL, Buffer, console: { error() {} } });
   return compiledModule.exports;
 }
 const template = load("src/lib/email/meraki-template.ts");

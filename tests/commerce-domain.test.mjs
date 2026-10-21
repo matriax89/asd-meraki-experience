@@ -30,6 +30,36 @@ test('commerce config accepts valid schedules and rejects duplicate IDs, danglin
   c=config(); c.packages[0].id='unsafe<script>';assert.equal(parseCommerceConfig(c),null);
   c=config(); c.enabled=false;c.activities=[];c.packages=[];c.addons=[];assert.ok(configSchema.safeParse(c).success);
 });
+test('activity check-in and finishing times are optional, preserved and independent of pricing',()=>{
+  const legacy=config();
+  assert.equal(parseCommerceConfig(legacy).activities[0].endsAt,undefined);
+  assert.equal(parseCommerceConfig(legacy).activities[0].checkInStartsAt,undefined);
+  const scheduled=config();
+  scheduled.activities[0].checkInStartsAt='2027-02-01T09:30:00Z';
+  scheduled.activities[0].endsAt='2027-02-01T13:00:00Z';
+  scheduled.activities[1].checkInStartsAt=null;
+  scheduled.activities[1].endsAt=null;
+  const parsed=parseCommerceConfig(scheduled);
+  assert.equal(parsed.activities[0].checkInStartsAt,'2027-02-01T09:30:00Z');
+  assert.equal(parsed.activities[0].endsAt,'2027-02-01T13:00:00Z');
+  assert.equal(parsed.activities[1].checkInStartsAt,null);
+  assert.deepEqual(plain(previewCommerceQuote(parsed,[person()],new Date('2027-01-01T00:00:00Z'))),plain(previewCommerceQuote(legacy,[person()],new Date('2027-01-01T00:00:00Z'))));
+});
+test('activity schedules reject reversed times and malformed instants while allowing previous-day check-in',()=>{
+  for(const [field,value] of [['endsAt','2027-02-01T09:59:00Z'],['checkInStartsAt','2027-02-01T10:01:00Z'],['endsAt','not-a-date'],['checkInStartsAt','2027-02-01T09:00']]){
+    const current=config(); current.activities[0][field]=value;
+    const result=configSchema.safeParse(current);
+    assert.equal(result.success,false,`${field}: ${value}`);
+    assert.ok(result.error.issues.some(issue=>issue.path[0]==='activities'&&issue.path[1]===0&&issue.path[2]===field));
+  }
+  const overnight=config();
+  overnight.activities[0].checkInStartsAt='2027-01-31T20:00:00Z';
+  overnight.activities[0].endsAt='2027-02-02T02:00:00Z';
+  assert.ok(parseCommerceConfig(overnight));
+  overnight.activities[0].checkInStartsAt=overnight.activities[0].startsAt;
+  overnight.activities[0].endsAt=overnight.activities[0].startsAt;
+  assert.ok(parseCommerceConfig(overnight));
+});
 test('price boundaries are inclusive at start and exclusive at end',()=>{
   const tiers=config().packages[0].prices;
   assert.equal(activePrice(tiers,new Date('2027-01-14T23:59:59Z')).id,'early');

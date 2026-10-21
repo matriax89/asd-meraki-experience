@@ -12,7 +12,7 @@ function load(path, mocks = {}, env = {}) {
   const filename = fileURLToPath(new URL(`../${path}`, import.meta.url));
   const source = ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : require(name), console: { error() {} }, URL, Request, Response, process: { env }, Map, Date }, { filename });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : require(name), console: { error() {} }, URL, Request, Response, process: { env }, Map, Date }, { filename });
   return compiledModule.exports;
 }
 const localization = load("src/lib/commerce/localization.ts");
@@ -199,7 +199,7 @@ test("a held email lease stays retryable instead of silently losing delivery", a
   await assert.rejects(mod.deliverCommerceOrder(order), /retry later/);
 });
 
-function deliveryFixture(contacts) {
+function deliveryFixture(contacts, { eventConfig, rights: customRights } = {}) {
   const calls = [], deliveries = [], selected = [], marketingCalls = [];
   const db = {
     rpc: async (name, args) => { calls.push([name,args]); return { data: name === "claim_commerce_email" ? true : null, error: null }; },
@@ -210,8 +210,8 @@ function deliveryFixture(contacts) {
         eq(column,value) { filters[column]=value; return this; },
         order(column,options) { assert.equal(column,"created_at");assert.equal(options.ascending,false);return this; },
         limit(number) { assert.equal(number,1);return this; },
-        single: async () => ({ data: { titolo:{it:"Meraki Day"},data_inizio:"2027-08-01T10:00:00Z",location:"Merano",indirizzo:null } }),
-        in: async () => ({ data:filters.pass_id === "pass-luca" ? [{activity_name:"Masterclass",menu_choice:null}] : [{activity_name:"Workshop",menu_choice:null},{activity_name:"Cena",menu_choice:"Vegetariano"}],error:null }),
+        single: async () => ({ data: { titolo:{it:"Meraki Day"},data_inizio:"2027-08-01T10:00:00Z",location:"Merano",indirizzo:null, commerce_config:eventConfig } }),
+        in: async () => ({ data:customRights || (filters.pass_id === "pass-luca" ? [{activity_name:"Masterclass",menu_choice:null}] : [{activity_name:"Workshop",menu_choice:null},{activity_name:"Cena",menu_choice:"Vegetariano"}]),error:null }),
         maybeSingle: async () => ({ data:contacts[filters.pass_id] || null,error:null }),
       };
     },
@@ -262,6 +262,19 @@ test("historical orders without attendee contacts retain buyer email delivery", 
   assert.equal(fixture.deliveries[0][0].buyer_email,order.buyer_email);
   assert.equal(fixture.deliveries[0][0].qr_code,"old-qr");
   assert.equal(fixture.calls.at(-1)[1].p_success,true);
+});
+
+test("commerce delivery attaches only purchased activity times from the current organizer schedule and keeps snapshot names", async () => {
+  const masterclass = { id:"mc", name:"Masterclass rinominata", checkInStartsAt:"2026-12-19T15:00:00Z", startsAt:"2026-12-19T15:30:00Z", endsAt:"2026-12-19T17:00:00Z" };
+  const snapshot = { activities:[{id:"mc", name:"Masterclass originale", startsAt:"2026-12-19T14:00:00Z"}], packages:[] };
+  for (const current of [true, false]) {
+    const fixture = deliveryFixture({}, { eventConfig:current ? {activities:[{id:"ws",startsAt:"2026-12-19T11:30:00Z"},masterclass]} : null, rights:[{activity_id:"mc",activity_name:"Masterclass originale",menu_choice:null,order_id:orderId}] });
+    await fixture.mod.deliverCommerceOrder({...order,event_snapshot:{commerce_config:snapshot}},[{id:"old-pass",qr_code:"old-qr",first_name:"Ada",last_name:"Rossi"}]);
+    const access = plain(fixture.deliveries[0][3].accessDetails);
+    assert.deepEqual(access, [{name:"Masterclass originale",menuChoice:null,...(current ? {checkInStartsAt:masterclass.checkInStartsAt,startsAt:masterclass.startsAt,endsAt:masterclass.endsAt} : {startsAt:snapshot.activities[0].startsAt})}]);
+    assert.equal(access.some(item => item.startsAt === "2026-12-19T11:30:00Z"),false);
+    assert.ok(fixture.selected.find(([table,fields])=>table === "events" && fields.includes("commerce_config")));
+  }
 });
 
 test("existing event editor cannot bypass transactional commerce configuration or counters", async () => {

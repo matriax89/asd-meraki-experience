@@ -12,7 +12,7 @@ function compile(relative,imports) {
   const filename=fileURLToPath(new URL(relative,import.meta.url));
   const compiled=ts.transpileModule(readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const loaded={exports:{}};
-  vm.runInNewContext(compiled,{module:loaded,exports:loaded.exports,require:name=>imports?.[name]??require(name),process:{env:{}},Date,Set,Map},{filename});
+  vm.runInNewContext(compiled,{module:loaded,exports:loaded.exports,require:name=>imports?.[name]??(name==='@/lib/events/activity-timing'?compile('../src/lib/events/activity-timing.ts'):require(name)),process:{env:{}},Date,Set,Map},{filename});
   return loaded.exports;
 }
 const affiliateHelpers=compile('../src/lib/events/affiliates.ts');

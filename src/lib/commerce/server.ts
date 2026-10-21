@@ -5,6 +5,7 @@ import type { CommerceEntitlement, CommercePass } from "./types";
 import { walletTicket, type WalletCredential, type WalletTicket } from "@/lib/tickets/wallet";
 import { commerceActivityName, commerceMenuName, commercePackageName } from "./localization";
 import { publicEventAffiliates } from "@/lib/events/affiliates";
+import { resolveActivityTiming } from "@/lib/events/activity-timing";
 
 /** Private tables are deliberately separate from legacy single-entry tickets. */
 export function commerceClient() {
@@ -68,6 +69,7 @@ export async function getCommercePass(id: string, token: string, locale = "it") 
     entitlements: rights.map((right) => ({
       ...right, status: right.status === "valid" ? "available" : right.status === "used" ? "used" : "revoked",
       used_at: right.checked_in_at,
+      ...resolveActivityTiming(currentConfig, snapshots.get(right.order_id), right.activity_id),
       activity_name: commerceActivityName(snapshots.get(right.order_id) || currentConfig, right.activity_id, right.activity_name, locale),
       menu_choice: right.menu_choice ? commerceMenuName(snapshots.get(right.order_id) || currentConfig, right.activity_id, right.menu_choice, locale) : null,
     })),

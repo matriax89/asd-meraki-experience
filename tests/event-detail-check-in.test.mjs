@@ -24,6 +24,7 @@ const data = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n
 const logistics = load("lib/events/logistics.ts");
 const poster = load("components/meraki/event-poster.tsx", { "next/image": { __esModule: true, default: () => null } });
 const travel = load("components/meraki/event-logistics-section.tsx", { "@/lib/events/logistics": logistics });
+const activitySchedule = load("components/meraki/event-activity-schedule.tsx", { "@/lib/commerce/localization": load("lib/commerce/localization.ts") });
 const checkoutCalls = [];
 const { EventDetail } = load("components/meraki/event-detail.tsx", {
   "./event-model": model,
@@ -35,6 +36,7 @@ const { EventDetail } = load("components/meraki/event-detail.tsx", {
   "./commerce-purchase": { CommercePurchase: ({ fallback }) => fallback },
   "./event-poster": poster,
   "./event-logistics-section": travel,
+  "./event-activity-schedule": activitySchedule,
   "@/lib/events/logistics": logistics,
 });
 const base = {
@@ -100,4 +102,25 @@ test("single-price checkout receives the event's public affiliate choices withou
   assert.deepEqual(checkoutCalls.at(-1).affiliates, affiliates);
   render(base, "it");
   assert.equal(checkoutCalls.at(-1).affiliates, undefined);
+});
+
+test("the detail replaces the generic opening with separate workshop and masterclass schedules", () => {
+  const activities = [
+    { id: "workshop", name: "Workshop", kind: "workshop", capacity: 100, startsAt: "2026-12-19T11:30:00Z", endsAt: "2026-12-19T14:30:00Z", checkInStartsAt: "2026-12-19T11:00:00Z", salesEnd: null, menuOptions: [] },
+    { id: "masterclass", name: "Masterclass", kind: "masterclass", capacity: 100, startsAt: "2026-12-19T15:30:00Z", endsAt: "2026-12-19T17:00:00Z", checkInStartsAt: "2026-12-19T15:00:00Z", salesEnd: null, menuOptions: [] },
+  ];
+  for (const locale of Object.keys(labels)) {
+    const document = render({ ...base, startsAt: activities[0].startsAt, checkInStartsAt: activities[0].checkInStartsAt, activities }, locale);
+    const schedule = document.querySelector("[data-activity-schedule]");
+    assert.ok(schedule);
+    assert.equal(document.querySelector("[data-check-in-opening]"), null, "a general noon check-in must not obscure the Masterclass opening");
+    assert.equal(schedule.querySelectorAll("[data-activity-id]").length, 2);
+    const workshop = schedule.querySelector('[data-activity-id="workshop"]');
+    const masterclass = schedule.querySelector('[data-activity-id="masterclass"]');
+    assert.ok(workshop.textContent.includes("12:00")); assert.ok(workshop.textContent.includes("12:30")); assert.ok(workshop.textContent.includes("15:30"));
+    assert.ok(masterclass.textContent.includes("16:00")); assert.ok(masterclass.textContent.includes("16:30")); assert.ok(masterclass.textContent.includes("18:00"));
+    assert.equal(masterclass.textContent.includes("12:00"), false);
+    assert.ok(document.textContent.includes(model.eventLabels(locale).eventDay));
+    assert.ok(document.textContent.includes(base.location));
+  }
 });

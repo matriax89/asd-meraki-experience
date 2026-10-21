@@ -207,6 +207,7 @@ export type Database = {
           attivo: boolean | null
           capacity: number | null
           check_in_starts_at: string | null
+          commerce_config: Json | null
           copertina_url: string | null
           created_at: string | null
           cta_tipo: string | null
@@ -236,6 +237,7 @@ export type Database = {
           attivo?: boolean | null
           capacity?: number | null
           check_in_starts_at?: string | null
+          commerce_config?: Json | null
           copertina_url?: string | null
           created_at?: string | null
           cta_tipo?: string | null
@@ -265,6 +267,7 @@ export type Database = {
           attivo?: boolean | null
           capacity?: number | null
           check_in_starts_at?: string | null
+          commerce_config?: Json | null
           copertina_url?: string | null
           created_at?: string | null
           cta_tipo?: string | null

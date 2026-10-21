@@ -19,13 +19,17 @@ const socialMetadata = load("lib/events/social-metadata.ts", { "@/lib/i18n-utils
 const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n });
 const logistics = load("lib/events/logistics.ts", { "@/lib/rich-text": richText });
 const affiliates = load("lib/events/affiliates.ts");
+const commerceConfig = load("lib/commerce/config.ts");
 const travelData = { ...logistics.emptyEventLogistics(), contact: { it: "Assistenza viaggio Meraki", en: "", de: "", es: "" } };
 
-function fixture(type, published) {
+function fixture(type, published, withSchedule = true) {
   const queries = [];
   const selections = [];
   const row = { id: "local-event", slug: "private-draft-slug", tipo: type, attivo: published, titolo: { it: "Titolo riservato della bozza", en: "Private draft title" }, descrizione: { it: "Descrizione riservata della bozza" }, copertina_url: "https://example.test/private-draft-image.png", data_inizio: "2027-01-01T10:00:00Z", data_fine: null, check_in_starts_at: "2026-12-31T17:00:00Z", sottotitolo: null, location: null, indirizzo: null, prezzo_cents: 3000, capacity: 20, posti_venduti: 0, cta_tipo: "stripe", cta_url: null };
   row.logistics = travelData;
+  row.commerce_config = withSchedule ? { version: 1, enabled: true, waitlistEnabled: true, upgradesEnabled: true,
+    activities: [{ id: "workshop", name: "Workshop", kind: "workshop", capacity: 20, startsAt: row.data_inizio, checkInStartsAt: "2027-01-01T09:30:00Z", endsAt: "2027-01-01T12:00:00Z", salesEnd: null, menuOptions: [] }],
+    packages: [{ id: "workshop", name: "Workshop", description: "", activityIds: ["workshop"], prices: [{ id: "standard", label: "Standard", amountCents: 3000, startsAt: null, endsAt: null }] }], addons: [] } : null;
   row.affiliates = [
     { id: "10000000-0000-4000-8000-000000000001", name: "Referente attivo", active: true },
     { id: "10000000-0000-4000-8000-000000000002", name: "Referente disattivato", active: false },
@@ -46,6 +50,7 @@ function fixture(type, published) {
     "@/components/meraki/event-detail": { EventDetail: () => null },
     "@/lib/events/logistics": logistics,
     "@/lib/events/affiliates": affiliates,
+    "@/lib/commerce/config": commerceConfig,
     "@/lib/rich-text": richText,
     "next/navigation": { notFound() { throw Object.assign(new Error("Not found"), { status: 404 }); } },
   });
@@ -73,6 +78,9 @@ for (const type of ["evento", "workshop", "masterclass"]) {
     assert.equal(element.props.event.logistics.contact.it, "Assistenza viaggio Meraki");
     assert.deepEqual(JSON.parse(JSON.stringify(element.props.event.affiliates)), [{ id: "10000000-0000-4000-8000-000000000001", name: "Referente attivo" }]);
     assert.ok(current.selections[0].split(",").map((column) => column.trim()).includes("affiliates"));
+    assert.ok(current.selections[0].split(",").map((column) => column.trim()).includes("commerce_config"));
+    assert.equal(element.props.event.activities[0].checkInStartsAt, "2027-01-01T09:30:00Z");
+    assert.equal(element.props.event.activities[0].endsAt, "2027-01-01T12:00:00Z");
     const metadata = await current.page.generateMetadata({ params: current.params });
     assert.equal(metadata.title, "Titolo riservato della bozza");
     assert.equal(metadata.openGraph.images[0].url, "https://example.test/private-draft-image.png");
@@ -81,3 +89,10 @@ for (const type of ["evento", "workshop", "masterclass"]) {
     assert.equal(metadata.openGraph.images[0].alt, "Titolo riservato della bozza");
   });
 }
+
+test("a legacy event without activity configuration retains the general event schedule", async () => {
+  const current = fixture("evento", true, false);
+  const element = await current.page.default({ params: current.params });
+  assert.equal(element.props.event.activities, undefined);
+  assert.equal(element.props.event.checkInStartsAt, "2026-12-31T17:00:00Z");
+});
