@@ -91,12 +91,15 @@ async function setup(context, { overflow = "auto", locale = "it", affiliates } =
   window.document.body.style.overflow = overflow;
   const calls = [];
   const quoteCalls = [];
+  const assignedUrls = [];
   let quoteResponse = () => Promise.resolve({ ok: true, json: async () => ({ quote: { totalCents: 3000 } }) });
   let uuidCalls = 0;
   const exports = {};
   vm.runInNewContext(compiled, {
     exports,
-    window,
+    window: new Proxy(window, { get(target, key) {
+      return key === "location" ? { origin: target.location.origin, assign: url => assignedUrls.push(url) } : Reflect.get(target, key, target);
+    } }),
     document: window.document,
     FormData: window.FormData,
     URL,
@@ -154,7 +157,7 @@ async function setup(context, { overflow = "auto", locale = "it", affiliates } =
     });
     return cancel;
   };
-  return { dialog, trigger, form, submitButton, closeButton, calls, quoteCalls, setQuoteResponse: (value) => { quoteResponse = value; }, change, fill, open, submit, respond, fail, escape, dispose };
+  return { dialog, trigger, form, submitButton, closeButton, calls, quoteCalls, assignedUrls, setQuoteResponse: (value) => { quoteResponse = value; }, change, fill, open, submit, respond, fail, escape, dispose };
 }
 
 test("purchase opens an accessible native dialog and preserves required/email validation", async (context) => {
@@ -287,6 +290,19 @@ test("an untrusted checkout redirect is rejected without leaving the purchase di
   assert.match(checkout.dialog.querySelector('[role="alert"]').textContent, /collegamento al pagamento non è valido/);
   assert.equal(checkout.submitButton.disabled, false);
   assert.equal(window.location.href, "https://meraki.test/it/eventi/test-event");
+  assert.equal(checkout.assignedUrls.length, 0);
+});
+
+test("a guest purchase opens Meraki's Stripe custom domain without losing its Checkout fragment", async (context) => {
+  const checkout = await setup(context);
+  await checkout.open();
+  await checkout.fill();
+  await checkout.submit();
+  const paymentUrl = "https://pay.merakiexperience.org/c/pay/cs_test_placeholder#fidnandhYHdWcXxpYCc";
+  await checkout.respond({ url: paymentUrl }, { ok: true });
+  assert.deepEqual(checkout.assignedUrls, [paymentUrl]);
+  assert.equal(checkout.dialog.querySelector('[role="alert"]'), null);
+  assert.equal(checkout.calls[0].body.expectedTotalCents, 3000);
 });
 
 

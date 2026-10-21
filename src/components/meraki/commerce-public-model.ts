@@ -89,6 +89,10 @@ export function safeCommerceRedirect(value: unknown, origin: string) {
   if (typeof value !== "string") return null;
   try {
     const url = new URL(value, origin);
-    return (url.protocol === "https:" && url.hostname === "checkout.stripe.com") || (url.origin === origin && url.pathname === "/api/checkout/success") ? url.href : null;
+    if (url.username || url.password) return null;
+    const stripeCheckout = url.protocol === "https:" && !url.port
+      && ["checkout.stripe.com", "pay.merakiexperience.org"].includes(url.hostname);
+    const localSuccess = url.origin === origin && url.pathname === "/api/checkout/success";
+    return stripeCheckout || localSuccess ? url.href : null;
   } catch { return null; }
 }

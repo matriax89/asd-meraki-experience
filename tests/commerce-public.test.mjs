@@ -66,11 +66,30 @@ test("combo prioritization is stable and never mutates the configured package or
   assert.equal(sorted[0], input[1]);
 });
 
-test("checkout redirects only accept exact Stripe hosts or the local success endpoint", () => {
-  assert.equal(model.safeCommerceRedirect("https://checkout.stripe.com.attacker.test/session", "https://meraki.test"), null);
-  assert.equal(model.safeCommerceRedirect("//attacker.test/api/checkout/success", "https://meraki.test"), null);
+test("checkout redirects accept Stripe's standard host and Meraki's configured custom payment domain", () => {
   assert.equal(model.safeCommerceRedirect("https://checkout.stripe.com/c/pay/test", "https://meraki.test"), "https://checkout.stripe.com/c/pay/test");
+  const custom = "https://pay.merakiexperience.org/c/pay/cs_live_placeholder#fidkdWxOYHwnPyd1blpxYHZxWjA0";
+  assert.equal(model.safeCommerceRedirect(custom, "https://www.merakiexperience.org"), custom, "Stripe's session path and fragment stay unchanged");
+  assert.equal(model.safeCommerceRedirect("https://pay.merakiexperience.org:443/c/pay/test", "https://meraki.test"), "https://pay.merakiexperience.org/c/pay/test");
+});
+
+test("checkout redirects reject lookalike hosts, subdomains, credentials, nonstandard ports and insecure payment URLs", () => {
+  for (const value of [
+    "https://checkout.stripe.com.attacker.test/session", "https://pay.merakiexperience.org.attacker.test/session",
+    "https://other.merakiexperience.org/c/pay/test", "https://nested.pay.merakiexperience.org/c/pay/test", "https://other.stripe.com/c/pay/test",
+    "https://checkout.stripe.com@attacker.test/session", "https://user:secret@checkout.stripe.com/c/pay/test", "https://user@pay.merakiexperience.org/c/pay/test", "https://:secret@pay.merakiexperience.org/c/pay/test",
+    "https://checkout.stripe.com:444/c/pay/test", "https://pay.merakiexperience.org:8443/c/pay/test",
+    "http://checkout.stripe.com/c/pay/test", "http://pay.merakiexperience.org/c/pay/test",
+    "//attacker.test/api/checkout/success", "https://attacker.test/api/checkout/success",
+  ]) assert.equal(model.safeCommerceRedirect(value, "https://meraki.test"), null, value);
+});
+
+test("checkout completion accepts only the local success endpoint, including HTTP local development", () => {
   assert.equal(model.safeCommerceRedirect("/api/checkout/success?session_id=cs_test", "https://meraki.test"), "https://meraki.test/api/checkout/success?session_id=cs_test");
+  assert.equal(model.safeCommerceRedirect("/api/checkout/success?session_id=cs_test", "http://localhost:3013"), "http://localhost:3013/api/checkout/success?session_id=cs_test");
+  assert.equal(model.safeCommerceRedirect("https://user:secret@meraki.test/api/checkout/success", "https://meraki.test"), null);
+  assert.equal(model.safeCommerceRedirect("/api/checkout/other?session_id=cs_test", "https://meraki.test"), null);
+  assert.equal(model.safeCommerceRedirect("https://meraki.test:8443/api/checkout/success", "https://meraki.test"), null);
 });
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://meraki.test/it/eventi/example", pretendToBeVisual: true });
@@ -89,8 +108,10 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
   window.document.body.innerHTML = '<div id="root"></div>';
   window.document.body.style.overflow = "auto";
   const calls = [];
+  const redirects = [];
   let rejectCatalog = false;
   let checkoutResponse = { error: "Pagamento non disponibile" };
+  let checkoutOk = false;
   let uuidCalls = 1;
   let clockNow = Date.now(), clockTick;
   const TestDate = controls.manualClock ? class extends Date { static now() { return clockNow; } } : Date;
@@ -100,9 +121,13 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
     window.clearInterval = (id) => { if (id !== -1) originalClearInterval.call(window, id); };
     context.after(() => { window.setInterval = originalInterval; window.clearInterval = originalClearInterval; });
   }
+  const componentWindow = controls.captureNavigation ? new Proxy(window, { get(target, key) {
+    if (key === "location") return { origin: target.location.origin, assign: (url) => redirects.push(url) };
+    return Reflect.get(target, key, target);
+  } }) : window;
   let quoteResponse = (body) => ({ ok: true, json: async () => ({ quote: { totalCents: body.participants.reduce((sum, participant) => sum + (participant.packageId === "bundle" ? 6000 : 3000) + (participant.addonIds.length ? 2500 : 0), 0), lines: [{ label: "Riepilogo", quantity: 1, unitAmountCents: 3000, totalCents: 3000, kind: "package" }] } }) });
   const exports = compile("../src/components/meraki/commerce-purchase.tsx", {
-    window, document: window.document, Date: TestDate, crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++uuidCalls).padStart(12, "0")}` },
+    window: componentWindow, document: window.document, Date: TestDate, crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++uuidCalls).padStart(12, "0")}` },
     modules: {
       "./commerce-public-model": model, "./commerce-purchase.module.css": cssModule,
       "./event-price-summary": eventPriceSummary,
@@ -122,7 +147,7 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
       if (url === "/api/commerce/quote") return quoteResponse(body, options);
       if (url === "/api/commerce/waitlist") return { ok: true, json: async () => ({ success: true }) };
       if (checkoutResponse instanceof Error) throw checkoutResponse;
-      return { ok: false, json: async () => checkoutResponse };
+      return { ok: checkoutOk, json: async () => checkoutResponse };
     },
   });
   const root = createRoot(window.document.getElementById("root"));
@@ -138,7 +163,7 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
     await change(window.document.querySelector(`input[name="participant-${index}-phone"]`), "+393331234567");
     await change(window.document.querySelector(`input[name="participant-${index}-document-number"]`), locale === "it" ? "RSSMRA85T10A562S" : "ABC123456");
   };
-  return { calls, open, settleQuote, change, fillPerson, elapse: async (milliseconds) => { clockNow += milliseconds; await act(async () => clockTick?.()); await settleQuote(); }, setQuoteResponse: (value) => { quoteResponse = value; }, setCatalogOffline: () => { rejectCatalog = true; }, setCheckoutResponse: (value) => { checkoutResponse = value; } };
+  return { calls, redirects, open, settleQuote, change, fillPerson, elapse: async (milliseconds) => { clockNow += milliseconds; await act(async () => clockTick?.()); await settleQuote(); }, setQuoteResponse: (value) => { quoteResponse = value; }, setCatalogOffline: () => { rejectCatalog = true; }, setCheckoutResponse: (value, options = {}) => { checkoutResponse = value; checkoutOk = options.ok === true; } };
 }
 
 test("events with no commerce configuration preserve their existing purchase", async (context) => {
@@ -415,6 +440,37 @@ test("a group checkout submits the authoritative selection once despite two rapi
   assert.equal(requests[0].body.expectedTotalCents, 3000);
   assert.match(window.document.querySelector('[role="alert"]').textContent, /Pagamento non disponibile/);
   assert.equal(window.document.querySelector("dialog").open, true);
+});
+
+test("a discounted Masterclass opens Meraki's Stripe domain with the accepted 30-euro total", async (context) => {
+  const screenshotCatalog = structuredClone(catalog);
+  screenshotCatalog.config.packages.find((offer) => offer.id === "only-mc").prices = [{ ...tier("early", 3500), label: "Early Bird" }];
+  const ui = await setup(context, screenshotCatalog, "it", undefined, { captureNavigation: true });
+  ui.setQuoteResponse((body) => {
+    const discounted = body.discountCode === "ILPRESIDENTE";
+    return { ok: true, json: async () => ({ quote: { subtotalCents: 3500, discountCents: discounted ? 500 : 0, totalCents: discounted ? 3000 : 3500,
+      discount: discounted ? { code: "ILPRESIDENTE", targetType: "activity", targetIds: ["mc"] } : null,
+      lines: [{ label: "Masterclass · Early Bird", packageId: "only-mc", tierId: "early", quantity: 1, unitAmountCents: discounted ? 3000 : 3500, subtotalCents: 3500, totalCents: discounted ? 3000 : 3500, kind: "package" }] } }) };
+  });
+  await ui.open();
+  await act(async () => window.document.querySelector('input[value="only-mc"]').click());
+  await ui.fillPerson(); await ui.settleQuote();
+  await ui.change(window.document.querySelector('input[name="discountCode"]'), "ILPRESIDENTE");
+  await act(async () => [...window.document.querySelectorAll("button")].find((button) => button.textContent === "Applica").click());
+  await ui.settleQuote();
+  assert.match(window.document.querySelector("form").textContent, /Subtotale35,00/);
+  assert.match(window.document.querySelector("form").textContent, /Sconto.*ILPRESIDENTE.*5,00/);
+  assert.match(window.document.querySelector("form").textContent, /Totale30,00/);
+  const stripeUrl = "https://pay.merakiexperience.org/c/pay/cs_live_placeholder#fidkdWxOYHwnPyd1blpxYHZxWjA0";
+  ui.setCheckoutResponse({ url: stripeUrl }, { ok: true });
+  await act(async () => window.document.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].body.expectedTotalCents, 3000);
+  assert.equal(requests[0].body.discountCode, "ILPRESIDENTE");
+  assert.equal(requests[0].body.participants[0].packageId, "only-mc");
+  assert.deepEqual(ui.redirects, [stripeUrl]);
+  assert.equal(window.document.querySelector('[role="alert"]'), null);
 });
 
 test("a price change displays the authoritative new total and requires explicit confirmation", async (context) => {
