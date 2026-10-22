@@ -33,9 +33,21 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
     let volumeSupported = false;
     let visitorIntent = false;
     let awaitingGesture = false;
+    let hasPlayed = false;
+    let pending = false;
+    let startupBlocked = false;
+    let retries = 0;
+    let retryTimer: number | undefined;
+    let startupTimer: number | undefined;
     let observedVolume = media.volume;
     let observedMuted = media.muted;
     const page = media.ownerDocument;
+    const clearStartup = () => {
+      window.clearTimeout(retryTimer);
+      window.clearTimeout(startupTimer);
+      retryTimer = undefined;
+      startupTimer = undefined;
+    };
     const cancelRecovery = () => {
       awaitingGesture = false;
       page.removeEventListener("click", recoverSound, true);
@@ -45,6 +57,7 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
       visitorIntent = true;
       ++attempt;
       cancelRecovery();
+      clearStartup();
     };
     const sync = () => {
       if (!active) return;
@@ -59,33 +72,61 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
       if (media.volume !== observedVolume || media.muted !== observedMuted) manualIntent();
       sync();
     };
-    const paused = () => { manualIntent(); sync(); };
-    const failed = () => { cancelRecovery(); if (active) setPlayback(current => ({ ...current, loading: false, blocked: false, failed: true })); };
-    const loaded = () => { if (active) setPlayback(current => ({ ...current, loading: false })); };
-    const playing = () => { if (active) { if (!media.muted && media.volume > 0) cancelRecovery(); sync(); setPlayback(current => ({ ...current, loading: false, blocked: false })); } };
-    const play = (retryMuted = true, allowGestureRecovery = false) => {
+    const paused = () => {
+      // WebKit may pause during resource selection or autoplay negotiation.
+      // Only an established playback or an explicit control action is a stop.
+      if (hasPlayed || visitorIntent) manualIntent();
+      else scheduleStartupRetry();
+      sync();
+    };
+    const failed = () => { startupBlocked = true; pending = false; ++attempt; cancelRecovery(); clearStartup(); if (active) setPlayback(current => ({ ...current, loading: false, blocked: false, failed: true })); };
+    const loaded = () => { if (active && media.paused) scheduleStartupRetry(); };
+    const playing = () => { if (active) { hasPlayed = true; pending = false; clearStartup(); if (!media.muted && media.volume > 0) cancelRecovery(); sync(); setPlayback(current => ({ ...current, loading: false, blocked: false })); } };
+    function scheduleStartupRetry() {
+      if (!media || !active || visitorIntent || hasPlayed || startupBlocked || pending || retries >= 2 || retryTimer !== undefined || page.visibilityState === "hidden") return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = undefined;
+        if (!active || visitorIntent || hasPlayed || startupBlocked || pending || !media.paused) return;
+        ++retries;
+        media.muted = true;
+        sync();
+        play();
+      }, 150);
+    }
+    const visible = () => { if (page.visibilityState !== "hidden") scheduleStartupRetry(); };
+    function play(retryMuted = true) {
+      if (!media || !active) return;
       const ticket = ++attempt;
+      pending = true;
+      startupBlocked = false;
+      if (startupTimer === undefined) startupTimer = window.setTimeout(() => {
+        startupTimer = undefined;
+        if (!active || !media.paused) return;
+        ++attempt;
+        pending = false;
+        startupBlocked = true;
+        window.clearTimeout(retryTimer);
+        retryTimer = undefined;
+        setPlayback(current => ({ ...current, loading: false, blocked: true }));
+      }, 8000);
       const rejected = (error: unknown) => {
         if (!active || ticket !== attempt) return;
+        pending = false;
         const name = error && typeof error === "object" && "name" in error ? error.name : "";
-        if (name === "AbortError") return;
+        if (name === "AbortError" && !visitorIntent && !hasPlayed && retries < 2) { scheduleStartupRetry(); return; }
+        if (name === "AbortError") { clearStartup(); startupBlocked = true; setPlayback(current => ({ ...current, loading: false, blocked: true })); return; }
         if (name !== "NotAllowedError") { failed(); return; }
         if (retryMuted && !media.muted) {
           media.muted = true; sync();
-          if (allowGestureRecovery && volumeSupported && !visitorIntent) {
-            awaitingGesture = true;
-            page.addEventListener("click", recoverSound, true);
-            page.addEventListener("keydown", recoverSound, true);
-          }
           play(false);
         }
-        else setPlayback(current => ({ ...current, loading: false, blocked: true }));
+        else { clearStartup(); startupBlocked = true; setPlayback(current => ({ ...current, loading: false, blocked: true })); }
       };
       try {
         const promise = media.play();
-        if (promise) void promise.then(() => { if (active && ticket === attempt) playing(); }, rejected);
+        if (promise) void promise.then(() => { if (active && ticket === attempt) { pending = false; if (!media.paused) playing(); else scheduleStartupRetry(); } }, rejected);
       } catch (error) { rejected(error); }
-    };
+    }
     function recoverSound(event: Event) {
       if (!media || !active || !awaitingGesture || !event.isTrusted || visitorIntent || !media.muted) return;
       const ownSection = controls.current?.closest("[data-event-video]") || controls.current;
@@ -110,12 +151,19 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
     media.addEventListener("play", sync);
     media.addEventListener("pause", paused);
     media.addEventListener("error", failed);
-    // Restore the source after StrictMode's cleanup; no playback starts before volume is configured.
-    media.src = src;
+    page.addEventListener("visibilitychange", visible);
+    // Keep Safari's native muted autoplay intact. Reassigning the same source
+    // aborts its initial resource selection, especially on iPhone.
+    if (media.getAttribute("src") !== src) media.src = src;
+    media.defaultMuted = true;
     media.muted = true;
     try { media.volume = 0.2; volumeSupported = Math.abs(media.volume - 0.2) < 0.01; } catch { /* Device volume remains under physical control. */ }
-    if (volumeSupported) media.muted = false;
     sync();
+    if (volumeSupported) {
+      awaitingGesture = true;
+      page.addEventListener("click", recoverSound, true);
+      page.addEventListener("keydown", recoverSound, true);
+    }
     controller.current = {
       manualIntent,
       play: () => { manualIntent(); play(); },
@@ -128,10 +176,12 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
         } else { ++attempt; media.muted = true; sync(); }
       },
     };
-    play(true, true);
+    play();
     return () => {
       active = false; ++attempt; controller.current = null;
       cancelRecovery();
+      clearStartup();
+      page.removeEventListener("visibilitychange", visible);
       media.removeEventListener("volumechange", nativeVolumeChanged);
       media.removeEventListener("loadedmetadata", loaded);
       media.removeEventListener("canplay", loaded);
@@ -149,11 +199,11 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
   const message = playback.failed ? text.unavailable : playback.blocked ? text.blocked : playback.loading ? text.loading : !playback.volumeSupported ? text.deviceVolume : silent ? text.silent : `${text.volume} ${playback.volume}% · ${text.controls}`;
   return <div ref={controls} data-native-video-controls className="min-w-0" onPointerDownCapture={() => controller.current?.manualIntent()} onKeyDownCapture={() => controller.current?.manualIntent()} onClickCapture={() => controller.current?.manualIntent()}>
     <div data-native-video-player className="relative aspect-video w-full min-w-0 overflow-hidden rounded-[16px] bg-[#18251f]">
-      <video ref={video} src={src} muted controls playsInline preload="metadata" aria-label={title} className="absolute inset-0 h-full w-full object-contain">{text.unsupported}</video>
+      <video ref={video} src={src} autoPlay muted controls playsInline preload="auto" aria-label={title} className="absolute inset-0 h-full w-full object-contain">{text.unsupported}</video>
+      {playback.blocked && <div className="absolute inset-0 flex items-center justify-center bg-black/20"><button type="button" onClick={() => controller.current?.play()} className={button}><Play size={18} aria-hidden="true" />{text.play}</button></div>}
     </div>
     {!playback.failed && <div className="mt-3 flex flex-wrap items-center gap-2">
       <button type="button" onClick={() => controller.current?.sound()} aria-pressed={!silent} className={button}>{silent ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}{silent ? playback.volumeSupported ? text.enable : text.enableDevice : text.mute}</button>
-      {playback.blocked && <button type="button" onClick={() => controller.current?.play()} className={button}><Play size={15} aria-hidden="true" />{text.play}</button>}
     </div>}
     <p role="status" className="mt-2 text-xs leading-5 text-[#5f6d57]">{message}</p>
   </div>;
