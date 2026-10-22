@@ -1,3 +1,4 @@
+import { youtubeModule } from "./helpers/youtube-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import { richTextDynamicFixture } from "./helpers/rich-text-editor-fixture.mjs";
 import assert from "node:assert/strict";
@@ -27,7 +28,7 @@ function load(file, mocks = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : id === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(id), Date, Intl, Error, URL, window: dom.window, crypto: webcrypto, FormData: dom.window.FormData, console: { error() {} } });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : id === "@/lib/events/youtube" ? youtubeModule : id === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(id), Date, Intl, Error, URL, window: dom.window, crypto: webcrypto, FormData: dom.window.FormData, console: { error() {} } });
   return compiledModule.exports;
 }
 const config = load("lib/commerce/config.ts");
@@ -676,17 +677,22 @@ test("failed saves stay in the creation form and announce the error", async (con
   assert.deepEqual(screen.navigations, []);
 });
 
-test("event list exposes scoped package and check-in links without stale legacy sales counts for advanced events", async () => {
-  const { DataTable } = load("components/admin/data-table.tsx");
+test("event list exposes statistics, packages and check-in without stale legacy sales counts", async () => {
+  const { EventsListClient } = load("app/[locale]/admin/eventi/events-list-client.tsx", {
+    "@/i18n/routing": routing,
+    "@/components/ui/custom-select": customSelect,
+  });
   const { default: Page } = load("app/[locale]/admin/eventi/page.tsx", {
-    "@/lib/supabase/server": { createClient: async () => ({ from: () => ({ select() { return this; }, order: async () => ({ data: [{ ...baseEvent, commerce_config: validConfig }], error: null }) }) }) },
-    "@/components/admin/data-table": { DataTable }, "@/i18n/routing": routing,
-    "next-intl/server": { getLocale: async () => "it" }, "@/lib/i18n-utils": i18n, "@/lib/commerce/config": config,
+    "@/lib/admin/analytics": { loadAdminAnalytics: async () => ({ eventStats: [{ id: eventId, title: "Meraki", startsAt: baseEvent.data_inizio, endsAt: null, status: "upcoming", capacity: 100, remaining: 83, netCents: 6500, validParticipants: 17, checkedInParticipants: 2 }] }) },
+    "./events-list-client": { EventsListClient },
+    "next-intl/server": { getLocale: async () => "it" },
   });
   const html = renderToStaticMarkup(await Page());
+  assert.ok(html.includes(`href="/admin/eventi/${eventId}/statistiche"`));
   assert.ok(html.includes(`href="/admin/eventi/${eventId}/commerce"`));
   assert.ok(html.includes(`href="/admin/biglietti?event=${eventId}"`));
-  assert.ok(html.includes("Formule e scaglioni"));
+  assert.ok(html.includes("Formule e prezzi"));
+  assert.ok(html.includes("Iscritti validi"));
   assert.equal(html.includes("venduti"), false);
   assert.equal(html.includes("Gratis"), false);
 });

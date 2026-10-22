@@ -36,6 +36,7 @@ const { EventDetail } = load("components/meraki/event-detail.tsx", {
   "@/lib/tickets/event-availability": load("lib/tickets/event-availability.ts"),
   "@/app/[locale]/(public)/eventi/[slug]/checkout-button": { CheckoutButton: (props) => { checkoutCalls.push(props); return React.createElement("button", null, "Checkout"); } },
   "./commerce-purchase": { CommercePurchase: ({ fallback }) => fallback },
+  "./event-video": { EventVideo: () => null },
   "./event-poster": poster,
   "./event-logistics-section": travel,
   "./event-activity-schedule": activitySchedule,

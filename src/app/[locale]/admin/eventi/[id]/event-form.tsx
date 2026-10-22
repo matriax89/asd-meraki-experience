@@ -16,6 +16,7 @@ import { fromRomeInput, toRomeInput } from "@/lib/commerce/rome-time";
 import type { Database } from "@/types/supabase";
 import { richTextPlainText, richTextSerializedLimit } from "@/lib/rich-text";
 import { eventAffiliatesSchema, parseEventAffiliates } from "@/lib/events/affiliates";
+import { normalizeYoutubeUrl } from "@/lib/events/youtube";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"] & { commerce_config?: unknown };
 type LocalizedValue = string | Record<string, string>;
@@ -23,7 +24,7 @@ type LocalizedValue = string | Record<string, string>;
 const eventSteps = [
   { title: "Dettagli", description: "Titolo e descrizione" },
   { title: "Data e luogo", description: "Orari, check-in e capienza" },
-  { title: "Biglietteria e media", description: "Vendita e copertina" },
+  { title: "Biglietteria e media", description: "Vendita, locandina e video" },
   { title: "Viaggio e soggiorno", description: "Facoltativo · hotel e arrivo" },
   { title: "Riepilogo", description: "Controlla e conferma" },
 ] as const;
@@ -97,6 +98,8 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
     prezzo_euro: initialPriceEuro,
     capacity: initialData?.capacity ?? "",
     copertina_url: initialData?.copertina_url || "",
+    youtube_url: initialData?.youtube_url || "",
+    video_titolo: initialData?.video_titolo || "",
     attivo: initialData?.attivo ?? true,
   });
 
@@ -168,6 +171,19 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       }
       if (step === 2) {
         ticketPrice();
+        if (formData.youtube_url.trim() && !normalizeYoutubeUrl(formData.youtube_url)) {
+          target = "[data-event-youtube-url] input";
+          throw new Error("Inserisci un link HTTPS a un singolo video YouTube valido, oppure lascia il campo vuoto.");
+        }
+        const invalidVideoTitleLanguage = Object.keys(languageNames).find((language) => {
+          const title = localizedCopy(formData.video_titolo, language);
+          return title.trim().length > 160 || /[<>\u0000-\u001f\u007f]/.test(title);
+        });
+        if (invalidVideoTitleLanguage) {
+          target = "[data-event-video-title]";
+          language = invalidVideoTitleLanguage;
+          throw new Error("Il titolo del video deve essere testo semplice, fino a 160 caratteri per lingua.");
+        }
         const affiliateValidation = eventAffiliatesSchema.safeParse(affiliates);
         if (!affiliateValidation.success) {
           const index = affiliateValidation.error.issues[0]?.path[0];
@@ -281,6 +297,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       prezzo_cents: ticketPrice(),
       capacity: formData.capacity === "" ? null : Number(formData.capacity),
       copertina_url: formData.copertina_url,
+      youtube_url: normalizeYoutubeUrl(formData.youtube_url), video_titolo: formData.video_titolo,
       logistics: hasEventLogistics(logistics) ? eventLogisticsSchema.parse(logistics) : null,
       affiliates: eventAffiliatesSchema.parse(affiliates),
       attivo: requiresTicketSetup ? false : formData.attivo,
@@ -477,6 +494,12 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
       </section>
 
       <PosterUpload value={formData.copertina_url} onChange={(copertina_url) => setFormData((current) => ({ ...current, copertina_url }))} onUploadingChange={(uploading) => { posterPending.current = uploading; setPosterUploading(uploading); }} disabled={isPending} />
+      <section data-event-video-editor className="space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div><h2 className="text-xl font-bold">Video dell’evento</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Facoltativo. Compare sotto la locandina nella pagina dell’evento. Si avvia senza audio, con i controlli per attivarlo, dopo il consenso ai contenuti YouTube.</p></div>
+        <div data-event-youtube-url><Input label="Link video YouTube" type="url" maxLength={2048} placeholder="https://www.youtube.com/watch?v=…" value={formData.youtube_url} onChange={(event) => setFormData({ ...formData, youtube_url: event.target.value })} /></div>
+        <div data-event-video-title><MultilingualInput label="Titolo del video" maxLength={160} value={formData.video_titolo} onChange={(value) => setFormData({ ...formData, video_titolo: value })} /></div>
+        <p className="text-xs leading-5 text-muted-foreground">Usa un titolo che spieghi cosa vedranno i partecipanti, nelle quattro lingue. Se vuoto mostriamo “Scopri cosa ti aspetta”, tradotto nella lingua scelta. Lascia vuoto il link per nascondere il video.</p>
+      </section>
       </fieldset>
 
       <fieldset ref={(node) => { panels.current[3] = node; }} hidden={currentStep !== 3} disabled={isPending} data-event-step="3" aria-label={eventSteps[3].title} className="min-w-0 border-0 p-0">
@@ -498,6 +521,7 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
         <section className="space-y-3 border-t border-[#e4e5dc] pt-4" aria-label="Riepilogo biglietteria"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Biglietteria e media</h3><button type="button" onClick={() => changeStep(2)} className="min-h-11 text-sm font-semibold text-[#8f794f]">Modifica biglietteria e media</button></div>
           <p className="text-sm">{ticketingMode === "advanced" ? "Formule, scaglioni e cena" : formData.prezzo_euro && Number(formData.prezzo_euro.replace(",", ".")) > 0 ? `Prezzo unico · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(formData.prezzo_euro.replace(",", ".")))}` : "Prezzo unico · Gratuito"}</p>
           <p className="text-sm text-[#7a8272]">{formData.copertina_url ? "Immagine di copertina inserita." : "Nessuna immagine di copertina."}</p>
+          <div data-event-video-review className="space-y-2 text-sm"><p className="font-semibold">Video YouTube</p>{normalizeYoutubeUrl(formData.youtube_url) ? <><p className="break-all text-[#7a8272]">{normalizeYoutubeUrl(formData.youtube_url)}</p><dl className="grid gap-2 sm:grid-cols-2">{Object.entries(languageNames).map(([language, name]) => <div key={language}><dt className="text-xs text-[#7a8272]">{name}</dt><dd>{localizedCopy(formData.video_titolo, language).trim() || "Titolo automatico nella lingua scelta"}</dd></div>)}</dl></> : <p className="text-[#7a8272]">Nessun video. La pagina mantiene soltanto la locandina.</p>}</div>
           <div className="space-y-2 text-sm"><p className="font-semibold">Affiliati: {affiliates.filter((affiliate) => affiliate.active).length} attivi</p>{affiliates.length > 0 ? <ul className="space-y-1 text-[#7a8272]">{affiliates.map((affiliate) => <li key={affiliate.id}>{affiliate.name} · {affiliate.active ? "Attivo" : "Disattivato"}</li>)}</ul> : <p className="text-[#7a8272]">Nessun campo affiliato durante l’acquisto.</p>}</div>
           {requiresTicketSetup && <p className="rounded-xl bg-[#f2efe6] p-4 text-sm leading-6">Alla conferma salvi una bozza e apri la configurazione di attività, formule e prezzi. Pubblicherai l’evento dopo aver completato la biglietteria.</p>}
         </section>

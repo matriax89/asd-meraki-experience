@@ -1,4 +1,5 @@
 import React from "react";
+import { DataTableView } from "./data-table-view";
 
 interface Column<T> {
   header: string;
@@ -6,53 +7,29 @@ interface Column<T> {
   cell?: (item: T) => React.ReactNode;
   align?: "left" | "center" | "right";
 }
-
 interface DataTableProps<T> {
   data: T[];
   columns: Column<T>[];
   keyExtractor: (item: T) => string;
+  caption?: string;
+  searchPlaceholder?: string;
+  pageSize?: number;
+  searchable?: boolean;
 }
 
-export function DataTable<T>({ data, columns, keyExtractor }: DataTableProps<T>) {
-  return (
-    <div className="w-full overflow-x-auto rounded-[24px] border border-slate-200 bg-white shadow-sm">
-      <table className="w-full text-sm text-left">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            {columns.map((col, idx) => (
-              <th key={idx} className={`px-6 py-5 text-[12px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
-                {col.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {data.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="px-6 py-16 text-center text-slate-400 font-medium">
-                Nessun dato disponibile.
-              </td>
-            </tr>
-          ) : (
-            data.map((item, rowIndex) => (
-              <tr 
-                key={keyExtractor(item)} 
-                className="hover:bg-slate-50/50 transition-colors"
-              >
-                {columns.map((col, colIndex) => (
-                  <td key={colIndex} className={`px-6 py-5 text-slate-700 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
-                    {col.cell 
-                      ? col.cell(item) 
-                      : col.accessorKey 
-                        ? String(item[col.accessorKey] ?? '') 
-                        : null}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
+function visibleText(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(visibleText).join(" ");
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) return visibleText(node.props.children);
+  return "";
+}
+
+// Render server-owned cell callbacks before passing the serializable table view
+// to the client. This also works in existing client-rendered management lists.
+export function DataTable<T>({ data, columns, keyExtractor, caption, searchPlaceholder, pageSize, searchable }: DataTableProps<T>) {
+  const rows = data.map(item => {
+    const cells = columns.map(column => column.cell ? column.cell(item) : column.accessorKey ? String(item[column.accessorKey] ?? "") : null);
+    return { id: keyExtractor(item), cells, searchText: cells.map(visibleText).join(" ") };
+  });
+  return <DataTableView rows={rows} columns={columns.map(({ header, align }) => ({ header, align }))} caption={caption} searchPlaceholder={searchPlaceholder} initialPageSize={pageSize} searchable={searchable}/>;
 }

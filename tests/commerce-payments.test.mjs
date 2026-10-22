@@ -1,4 +1,5 @@
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
+import { youtubeModule } from "./helpers/youtube-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -12,7 +13,7 @@ function load(path, mocks = {}, env = {}) {
   const filename = fileURLToPath(new URL(`../${path}`, import.meta.url));
   const source = ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : require(name), console: { error() {} }, URL, Request, Response, process: { env }, Map, Date }, { filename });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/youtube" ? youtubeModule : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : require(name), console: { error() {} }, URL, Request, Response, process: { env }, Map, Date }, { filename });
   return compiledModule.exports;
 }
 const localization = load("src/lib/commerce/localization.ts");

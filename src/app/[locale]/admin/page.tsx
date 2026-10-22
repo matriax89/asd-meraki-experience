@@ -1,101 +1,20 @@
-import { createClient } from "@/lib/supabase/server";
-import { Users, ShoppingBag, Ticket, BarChart3, Activity } from "lucide-react";
-import { Link } from "@/i18n/routing";
+import { AnalyticsDashboard } from "@/components/admin/analytics-dashboard";
+import { loadAdminAnalytics } from "@/lib/admin/analytics";
+import type { AdminAnalyticsInput } from "@/lib/admin/analytics-types";
 
-export default async function AdminDashboardPage() {
-  const supabase = await createClient();
+type Query = { event?: string | string[]; period?: string | string[]; from?: string | string[]; to?: string | string[]; affiliate?: string | string[] };
+const value = (entry: string | string[] | undefined) => typeof entry === "string" ? entry : entry === undefined ? undefined : "invalid";
 
-  // Fetches in parallelo per i KPI
-  const [
-    { count: leadsCount },
-    { count: ordiniCount },
-    { count: ticketCount }
-  ] = await Promise.all([
-    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'nuovo'),
-    supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
-    supabase.from('tickets').select('*', { count: 'exact', head: true })
-  ]);
-
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard Overview</h1>
-        <p className="text-slate-500 mt-2">Benvenuto nel pannello di controllo Meraki Experience.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        
-        {/* KPI Card 1 */}
-        <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Nuovi Leads</p>
-              <h3 className="text-4xl font-extrabold text-slate-900 mt-2">{leadsCount || 0}</h3>
-            </div>
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-[14px]">
-              <Users className="w-6 h-6" />
-            </div>
-          </div>
-          <p className="text-xs font-semibold text-slate-400">Richieste da gestire</p>
-        </div>
-
-        {/* KPI Card 2 */}
-        <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Ordini da completare</p>
-              <h3 className="text-4xl font-extrabold text-slate-900 mt-2">{ordiniCount || 0}</h3>
-            </div>
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-[14px]">
-              <ShoppingBag className="w-6 h-6" />
-            </div>
-          </div>
-          <p className="text-xs font-semibold text-slate-400">Ordini pregressi pagati in attesa</p>
-        </div>
-
-        {/* KPI Card 3 */}
-        <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Biglietti Emessi</p>
-              <h3 className="text-4xl font-extrabold text-slate-900 mt-2">{ticketCount || 0}</h3>
-            </div>
-            <div className="p-3 bg-purple-50 text-purple-600 rounded-[14px]">
-              <Ticket className="w-6 h-6" />
-            </div>
-          </div>
-          <p className="text-xs font-semibold text-slate-400">Totale storico</p>
-        </div>
-
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white rounded-[24px] border border-slate-200 p-8 shadow-sm min-h-[400px] flex flex-col">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2.5 bg-slate-100 rounded-xl text-slate-600">
-              <BarChart3 className="w-5 h-5" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900">Storico ordini</h3>
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-[20px] bg-slate-50/50">
-            <Link href="/admin/ordini" className="text-indigo-600 text-sm font-medium hover:underline">
-              Consulta e gestisci gli ordini pregressi
-            </Link>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-[24px] border border-slate-200 p-8 shadow-sm min-h-[400px] flex flex-col">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2.5 bg-slate-100 rounded-xl text-slate-600">
-              <Activity className="w-5 h-5" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900">Attività Recenti</h3>
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-[20px] bg-slate-50/50">
-            <p className="text-slate-400 text-sm font-medium">Feed attività in elaborazione...</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+export default async function AdminDashboardPage({ params, searchParams }: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<Query>;
+}) {
+  const [{ locale }, query] = await Promise.all([params, searchParams]);
+  let data;
+  try {
+    data = await loadAdminAnalytics({ locale, eventId: value(query.event), period: value(query.period) as AdminAnalyticsInput["period"], from: value(query.from), to: value(query.to), affiliateId: value(query.affiliate) });
+  } catch {
+    return <section className="space-y-3"><h1 className="text-2xl font-semibold text-[#263f2e]">Dashboard</h1><p role="alert" className="rounded-xl border border-[#e5d9bb] bg-[#faf6e9] p-4 text-sm leading-6 text-[#83714b]">Impossibile caricare le statistiche. Verifica l’accesso e i filtri selezionati, poi ricarica la pagina. Nessun dato parziale viene mostrato.</p></section>;
+  }
+  return <AnalyticsDashboard key={JSON.stringify(data.filters)} data={data} />;
 }

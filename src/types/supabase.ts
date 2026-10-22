@@ -234,6 +234,8 @@ export type Database = {
           tipo: Database["public"]["Enums"]["event_tipo_enum"]
           titolo: Json
           updated_at: string | null
+          youtube_url: string | null
+          video_titolo: Json | null
         }
         Insert: {
           affiliates?: Json
@@ -267,6 +269,8 @@ export type Database = {
           tipo?: Database["public"]["Enums"]["event_tipo_enum"]
           titolo: Json
           updated_at?: string | null
+          youtube_url?: string | null
+          video_titolo?: Json | null
         }
         Update: {
           affiliates?: Json
@@ -300,6 +304,8 @@ export type Database = {
           tipo?: Database["public"]["Enums"]["event_tipo_enum"]
           titolo?: Json
           updated_at?: string | null
+          youtube_url?: string | null
+          video_titolo?: Json | null
         }
         Relationships: []
       }

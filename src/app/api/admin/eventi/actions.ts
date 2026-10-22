@@ -7,6 +7,7 @@ import { parseCommerceConfig } from "@/lib/commerce/config";
 import { eventLogisticsSchema } from "@/lib/events/logistics";
 import { eventAffiliatesSchema, parseEventAffiliates } from "@/lib/events/affiliates";
 import { richTextHasContent, richTextPlainText, richTextSerializedLimit } from "@/lib/rich-text";
+import { normalizeYoutubeUrl } from "@/lib/events/youtube";
 
 const localized = z.union([z.string().max(200_000), z.record(z.string(), z.string().max(200_000))]);
 const shortDescriptionText = z.string().max(richTextSerializedLimit(3000))
@@ -16,6 +17,15 @@ const shortDescription = z.union([shortDescriptionText, z.object({
   de: shortDescriptionText.optional(), es: shortDescriptionText.optional(),
 }).strict()]).transform((value) => typeof value === "string" ? { it: value } : value)
   .transform((value) => Object.values(value).some((text) => text && richTextHasContent(text)) ? value : null);
+const videoTitleText = z.string().trim().max(160).refine((value) => !/[<>\u0000-\u001f\u007f]/.test(value));
+const videoTitle = z.union([videoTitleText, z.object({
+  it: videoTitleText.optional(), en: videoTitleText.optional(),
+  de: videoTitleText.optional(), es: videoTitleText.optional(),
+}).strict()]).transform((value) => typeof value === "string" ? { it: value } : value)
+  .transform((value) => Object.values(value).some(Boolean) ? value : null);
+const youtubeUrl = z.string().trim().max(2048)
+  .refine((value) => !value || Boolean(normalizeYoutubeUrl(value)))
+  .transform((value) => normalizeYoutubeUrl(value));
 const eventSchema = z.object({
   id: z.string().uuid().optional(), slug: z.string().trim().max(160).optional(), titolo: localized,
   sottotitolo: localized.nullable().optional(), descrizione: localized.nullable().optional(),
@@ -25,6 +35,7 @@ const eventSchema = z.object({
   check_in_starts_at: z.iso.datetime({ offset: true }).nullable().optional(),
   location: z.string().max(500).nullable().optional(), indirizzo: z.string().max(1000).nullable().optional(),
   copertina_url: z.string().max(2048).nullable().optional(),
+  youtube_url: youtubeUrl.nullable().optional(), video_titolo: videoTitle.nullable().optional(),
   logistics: eventLogisticsSchema.optional(),
   affiliates: eventAffiliatesSchema.optional(),
   prezzo_cents: z.number().int().min(0).max(10_000_000).nullable().optional(),
@@ -53,6 +64,12 @@ export async function upsertEvent(raw: unknown) {
   const supabase = await requireCommerceStaff();
   const validation = eventSchema.safeParse(raw);
   if (!validation.success) {
+    if (validation.error.issues.some((issue) => issue.path[0] === "youtube_url")) {
+      return { success: false, error: "Inserisci un link HTTPS a un singolo video YouTube valido (youtube.com o youtu.be), oppure lascia il campo vuoto." };
+    }
+    if (validation.error.issues.some((issue) => issue.path[0] === "video_titolo")) {
+      return { success: false, error: "Controlla il titolo del video: usa testo semplice in IT, EN, DE o ES, fino a 160 caratteri per lingua." };
+    }
     if (validation.error.issues.some((issue) => issue.path[0] === "descrizione_breve")) {
       return { success: false, error: "Controlla la presentazione breve: usa IT, EN, DE o ES e al massimo 3000 caratteri per lingua." };
     }

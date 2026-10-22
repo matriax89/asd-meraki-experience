@@ -46,7 +46,7 @@ const tickets = [
 
 function compile(path, replacements) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
-  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const exports = {};
   vm.runInNewContext(code, { exports, window, document: window.document, navigator: window.navigator, URL, Error, console, require: (name) => replacements[name] || nativeFormControlMocks[name] || (name === "@/lib/events/affiliates" ? compile("../src/lib/events/affiliates.ts", {}) : require(name)) });
   return exports;
@@ -97,7 +97,7 @@ async function setup(context, { initialEventId = "", initialAffiliateId = "", ti
     }
   }
   const scanner = compile("../src/app/[locale]/admin/biglietti/qr-scanner.tsx", { "@/app/api/admin/biglietti/actions": actions, "@zxing/browser": { BrowserQRCodeReader } });
-  const dataTable = compile("../src/components/admin/data-table.tsx", {});
+  const dataTable = compile("../src/components/admin/data-table.tsx", { "./data-table-view": compile("../src/components/admin/data-table-view.tsx", {}) });
   const router = { replace(href, options) {
     navigationCalls.push({ href, options });
     window.history.replaceState(null, "", href);
@@ -186,7 +186,7 @@ test("search finds a full name, email or ticket code only inside the selected ev
     assert.deepEqual(ui.counts(), { "Iscritti validi": 4, "Con check-in": 1, "Senza check-in": 3 });
   }
   await ui.search("bruno");
-  assert.match(window.document.querySelector("tbody").textContent, /Nessun dato/);
+  assert.match(window.document.querySelector("tbody").textContent, /Non ci sono ancora dati/);
   assert.equal(ui.row("Bruno Neri"), undefined);
   await ui.selectEvent(eventB);
   assert.equal(window.document.querySelector('[aria-label="Cerca nome, email o codice"]').value, "");

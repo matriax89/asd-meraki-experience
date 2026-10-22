@@ -1,3 +1,4 @@
+import { youtubeModule } from "./helpers/youtube-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -26,7 +27,7 @@ function load(file, mocks = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, Error, window: dom.window, document: dom.window.document, crypto: webcrypto, console, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(name) });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, Error, window: dom.window, document: dom.window.document, crypto: webcrypto, console, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/lib/events/youtube" ? youtubeModule : name === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(name) });
   return compiledModule.exports;
 }
 const CustomSelect = React.forwardRef((props, ref) => React.createElement("select", { ...props, ref }));
@@ -91,6 +92,69 @@ function eventFormFixture({ realLogistics = false } = {}) {
 }
 
 const flushFocus = () => act(async () => { await new Promise((resolve) => dom.window.setTimeout(resolve, 0)); });
+
+test("an optional event video and its four titles survive review, editing and canonical server save", async (context) => {
+  const { EventForm, saved } = eventFormFixture();
+  const screen = await mount(context, EventForm, { initialData: baseEvent });
+  await screen.click("Avanti"); await screen.click("Avanti");
+  const label = "Titolo del video";
+  await screen.change(screen.input("Link video YouTube"), "https://youtu.be/Ut08j478Ypg?si=tracking");
+  const titles = { it: "Scopri cosa ti aspetta", en: "See what awaits you", de: "Entdecke, was dich erwartet", es: "Descubre lo que te espera" };
+  for (const [language, title] of Object.entries(titles)) {
+    await screen.language(label, language); await screen.change(screen.input(label), title);
+  }
+  await screen.click("Avanti"); await screen.click("Avanti");
+  const review = screen.host.querySelector("[data-event-video-review]");
+  assert.ok(review.textContent.includes("https://www.youtube.com/watch?v=Ut08j478Ypg"));
+  for (const title of Object.values(titles)) assert.ok(review.textContent.includes(title));
+  assert.equal(saved.length, 0);
+  await screen.click("Modifica biglietteria e media");
+  for (const [language, title] of Object.entries(titles)) {
+    await screen.language(label, language); assert.equal(screen.input(label).value, title);
+  }
+  await screen.click("Avanti"); await screen.click("Avanti"); await screen.submit();
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].youtube_url, "https://www.youtube.com/watch?v=Ut08j478Ypg");
+  assert.deepEqual(saved[0].video_titolo, titles);
+  assert.equal(saved[0].copertina_url, baseEvent.copertina_url || "");
+});
+
+test("event video validation blocks unsupported links and hidden oversized translations before saving", async context => {
+  const { EventForm, saved } = eventFormFixture();
+  const screen = await mount(context, EventForm, { initialData: { ...baseEvent, video_titolo: { en: "x".repeat(161) } } });
+  await screen.click("Avanti"); await screen.click("Avanti");
+  await screen.change(screen.input("Link video YouTube"), "https://evil.test/embed/Ut08j478Ypg");
+  await screen.click("Avanti"); await flushFocus();
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /singolo video YouTube valido/);
+  assert.equal(document.activeElement, screen.input("Link video YouTube"));
+  await screen.change(screen.input("Link video YouTube"), "https://youtu.be/Ut08j478Ypg");
+  await screen.click("Avanti"); await flushFocus();
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /titolo del video.*160/);
+  assert.equal(screen.input("Titolo del video").value, "x".repeat(161));
+  assert.equal(document.activeElement, screen.input("Titolo del video"));
+  assert.equal(saved.length, 0);
+});
+
+test("video server validation is optional, canonicalizes links and rejects arbitrary embeds and malformed titles", async () => {
+  for (const [url, expected] of [[undefined, undefined], [null, null], ["", null], ["https://youtu.be/Ut08j478Ypg?si=tracking", "https://www.youtube.com/watch?v=Ut08j478Ypg"]]) {
+    const { actions, saved } = eventFormFixture();
+    assert.equal((await actions.upsertEvent({ ...baseEvent, ...(url === undefined ? {} : { youtube_url: url }), video_titolo: { it: "Video evento", en: "Event video", de: "Eventvideo", es: "Vídeo del evento" } })).success, true);
+    assert.equal(saved[0].youtube_url, expected);
+    assert.equal(saved[0].video_titolo.en, "Event video");
+  }
+  for (const value of [null, "", { it: "", en: "  " }]) {
+    const { actions, saved } = eventFormFixture();
+    assert.equal((await actions.upsertEvent({ ...baseEvent, video_titolo: value })).success, true);
+    assert.equal(saved[0].video_titolo, null);
+  }
+  for (const patch of [{ youtube_url: "javascript:alert(1)" }, { youtube_url: "https://evil.test/watch?v=Ut08j478Ypg" }, { youtube_url: '<iframe src="https://www.youtube.com/embed/Ut08j478Ypg"></iframe>' }, { video_titolo: { fr: "Unsupported" } }, { video_titolo: { it: "x".repeat(161) } }, { video_titolo: { it: "<b>HTML</b>" } }, { video_titolo: { en: 12 } }, { video_titolo: [] }]) {
+    const { actions, saved } = eventFormFixture();
+    const result = await actions.upsertEvent({ ...baseEvent, ...patch });
+    assert.equal(result.success, false);
+    assert.match(result.error, /YouTube|titolo del video/);
+    assert.equal(saved.length, 0);
+  }
+});
 
 test("optional event introductions preserve formatted translations through review, editing and server save", async (context) => {
   const { EventForm, saved } = eventFormFixture();
