@@ -17,10 +17,26 @@ interface DataTableProps<T> {
   searchable?: boolean;
 }
 
+type OptionProps = { children?: React.ReactNode; value?: unknown; defaultValue?: unknown };
+function selectOptions(children: React.ReactNode): React.ReactElement<OptionProps>[] {
+  return React.Children.toArray(children).flatMap(child => {
+    if (!React.isValidElement<OptionProps>(child)) return [];
+    return child.type === "option" ? [child] : child.type === "optgroup" || child.type === React.Fragment ? selectOptions(child.props.children) : [];
+  });
+}
+
 function visibleText(node: React.ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(visibleText).join(" ");
-  if (React.isValidElement<{ children?: React.ReactNode }>(node)) return visibleText(node.props.children);
+  if (React.isValidElement<OptionProps>(node)) {
+    const options = selectOptions(node.props.children);
+    if (options.length) {
+      const selected = node.props.value ?? node.props.defaultValue ?? options[0].props.value ?? visibleText(options[0].props.children);
+      const values = new Set((Array.isArray(selected) ? selected : [selected]).map(String));
+      return options.filter(option => values.has(String(option.props.value ?? visibleText(option.props.children)))).map(option => visibleText(option.props.children)).join(" ");
+    }
+    return visibleText(node.props.children);
+  }
   return "";
 }
 

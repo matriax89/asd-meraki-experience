@@ -141,3 +141,25 @@ test("searchable=false omits duplicate search while preserving pagination and in
   assert.deepEqual(actions, ["person-1", "person-11"]);
   assert.ok(ui.host.textContent.includes("11–20 di 57"));
 });
+
+test("search indexes only the selected status of a controlled CustomSelect, not every available option", async context => {
+  const statuses = [{ value: "nuovo", label: "Nuovo" }, { value: "contattato", label: "Contattato" }, { value: "archiviato", label: "Archiviato" }];
+  const stateColumns = [{ header: "Partecipante", accessorKey: "name" }, { header: "Stato", cell: person => React.createElement(CustomSelect, { value: person.status, onChange() {}, "aria-label": "Stato richiesta" }, statuses.map(status => React.createElement("option", { key: status.value, value: status.value }, status.label))) }];
+  const ui = await mount(context, { data: [{ ...people[0], status: "nuovo" }, { ...people[1], status: "archiviato" }], columns: stateColumns });
+  await ui.search("ARCHIVIATO");
+  assert.equal(ui.rows().length, 1);
+  assert.ok(ui.rows()[0].textContent.includes("Anna Müller"));
+  assert.equal(ui.host.querySelector("tbody").textContent.includes("José Álvarez"), false);
+  await ui.search("nuovo");
+  assert.equal(ui.rows().length, 1);
+  assert.ok(ui.rows()[0].textContent.includes("José Álvarez"));
+  assert.equal(ui.host.querySelector("tbody").textContent.includes("Anna Müller"), false);
+  await ui.search("contattato");
+  assert.ok(ui.host.querySelector("tbody").textContent.includes("Nessun risultato per questa ricerca."));
+});
+
+test("server-rendered default select values index their displayed label while leaving choice lists out of search", () => {
+  const element = DataTable({ data: people.slice(0, 1), keyExtractor: person => person.id, columns: [{ header: "Stato", cell: () => React.createElement("select", { defaultValue: "archiviato" }, React.createElement("option", { value: "nuovo" }, "Nuovo"), React.createElement("option", { value: "archiviato" }, "Archiviato")) }] });
+  assert.equal(element.props.rows[0].searchText.includes("Archiviato"), true);
+  assert.equal(element.props.rows[0].searchText.includes("Nuovo"), false);
+});
