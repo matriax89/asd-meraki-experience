@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { Play, X } from "lucide-react";
+import { ArrowUpRight, Clapperboard, Play, X } from "lucide-react";
 import { COOKIE_CONSENT_CHANGED_EVENT, COOKIE_CONSENT_KEY, storedMarketingConsent } from "@/lib/facebook-pixel";
 import { normalizeYoutubeUrl, youtubeEmbedUrl } from "@/lib/events/youtube";
+import { YoutubePlayer } from "./youtube-player";
 
 const labels = {
-  it: { title: "Scopri cosa ti aspetta", watch: "Guarda il video", consent: "Il video è ospitato su YouTube. Premendo il pulsante autorizzi il caricamento solo per questa pagina.", playback: "Il video parte senza audio. Se non si avvia, premi Play. Puoi attivare l’audio dai controlli del video.", external: "Apri su YouTube", close: "Chiudi il video" },
-  en: { title: "See what awaits you", watch: "Watch the video", consent: "The video is hosted on YouTube. Pressing the button allows it to load for this page only.", playback: "The video starts muted. If it does not start, press Play. Use the video controls to turn on the sound.", external: "Open on YouTube", close: "Close the video" },
-  de: { title: "Entdecke, was dich erwartet", watch: "Video ansehen", consent: "Das Video wird auf YouTube gehostet. Mit der Schaltfläche erlaubst du das Laden nur für diese Seite.", playback: "Das Video startet ohne Ton. Falls es nicht startet, drücke auf Play. Den Ton kannst du über die Videosteuerung einschalten.", external: "Auf YouTube öffnen", close: "Video schließen" },
-  es: { title: "Descubre lo que te espera", watch: "Ver el vídeo", consent: "El vídeo está alojado en YouTube. Al pulsar el botón permites cargarlo solo en esta página.", playback: "El vídeo empieza sin sonido. Si no se inicia, pulsa Play. Puedes activar el sonido desde los controles del vídeo.", external: "Abrir en YouTube", close: "Cerrar el vídeo" },
+  it: { video: "Il video dell’esperienza", title: "Scopri cosa ti aspetta", watch: "Guarda il video", consent: "Il video è ospitato su YouTube. Premendo il pulsante autorizzi il caricamento solo per questa pagina.", external: "Apri su YouTube", close: "Chiudi il video" },
+  en: { video: "Experience video", title: "See what awaits you", watch: "Watch the video", consent: "The video is hosted on YouTube. Pressing the button allows it to load for this page only.", external: "Open on YouTube", close: "Close the video" },
+  de: { video: "Einblick im Video", title: "Entdecke, was dich erwartet", watch: "Video ansehen", consent: "Das Video wird auf YouTube gehostet. Mit der Schaltfläche erlaubst du das Laden nur für diese Seite.", external: "Auf YouTube öffnen", close: "Video schließen" },
+  es: { video: "El vídeo de la experiencia", title: "Descubre lo que te espera", watch: "Ver el vídeo", consent: "El vídeo está alojado en YouTube. Al pulsar el botón permites cargarlo solo en esta página.", external: "Abrir en YouTube", close: "Cerrar el vídeo" },
 };
 
 export function EventVideo({ url, title, locale }: { url?: string | null; title?: string; locale: string }) {
@@ -45,12 +46,18 @@ function VideoPlayer({ canonical, embed, title, locale }: { canonical: string; e
     };
   }, []);
 
-  return <section data-event-video aria-labelledby={headingId} className="mt-6 min-w-0">
-    <div className="mb-3 flex items-start justify-between gap-3"><h2 id={headingId} className="min-w-0 break-words text-base font-semibold leading-6 text-[#18251f]">{heading}</h2>{allowed && <button type="button" aria-label={text.close} onClick={() => { setPageAllowed(false); setClosed(true); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#dedfd3] text-[#52604f] hover:bg-[#f0f0e8]"><X className="h-4 w-4" aria-hidden="true" /></button>}</div>
-    <div className="relative aspect-video overflow-hidden rounded-[16px] bg-[#18251f]">
-      {allowed ? <iframe src={embed} title={`${heading} · YouTube`} className="absolute inset-0 h-full w-full border-0" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <div className="flex h-full items-center justify-center p-5"><button type="button" onClick={() => { setClosed(false); setPageAllowed(true); }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#18251f]"><Play className="h-4 w-4" aria-hidden="true" />{text.watch}</button></div>}
+  return <section data-event-video aria-labelledby={headingId} className="mt-6 min-w-0 rounded-[22px] border border-[#dfe2d6] bg-white p-4 sm:p-5">
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f1ead9] text-[#79643b]" aria-hidden="true"><Clapperboard className="h-5 w-5" /></span>
+        <div className="min-w-0"><p className="mb-1 text-[10px] font-semibold uppercase leading-4 tracking-[.12em] text-[#79643b]">{text.video}</p><h2 id={headingId} className="break-words text-base font-semibold leading-6 text-[#18251f]">{heading}</h2></div>
+      </div>
+      {allowed && <button type="button" aria-label={text.close} onClick={() => { setPageAllowed(false); setClosed(true); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#dedfd3] text-[#52604f] transition hover:bg-[#f0f0e8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a58d58]"><X className="h-4 w-4" aria-hidden="true" /></button>}
     </div>
-    <p className="mt-2 text-xs leading-5 text-[#727b6a]">{allowed ? text.playback : text.consent}</p>
-    {allowed && <a href={canonical} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-9 items-center text-xs font-semibold text-[#52604f] underline underline-offset-4">{text.external}<span className="ml-1" aria-hidden="true">↗</span></a>}
+    {allowed ? <YoutubePlayer embed={embed} title={heading} locale={locale} /> : <>
+      <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-[16px] bg-[#18251f] p-5"><button type="button" onClick={() => { setClosed(false); setPageAllowed(true); }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#18251f] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d9c38e]"><Play className="h-4 w-4" aria-hidden="true" />{text.watch}</button></div>
+      <p className="mt-2 text-xs leading-5 text-[#5f6e55]">{text.consent}</p>
+    </>}
+    <a href={canonical} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-[#d6ddcd] bg-[#f5f7f0] px-5 py-3 text-sm font-semibold text-[#294432] transition hover:border-[#a1b493] hover:bg-[#eaf0e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a58d58] sm:w-auto"><Play className="h-4 w-4 shrink-0" aria-hidden="true" /><span>{text.external}</span><ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></a>
   </section>;
 }

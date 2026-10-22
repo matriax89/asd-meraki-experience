@@ -45,7 +45,7 @@ const { createRoot } = await import("react-dom/client");
 const { renderToStaticMarkup } = await import("react-dom/server");
 after(() => { dom.window.close(); for (const [key, descriptor] of originals) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } });
 const cookies = load("lib/facebook-pixel.ts");
-const { EventVideo } = load("components/meraki/event-video.tsx", { "@/lib/events/youtube": youtube, "@/lib/facebook-pixel": cookies }, { window: dom.window });
+const { EventVideo } = load("components/meraki/event-video.tsx", { "@/lib/events/youtube": youtube, "@/lib/facebook-pixel": cookies, "./youtube-player": { YoutubePlayer: ({ embed, title }) => React.createElement("div", { "data-audio-player": true }, React.createElement("iframe", { src: embed, title: `${title} · YouTube`, allow: "autoplay; encrypted-media; picture-in-picture; fullscreen", allowFullScreen: true })) } }, { window: dom.window });
 async function mount(context, props = {}, consent) {
   dom.window.localStorage.clear();
   if (consent !== undefined) dom.window.localStorage.setItem(cookies.COOKIE_CONSENT_KEY, typeof consent === "string" ? consent : JSON.stringify(consent));
@@ -56,15 +56,21 @@ async function mount(context, props = {}, consent) {
   return { host, root, render: async (next) => act(async () => root.render(React.createElement(EventVideo, { url: canonical, locale: "it", ...next }))) };
 }
 const translations = {
-  it: ["Scopri cosa ti aspetta", "Guarda il video", "senza audio"],
-  en: ["See what awaits you", "Watch the video", "muted"],
-  de: ["Entdecke, was dich erwartet", "Video ansehen", "ohne Ton"],
-  es: ["Descubre lo que te espera", "Ver el vídeo", "sin sonido"],
+  it: ["Scopri cosa ti aspetta", "Guarda il video", "Il video dell’esperienza"],
+  en: ["See what awaits you", "Watch the video", "Experience video"],
+  de: ["Entdecke, was dich erwartet", "Video ansehen", "Einblick im Video"],
+  es: ["Descubre lo que te espera", "Ver el vídeo", "El vídeo de la experiencia"],
 };
-for (const [locale, [heading, watch, muted]] of Object.entries(translations)) {
+for (const [locale, [heading, watch, videoLabel]] of Object.entries(translations)) {
   test(`${locale}: player is gated without remote thumbnails and one-page permission does not change cookie consent`, async context => {
     const { host } = await mount(context, { locale }, { necessary: true, analytics: false, marketing: false });
     assert.equal(host.querySelector("h2").textContent, heading);
+    assert.ok(host.textContent.includes(videoLabel));
+    const external = host.querySelector('a[target="_blank"]');
+    assert.ok(external.classList.contains("rounded-full"));
+    assert.ok(external.classList.contains("min-h-12"));
+    assert.equal(external.querySelectorAll("svg").length, 2);
+    assert.doesNotMatch(external.textContent, /↗|↗️/);
     assert.equal(host.querySelector("iframe,img,script"), null);
     assert.ok(host.querySelector(".aspect-video"));
     const before = dom.window.localStorage.getItem(cookies.COOKIE_CONSENT_KEY);
@@ -80,7 +86,7 @@ for (const [locale, [heading, watch, muted]] of Object.entries(translations)) {
     assert.equal(frame.src, youtube.youtubeEmbedUrl(canonical));
     assert.equal(frame.getAttribute("allow").includes("autoplay"), true);
     assert.ok(frame.hasAttribute("allowfullscreen"));
-    assert.ok(host.textContent.includes(muted));
+    assert.ok(host.textContent.includes(videoLabel));
     assert.equal(dom.window.localStorage.getItem(cookies.COOKIE_CONSENT_KEY), before);
     assert.equal(events.length, 0);
     assert.equal(dom.window.fbq, undefined);
@@ -90,7 +96,7 @@ for (const [locale, [heading, watch, muted]] of Object.entries(translations)) {
   });
 }
 
-test("saved cookie permission autoplays muted; same-tab and cross-tab revocation remove the frame", async context => {
+test("saved cookie permission mounts the audio-enabled player; same-tab and cross-tab revocation remove the frame", async context => {
   const { host } = await mount(context, {}, { marketing: true });
   assert.ok(host.querySelector("iframe"));
   await act(async () => dom.window.dispatchEvent(new dom.window.CustomEvent(cookies.COOKIE_CONSENT_CHANGED_EVENT, { detail: { marketing: false } })));
