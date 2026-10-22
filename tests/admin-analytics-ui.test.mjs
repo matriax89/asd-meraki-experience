@@ -186,6 +186,12 @@ test("event statistics keep the event fixed and all direct management links carr
 test("event list searches and filters status while titles open statistics without entering edit", async context => {
   const ui = await mount(context, { list: true });
   assert.equal(window.document.querySelector('h2 a').getAttribute("href"), `/admin/eventi/${eventId}/statistiche`);
+  const cardDetails = window.document.querySelector("h2").parentElement;
+  assert.ok(cardDetails.classList.contains("w-full"));
+  assert.ok(cardDetails.parentElement.classList.contains("flex-col"));
+  assert.ok(cardDetails.parentElement.classList.contains("sm:flex-row"));
+  assert.ok(cardDetails.nextElementSibling.classList.contains("text-left"));
+  assert.ok(cardDetails.nextElementSibling.classList.contains("sm:text-right"));
   await ui.fill("events-search", "estate"); assert.equal(window.document.querySelectorAll("h2").length, 1); assert.equal(window.document.querySelector("h2").textContent, "Meraki Estate");
   await ui.select("events-status", "upcoming"); assert.equal(window.document.querySelectorAll("h2").length, 0); assert.ok(window.document.body.textContent.includes("Nessun evento corrisponde ai filtri."));
   await ui.fill("events-search", ""); assert.equal(window.document.querySelector("h2").textContent, "Vibra");
