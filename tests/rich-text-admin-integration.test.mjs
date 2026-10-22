@@ -1,3 +1,4 @@
+import { nativeVideoModule, nativeVideoFixtureUrl } from "./helpers/native-video-modules.mjs";
 import { youtubeModule } from "./helpers/youtube-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -27,7 +28,7 @@ function load(file, mocks = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, Error, window: dom.window, document: dom.window.document, crypto: webcrypto, console, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/lib/events/youtube" ? youtubeModule : name === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(name) });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, Date, Intl, URL, Error, window: dom.window, document: dom.window.document, crypto: webcrypto, console, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/lib/events/native-video" ? nativeVideoModule : name === "@/lib/events/youtube" ? youtubeModule : name === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(name) });
   return compiledModule.exports;
 }
 const CustomSelect = React.forwardRef((props, ref) => React.createElement("select", { ...props, ref }));
@@ -92,6 +93,73 @@ function eventFormFixture({ realLogistics = false } = {}) {
 }
 
 const flushFocus = () => act(async () => { await new Promise((resolve) => dom.window.setTimeout(resolve, 0)); });
+
+test("native video links allow only the configured public MP4 archive without third-party requests or signed URLs", () => {
+  const normalize = nativeVideoModule.normalizeNativeVideoUrl;
+  assert.equal(normalize(nativeVideoFixtureUrl), nativeVideoFixtureUrl);
+  assert.equal(normalize(`  ${nativeVideoFixtureUrl}  `), nativeVideoFixtureUrl);
+  assert.equal(normalize(nativeVideoFixtureUrl.replace("vibra-example", "2026/vibra-example")), nativeVideoFixtureUrl.replace("vibra-example", "2026/vibra-example"));
+  for (const value of [undefined, null, "", "javascript:alert(1)", nativeVideoFixtureUrl.replace("https:", "http:"), nativeVideoFixtureUrl.replace("meraki-test", "another-project"), nativeVideoFixtureUrl.replace(".co/", ".co:443/"), nativeVideoFixtureUrl.replace("https://", "https://user:password@"), `${nativeVideoFixtureUrl}?token=secret`, `${nativeVideoFixtureUrl}#video`, nativeVideoFixtureUrl.replace(".mp4", ".html"), nativeVideoFixtureUrl.replace("event-videos/", "other-assets/"), nativeVideoFixtureUrl.replace("event-videos/", "event-videos/../event-videos/"), nativeVideoFixtureUrl.replace("vibra-example", "%76ibra-example"), nativeVideoFixtureUrl.replace("/vibra-example", "\\vibra-example"), nativeVideoFixtureUrl.replace("/vibra-example", "/\nvibra-example")]) {
+    assert.equal(normalize(value), null, `Reject unsupported archive URL: ${value}`);
+  }
+  assert.equal(normalize(nativeVideoFixtureUrl, "https://meraki-test.supabase.co.evil.test"), null);
+  assert.equal(normalize(nativeVideoFixtureUrl, ""), null);
+});
+
+test("native MP4 takes precedence in review, preserves titles and fallback, and can be cleared from the editor", async (context) => {
+  const { EventForm, saved } = eventFormFixture();
+  const youtube = "https://www.youtube.com/watch?v=Ut08j478Ypg";
+  const titles = { it: "Il video dell’esperienza", en: "A glimpse of the experience", de: "Ein Einblick in das Erlebnis", es: "Un vistazo a la experiencia" };
+  const screen = await mount(context, EventForm, { initialData: { ...baseEvent, video_url: nativeVideoFixtureUrl, youtube_url: youtube, video_titolo: titles } });
+  await screen.click("Avanti"); await screen.click("Avanti");
+  assert.equal(screen.input("Link video MP4 Meraki").value, nativeVideoFixtureUrl);
+  assert.equal(screen.input("Link video YouTube").value, youtube);
+  await screen.click("Avanti"); await screen.click("Avanti");
+  const review = screen.host.querySelector("[data-event-video-review]");
+  assert.match(review.textContent, /Video MP4 Meraki/);
+  assert.ok(review.textContent.includes(nativeVideoFixtureUrl));
+  assert.equal(review.textContent.includes(youtube), false);
+  for (const title of Object.values(titles)) assert.ok(review.textContent.includes(title));
+  await screen.submit();
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].video_url, nativeVideoFixtureUrl);
+  assert.equal(saved[0].youtube_url, youtube);
+  assert.deepEqual(saved[0].video_titolo, titles);
+  await screen.click("Modifica biglietteria e media");
+  await screen.change(screen.input("Link video MP4 Meraki"), "");
+  await screen.click("Avanti"); await screen.click("Avanti");
+  assert.match(review.textContent, /Video YouTube/);
+  assert.ok(review.textContent.includes(youtube));
+  await screen.submit();
+  assert.equal(saved.length, 2);
+  assert.equal(saved[1].video_url, null);
+  assert.equal(saved[1].youtube_url, youtube);
+});
+
+test("native video validation blocks invalid URLs in the wizard and server, while omitted values preserve existing data", async context => {
+  const { EventForm, saved } = eventFormFixture();
+  const screen = await mount(context, EventForm, { initialData: baseEvent });
+  await screen.click("Avanti"); await screen.click("Avanti");
+  await screen.change(screen.input("Link video MP4 Meraki"), "https://evil.test/video.mp4");
+  await screen.click("Avanti"); await flushFocus();
+  assert.match(screen.host.querySelector('[role="alert"]').textContent, /link MP4 HTTPS dell’archivio video Meraki/);
+  assert.equal(document.activeElement, screen.input("Link video MP4 Meraki"));
+  assert.equal(saved.length, 0);
+  for (const [value, expected] of [[undefined, undefined], [null, null], ["", null], ["  ", null], [` ${nativeVideoFixtureUrl} `, nativeVideoFixtureUrl]]) {
+    const fixture = eventFormFixture();
+    const result = await fixture.actions.upsertEvent({ ...baseEvent, ...(value === undefined ? {} : { video_url: value }) });
+    assert.equal(result.success, true);
+    assert.equal(fixture.saved[0].video_url, expected);
+    if (value === undefined) assert.equal(Object.hasOwn(fixture.saved[0], "video_url"), false, "old callers do not erase a video when omitting the field");
+  }
+  for (const video_url of ["https://evil.test/video.mp4", `${nativeVideoFixtureUrl}?token=private`, "<video src=\"video.mp4\"></video>", 42, [], { url: nativeVideoFixtureUrl }]) {
+    const fixture = eventFormFixture();
+    const result = await fixture.actions.upsertEvent({ ...baseEvent, video_url });
+    assert.equal(result.success, false);
+    assert.match(result.error, /link MP4 HTTPS dell’archivio video Meraki/);
+    assert.equal(fixture.saved.length, 0);
+  }
+});
 
 test("an optional event video and its four titles survive review, editing and canonical server save", async (context) => {
   const { EventForm, saved } = eventFormFixture();

@@ -6,6 +6,7 @@ import vm from "node:vm";
 import { JSDOM } from "jsdom";
 import ts from "typescript";
 import { youtubeModule as youtube } from "./helpers/youtube-modules.mjs";
+import { nativeVideoModule, nativeVideoFixtureUrl } from "./helpers/native-video-modules.mjs";
 
 const require = createRequire(import.meta.url);
 const id = "Ut08j478Ypg";
@@ -45,7 +46,7 @@ const { createRoot } = await import("react-dom/client");
 const { renderToStaticMarkup } = await import("react-dom/server");
 after(() => { dom.window.close(); for (const [key, descriptor] of originals) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } });
 const cookies = load("lib/facebook-pixel.ts");
-const { EventVideo } = load("components/meraki/event-video.tsx", { "@/lib/events/youtube": youtube, "@/lib/facebook-pixel": cookies, "./youtube-player": { YoutubePlayer: ({ embed, title }) => React.createElement("div", { "data-audio-player": true }, React.createElement("iframe", { src: embed, title: `${title} · YouTube`, allow: "autoplay; encrypted-media; picture-in-picture; fullscreen", allowFullScreen: true })) } }, { window: dom.window });
+const { EventVideo } = load("components/meraki/event-video.tsx", { "@/lib/events/youtube": youtube, "@/lib/events/native-video": nativeVideoModule, "@/lib/facebook-pixel": cookies, "./native-video-player": { NativeVideoPlayer: ({ src, title }) => React.createElement("video", { src, "aria-label": title, muted: true, controls: true }) }, "./youtube-player": { YoutubePlayer: ({ embed, title }) => React.createElement("div", { "data-audio-player": true }, React.createElement("iframe", { src: embed, title: `${title} · YouTube`, allow: "autoplay; encrypted-media; picture-in-picture; fullscreen", allowFullScreen: true })) } }, { window: dom.window });
 async function mount(context, props = {}, consent) {
   dom.window.localStorage.clear();
   if (consent !== undefined) dom.window.localStorage.setItem(cookies.COOKIE_CONSENT_KEY, typeof consent === "string" ? consent : JSON.stringify(consent));
@@ -62,6 +63,23 @@ const translations = {
   es: ["Descubre lo que te espera", "Ver el vídeo", "El vídeo de la experiencia"],
 };
 for (const [locale, [heading, watch, videoLabel]] of Object.entries(translations)) {
+  test(`${locale}: a first-party MP4 takes precedence without YouTube or a marketing-consent gate`, async context => {
+    const { host } = await mount(context, { videoUrl: nativeVideoFixtureUrl, locale }, { marketing: false });
+    assert.equal(host.querySelector("video").src, nativeVideoFixtureUrl);
+    assert.equal(host.querySelector("h2").textContent, heading);
+    assert.ok(host.textContent.includes(videoLabel));
+    assert.equal(host.querySelector("iframe,script,a"), null);
+    assert.doesNotMatch(host.textContent, /YouTube/);
+    await act(async () => host.querySelector("video").dispatchEvent(new dom.window.Event("error")));
+    assert.equal(host.querySelector("iframe"), null, "native failures must never silently contact YouTube");
+    await act(async () => host.querySelector("button[aria-label]").click());
+    assert.equal(host.querySelector("video"), null);
+    await act(async () => [...host.querySelectorAll("button")].find(button => button.textContent === watch).click());
+    assert.equal(host.querySelector("video").src, nativeVideoFixtureUrl);
+    const html = renderToStaticMarkup(React.createElement(EventVideo, { url: canonical, videoUrl: nativeVideoFixtureUrl, locale }));
+    assert.match(html, /<video/);
+    assert.doesNotMatch(html, /YouTube|youtube|<iframe|<script/);
+  });
   test(`${locale}: player is gated without remote thumbnails and one-page permission does not change cookie consent`, async context => {
     const { host } = await mount(context, { locale }, { necessary: true, analytics: false, marketing: false });
     assert.equal(host.querySelector("h2").textContent, heading);
@@ -138,7 +156,7 @@ test("event and workshop detail routes load only the selected video title langua
   const i18n = load("lib/i18n-utils.ts");
   for (const route of ["eventi", "workshop"]) for (const locale of Object.keys(titles)) {
     const selected = [];
-    const row = { youtube_url: canonical, video_titolo: titles, descrizione: { it: "Descrizione" }, cta_tipo: "stripe", cta_url: null };
+    const row = { youtube_url: canonical, video_url: nativeVideoFixtureUrl, video_titolo: titles, descrizione: { it: "Descrizione" }, cta_tipo: "stripe", cta_url: null };
     const page = load(`app/[locale]/(public)/${route}/[slug]/page.tsx`, {
       "next/navigation": { notFound() { throw Error("No event"); } },
       "@/lib/supabase/server": { createClient: async () => ({ from() { return { select(value) { selected.push(value); return this; }, eq() { return this; }, in() { return this; }, async single() { return { data: row }; } }; } }) },
@@ -156,6 +174,7 @@ test("event and workshop detail routes load only the selected video title langua
     });
     const element = await page.default({ params: Promise.resolve({ slug: "sample", locale }) });
     assert.equal(element.props.event.youtubeUrl, canonical);
+    assert.equal(element.props.event.videoUrl, nativeVideoFixtureUrl);
     assert.equal(element.props.event.videoTitle, titles[locale]);
     assert.ok(selected[0].includes("youtube_url, video_titolo"));
     assert.equal(JSON.stringify(element.props.event).includes(titles[locale === "it" ? "de" : "it"]), false);

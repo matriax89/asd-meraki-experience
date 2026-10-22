@@ -1,3 +1,4 @@
+import { nativeVideoModule } from "./helpers/native-video-modules.mjs";
 import { youtubeModule } from "./helpers/youtube-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import { richTextDynamicFixture } from "./helpers/rich-text-editor-fixture.mjs";
@@ -28,7 +29,7 @@ function load(file, mocks = {}) {
   const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : id === "@/lib/events/youtube" ? youtubeModule : id === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(id), Date, Intl, Error, URL, window: dom.window, crypto: webcrypto, FormData: dom.window.FormData, console: { error() {} } });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (id) => id in mocks ? mocks[id] : id === "@/lib/rich-text" ? richText : id === "@/components/public/event-description" ? eventDescription : id === "@/lib/events/native-video" ? nativeVideoModule : id === "@/lib/events/youtube" ? youtubeModule : id === "@/lib/events/affiliates" ? load("lib/events/affiliates.ts") : require(id), Date, Intl, Error, URL, window: dom.window, crypto: webcrypto, FormData: dom.window.FormData, console: { error() {} } });
   return compiledModule.exports;
 }
 const config = load("lib/commerce/config.ts");

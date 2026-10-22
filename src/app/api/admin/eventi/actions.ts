@@ -8,6 +8,7 @@ import { eventLogisticsSchema } from "@/lib/events/logistics";
 import { eventAffiliatesSchema, parseEventAffiliates } from "@/lib/events/affiliates";
 import { richTextHasContent, richTextPlainText, richTextSerializedLimit } from "@/lib/rich-text";
 import { normalizeYoutubeUrl } from "@/lib/events/youtube";
+import { normalizeNativeVideoUrl } from "@/lib/events/native-video";
 
 const localized = z.union([z.string().max(200_000), z.record(z.string(), z.string().max(200_000))]);
 const shortDescriptionText = z.string().max(richTextSerializedLimit(3000))
@@ -26,6 +27,9 @@ const videoTitle = z.union([videoTitleText, z.object({
 const youtubeUrl = z.string().trim().max(2048)
   .refine((value) => !value || Boolean(normalizeYoutubeUrl(value)))
   .transform((value) => normalizeYoutubeUrl(value));
+const nativeVideoUrl = z.string().trim().max(2048)
+  .refine((value) => !value || Boolean(normalizeNativeVideoUrl(value)))
+  .transform((value) => normalizeNativeVideoUrl(value));
 const eventSchema = z.object({
   id: z.string().uuid().optional(), slug: z.string().trim().max(160).optional(), titolo: localized,
   sottotitolo: localized.nullable().optional(), descrizione: localized.nullable().optional(),
@@ -36,6 +40,7 @@ const eventSchema = z.object({
   location: z.string().max(500).nullable().optional(), indirizzo: z.string().max(1000).nullable().optional(),
   copertina_url: z.string().max(2048).nullable().optional(),
   youtube_url: youtubeUrl.nullable().optional(), video_titolo: videoTitle.nullable().optional(),
+  video_url: nativeVideoUrl.nullable().optional(),
   logistics: eventLogisticsSchema.optional(),
   affiliates: eventAffiliatesSchema.optional(),
   prezzo_cents: z.number().int().min(0).max(10_000_000).nullable().optional(),
@@ -64,6 +69,9 @@ export async function upsertEvent(raw: unknown) {
   const supabase = await requireCommerceStaff();
   const validation = eventSchema.safeParse(raw);
   if (!validation.success) {
+    if (validation.error.issues.some((issue) => issue.path[0] === "video_url")) {
+      return { success: false, error: "Inserisci un link MP4 HTTPS dell’archivio video Meraki (public-assets/event-videos), senza parametri, oppure lascia il campo vuoto." };
+    }
     if (validation.error.issues.some((issue) => issue.path[0] === "youtube_url")) {
       return { success: false, error: "Inserisci un link HTTPS a un singolo video YouTube valido (youtube.com o youtu.be), oppure lascia il campo vuoto." };
     }

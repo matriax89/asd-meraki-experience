@@ -29,12 +29,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 export default async function DetailPage({ params }: PageParams) {
   const { slug, locale } = await params;
   const supabase = await createClient();
-  const { data: event } = await supabase.from("events").select(`${eventFeedColumns}, check_in_starts_at, descrizione, cta_tipo, cta_url, youtube_url, video_titolo, logistics, affiliates, commerce_config`).eq("slug", slug).in("tipo", ["workshop", "masterclass"]).eq("attivo", true).single();
+  const { data: event } = await supabase.from("events").select(`${eventFeedColumns}, check_in_starts_at, descrizione, cta_tipo, cta_url, youtube_url, video_titolo, video_url, logistics, affiliates, commerce_config`).eq("slug", slug).in("tipo", ["workshop", "masterclass"]).eq("attivo", true).single();
   if (!event) {
     const canceled = await getCanceledPublicEvent(slug, ["workshop", "masterclass"]);
     if (canceled) return <CanceledEvent title={getLocalizedText(canceled.titolo, locale)} reason={canceled.cancellation_reason} cover={canceled.copertina_url} locale={locale} />;
     notFound();
   }
   const commerce = parseCommerceConfig(event.commerce_config);
-  return <EventDetail event={{ ...toMerakiEvent(event, locale), description: getLocalizedText(event.descrizione, locale), ctaType: event.cta_tipo, ctaUrl: event.cta_url, youtubeUrl: event.youtube_url, videoTitle: getLocalizedText(event.video_titolo, locale), logistics: parseEventLogistics(event.logistics), affiliates: publicEventAffiliates(event.affiliates), activities: commerce?.enabled ? commerce.activities : undefined }} locale={locale} />;
+  return <EventDetail event={{ ...toMerakiEvent(event, locale), description: getLocalizedText(event.descrizione, locale), ctaType: event.cta_tipo, ctaUrl: event.cta_url, youtubeUrl: event.youtube_url, videoUrl: event.video_url, videoTitle: getLocalizedText(event.video_titolo, locale), logistics: parseEventLogistics(event.logistics), affiliates: publicEventAffiliates(event.affiliates), activities: commerce?.enabled ? commerce.activities : undefined }} locale={locale} />;
 }

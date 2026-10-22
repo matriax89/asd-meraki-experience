@@ -235,6 +235,7 @@ export type Database = {
           titolo: Json
           updated_at: string | null
           youtube_url: string | null
+          video_url: string | null
           video_titolo: Json | null
         }
         Insert: {
@@ -270,6 +271,7 @@ export type Database = {
           titolo: Json
           updated_at?: string | null
           youtube_url?: string | null
+          video_url?: string | null
           video_titolo?: Json | null
         }
         Update: {
@@ -305,6 +307,7 @@ export type Database = {
           titolo?: Json
           updated_at?: string | null
           youtube_url?: string | null
+          video_url?: string | null
           video_titolo?: Json | null
         }
         Relationships: []

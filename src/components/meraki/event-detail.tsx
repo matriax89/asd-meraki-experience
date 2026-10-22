@@ -12,7 +12,7 @@ import { availablePlaces, eventDate, eventPrice, eventLabels, type MerakiEvent }
 import { EventActivitySchedule, hasActivitySchedule } from "./event-activity-schedule";
 import type { CommerceActivity } from "@/lib/commerce/types";
 
-export type MerakiEventDetail = MerakiEvent & { description: string; ctaType: string | null; ctaUrl: string | null; youtubeUrl?: string | null; videoTitle?: string; logistics?: EventLogistics | null; affiliates?: { id: string; name: string }[]; activities?: CommerceActivity[] };
+export type MerakiEventDetail = MerakiEvent & { description: string; ctaType: string | null; ctaUrl: string | null; youtubeUrl?: string | null; videoUrl?: string | null; videoTitle?: string; logistics?: EventLogistics | null; affiliates?: { id: string; name: string }[]; activities?: CommerceActivity[] };
 
 const directionsLabels = { it: "Apri il navigatore", en: "Open directions", de: "Route öffnen", es: "Abrir indicaciones" };
 
@@ -39,7 +39,7 @@ export function EventDetail({ event, locale }: { event: MerakiEventDetail; local
   return (
     <article className="mx-auto w-full max-w-[1120px] px-5 pb-8 pt-3 text-[#18251f] sm:px-8 md:pt-6">
       <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:gap-10">
-        <div className="mx-auto w-full min-w-0 max-w-[420px]"><EventPoster src={event.cover} title={event.title} locale={locale} eager /><EventVideo url={event.youtubeUrl} title={event.videoTitle} locale={locale} /></div>
+        <div className="mx-auto w-full min-w-0 max-w-[420px]"><EventPoster src={event.cover} title={event.title} locale={locale} eager /><EventVideo videoUrl={event.videoUrl} url={event.youtubeUrl} title={event.videoTitle} locale={locale} /></div>
         <div className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7450]"><span>{category}</span>{isEnded && <span className="rounded-full border border-[#d8ddcd] px-3 py-1.5 text-[#788170]">{text.remember}</span>}</div>
           <header>
