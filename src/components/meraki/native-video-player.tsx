@@ -10,7 +10,7 @@ const labels = {
   es: { loading: "Cargando vídeo…", enable: "Activar sonido · 20%", enableDevice: "Activar sonido", deviceVolume: "Ajusta el volumen con los botones del teléfono.", mute: "Silenciar", play: "Reproducir vídeo", blocked: "Pulsa Reproducir para iniciar el vídeo.", silent: "El vídeo está silenciado. Puedes activar el sonido a volumen bajo.", volume: "Volumen", controls: "Puedes ajustarlo desde los controles del vídeo.", unavailable: "El vídeo no está disponible. Inténtalo de nuevo en unos momentos.", unsupported: "Tu navegador no admite este vídeo." },
 };
 type Playback = { muted: boolean; volume: number; volumeSupported: boolean; loading: boolean; blocked: boolean; failed: boolean };
-type Controller = { play(): void; sound(): void };
+type Controller = { play(): void; sound(): void; manualIntent(): void };
 const initial: Playback = { muted: true, volume: 20, volumeSupported: true, loading: true, blocked: false, failed: false };
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#b7c2ad] bg-[#edf1e6] px-4 py-2.5 text-xs font-semibold text-[#30482f] hover:bg-[#e1e8d8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a48a55]";
 
@@ -20,6 +20,7 @@ export function NativeVideoPlayer(props: { src: string; title: string; locale: s
 
 function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: string; locale: string }) {
   const video = useRef<HTMLVideoElement>(null);
+  const controls = useRef<HTMLDivElement>(null);
   const controller = useRef<Controller | null>(null);
   const [playback, setPlayback] = useState<Playback>(initial);
   const text = labels[locale as keyof typeof labels] || labels.it;
@@ -30,22 +31,54 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
     let active = true;
     let attempt = 0;
     let volumeSupported = false;
+    let visitorIntent = false;
+    let awaitingGesture = false;
+    let observedVolume = media.volume;
+    let observedMuted = media.muted;
+    const page = media.ownerDocument;
+    const cancelRecovery = () => {
+      awaitingGesture = false;
+      page.removeEventListener("click", recoverSound, true);
+      page.removeEventListener("keydown", recoverSound, true);
+    };
+    const manualIntent = () => {
+      visitorIntent = true;
+      ++attempt;
+      cancelRecovery();
+    };
     const sync = () => {
       if (!active) return;
+      observedVolume = media.volume;
+      observedMuted = media.muted;
       const volume = Number.isFinite(media.volume) ? Math.min(100, Math.max(0, Math.round(media.volume * 100))) : 20;
       setPlayback(current => current.muted === media.muted && current.volume === volume && current.volumeSupported === volumeSupported ? current : { ...current, muted: media.muted, volume, volumeSupported });
     };
-    const failed = () => { if (active) setPlayback(current => ({ ...current, loading: false, blocked: false, failed: true })); };
+    const nativeVolumeChanged = () => {
+      // Our own writes call sync before the queued native event. A different
+      // value comes from a visitor's controls and must never be overridden.
+      if (media.volume !== observedVolume || media.muted !== observedMuted) manualIntent();
+      sync();
+    };
+    const paused = () => { manualIntent(); sync(); };
+    const failed = () => { cancelRecovery(); if (active) setPlayback(current => ({ ...current, loading: false, blocked: false, failed: true })); };
     const loaded = () => { if (active) setPlayback(current => ({ ...current, loading: false })); };
-    const playing = () => { if (active) { sync(); setPlayback(current => ({ ...current, loading: false, blocked: false })); } };
-    const play = (retryMuted = true) => {
+    const playing = () => { if (active) { if (!media.muted && media.volume > 0) cancelRecovery(); sync(); setPlayback(current => ({ ...current, loading: false, blocked: false })); } };
+    const play = (retryMuted = true, allowGestureRecovery = false) => {
       const ticket = ++attempt;
       const rejected = (error: unknown) => {
         if (!active || ticket !== attempt) return;
         const name = error && typeof error === "object" && "name" in error ? error.name : "";
         if (name === "AbortError") return;
         if (name !== "NotAllowedError") { failed(); return; }
-        if (retryMuted && !media.muted) { media.muted = true; sync(); play(false); }
+        if (retryMuted && !media.muted) {
+          media.muted = true; sync();
+          if (allowGestureRecovery && volumeSupported && !visitorIntent) {
+            awaitingGesture = true;
+            page.addEventListener("click", recoverSound, true);
+            page.addEventListener("keydown", recoverSound, true);
+          }
+          play(false);
+        }
         else setPlayback(current => ({ ...current, loading: false, blocked: true }));
       };
       try {
@@ -53,13 +86,29 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
         if (promise) void promise.then(() => { if (active && ticket === attempt) playing(); }, rejected);
       } catch (error) { rejected(error); }
     };
+    function recoverSound(event: Event) {
+      if (!media || !active || !awaitingGesture || !event.isTrusted || visitorIntent || !media.muted) return;
+      const ownSection = controls.current?.closest("[data-event-video]") || controls.current;
+      if (event.target && ownSection?.contains(event.target as Node)) return;
+      if (event.type === "keydown") {
+        const key = event as KeyboardEvent;
+        if (key.repeat || key.altKey || key.ctrlKey || key.metaKey || ["Alt", "Control", "Meta", "Shift", "CapsLock", "Escape"].includes(key.key)) return;
+      }
+      cancelRecovery();
+      // Keep play inside this trusted activation; awaiting anything here would
+      // lose the browser's permission to start audible playback on iPhone.
+      media.volume = 0.2;
+      media.muted = false;
+      sync();
+      play();
+    }
 
-    media.addEventListener("volumechange", sync);
+    media.addEventListener("volumechange", nativeVolumeChanged);
     media.addEventListener("loadedmetadata", loaded);
     media.addEventListener("canplay", loaded);
     media.addEventListener("playing", playing);
     media.addEventListener("play", sync);
-    media.addEventListener("pause", sync);
+    media.addEventListener("pause", paused);
     media.addEventListener("error", failed);
     // Restore the source after StrictMode's cleanup; no playback starts before volume is configured.
     media.src = src;
@@ -68,24 +117,27 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
     if (volumeSupported) media.muted = false;
     sync();
     controller.current = {
-      play: () => play(),
+      manualIntent,
+      play: () => { manualIntent(); play(); },
       sound: () => {
         if (!active) return;
+        manualIntent();
         if (media.muted || media.volume === 0) {
           if (volumeSupported) media.volume = 0.2;
           media.muted = false; sync(); play();
         } else { ++attempt; media.muted = true; sync(); }
       },
     };
-    play();
+    play(true, true);
     return () => {
       active = false; ++attempt; controller.current = null;
-      media.removeEventListener("volumechange", sync);
+      cancelRecovery();
+      media.removeEventListener("volumechange", nativeVolumeChanged);
       media.removeEventListener("loadedmetadata", loaded);
       media.removeEventListener("canplay", loaded);
       media.removeEventListener("playing", playing);
       media.removeEventListener("play", sync);
-      media.removeEventListener("pause", sync);
+      media.removeEventListener("pause", paused);
       media.removeEventListener("error", failed);
       media.pause();
       media.removeAttribute("src");
@@ -95,7 +147,7 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
 
   const silent = playback.muted || playback.volume === 0;
   const message = playback.failed ? text.unavailable : playback.blocked ? text.blocked : playback.loading ? text.loading : !playback.volumeSupported ? text.deviceVolume : silent ? text.silent : `${text.volume} ${playback.volume}% · ${text.controls}`;
-  return <>
+  return <div ref={controls} data-native-video-controls className="min-w-0" onPointerDownCapture={() => controller.current?.manualIntent()} onKeyDownCapture={() => controller.current?.manualIntent()} onClickCapture={() => controller.current?.manualIntent()}>
     <div data-native-video-player className="relative aspect-video w-full min-w-0 overflow-hidden rounded-[16px] bg-[#18251f]">
       <video ref={video} src={src} muted controls playsInline preload="metadata" aria-label={title} className="absolute inset-0 h-full w-full object-contain">{text.unsupported}</video>
     </div>
@@ -104,5 +156,5 @@ function ManagedNativeVideoPlayer({ src, title, locale }: { src: string; title: 
       {playback.blocked && <button type="button" onClick={() => controller.current?.play()} className={button}><Play size={15} aria-hidden="true" />{text.play}</button>}
     </div>}
     <p role="status" className="mt-2 text-xs leading-5 text-[#5f6d57]">{message}</p>
-  </>;
+  </div>;
 }

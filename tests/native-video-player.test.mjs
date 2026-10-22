@@ -28,10 +28,24 @@ const action = async callback => act(async () => callback());
 const notAllowed = () => Promise.reject(Object.assign(new Error("Autoplay is blocked"), { name: "NotAllowedError" }));
 const defer = () => { let resolve, reject; const promise = new Promise((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; };
 
-async function mount(context, { locale = "it", strict = false, play = [], deviceVolume = false } = {}) {
+async function mount(context, { locale = "it", strict = false, play = [], deviceVolume = false, withSection = false } = {}) {
   const prototype = dom.window.HTMLMediaElement.prototype;
   const previous = new Map(["play", "pause", "load", "volume", "muted"].map(key => [key, Object.getOwnPropertyDescriptor(prototype, key)]));
   const calls = [];
+  const gestureListeners = new Map();
+  const addEventListener = document.addEventListener;
+  const removeEventListener = document.removeEventListener;
+  document.addEventListener = function (type, listener, capture) {
+    if (capture === true && ["click", "keydown"].includes(type)) {
+      if (!gestureListeners.has(type)) gestureListeners.set(type, new Set());
+      gestureListeners.get(type).add(listener);
+    }
+    return addEventListener.call(this, type, listener, capture);
+  };
+  document.removeEventListener = function (type, listener, capture) {
+    if (capture === true) gestureListeners.get(type)?.delete(listener);
+    return removeEventListener.call(this, type, listener, capture);
+  };
   const values = new WeakMap();
   let playIndex = 0;
   const value = media => { if (!values.has(media)) values.set(media, { volume: 1, muted: false }); return values.get(media); };
@@ -46,16 +60,25 @@ async function mount(context, { locale = "it", strict = false, play = [], device
   const root = createRoot(host);
   let unmounted = false;
   const render = async (props = {}) => {
-    const element = React.createElement(NativeVideoPlayer, { src, title, locale, ...props });
+    const player = React.createElement(NativeVideoPlayer, { src, title, locale, ...props });
+    const element = withSection ? React.createElement("section", { "data-event-video": true }, React.createElement("button", { "aria-label": "Close video" }, "Close"), player) : player;
     await act(async () => { root.render(strict ? React.createElement(React.StrictMode, null, element) : element); });
   };
   const unmount = async () => { if (!unmounted) { await act(async () => root.unmount()); unmounted = true; } };
   context.after(async () => {
     await unmount(); host.remove();
+    document.addEventListener = addEventListener;
+    document.removeEventListener = removeEventListener;
     for (const [key, descriptor] of previous) Object.defineProperty(prototype, key, descriptor);
   });
   await render();
-  return { host, root, calls, render, unmount, media: host.querySelector("video") };
+  // jsdom cannot synthesize isTrusted=true. Invoke the registered browser
+  // listener directly; production acceptance additionally uses a real click.
+  const gesture = (type, values = {}) => {
+    const event = { type, target: document.body, isTrusted: true, ...values };
+    for (const listener of [...gestureListeners.get(type) || []]) listener(event);
+  };
+  return { host, root, calls, render, unmount, gesture, gestureListeners, media: host.querySelector("video") };
 }
 
 test("server markup starts muted with native controls and playback configures low volume before unmuting", async context => {
@@ -100,6 +123,118 @@ test("successful muted fallback does not show an unnecessary play button", async
   assert.equal(host.querySelectorAll("button").length, 1);
   assert.ok(host.textContent.includes("Video senza audio"));
 });
+
+test("the first trusted page click starts sound at 20 percent synchronously and removes recovery listeners", async context => {
+  const { calls, media, gesture, gestureListeners } = await mount(context, { play: [notAllowed] });
+  assert.equal(media.muted, true);
+  assert.equal(gestureListeners.get("click").size, 1);
+  await action(() => {
+    gesture("click");
+    assert.equal(calls.filter(call => call.type === "play").length, 3, "play must occur in the same activation stack");
+    assert.equal(calls.at(-1).volume, 0.2);
+    assert.equal(calls.at(-1).muted, false);
+  });
+  assert.equal(media.muted, false);
+  assert.equal(gestureListeners.get("click").size, 0);
+  assert.equal(gestureListeners.get("keydown").size, 0);
+  await action(() => gesture("click"));
+  assert.equal(calls.filter(call => call.type === "play").length, 3, "recovery is one-shot");
+});
+
+test("untrusted clicks, scroll, pointer movement and modifier keys do not activate sound", async context => {
+  const { calls, media, gesture } = await mount(context, { play: [notAllowed] });
+  await action(() => {
+    document.body.click();
+    gesture("click", { isTrusted: false });
+    gesture("pointerdown");
+    gesture("pointermove");
+    gesture("scroll");
+    gesture("keydown", { key: "Shift" });
+    gesture("keydown", { key: "Enter", ctrlKey: true });
+    gesture("keydown", { key: "Enter", repeat: true });
+  });
+  assert.equal(media.muted, true);
+  assert.equal(calls.filter(call => call.type === "play").length, 2);
+  await action(() => gesture("keydown", { key: "Enter" }));
+  assert.equal(media.muted, false);
+  assert.equal(calls.findLast(call => call.type === "play").volume, 0.2);
+});
+
+for (const choice of ["volume", "mute", "pause", "native controls", "manual play"]) {
+  test(`an explicit ${choice} choice cancels automatic sound activation`, async context => {
+    const { host, calls, media, gesture, gestureListeners } = await mount(context, { play: [notAllowed, ...(choice === "manual play" ? [notAllowed] : [])] });
+    await action(() => {
+      if (choice === "volume") { media.volume = 0.43; media.dispatchEvent(new dom.window.Event("volumechange")); }
+      if (choice === "mute") { media.muted = false; media.dispatchEvent(new dom.window.Event("volumechange")); media.muted = true; media.dispatchEvent(new dom.window.Event("volumechange")); }
+      if (choice === "pause") media.dispatchEvent(new dom.window.Event("pause"));
+      if (choice === "native controls") media.dispatchEvent(new dom.window.Event("pointerdown", { bubbles: true }));
+      if (choice === "manual play") [...host.querySelectorAll("button")].find(button => button.textContent === "Riproduci video").click();
+    });
+    assert.equal(gestureListeners.get("click").size, 0);
+    assert.equal(gestureListeners.get("keydown").size, 0);
+    const attempts = calls.filter(call => call.type === "play").length;
+    await action(() => gesture("click"));
+    assert.equal(calls.filter(call => call.type === "play").length, attempts);
+    assert.equal(media.muted, true);
+    if (choice === "volume") assert.equal(media.volume, 0.43);
+  });
+}
+
+test("player audio controls win over the page gesture and programmatic mute events preserve pending recovery", async context => {
+  const { host, calls, media, gesture, gestureListeners } = await mount(context, { play: [notAllowed] });
+  await action(() => media.dispatchEvent(new dom.window.Event("volumechange")));
+  assert.equal(gestureListeners.get("click").size, 1, "our own queued volumechange must not cancel recovery");
+  await action(() => gesture("click", { target: media }));
+  assert.equal(calls.filter(call => call.type === "play").length, 2);
+  await action(() => host.querySelector("button").click());
+  assert.equal(calls.filter(call => call.type === "play").length, 3, "the explicit audio button should play only once");
+  assert.equal(media.muted, false);
+  assert.equal(gestureListeners.get("click").size, 0);
+});
+
+test("the video section’s close button cannot trigger sound just before the parent removes it", async context => {
+  const { host, calls, media, gesture } = await mount(context, { play: [notAllowed], withSection: true });
+  await action(() => gesture("click", { target: host.querySelector('button[aria-label="Close video"]') }));
+  assert.equal(calls.filter(call => call.type === "play").length, 2);
+  assert.equal(media.muted, true);
+});
+
+test("late muted-play rejections cannot undo sound started by a trusted gesture", async context => {
+  const pending = defer();
+  const { calls, media, gesture } = await mount(context, { play: [notAllowed, () => pending.promise] });
+  await action(() => gesture("click"));
+  assert.equal(media.muted, false);
+  const count = calls.length;
+  await action(() => pending.reject(Object.assign(new Error("Old muted attempt"), { name: "NotAllowedError" })));
+  assert.equal(media.muted, false);
+  assert.equal(calls.length, count);
+});
+
+test("a rejected gesture recovery stays one-shot and keeps the manual sound control", async context => {
+  const { host, calls, media, gesture, gestureListeners } = await mount(context, { play: [notAllowed, () => Promise.resolve(), notAllowed] });
+  await action(() => gesture("click"));
+  assert.equal(media.muted, true);
+  assert.equal(calls.filter(call => call.type === "play").length, 4);
+  assert.equal(gestureListeners.get("click").size, 0);
+  await action(() => gesture("keydown", { key: "Enter" }));
+  assert.equal(calls.filter(call => call.type === "play").length, 4);
+  assert.equal(host.querySelector("button").textContent, "Attiva audio · 20%");
+});
+
+for (const end of ["source change", "unmount", "media error"]) {
+  test(`${end} removes pending sound-recovery listeners, including under StrictMode`, async context => {
+    const { calls, media, gesture, gestureListeners, render, unmount } = await mount(context, { strict: true, play: [notAllowed, notAllowed] });
+    assert.equal(gestureListeners.get("click").size, 1);
+    if (end === "source change") await render({ src: "https://meraki.test/media/another.mp4" });
+    if (end === "unmount") await unmount();
+    if (end === "media error") await action(() => media.dispatchEvent(new dom.window.Event("error")));
+    assert.equal(gestureListeners.get("click").size, 0);
+    assert.equal(gestureListeners.get("keydown").size, 0);
+    const count = calls.length;
+    await action(() => gesture("click"));
+    assert.equal(calls.length, count);
+  });
+}
 
 test("native volume changes and locale/title rerenders preserve the visitor’s volume without restarting", async context => {
   const { host, calls, media, render } = await mount(context);
