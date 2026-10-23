@@ -38,7 +38,7 @@ test("long ticket dates translate their calendar words and keep midnight padded 
     ["it", "19 novembre 2026 alle ore 00:30"],
     ["en", "19 November 2026 at 00:30"],
     ["de", "19. November 2026 um 00:30"],
-    ["es", "19 de noviembre de 2026, 00:30"],
+    ["es", "19 de noviembre de 2026 a las 00:30"],
   ]) assert.equal(formatEventDate(date, locale, { dateStyle: "long", timeStyle: "short" }), expected);
   assert.equal(date.getTime(), before);
 });

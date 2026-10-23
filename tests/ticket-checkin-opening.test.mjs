@@ -59,7 +59,7 @@ const ticketDates = {
   it: { start: "19 novembre 2026 alle ore 00:30", opening: "18 novembre 2026 alle ore 23:00", date: "19 novembre 2026" },
   en: { start: "19 November 2026 at 00:30", opening: "18 November 2026 at 23:00", date: "19 November 2026" },
   de: { start: "19. November 2026 um 00:30", opening: "18. November 2026 um 23:00", date: "19. November 2026" },
-  es: { start: "19 de noviembre de 2026, 00:30", opening: "18 de noviembre de 2026, 23:00", date: "19 de noviembre de 2026" },
+  es: { start: "19 de noviembre de 2026 a las 00:30", opening: "18 de noviembre de 2026 a las 23:00", date: "19 de noviembre de 2026" },
 };
 
 test("ticket pages translate calendar words while distinguishing opening, event start and a recorded admission in Italian time", async () => {

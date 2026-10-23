@@ -164,7 +164,9 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
     await change(window.document.querySelector(`input[name="participant-${index}-phone"]`), "+393331234567");
     await change(window.document.querySelector(`input[name="participant-${index}-document-number"]`), locale === "it" ? "RSSMRA85T10A562S" : "ABC123456");
   };
-  return { calls, redirects, open, settleQuote, change, fillPerson, elapse: async (milliseconds) => { clockNow += milliseconds; await act(async () => clockTick?.()); await settleQuote(); }, setQuoteResponse: (value) => { quoteResponse = value; }, setCatalogOffline: () => { rejectCatalog = true; }, setCheckoutResponse: (value, options = {}) => { checkoutResponse = value; checkoutOk = options.ok === true; } };
+  return { calls, redirects, open, settleQuote, change, fillPerson,
+    advanceTo: async (timestamp) => { clockNow = timestamp; await act(async () => clockTick?.()); await settleQuote(); },
+    elapse: async (milliseconds) => { clockNow += milliseconds; await act(async () => clockTick?.()); await settleQuote(); }, setQuoteResponse: (value) => { quoteResponse = value; }, setCatalogOffline: () => { rejectCatalog = true; }, setCheckoutResponse: (value, options = {}) => { checkoutResponse = value; checkoutOk = options.ok === true; } };
 }
 
 test("events with no commerce configuration preserve their existing purchase", async (context) => {
@@ -716,7 +718,7 @@ test("the displayed tier and comparison update when the scheduled price boundary
   const card = () => window.document.querySelector('input[value="only-ws"]').closest("label");
   assert.equal(card().querySelector(".tierPill").textContent, "Early Bird");
   assert.ok(card().querySelector("[data-next-tier-comparison]"));
-  await ui.elapse(Date.parse("2099-05-01T22:30:01Z") - Date.now());
+  await ui.advanceTo(Date.parse("2099-05-01T22:30:01Z"));
   assert.equal(card().querySelector(".tierPill").textContent, "Standard");
   assert.match(card().querySelector(".offerPrice").textContent, /55,00\s*€/);
   assert.equal(card().querySelector("[data-next-tier-comparison], [data-tier-deadline], .tierSavings"), null);
