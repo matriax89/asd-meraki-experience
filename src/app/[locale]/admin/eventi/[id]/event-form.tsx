@@ -454,14 +454,15 @@ export function EventForm({ initialData, locale = "it", initialTicketingMode }: 
             onChange={e => setFormData({...formData, indirizzo: e.target.value})} 
           />
           <Input 
-            label="Posti Totali (Capienza)" 
+            label={ticketingMode === "advanced" ? "Limite complessivo di iscritti (facoltativo)" : "Posti Totali (Capienza)"}
             type="number"
             min={0}
             max={100000}
-            placeholder="es. 50 (vuoto = illimitati)"
+            placeholder={ticketingMode === "advanced" ? "Vuoto = solo limiti delle singole attività" : "es. 50 (vuoto = illimitati)"}
             value={formData.capacity} 
             onChange={e => setFormData({...formData, capacity: e.target.value})} 
           />
+          {ticketingMode === "advanced" && <p className="text-sm leading-6 text-muted-foreground sm:col-span-2">Questo è un limite aggiuntivo alle persone distinte iscritte all’intero evento. Per sessioni in orari diversi, imposta la capienza di ogni attività in Formule e prezzi e lascia vuoto questo campo.</p>}
         </div>
       </div>
 

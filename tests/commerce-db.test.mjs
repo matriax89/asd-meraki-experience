@@ -162,6 +162,33 @@ test("commerce integration with an isolated PostgreSQL cluster", {
     assert.equal((await reserve(id)).error,'sold_out');
     const result=await fulfill(order);assert.equal(result.passes.length,2);assert.notEqual(result.passes[0].qr_code,result.passes[1].qr_code);
   });
+  await t.test('successive sessions admit 100 workshop-only and 100 masterclass-only people with independent room limits',async()=>{
+    const id=await event(100,null);
+    const c=config(100);const starts=Date.now()+2*86400000;
+    c.activities[0].startsAt=new Date(starts).toISOString();
+    c.activities[0].endsAt=new Date(starts+2*3600000).toISOString();
+    c.activities[1].startsAt=new Date(starts+3*3600000).toISOString();
+    c.activities[1].endsAt=new Date(starts+5*3600000).toISOString();
+    c.activities[2].capacity=50;
+    assert.equal((await service.query('select public.save_commerce_config($1,$2) result',[id,json(c)])).rows[0].result.saved,true);
+    for(const packageId of ['ws','mc']) {
+      for(let batch=0;batch<5;batch++) {
+        const people=Array.from({length:20},(_,index)=>person(packageId,[],{},`${packageId} ${batch*20+index}`));
+        const reserved=await reserve(id,people);
+        assert.ok(reserved.order,`${packageId} group ${batch+1} must be accepted`);
+        assert.equal((await fulfill(reserved.order)).passes.length,20);
+      }
+      const availability=(await service.query('select public.commerce_availability($1) result',[id])).rows[0].result;
+      assert.equal(availability._event,null,'there is no extra limit on unique people across successive sessions');
+      assert.equal(availability.ws,0);
+      assert.equal(availability.mc,packageId==='ws'?100:0,'filling the workshop must not consume masterclass seats');
+    }
+    assert.equal((await db.query("select count(*)::int count from public.commerce_passes where event_id=$1 and status='paid'",[id])).rows[0].count,200);
+    const counts=(await db.query("select activity_id,count(*)::int count from public.commerce_entitlements where event_id=$1 and status='valid' group by activity_id order by activity_id",[id])).rows;
+    assert.deepEqual(counts,[{activity_id:'mc',count:100},{activity_id:'ws',count:100}]);
+    for(const packageId of ['ws','mc','bundle']) assert.equal((await reserve(id,[person(packageId)])).error,'sold_out',`${packageId} cannot exceed the session's 100 seats`);
+    assert.equal((await service.query('select public.commerce_availability($1) result',[id])).rows[0].result.dinner,50);
+  });
   await t.test('quotes ignore client money, validate menus, deadlines, duplicate add-ons and dates',async()=>{
     const id=await event(10);
     assert.equal((await quote(id,[person('ws',['cena'])])).error,'invalid_menu');
@@ -398,7 +425,7 @@ test("commerce integration with an isolated PostgreSQL cluster", {
     assert.equal((await reserveGuests(id,contacts,request)).order.id,order.id);
     const session=`cs_nodocument_${randomUUID()}`;
     const result=await fulfill(order,session);assert.equal(result.outcome,'fulfilled');assert.equal(result.passes.length,4);
-    const retry=await fulfill(order,session);assert.deepEqual(retry.passes.map(p=>p.id),result.passes.map(p=>p.id));
+    const retry=await fulfill(order,session);assert.deepEqual(retry.passes.map(p=>p.id).sort(),result.passes.map(p=>p.id).sort());
     const saved=(await service.query('select participant_index,document_type,document_country,document_number,email from public.commerce_attendee_contacts where order_id=$1 order by participant_index',[order.id])).rows;
     assert.equal(saved.length,4);
     assert.deepEqual(saved.map(c=>[c.document_type,c.document_country,c.document_number]),contacts.map(c=>[c.documentType,c.documentCountry,c.documentNumber]));

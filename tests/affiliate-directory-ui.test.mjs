@@ -35,8 +35,11 @@ const eventA = { id: "b44b9ba0-11cc-4da7-80d0-a3acf193c379", title: "Meraki Inve
 const eventB = { id: "c732f0f8-fb0d-45fe-8e49-cdc1d8cc8d02", title: "Meraki Estate", startsAt: "2027-06-01T10:00:00Z" };
 const affiliateA = "8af0ff53-de24-43b5-a8f0-1c29d11ca936";
 const affiliateB = "c66f0bf0-9ff0-4fd5-825e-e2bb28cd301a";
-const affiliate = { id: affiliateA, name: "Martina Gallo", active: true, archived: false };
-const row = (event, id, overrides = {}) => ({ eventId: event.id, eventTitle: event.title, eventStartsAt: event.startsAt, affiliateId: id, name: "Martina Gallo", active: true, archived: false, validCount: 2, checkedInCount: 1, totalCount: 3, ...overrides });
+const affiliate = { id: affiliateA, name: "Martina Gallo", active: true, archived: false, commissionPerParticipantCents: 500, commissionCents: 500 };
+const row = (event, id, overrides = {}) => {
+  const entry = { eventId: event.id, eventTitle: event.title, eventStartsAt: event.startsAt, affiliateId: id, name: "Martina Gallo", active: true, archived: false, validCount: 2, checkedInCount: 1, totalCount: 3, commissionPerParticipantCents: 500, ...overrides };
+  return { ...entry, commissionCents: entry.validCount * entry.commissionPerParticipantCents };
+};
 const rows = [row(eventA, affiliateA), row(eventB, affiliateB), row(eventA, "archived", { name: "Scuola storica", active: false, archived: true, validCount: 0, totalCount: 1 }), row(eventA, "empty", { name: "Scuola nuova", active: false, validCount: 0, totalCount: 0 })];
 const participants = [
   { id: "ada", name: "Ada Rossi", email: "ada@example.test", packageName: "Workshop + Masterclass", status: "paid", checkedIn: true, activities: [{ id: "right-ws", name: "Workshop", status: "used", checkedInAt: "2026-12-20T00:00:00Z", menuChoice: null }] },
@@ -147,4 +150,34 @@ test("route failures display an error without leaking private records or excepti
     assert.ok(html.includes('role="alert"'));
     assert.equal(html.includes("private-participant"), false);
   }
+});
+
+test("directory shows event-specific rate and earned compensation outside the participant-list link", async context => {
+  await setup(context, "index", { events: [eventA], rows: [row(eventA, affiliateA, { validCount: 8, totalCount: 9 }), row(eventA, affiliateB, { name: "Scuola senza compenso", commissionPerParticipantCents: 0 })], selectedEventId: eventA.id });
+  const entries = [...window.document.querySelectorAll('section[aria-label="Elenco affiliati"] > ul > li')];
+  assert.ok(entries[0].textContent.includes("8 iscritti validi"));
+  assert.ok(entries[0].textContent.includes("5,00")); assert.ok(entries[0].textContent.includes("40,00"));
+  assert.ok(entries[0].textContent.includes("Compenso maturato"));
+  const settings = entries[0].querySelector('a[aria-label^="Imposta compenso"]');
+  assert.equal(settings.getAttribute("href"), `/admin/eventi/${eventA.id}#compensi-affiliati`);
+  assert.equal(settings.parentElement.closest("a"), null, "settings link cannot be nested in the participant link");
+  assert.ok(entries[1].textContent.includes("0,00"));
+  assert.equal(window.document.body.textContent.includes("NaN"), false);
+});
+
+test("detail compensation uses valid totals and survives participant search", async context => {
+  const ui = await setup(context, "detail", { event: eventA, affiliate: { ...affiliate, commissionCents: 4000 }, participants, validCount: 8, checkedInCount: 1, totalCount: 9 });
+  const value = label => [...window.document.querySelectorAll("dt")].find(node => node.textContent === label)?.nextElementSibling?.textContent;
+  assert.ok(value("Compenso per iscritto valido").includes("5,00"));
+  assert.ok(value("Compenso maturato").includes("40,00"));
+  assert.ok(window.document.querySelector(`a[href="/admin/eventi/${eventA.id}#compensi-affiliati"]`));
+  await ui.search("rita");
+  assert.ok(value("Compenso maturato").includes("40,00"));
+});
+
+test("direct purchases never display payable compensation or an edit-compensation link", async context => {
+  await setup(context, "detail", { event: eventA, affiliate: { ...affiliate, id: "direct", name: "Acquisti diretti", commissionPerParticipantCents: 0, commissionCents: 0 }, participants, validCount: 1, checkedInCount: 1, totalCount: 2 });
+  assert.ok(window.document.body.textContent.includes("Nessun compenso per gli acquisti diretti."));
+  assert.equal(window.document.body.textContent.includes("Compenso maturato"), false);
+  assert.equal(window.document.querySelector('a[href$="#compensi-affiliati"]'), null);
 });

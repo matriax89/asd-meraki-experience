@@ -7,6 +7,7 @@ export type AffiliateDirectoryEvent = { id: string; title: string; startsAt: str
 export type AffiliateDirectoryRow = {
   eventId: string; eventTitle: string; eventStartsAt: string; affiliateId: string; name: string;
   active: boolean; archived: boolean; validCount: number; checkedInCount: number; totalCount: number;
+  commissionPerParticipantCents: number; commissionCents: number;
 };
 export type AffiliateParticipant = {
   id: string; name: string; email: string; packageName: string;
@@ -16,11 +17,11 @@ export type AffiliateParticipant = {
 };
 export type AffiliateDirectory = { events: AffiliateDirectoryEvent[]; rows: AffiliateDirectoryRow[]; selectedEventId: string };
 export type AffiliateParticipants = {
-  event: AffiliateDirectoryEvent; affiliate: { id: string; name: string; active: boolean; archived: boolean };
+  event: AffiliateDirectoryEvent; affiliate: { id: string; name: string; active: boolean; archived: boolean; commissionPerParticipantCents: number; commissionCents: number };
   participants: AffiliateParticipant[]; validCount: number; checkedInCount: number; totalCount: number;
 };
 
-type EventRow = { id: string; titolo: unknown; data_inizio: string; affiliates: unknown };
+type EventRow = { id: string; titolo: unknown; data_inizio: string; affiliates: unknown; canceled_at: string | null };
 type Attribution = {
   id: string; event_id: string; affiliate_id: string | null; affiliate_name: string | null; status: string | null; created_at: string | null;
   commerce_entitlements?: { status: string }[];
@@ -32,6 +33,7 @@ type CommerceParticipant = Omit<Attribution, "commerce_entitlements"> & {
   commerce_entitlements: { id: string; activity_id: string; activity_name: string; status: string; checked_in_at: string | null; menu_choice: string | null }[];
 };
 type ContactRow = { pass_id: string; email: string; created_at: string };
+type CommissionRow = { event_id: string; affiliate_id: string; commission_cents: number };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const pageSize = 500;
 
@@ -43,6 +45,25 @@ async function loadRows<T>(query: (from: number, to: number) => PromiseLike<{ da
     rows.push(...data as T[]);
     if (data.length < pageSize) return rows;
   }
+}
+
+/** Private event-specific rates. Failed reads must not look like zero compensation. */
+async function loadCommissionRates(admin: Awaited<ReturnType<typeof requireCommerceStaff>>, eventIds: string[], affiliateId?: string) {
+  const rates = new Map<string, number>();
+  if (affiliateId === "direct") return rates;
+  for (let index = 0; index < eventIds.length; index += 100) {
+    const ids = eventIds.slice(index, index + 100);
+    const entries = await loadRows<CommissionRow>((from, to) => {
+      let query = admin.from("event_affiliate_commissions").select("event_id,affiliate_id,commission_cents").in("event_id", ids);
+      if (affiliateId) query = query.eq("affiliate_id", affiliateId);
+      return query.order("event_id").order("affiliate_id").range(from, to);
+    }, "Impossibile caricare i compensi degli affiliati. Riprova.");
+    for (const entry of entries) {
+      if (!Number.isSafeInteger(entry.commission_cents) || entry.commission_cents < 0) throw new Error("Compenso dell’affiliato non valido. Verifica le impostazioni dell’evento.");
+      rates.set(`${entry.event_id}:${entry.affiliate_id}`, entry.commission_cents);
+    }
+  }
+  return rates;
 }
 
 function eventSummary(event: EventRow, locale: string): AffiliateDirectoryEvent {
@@ -69,23 +90,24 @@ export async function loadAffiliateDirectory(locale: string, eventFilter?: strin
   const admin = await requireCommerceStaff();
   const selectedEventId = eventFilter?.trim().toLowerCase() || "";
   if (selectedEventId && !uuid.test(selectedEventId)) throw new Error("Evento non disponibile. Seleziona un evento dall’elenco.");
-  const eventRows = await loadRows<EventRow>((from, to) => admin.from("events").select("id,titolo,data_inizio,affiliates").order("data_inizio", { ascending: false }).order("id").range(from, to), "Impossibile caricare gli eventi. Riprova.");
+  const eventRows = await loadRows<EventRow>((from, to) => admin.from("events").select("id,titolo,data_inizio,affiliates,canceled_at").order("data_inizio", { ascending: false }).order("id").range(from, to), "Impossibile caricare gli eventi. Riprova.");
   if (selectedEventId && !eventRows.some(event => event.id === selectedEventId)) throw new Error("Evento non disponibile. Seleziona un evento dall’elenco.");
   const events = eventRows.map(event => eventSummary(event, locale));
   const scopedEvents = selectedEventId ? eventRows.filter(event => event.id === selectedEventId) : eventRows;
   if (!scopedEvents.length) return { events, rows: [], selectedEventId };
   const rows = new Map<string, AffiliateDirectoryRow>();
   const eventMap = new Map(scopedEvents.map(event => [event.id, eventSummary(event, locale)]));
+  const canceledEvents = new Set(scopedEvents.filter(event => event.canceled_at).map(event => event.id));
   for (const event of scopedEvents) for (const affiliate of parseEventAffiliates(event.affiliates)) {
     const summary = eventMap.get(event.id)!;
-    rows.set(`${event.id}:${affiliate.id}`, { eventId: event.id, eventTitle: summary.title, eventStartsAt: summary.startsAt, affiliateId: affiliate.id, name: affiliate.name, active: affiliate.active, archived: false, validCount: 0, checkedInCount: 0, totalCount: 0 });
+    rows.set(`${event.id}:${affiliate.id}`, { eventId: event.id, eventTitle: summary.title, eventStartsAt: summary.startsAt, affiliateId: affiliate.id, name: affiliate.name, active: affiliate.active, archived: false, validCount: 0, checkedInCount: 0, totalCount: 0, commissionPerParticipantCents: 0, commissionCents: 0 });
   }
   const loadAttributions = (table: "tickets" | "commerce_passes") => loadRows<Attribution>((from, to) => {
     let query = admin.from(table).select(`id,event_id,affiliate_id,affiliate_name,status,created_at${table === "commerce_passes" ? ",commerce_entitlements(status)" : ""}`);
     if (selectedEventId) query = query.eq("event_id", selectedEventId);
     return query.order("created_at", { ascending: false }).order("id").range(from, to);
   }, "Impossibile caricare i conteggi degli affiliati. Riprova.");
-  const [legacy, commerce] = await Promise.all([loadAttributions("tickets"), loadAttributions("commerce_passes")]);
+  const [legacy, commerce, commissionRates] = await Promise.all([loadAttributions("tickets"), loadAttributions("commerce_passes"), loadCommissionRates(admin, scopedEvents.map(event => event.id))]);
   const records = [...legacy.map(record => ({ record, commerce: false })), ...commerce.map(record => ({ record, commerce: true }))]
     .sort((a, b) => (b.record.created_at || "").localeCompare(a.record.created_at || ""));
   for (const { record, commerce: isCommerce } of records) {
@@ -95,12 +117,16 @@ export async function loadAffiliateDirectory(locale: string, eventFilter?: strin
     const key = `${record.event_id}:${affiliateId}`;
     let row = rows.get(key);
     if (!row) {
-      row = { eventId: event.id, eventTitle: event.title, eventStartsAt: event.startsAt, affiliateId, name: affiliateId === "direct" ? "Acquisti diretti" : record.affiliate_name || "Affiliato archiviato", active: affiliateId === "direct", archived: affiliateId !== "direct", validCount: 0, checkedInCount: 0, totalCount: 0 };
+      row = { eventId: event.id, eventTitle: event.title, eventStartsAt: event.startsAt, affiliateId, name: affiliateId === "direct" ? "Acquisti diretti" : record.affiliate_name || "Affiliato archiviato", active: affiliateId === "direct", archived: affiliateId !== "direct", validCount: 0, checkedInCount: 0, totalCount: 0, commissionPerParticipantCents: 0, commissionCents: 0 };
       rows.set(key, row);
     }
     row.totalCount += 1;
-    if (valid(record, isCommerce)) row.validCount += 1;
-    if (checkedIn(record, isCommerce)) row.checkedInCount += 1;
+    if (!canceledEvents.has(record.event_id) && valid(record, isCommerce)) row.validCount += 1;
+    if (!canceledEvents.has(record.event_id) && checkedIn(record, isCommerce)) row.checkedInCount += 1;
+  }
+  for (const [key, row] of rows) {
+    row.commissionPerParticipantCents = row.affiliateId === "direct" ? 0 : commissionRates.get(key) || 0;
+    row.commissionCents = row.validCount * row.commissionPerParticipantCents;
   }
   return { events, rows: [...rows.values()].sort((a, b) => b.eventStartsAt.localeCompare(a.eventStartsAt) || a.eventId.localeCompare(b.eventId) || (a.affiliateId === "direct" ? 1 : b.affiliateId === "direct" ? -1 : a.name.localeCompare(b.name, "it"))), selectedEventId };
 }
@@ -111,11 +137,11 @@ export async function loadAffiliateParticipants(locale: string, eventId: string,
   if (!uuid.test(eventId) || (affiliateId !== "direct" && !uuid.test(affiliateId))) return null;
   eventId = eventId.toLowerCase();
   affiliateId = affiliateId.toLowerCase();
-  const { data, error } = await admin.from("events").select("id,titolo,data_inizio,affiliates").eq("id", eventId).maybeSingle();
+  const { data, error } = await admin.from("events").select("id,titolo,data_inizio,affiliates,canceled_at").eq("id", eventId).maybeSingle();
   if (error) throw new Error("Impossibile caricare l’evento. Riprova.");
   if (!data) return null;
   const event = data as EventRow;
-  const [legacy, commerce] = await Promise.all([
+  const [legacy, commerce, commissionRates] = await Promise.all([
     loadRows<LegacyParticipant>((from, to) => {
       let query = admin.from("tickets").select("id,event_id,affiliate_id,affiliate_name,status,created_at,buyer_nome,buyer_cognome,buyer_email").eq("event_id", eventId);
       query = affiliateId === "direct" ? query.is("affiliate_id", null) : query.eq("affiliate_id", affiliateId);
@@ -126,11 +152,12 @@ export async function loadAffiliateParticipants(locale: string, eventId: string,
       query = affiliateId === "direct" ? query.is("affiliate_id", null) : query.eq("affiliate_id", affiliateId);
       return query.order("created_at", { ascending: false }).order("id").range(from, to);
     }, "Impossibile caricare gli iscritti dell’affiliato. Riprova."),
+    loadCommissionRates(admin, [eventId], affiliateId),
   ]);
   const configured = parseEventAffiliates(event.affiliates).find(affiliate => affiliate.id === affiliateId);
   const historical = [...legacy, ...commerce].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))[0];
   if (!configured && !historical) return null;
-  const affiliate = { id: affiliateId, name: affiliateId === "direct" ? "Acquisti diretti" : configured?.name || historical?.affiliate_name || "Affiliato archiviato", active: affiliateId === "direct" || Boolean(configured?.active), archived: affiliateId !== "direct" && !configured };
+  const affiliate = { id: affiliateId, name: affiliateId === "direct" ? "Acquisti diretti" : configured?.name || historical?.affiliate_name || "Affiliato archiviato", active: affiliateId === "direct" || Boolean(configured?.active), archived: affiliateId !== "direct" && !configured, commissionPerParticipantCents: commissionRates.get(`${eventId}:${affiliateId}`) || 0, commissionCents: 0 };
   const participantEmails = new Map<string, string>();
   const contactBatches = [];
   for (let index = 0; index < commerce.length; index += 100) {
@@ -139,12 +166,13 @@ export async function loadAffiliateParticipants(locale: string, eventId: string,
   }
   for (const contacts of await Promise.all(contactBatches)) for (const contact of contacts) if (!participantEmails.has(contact.pass_id)) participantEmails.set(contact.pass_id, contact.email);
   const participants: AffiliateParticipant[] = [
-    ...legacy.map(record => ({ id: record.id, name: [record.buyer_nome, record.buyer_cognome].filter(Boolean).join(" ") || "Partecipante", email: record.buyer_email || "", packageName: "Ingresso evento", status: participantStatus(record, false), checkedIn: checkedIn(record, false), activities: [] })),
+    ...legacy.map(record => ({ id: record.id, name: [record.buyer_nome, record.buyer_cognome].filter(Boolean).join(" ") || "Partecipante", email: record.buyer_email || "", packageName: "Ingresso evento", status: participantStatus(record, false), checkedIn: !event.canceled_at && checkedIn(record, false), activities: [] })),
     ...commerce.map(record => {
       const order = Array.isArray(record.commerce_orders) ? record.commerce_orders[0] : record.commerce_orders;
-      return { id: record.id, name: [record.first_name, record.last_name].filter(Boolean).join(" ") || "Partecipante", email: participantEmails.get(record.id) || order?.buyer_email || "", packageName: record.package_name, status: participantStatus(record, true), checkedIn: checkedIn(record, true), activities: (record.commerce_entitlements || []).map((entry, index) => ({ id: entry.id || `${record.id}:${entry.activity_id}:${index}`, name: entry.activity_name, status: entry.status, checkedInAt: entry.checked_in_at, menuChoice: entry.menu_choice })) };
+      return { id: record.id, name: [record.first_name, record.last_name].filter(Boolean).join(" ") || "Partecipante", email: participantEmails.get(record.id) || order?.buyer_email || "", packageName: record.package_name, status: participantStatus(record, true), checkedIn: !event.canceled_at && checkedIn(record, true), activities: (record.commerce_entitlements || []).map((entry, index) => ({ id: entry.id || `${record.id}:${entry.activity_id}:${index}`, name: entry.activity_name, status: entry.status, checkedInAt: entry.checked_in_at, menuChoice: entry.menu_choice })) };
     }),
   ].sort((a, b) => a.name.localeCompare(b.name, "it") || a.id.localeCompare(b.id));
-  const validCount = legacy.filter(record => valid(record, false)).length + commerce.filter(record => valid(record, true)).length;
+  const validCount = event.canceled_at ? 0 : legacy.filter(record => valid(record, false)).length + commerce.filter(record => valid(record, true)).length;
+  affiliate.commissionCents = validCount * affiliate.commissionPerParticipantCents;
   return { event: eventSummary(event, locale), affiliate, participants, validCount, checkedInCount: participants.filter(participant => participant.checkedIn).length, totalCount: participants.length };
 }

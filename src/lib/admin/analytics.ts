@@ -7,9 +7,10 @@ import { loadPaymentFees } from "@/lib/stripe/payment-fees";
 import type { AdminAnalytics, AdminAnalyticsInput, AnalyticsAffiliateRow, AnalyticsBreakdown, AnalyticsEventRow, AnalyticsFinancials, AnalyticsMetrics } from "./analytics-types";
 
 type Event = { id: string; titolo: unknown; data_inizio: string; data_fine: string | null; attivo: boolean | null; canceled_at: string | null; capacity: number | null; affiliates: unknown; activities: unknown };
-type FinancialRow = { id: string; event_id: string; amount_cents: number | null; state: string; created_at: string | null; expires_at?: string | null; stripe_payment_intent: string | null; stripe_session_id: string | null; refund_status: string | null; affiliate_id: string | null; affiliate_name: string | null; quote_lines?: unknown; quote_discount?: unknown; snapshot_activities?: unknown; upgrade_pass_id?: string | null };
+type FinancialRow = { id: string; event_id: string; amount_cents: number | null; state: string; created_at: string | null; expires_at?: string | null; demand?: unknown; stripe_payment_intent: string | null; stripe_session_id: string | null; refund_status: string | null; affiliate_id: string | null; affiliate_name: string | null; quote_lines?: unknown; quote_discount?: unknown; snapshot_activities?: unknown; upgrade_pass_id?: string | null };
 type Pass = { id: string; event_id: string; order_id: string; status: string; created_at: string; affiliate_id: string | null; affiliate_name: string | null };
-type Right = { id: string; event_id: string; pass_id: string; order_id: string; activity_id: string; activity_name: string; status: string; checked_in_at: string | null };
+type Right = { id: string; event_id: string; pass_id: string; order_id: string; activity_id: string; activity_name: string; kind?: string; status: string; checked_in_at: string | null };
+type AffiliateCommission = { event_id: string; affiliate_id: string; commission_cents: number };
 type Ticket = { id: string; event_id: string; status: string | null; amount_cents: number | null; created_at: string | null; used_at: string | null; stripe_payment_intent: string | null; stripe_session_id: string | null; affiliate_id: string | null; affiliate_name: string | null };
 type Refund = { id: string; event_id: string; order_id: string | null; ticket_reservation_id: string | null; payment_intent: string; amount_cents: number; status: string; stripe_refund_id: string | null };
 type RefundMarker = { payment_intent: string; status?: string };
@@ -146,16 +147,21 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     if (selected.eventId && !global) query = query.eq("event_id", selected.eventId);
     return query.order(global ? "payment_intent" : "id").range(from, to);
   }, label);
-  const [orders, reservations, passes, rights, tickets, refunds, commerceRefunds, ticketRefunds, waitlist, newLeads, openShopOrders, confirmedContacts] = await Promise.all([
-    read<FinancialRow>("commerce_orders", "id,event_id,state,amount_cents,created_at,expires_at,stripe_payment_intent,stripe_session_id,refund_status,affiliate_id,affiliate_name,upgrade_pass_id,quote_lines:quote->lines,quote_discount:quote->discount,snapshot_activities:event_snapshot->commerce_config->activities", "gli acquisti"),
+  const [orders, reservations, passes, rights, tickets, refunds, commerceRefunds, ticketRefunds, waitlist, commissionRates, newLeads, openShopOrders, confirmedContacts] = await Promise.all([
+    read<FinancialRow>("commerce_orders", "id,event_id,state,amount_cents,created_at,expires_at,demand,stripe_payment_intent,stripe_session_id,refund_status,affiliate_id,affiliate_name,upgrade_pass_id,quote_lines:quote->lines,quote_discount:quote->discount,snapshot_activities:event_snapshot->commerce_config->activities", "gli acquisti"),
     read<FinancialRow>("ticket_reservations", "id,event_id,state,amount_cents,created_at,expires_at,stripe_payment_intent,stripe_session_id,refund_status,affiliate_id,affiliate_name", "gli acquisti precedenti"),
     read<Pass>("commerce_passes", "id,event_id,order_id,status,created_at,affiliate_id,affiliate_name", "i partecipanti"),
-    read<Right>("commerce_entitlements", "id,event_id,pass_id,order_id,activity_id,activity_name,status,checked_in_at", "gli accessi"),
+    read<Right>("commerce_entitlements", "id,event_id,pass_id,order_id,activity_id,activity_name,kind,status,checked_in_at", "gli accessi"),
     read<Ticket>("tickets", "id,event_id,status,amount_cents,created_at,used_at,stripe_payment_intent,stripe_session_id,affiliate_id,affiliate_name", "i biglietti precedenti"),
     read<Refund>("meraki_refunds", "id,event_id,order_id,ticket_reservation_id,payment_intent,amount_cents,status,stripe_refund_id", "i rimborsi"),
     read<RefundMarker>("commerce_payment_refunds", "payment_intent,status", "i rimborsi precedenti", true),
     read<RefundMarker>("ticket_payment_refunds", "payment_intent", "i rimborsi dei biglietti precedenti", true),
     read<Waiting>("commerce_waitlist", "id,event_id,status,created_at", "la lista d’attesa"),
+    rows<AffiliateCommission>((from, to) => {
+      let query = db.from("event_affiliate_commissions").select("event_id,affiliate_id,commission_cents");
+      if (selected.eventId) query = query.eq("event_id", selected.eventId);
+      return query.order("event_id").order("affiliate_id").range(from, to);
+    }, "i compensi degli affiliati"),
     count(db.from("leads").select("id", { count: "exact", head: true }).eq("status", "nuovo"), "le nuove richieste"),
     count(db.from("orders").select("id", { count: "exact", head: true }).in("status", ["pending", "paid", "processing"]), "gli ordini da gestire"),
     count(db.from("marketing_contacts").select("id", { count: "exact", head: true }).eq("status", "subscribed"), "i contatti confermati"),
@@ -167,6 +173,7 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     "Ogni biglietto/pass valido conta una persona nel periodo di creazione dell’acquisto iniziale. Gli upgrade aumentano gli incassi senza creare un nuovo partecipante. I check-in sono lo stato attuale di queste persone.",
     "La disponibilità residua usa tutti gli accessi attualmente validi, indipendentemente dai filtri su acquisti e affiliati; non comprende prenotazioni temporanee ancora da pagare.",
     "Formule e scaglioni contano vendite e cambi formula; le aggiunte già possedute durante un upgrade non sono conteggiate di nuovo.",
+    "Il compenso maturato di ogni affiliato è l’importo per iscritto impostato per l’evento moltiplicato per gli iscritti validi del report. Ogni persona conta una volta, anche con più attività o acquisti successivi. Il netto dopo le commissioni di pagamento non sottrae questi compensi.",
   ]);
   if (selected.affiliateId !== "all") notes.add("La lista d’attesa non è attribuita agli affiliati: il dato non è disponibile con questo filtro.");
   const inPeriod = (createdAt: string | null) => {
@@ -185,13 +192,18 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     eventStats.set(event.id, { ...empty(metrics.waiting), id: event.id, title: title(event.id), startsAt: event.data_inizio, endsAt: event.data_fine, status, capacity, remaining: capacity });
   }
   const affiliateRows = new Map<string, AnalyticsAffiliateRow>();
+  const rates = new Map<string, number>();
+  for (const rate of commissionRates) {
+    if (!amount(rate.commission_cents)) throw new Error("Compenso affiliato non valido. Verifica le impostazioni dell’evento.");
+    rates.set(`${rate.event_id}:${rate.affiliate_id}`, rate.commission_cents);
+  }
   const affiliateOptions = new Map<string, string>();
   const affiliate = (eventId: string, id: string | null, snapshotName?: string | null) => {
     const affiliation = id || "direct";
     const key = `${eventId}:${affiliation}`;
     let row = affiliateRows.get(key);
     if (!row) {
-      row = { ...emptyFinancials(), id: affiliation, eventId, eventTitle: title(eventId), name: affiliation === "direct" ? "Acquisti diretti" : snapshotName || "Affiliato archiviato", validParticipants: 0, checkedInParticipants: 0, paidOrders: 0 };
+      row = { ...emptyFinancials(), id: affiliation, eventId, eventTitle: title(eventId), name: affiliation === "direct" ? "Acquisti diretti" : snapshotName || "Affiliato archiviato", validParticipants: 0, checkedInParticipants: 0, paidOrders: 0, commissionPerParticipantCents: id ? rates.get(key) || 0 : 0, commissionCents: 0 };
       affiliateRows.set(key, row);
     }
     if (id && !affiliateOptions.has(id)) affiliateOptions.set(id, row.name);
@@ -308,6 +320,25 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
   }
   const occupancy = new Map<string, number>();
   const activityOccupancy = new Map<string, Set<string>>();
+  const attendanceGroups = new Map<string, AdminAnalytics["attendanceGroups"][number]>(scopedEvents.map(event => [event.id, {
+    eventId: event.id, eventTitle: title(event.id), currentParticipants: 0, workshopOnly: 0, masterclassOnly: 0, both: 0, otherParticipants: 0,
+    capacity: eventStats.get(event.id)!.capacity, remaining: eventStats.get(event.id)!.capacity, reservedParticipants: 0,
+  }]));
+  const activityHolds = new Map<string, number>();
+  const activeHold = (row: FinancialRow) => row.state === "awaiting_payment" || (row.state === "reserved" && Boolean(row.expires_at && Date.parse(row.expires_at) > Date.now()));
+  for (const order of orders) {
+    const group = attendanceGroups.get(order.event_id);
+    if (!group || !activeHold(order) || !order.demand || typeof order.demand !== "object" || Array.isArray(order.demand)) continue;
+    for (const [activityId, count] of Object.entries(order.demand)) {
+      if (!amount(count)) throw new Error("Prenotazioni temporanee non valide. Verifica gli acquisti in attesa.");
+      if (activityId === "_passes") group.reservedParticipants += count;
+      else activityHolds.set(`${order.event_id}:${activityId}`, (activityHolds.get(`${order.event_id}:${activityId}`) || 0) + count);
+    }
+  }
+  for (const reservation of reservations) if (activeHold(reservation)) {
+    const group = attendanceGroups.get(reservation.event_id);
+    if (group) group.reservedParticipants += 1;
+  }
   const activityCounts = new Map<string, { name: string; eventId: string; participants: Set<string>; checked: Set<string> }>();
   for (const event of scopedEvents) if (Array.isArray(event.activities)) for (const raw of event.activities) {
     if (raw && typeof raw === "object" && typeof raw.id === "string") activityCounts.set(`${event.id}:${raw.id}`, { name: typeof raw.name === "string" ? raw.name : "Attività", eventId: event.id, participants: new Set(), checked: new Set() });
@@ -323,6 +354,14 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     const currentRights = (rightsByPass.get(pass.id) || []).filter(right => alive(right.status));
     if (!event || event.canceled_at || pass.status !== "paid" || !currentRights.length) continue;
     occupancy.set(event.id, (occupancy.get(event.id) || 0) + 1);
+    const group = attendanceGroups.get(event.id)!;
+    group.currentParticipants += 1;
+    const configuredKinds = activityKinds(event.activities);
+    const kinds = new Set(currentRights.map(right => right.kind || configuredKinds.get(right.activity_id)));
+    if (kinds.has("workshop") && kinds.has("masterclass")) group.both += 1;
+    else if (kinds.has("workshop")) group.workshopOnly += 1;
+    else if (kinds.has("masterclass")) group.masterclassOnly += 1;
+    else group.otherParticipants += 1;
     const scoped = inPeriod(originalOrders.get(pass.order_id)?.created_at || pass.created_at) && inAffiliate(pass.affiliate_id);
     if (scoped) addPerson(event.id, pass.affiliate_id, pass.affiliate_name, currentRights.some(right => right.status === "used"));
     for (const right of currentRights) {
@@ -337,18 +376,30 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     const event = eventMap.get(ticket.event_id);
     if (!event || event.canceled_at || !paid(ticket.status)) continue;
     occupancy.set(event.id, (occupancy.get(event.id) || 0) + 1);
+    const group = attendanceGroups.get(event.id)!;
+    group.currentParticipants += 1; group.otherParticipants += 1;
     const reservation = reservationsBySession.get(ticket.stripe_session_id || "") || reservationsByIntent.get(ticket.stripe_payment_intent || "");
     if (inPeriod(reservation?.created_at || ticket.created_at) && inAffiliate(ticket.affiliate_id)) addPerson(event.id, ticket.affiliate_id, ticket.affiliate_name, ticket.status === "used");
   }
   for (const entry of waitlist) if (selected.affiliateId === "all" && eventMap.has(entry.event_id) && entry.status === "waiting" && inPeriod(entry.created_at)) {
     metrics.waiting! += 1; eventStats.get(entry.event_id)!.waiting! += 1;
   }
-  for (const event of eventStats.values()) event.remaining = event.capacity === null ? null : Math.max(0, event.capacity - (occupancy.get(event.id) || 0));
+  for (const event of eventStats.values()) {
+    event.remaining = event.capacity === null ? null : Math.max(0, event.capacity - (occupancy.get(event.id) || 0));
+    attendanceGroups.get(event.id)!.remaining = event.remaining;
+  }
+  for (const affiliate of affiliateRows.values()) affiliate.commissionCents = affiliate.validParticipants * affiliate.commissionPerParticipantCents;
   const activities = [...activityCounts].map(([key, counter]) => {
     const event = eventMap.get(counter.eventId)!;
     const raw = Array.isArray(event.activities) ? event.activities.find(activity => activity && typeof activity === "object" && activity.id === key.slice(event.id.length + 1)) : null;
     const capacity = raw && amount(raw.capacity) ? raw.capacity : null;
-    return { id: key.slice(event.id.length + 1), eventId: event.id, eventTitle: title(event.id), name: counter.name, capacity, validAdmissions: counter.participants.size, checkedIn: counter.checked.size, remaining: capacity === null ? null : Math.max(0, capacity - (activityOccupancy.get(key)?.size || 0)) };
+    const occupied = activityOccupancy.get(key)?.size || 0;
+    const reservedAdmissions = activityHolds.get(key) || 0;
+    const remaining = capacity === null ? null : Math.max(0, capacity - occupied);
+    const global = attendanceGroups.get(event.id)!;
+    const limits = [remaining === null ? null : Math.max(0, remaining - reservedAdmissions), global.remaining === null ? null : Math.max(0, global.remaining - global.reservedParticipants)].filter((limit): limit is number => limit !== null);
+    const availableForSale = limits.length ? Math.min(...limits) : null;
+    return { id: key.slice(event.id.length + 1), eventId: event.id, eventTitle: title(event.id), name: counter.name, capacity, validAdmissions: counter.participants.size, checkedIn: counter.checked.size, occupied, reservedAdmissions, availableForSale, remaining };
   });
   if (selected.from && selected.to) {
     for (let date = selected.from, count = 0; date <= selected.to && count < 3660; date = advance(date, 1), count += 1) if (!trend.has(date)) trend.set(date, { date, ...emptyFinancials(), paidOrders: 0 });
@@ -359,7 +410,7 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     filters: selected, events: eventRows.map(event => ({ id: event.id, title: getLocalizedText(event.titolo, input.locale) || "Evento", startsAt: event.data_inizio })),
     affiliateOptions: [...affiliateOptions].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "it")), metrics,
     operations: { newLeads, openShopOrders, confirmedContacts },
-    trend: [...trend.values()].sort((a, b) => a.date.localeCompare(b.date)), revenue: [...revenue.values()], packages: breakdown("packages"), tiers: breakdown("tiers"), addons: breakdown("addons"), activities,
+    trend: [...trend.values()].sort((a, b) => a.date.localeCompare(b.date)), revenue: [...revenue.values()], packages: breakdown("packages"), tiers: breakdown("tiers"), addons: breakdown("addons"), activities, attendanceGroups: [...attendanceGroups.values()],
     affiliates: [...affiliateRows.values()].filter(row => inAffiliate(row.id === "direct" ? null : row.id)).sort((a, b) => b.netCents - a.netCents || a.name.localeCompare(b.name, "it")), eventStats: [...eventStats.values()], notes: [...notes],
   };
 }

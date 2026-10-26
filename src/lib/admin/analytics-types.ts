@@ -19,10 +19,19 @@ export type AnalyticsMetrics = AnalyticsFinancials & {
   pendingOrders: number; expiredOrders: number; failedOrders: number;
 };
 export type AnalyticsBreakdown = { id: string; name: string; count: number; grossCents: number };
-export type AnalyticsActivityRow = { id: string; eventId: string; eventTitle: string; name: string; capacity: number | null; validAdmissions: number; checkedIn: number; remaining: number | null };
+export type AnalyticsActivityRow = {
+  id: string; eventId: string; eventTitle: string; name: string; capacity: number | null;
+  validAdmissions: number; checkedIn: number; remaining: number | null;
+  occupied: number; reservedAdmissions: number; availableForSale: number | null;
+};
+export type AnalyticsAttendanceGroup = {
+  eventId: string; eventTitle: string; currentParticipants: number;
+  workshopOnly: number; masterclassOnly: number; both: number; otherParticipants: number;
+  capacity: number | null; remaining: number | null; reservedParticipants: number;
+};
 export type AnalyticsAffiliateRow = AnalyticsFinancials & {
   id: string; eventId: string; eventTitle: string; name: string; validParticipants: number; checkedInParticipants: number;
-  paidOrders: number;
+  paidOrders: number; commissionPerParticipantCents: number; commissionCents: number;
 };
 export type AnalyticsEventRow = AnalyticsMetrics & {
   id: string; title: string; startsAt: string; endsAt: string | null;
@@ -39,5 +48,6 @@ export type AdminAnalytics = {
   revenue: AnalyticsRevenueRow[];
   packages: AnalyticsBreakdown[]; tiers: AnalyticsBreakdown[]; addons: AnalyticsBreakdown[];
   activities: AnalyticsActivityRow[]; affiliates: AnalyticsAffiliateRow[]; eventStats: AnalyticsEventRow[];
+  attendanceGroups: AnalyticsAttendanceGroup[];
   notes: string[];
 };

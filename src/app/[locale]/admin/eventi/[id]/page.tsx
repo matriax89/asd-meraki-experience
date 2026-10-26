@@ -5,6 +5,9 @@ import { getEvent } from "@/app/api/admin/eventi/actions";
 import { EventForm } from "./event-form";
 import { notFound } from "next/navigation";
 import { Link } from "@/i18n/routing";
+import { AffiliateCommissionsEditor } from "@/components/admin/affiliate-commissions-editor";
+import { loadEventAffiliateCommissions } from "@/app/api/admin/affiliati/commission-actions";
+import { parseEventAffiliates } from "@/lib/events/affiliates";
 
 export default async function AdminEventPage({ params, searchParams }: { params: Promise<{ id: string; locale: string }>; searchParams?: Promise<{ ticketing?: string | string[] }> }) {
   const { id, locale } = await params;
@@ -20,7 +23,10 @@ export default async function AdminEventPage({ params, searchParams }: { params:
     initialData = data;
   }
 
-  const discounts = id !== "nuovo" ? await loadCommerceDiscountsAdmin(id) : null;
+  const [discounts, affiliateCommissions] = await Promise.all([
+    id !== "nuovo" ? loadCommerceDiscountsAdmin(id) : null,
+    id !== "nuovo" ? loadEventAffiliateCommissions(id) : null,
+  ]);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -44,6 +50,7 @@ export default async function AdminEventPage({ params, searchParams }: { params:
       {id !== "nuovo" && <div className="grid gap-3 sm:grid-cols-2"><Link href={`/admin/eventi/${id}/commerce`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 text-indigo-900"><span><strong className="block">Formule e prezzi</strong><span className="mt-1 block text-sm">Workshop, masterclass, scaglioni, cena, vendite e lista d’attesa.</span></span><span aria-hidden="true">→</span></Link><Link href={`/admin/biglietti?event=${id}`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-slate-900"><span><strong className="block">Iscritti e check-in</strong><span className="mt-1 block text-sm text-slate-600">Partecipanti e accessi di questo evento.</span></span><span aria-hidden="true">→</span></Link><Link href={`/admin/affiliati?event=${id}`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-slate-900"><span><strong className="block">Affiliati</strong><span className="mt-1 block text-sm text-slate-600">Elenco degli affiliati e dei loro iscritti.</span></span><span aria-hidden="true">→</span></Link><Link href={`/admin/rimborsi?event=${id}`} className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-slate-900"><span><strong className="block">Rimborsi e annullamento</strong><span className="mt-1 block text-sm text-slate-600">Rimborsi totali, parziali e annullamento dell’evento.</span></span><span aria-hidden="true">→</span></Link></div>}
 
       <EventForm initialData={initialData} locale={locale} initialTicketingMode={query.ticketing === "advanced" ? "advanced" : undefined} />
+      {initialData && affiliateCommissions && <AffiliateCommissionsEditor eventId={id} affiliates={parseEventAffiliates(initialData.affiliates)} initialRates={affiliateCommissions.success ? affiliateCommissions.rates : null} loadError={affiliateCommissions.success ? undefined : affiliateCommissions.error} />}
       {initialData && discounts && <DiscountCodesEditor eventId={id} config={parseCommerceConfig(initialData.commerce_config)} initialDiscounts={discounts.success ? discounts.discounts : []} loadError={discounts.success ? undefined : discounts.error} />}
     </div>
   );

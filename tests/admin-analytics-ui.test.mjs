@@ -44,9 +44,10 @@ const fixture = () => ({
     { id: "dinner", name: "Cena", grossCents: 2000, refundedCents: 1000, netCents: 1000, feesCents: 50, netAfterFeesCents: 950, missingFeePayments: 0 },
   ],
   packages: [{ id: "combo", name: "Workshop + Masterclass", count: 2, grossCents: 10000 }], tiers: [], addons: [],
-  activities: [{ id: "ws", eventId, eventTitle: "Vibra", name: "Workshop", capacity: 100, validAdmissions: 20, checkedIn: 7, remaining: 80 }],
-  affiliates: [{ id: affiliateId, eventId, eventTitle: "Vibra", name: "Scuola Meraki", validParticipants: 2, checkedInParticipants: 1, paidOrders: 3, grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0 }],
+  activities: [{ id: "ws", eventId, eventTitle: "Vibra", name: "Workshop", capacity: 100, validAdmissions: 20, checkedIn: 7, remaining: 80, occupied: 20, reservedAdmissions: 0, availableForSale: 80 }],
+  affiliates: [{ id: affiliateId, eventId, eventTitle: "Vibra", name: "Scuola Meraki", validParticipants: 2, checkedInParticipants: 1, paidOrders: 3, grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, commissionPerParticipantCents: 500, commissionCents: 1000 }],
   eventStats: [{ id: eventId, title: "Vibra", startsAt: "2026-12-19T11:30:00Z", endsAt: null, status: "upcoming", capacity: 100, remaining: 80, ...metrics }, { id: eventB, title: "Meraki Estate", startsAt: "2027-06-01T10:00:00Z", endsAt: null, status: "draft", capacity: null, remaining: null, ...metrics }],
+  attendanceGroups: [{ eventId, eventTitle: "Vibra", currentParticipants: 20, workshopOnly: 20, masterclassOnly: 0, both: 0, otherParticipants: 0, capacity: 100, remaining: 80, reservedParticipants: 0 }],
   operations: { newLeads: 5, openShopOrders: 2, confirmedContacts: 31 },
   notes: ["La disponibilità usa l’occupazione attuale."],
 });
@@ -83,7 +84,7 @@ test("dashboard uses real cohort metrics and exposes chart values in an accessib
   const table = [...window.document.querySelectorAll("table")].find(table => table.caption?.textContent === "Vendite per giorno, importi in euro");
   assert.equal(table.tBodies[0].rows.length, 2);
   assert.ok(table.textContent.includes("21/10/2026"));
-  assert.ok(window.document.body.textContent.includes("80 posti residui"));
+  assert.ok(window.document.body.textContent.includes("80 posti liberi nella sessione"));
   assert.ok(window.document.body.textContent.includes("indipendentemente dai filtri del report"));
   assert.equal(window.document.querySelector("video,canvas"), null);
   const explanation = [...window.document.querySelectorAll("details")].find(details => details.querySelector("summary")?.textContent === "Come leggere questi dati");
@@ -179,7 +180,7 @@ test("aggregate CSV export keeps Italian values and neutralizes spreadsheet form
   assert.ok(csv.includes("'=HYPERLINK")); assert.ok(csv.includes("'\t+SUM"));
   assert.equal(csv.includes("private@example.test"), false);
   assert.equal(csv.includes("Riepilogo per evento"), false);
-  assert.ok(csv.includes("prenotazioni da pagare non sottratte"));
+  assert.ok(csv.includes("disponibilità per capienza dopo prenotazioni e limite complessivo"));
   assert.ok(csv.includes('"Workshop";"100";"20";"7";"80"'));
 });
 
@@ -282,4 +283,66 @@ test("data errors remain explicit and do not turn missing financial data into ze
     const html = renderToStaticMarkup(await page({ params: Promise.resolve({ locale: "it", id: eventId }), searchParams: Promise.resolve({}) }));
     assert.ok(html.includes('role="alert"')); assert.equal(html.includes("0,00"), false); assert.equal(html.includes("private-provider-error"), false);
   }
+});
+
+
+test("affiliate compensation uses valid people instead of orders and keeps direct purchases separate", async context => {
+  const data = fixture();
+  const paid = { ...data.affiliates[0], validParticipants: 8, paidOrders: 9, commissionPerParticipantCents: 500, commissionCents: 4000 };
+  const direct = { ...data.affiliates[0], id: "direct", name: "Acquisti diretti", validParticipants: 4, paidOrders: 4, commissionPerParticipantCents: 0, commissionCents: 0 };
+  const noCommission = { ...data.affiliates[0], id: "no-commission", name: "Affiliato senza compenso", validParticipants: 1, paidOrders: 2, commissionPerParticipantCents: 0, commissionCents: 0 };
+  data.affiliates = [paid, direct, noCommission];
+  await mount(context, { data, fixedEventId: eventId });
+  const section = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"]');
+  const rows = section.querySelectorAll("tbody tr");
+  const normalized = row => [...row.cells].map(cell => cell.textContent.replaceAll("\u00a0", " "));
+  assert.deepEqual(normalized(rows[0]).slice(1, 7), ["8", "1", "9", "67,50 €", "5,00 €", "40,00 €"]);
+  assert.deepEqual(normalized(rows[1]).slice(5, 7), ["—", "0,00 €"]);
+  assert.deepEqual(normalized(rows[2]).slice(5, 7), ["0,00 €", "0,00 €"]);
+  assert.ok(section.textContent.replaceAll("\u00a0", " ").includes("Totale compensi affiliati: 40,00 €"));
+  assert.ok(section.textContent.includes("una sola volta per ogni iscritto valido"));
+  assert.equal(section.querySelector('a').getAttribute("href"), `/admin/eventi/${eventId}#compensi-affiliati`);
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
+  assert.ok(csv.includes('"Compensi affiliati maturati (€)";"40"'));
+  assert.ok(csv.includes('"Compenso per iscritto (€)";"Compenso maturato (€)"'));
+  assert.ok(csv.includes('"Scuola Meraki";"8";"1";"9";"100";"30";"70";"2,5";"67,5";"Complete";"5";"40"'));
+  assert.ok(csv.includes('"Acquisti diretti";"4";"1";"4";"100";"30";"70";"2,5";"67,5";"Complete";"Non applicabile";"0"'));
+  assert.ok(csv.includes('"Netto dopo commissioni (€)";"67,5"'), "affiliate compensation must not change processor net");
+});
+
+test("capacity shows distinct people, session seats and a separate purchase limit", async context => {
+  const data = fixture();
+  data.activities = [
+    { ...data.activities[0], validAdmissions: 4, checkedIn: 1, occupied: 11, remaining: 89, reservedAdmissions: 1, availableForSale: 86 },
+    { ...data.activities[0], id: "mc", name: "Masterclass", validAdmissions: 5, checkedIn: 0, occupied: 13, remaining: 87, reservedAdmissions: 0, availableForSale: 86 },
+  ];
+  data.attendanceGroups = [{ eventId, eventTitle: "Vibra", currentParticipants: 13, workshopOnly: 0, masterclassOnly: 2, both: 11, otherParticipants: 0, capacity: 100, remaining: 87, reservedParticipants: 1 }];
+  await mount(context, { data, fixedEventId: eventId });
+  const section = window.document.querySelector('[aria-labelledby="analytics-availability-title"]');
+  assert.ok(section.textContent.includes("89 posti liberi nella sessione"));
+  assert.ok(section.textContent.includes("87 posti liberi nella sessione"));
+  assert.ok(section.textContent.includes("11 posti occupati attualmente su 100"));
+  assert.ok(section.textContent.includes("Nel periodo selezionato: 4 accessi validi · 1 check-in."));
+  assert.ok(section.textContent.includes("1 posto temporaneamente prenotato"));
+  assert.ok(section.textContent.includes("Disponibilità per capienza: 86"));
+  const group = section.querySelector('[data-attendance-event]');
+  assert.ok(group.textContent.includes("13 persone distinte attualmente iscritte"));
+  assert.deepEqual([...group.querySelectorAll("dd")].map(node => node.textContent), ["0", "2", "11"]);
+  assert.ok(group.textContent.includes("I due conteggi non vanno sommati"));
+  assert.ok(group.textContent.includes("Limite complessivo dell’evento: 100 persone distinte"));
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
+  assert.ok(csv.includes('"Vibra";"Workshop";"100";"4";"1";"89";"11";"1";"86"'));
+  assert.ok(csv.includes('"Vibra";"13";"0";"2";"11";"0";"100";"87";"1"'));
+});
+
+test("activity capacity without a global event cap never invents a global sold-out limit", async context => {
+  const data = fixture();
+  data.attendanceGroups[0] = { ...data.attendanceGroups[0], capacity: null, remaining: null, workshopOnly: 0, masterclassOnly: 0, both: 0, otherParticipants: 20 };
+  await mount(context, { data });
+  const group = window.document.querySelector('[data-attendance-event]');
+  assert.ok(group.textContent.includes("Altre attività"));
+  assert.ok(group.textContent.includes("Nessun limite aggiuntivo sul totale delle persone dell’evento."));
+  assert.equal(group.textContent.includes("Limite complessivo dell’evento:"), false);
+  const section = window.document.querySelector('[aria-labelledby="analytics-availability-title"]');
+  assert.equal(section.textContent.includes("Disponibilità per capienza:"), false, "session and purchasable seats agree without holds/global limit");
 });

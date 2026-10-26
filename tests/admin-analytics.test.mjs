@@ -29,7 +29,7 @@ const refund = (id, order_id, amount_cents, overrides = {}) => ({ id, event_id: 
 
 function fixture(data = {}, { denied = false, fail, fees = {} } = {}) {
   const calls = []; const feeCalls = []; let authorized = false;
-  const tables = { events: [event()], commerce_orders: [], ticket_reservations: [], commerce_passes: [], commerce_entitlements: [], tickets: [], meraki_refunds: [], commerce_payment_refunds: [], ticket_payment_refunds: [], commerce_waitlist: [], leads: [], orders: [], marketing_contacts: [], ...data };
+  const tables = { events: [event()], commerce_orders: [], ticket_reservations: [], commerce_passes: [], commerce_entitlements: [], tickets: [], meraki_refunds: [], commerce_payment_refunds: [], ticket_payment_refunds: [], commerce_waitlist: [], event_affiliate_commissions: [], leads: [], orders: [], marketing_contacts: [], ...data };
   const db = { from(table) {
     assert.ok(authorized, 'all private table reads follow staff authorization');
     const call = { table, fields: '', filters: [], orders: [] }; calls.push(call);
@@ -284,4 +284,47 @@ test('fee reads include only filtered captured deduplicated payments and histori
   assert.ok(result.notes.some(note => note.includes('Non attribuito')));
   const empty = await fixture().load({});
   assert.deepEqual(plain(empty.revenue.map(row => [row.id, row.netAfterFeesCents])), [['masterclass', 0], ['workshop', 0], ['dinner', 0]]);
+});
+
+test('capacity groups count people once across sessions and current capacity ignores sales filters', async () => {
+  const shared = {
+    events: [event(A, { capacity: null, activities: event().activities.map(activity => ({ ...activity, capacity: 100 })) })],
+    commerce_orders: [order('both', 6500, { affiliate_id: AFF }), order('ws-only', 3500, { affiliate_id: AFF }), order('mc-only', 4000),
+      order('held', 5000, { state: 'reserved', expires_at: '2026-10-22T13:00:00Z', demand: { _passes: 2, ws: 1, mc: 1 } }),
+      order('expired-hold', 5000, { state: 'reserved', expires_at: '2026-10-22T11:00:00Z', demand: { _passes: 20, ws: 20 } }),
+      order('async-hold', 5000, { state: 'awaiting_payment', expires_at: '2026-10-22T11:00:00Z', demand: { _passes: 1, ws: 1 } })],
+    commerce_passes: [pass('both', 'both', { affiliate_id: AFF }), pass('ws-only', 'ws-only', { affiliate_id: AFF }), pass('mc-only', 'mc-only')],
+    commerce_entitlements: [right('both-ws', 'both', 'both'), right('both-mc', 'both', 'both', 'mc'), right('only-ws', 'ws-only', 'ws-only'), right('only-mc', 'mc-only', 'mc-only', 'mc')],
+  };
+  const result = await fixture(shared).load({ affiliateId: AFF });
+  assert.equal(result.metrics.validParticipants, 2);
+  assert.deepEqual(plain(result.attendanceGroups), [{ eventId: A, eventTitle: 'Meraki Day', currentParticipants: 3, workshopOnly: 1, masterclassOnly: 1, both: 1, otherParticipants: 0, capacity: null, remaining: null, reservedParticipants: 3 }]);
+  const workshop = result.activities.find(row => row.id === 'ws');
+  assert.equal(workshop.validAdmissions, 2); assert.equal(workshop.occupied, 2);
+  assert.equal(workshop.remaining, 98); assert.equal(workshop.reservedAdmissions, 2); assert.equal(workshop.availableForSale, 96);
+  const masterclass = result.activities.find(row => row.id === 'mc');
+  assert.equal(masterclass.validAdmissions, 1); assert.equal(masterclass.occupied, 2);
+  assert.equal(masterclass.remaining, 98); assert.equal(masterclass.reservedAdmissions, 1); assert.equal(masterclass.availableForSale, 97);
+  const limited = await fixture({ ...shared, events: [event(A, { ...shared.events[0], capacity: 7 })] }).load({});
+  assert.equal(limited.attendanceGroups[0].remaining, 4);
+  assert.equal(limited.activities.find(row => row.id === 'ws').availableForSale, 1, 'the extra global limit includes all active holds');
+});
+
+test('affiliate compensation follows valid people, never order count or number of activities', async () => {
+  const data = {
+    event_affiliate_commissions: [{ event_id: A, affiliate_id: AFF, commission_cents: 500 }, { event_id: B, affiliate_id: AFF, commission_cents: 700 }],
+    commerce_orders: [order('initial', 20000, { affiliate_id: AFF }), order('addon-upgrade', 2500, { affiliate_id: AFF, upgrade_pass_id: 'p0' }), order('refunded', 3000, { state: 'refunded', affiliate_id: AFF }), order('pending', 3000, { state: 'awaiting_payment', affiliate_id: AFF }), order('direct', 3000)],
+    commerce_passes: [...Array.from({ length: 8 }, (_, index) => pass(`p${index}`, 'initial', { affiliate_id: AFF })), pass('refunded-person', 'refunded', { status: 'refunded', affiliate_id: AFF }), pass('direct-person', 'direct')],
+    commerce_entitlements: [...Array.from({ length: 8 }, (_, index) => [right(`ws${index}`, `p${index}`, 'initial'), right(`mc${index}`, `p${index}`, 'initial', 'mc')]).flat(), right('dinner-addon', 'p0', 'addon-upgrade', 'dinner'), right('revoked', 'refunded-person', 'refunded', 'ws', { status: 'refunded' }), right('direct-ws', 'direct-person', 'direct')],
+  };
+  const result = await fixture(data).load({ eventId: A });
+  const affiliate = result.affiliates.find(row => row.id === AFF);
+  assert.equal(affiliate.validParticipants, 8); assert.equal(affiliate.commissionPerParticipantCents, 500); assert.equal(affiliate.commissionCents, 4000);
+  assert.notEqual(affiliate.commissionCents, affiliate.paidOrders * 500);
+  assert.equal(result.affiliates.find(row => row.id === 'direct').commissionCents, 0);
+  assert.equal(result.affiliates.find(row => row.id === 'direct').commissionPerParticipantCents, 0);
+  const noRate = await fixture({ commerce_orders: data.commerce_orders, commerce_passes: data.commerce_passes, commerce_entitlements: data.commerce_entitlements }).load({ eventId: A });
+  assert.equal(noRate.affiliates.find(row => row.id === AFF).commissionCents, 0);
+  await assert.rejects(fixture(data, { fail: call => call.table === 'event_affiliate_commissions' }).load({}), /compensi degli affiliati/);
+  await assert.rejects(fixture({ event_affiliate_commissions: [{ event_id: A, affiliate_id: AFF, commission_cents: -1 }] }).load({}), /Compenso affiliato non valido/);
 });

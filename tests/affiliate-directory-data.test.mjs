@@ -19,14 +19,14 @@ const ids = {
   a: '10000000-0000-4000-8000-000000000001', b: '10000000-0000-4000-8000-000000000002',
   affiliate: '20000000-0000-4000-8000-000000000001', disabled: '20000000-0000-4000-8000-000000000002', archived: '20000000-0000-4000-8000-000000000003',
 };
-const event = (id = ids.a, configured = [{ id: ids.affiliate, name: 'Martina aggiornata', active: true }, { id: ids.disabled, name: 'Affiliato disattivato', active: false }]) => ({ id, titolo: { it: 'Meraki Day', en: 'Meraki Day EN' }, data_inizio: '2026-12-19T11:30:00Z', affiliates: configured });
+const event = (id = ids.a, configured = [{ id: ids.affiliate, name: 'Martina aggiornata', active: true }, { id: ids.disabled, name: 'Affiliato disattivato', active: false }]) => ({ id, titolo: { it: 'Meraki Day', en: 'Meraki Day EN' }, data_inizio: '2026-12-19T11:30:00Z', affiliates: configured, canceled_at: null });
 const legacy = (id, overrides = {}) => ({ id, event_id: ids.a, affiliate_id: ids.affiliate, affiliate_name: 'Martina originale', status: 'paid', created_at: '2026-10-01T10:00:00Z', buyer_nome: 'Ada', buyer_cognome: 'Rossi', buyer_email: 'buyer@example.test', qr_code: 'PRIVATE-CAPABILITY', ...overrides });
 const pass = (id, overrides = {}) => ({ ...legacy(id), first_name: 'Ada', last_name: 'Rossi', package_name: 'Workshop + Masterclass', commerce_orders: { buyer_email: 'purchaser@example.test' }, commerce_entitlements: [{ activity_id: 'workshop', activity_name: 'Workshop', status: 'valid', checked_in_at: null, menu_choice: null }], ...overrides });
 
-function fixture({ events = [event()], tickets = [], passes = [], contacts = [], denied = false, fail } = {}) {
+function fixture({ events = [event()], tickets = [], passes = [], contacts = [], commissions = [], denied = false, fail } = {}) {
   const calls = [];
   let authenticated = false;
-  const tables = { events, tickets, commerce_passes: passes, commerce_attendee_contacts: contacts };
+  const tables = { events, tickets, commerce_passes: passes, commerce_attendee_contacts: contacts, event_affiliate_commissions: commissions };
   const db = { from(table) {
     assert.ok(authenticated, 'private queries must follow the verified staff authorization');
     const call = { table, filters: [], orders: [], fields: '' }; calls.push(call);
@@ -76,7 +76,7 @@ test('directory keeps each event separate, zero/disabled affiliates and snapshot
   });
   const result = await api.loadAffiliateDirectory('en');
   const current = result.rows.find(row => row.eventId === ids.a && row.affiliateId === ids.affiliate);
-  assert.deepEqual(plain(current), { eventId: ids.a, eventTitle: 'Meraki Day EN', eventStartsAt: '2026-12-19T11:30:00Z', affiliateId: ids.affiliate, name: 'Martina aggiornata', active: true, archived: false, validCount: 3, checkedInCount: 2, totalCount: 7 });
+  assert.deepEqual(plain(current), { eventId: ids.a, eventTitle: 'Meraki Day EN', eventStartsAt: '2026-12-19T11:30:00Z', affiliateId: ids.affiliate, name: 'Martina aggiornata', active: true, archived: false, validCount: 3, checkedInCount: 2, totalCount: 7, commissionPerParticipantCents: 0, commissionCents: 0 });
   assert.equal(result.rows.find(row => row.eventId === ids.b).name, 'Martina altro evento');
   const disabled = result.rows.find(row => row.affiliateId === ids.disabled);
   assert.equal(disabled.validCount, 0); assert.equal(disabled.active, false); assert.equal(disabled.archived, false);
@@ -179,4 +179,81 @@ test('unknown legacy states stay unconfirmed and are never presented as paid adm
   const detail = await api.loadAffiliateParticipants('it', ids.a, ids.affiliate);
   assert.equal(detail.validCount, 0); assert.equal(detail.checkedInCount, 0);
   assert.ok(detail.participants.every(person => person.status === 'pending'));
+});
+
+test('private event rates pay each valid participant once, including bundles and group orders', async () => {
+  const api = fixture({
+    events: [event(), event(ids.b)],
+    commissions: [
+      { event_id: ids.a, affiliate_id: ids.affiliate, commission_cents: 500 },
+      { event_id: ids.b, affiliate_id: ids.affiliate, commission_cents: 700 },
+      { event_id: ids.a, affiliate_id: ids.archived, commission_cents: 300 },
+      { event_id: ids.a, affiliate_id: 'direct', commission_cents: 900 },
+    ],
+    tickets: [legacy('legacy'), legacy('other-event', { event_id: ids.b }), legacy('direct', { affiliate_id: null })],
+    passes: [
+      pass('bundle', { order_id: 'group-order', commerce_entitlements: [{ status: 'valid' }, { status: 'used' }] }),
+      pass('same-order-person', { order_id: 'group-order' }),
+      pass('refunded', { status: 'refunded' }), pass('pending', { status: 'pending' }),
+      pass('revoked', { commerce_entitlements: [{ status: 'refunded' }] }),
+      pass('archived', { affiliate_id: ids.archived }),
+    ],
+  });
+  const directory = await api.loadAffiliateDirectory('it');
+  const row = directory.rows.find(row => row.eventId === ids.a && row.affiliateId === ids.affiliate);
+  assert.equal(row.validCount, 3); assert.equal(row.totalCount, 6);
+  assert.equal(row.commissionPerParticipantCents, 500); assert.equal(row.commissionCents, 1500);
+  assert.equal(directory.rows.find(row => row.eventId === ids.b && row.affiliateId === ids.affiliate).commissionCents, 700);
+  assert.equal(directory.rows.find(row => row.affiliateId === ids.archived).commissionCents, 300);
+  assert.equal(directory.rows.find(row => row.affiliateId === ids.disabled).commissionCents, 0);
+  assert.equal(directory.rows.find(row => row.affiliateId === 'direct').commissionPerParticipantCents, 0);
+  assert.equal(directory.rows.find(row => row.affiliateId === 'direct').commissionCents, 0);
+  const detail = await api.loadAffiliateParticipants('it', ids.a, ids.affiliate);
+  assert.equal(detail.affiliate.commissionPerParticipantCents, 500); assert.equal(detail.affiliate.commissionCents, 1500);
+  const detailRead = api.calls.filter(call => call.table === 'event_affiliate_commissions').at(-1);
+  assert.deepEqual(plain(detailRead.filters), [['in', 'event_id', [ids.a]], ['eq', 'affiliate_id', ids.affiliate]]);
+  const scoped = await api.loadAffiliateDirectory('it', ids.a);
+  assert.equal(scoped.rows.find(row => row.affiliateId === ids.affiliate).commissionCents, 1500);
+  const scopedRead = api.calls.filter(call => call.table === 'event_affiliate_commissions').at(-1);
+  assert.deepEqual(plain(scopedRead.filters), [['in', 'event_id', [ids.a]]]);
+});
+
+test('commission query failures and invalid stored rates cannot become a reassuring zero', async () => {
+  const failed = fixture({ fail: call => call.table === 'event_affiliate_commissions' });
+  await assert.rejects(failed.loadAffiliateDirectory('it'), /compensi degli affiliati/);
+  await assert.rejects(failed.loadAffiliateParticipants('it', ids.a, ids.affiliate), /compensi degli affiliati/);
+  for (const commission_cents of [-1, 1.5, null]) {
+    const api = fixture({ commissions: [{ event_id: ids.a, affiliate_id: ids.affiliate, commission_cents }] });
+    await assert.rejects(api.loadAffiliateDirectory('it'), /Compenso dell’affiliato non valido/);
+    await assert.rejects(api.loadAffiliateParticipants('it', ids.a, ids.affiliate), /Compenso dell’affiliato non valido/);
+  }
+  const direct = fixture({ tickets: [legacy('direct', { affiliate_id: null })], fail: call => call.table === 'event_affiliate_commissions' });
+  const detail = await direct.loadAffiliateParticipants('it', ids.a, 'direct');
+  assert.equal(detail.affiliate.commissionCents, 0);
+  assert.equal(direct.calls.some(call => call.table === 'event_affiliate_commissions'), false);
+});
+
+test('a canceled event stops valid counts, check-ins and compensation before legacy refunds settle', async () => {
+  const api = fixture({
+    events: [{ ...event(), canceled_at: '2026-10-26T10:00:00Z' }, event(ids.b)],
+    tickets: [legacy('awaiting-refund'), legacy('used-awaiting-refund', { status: 'used' }), legacy('other-event', { event_id: ids.b, status: 'used' })],
+    passes: [pass('canceled-commerce', { status: 'canceled', commerce_entitlements: [{ status: 'canceled' }] })],
+    commissions: [
+      { event_id: ids.a, affiliate_id: ids.affiliate, commission_cents: 500 },
+      { event_id: ids.b, affiliate_id: ids.affiliate, commission_cents: 500 },
+    ],
+  });
+  const directory = await api.loadAffiliateDirectory('it');
+  const canceled = directory.rows.find(row => row.eventId === ids.a && row.affiliateId === ids.affiliate);
+  assert.equal(canceled.totalCount, 3); assert.equal(canceled.validCount, 0); assert.equal(canceled.checkedInCount, 0);
+  assert.equal(canceled.commissionPerParticipantCents, 500); assert.equal(canceled.commissionCents, 0);
+  const active = directory.rows.find(row => row.eventId === ids.b && row.affiliateId === ids.affiliate);
+  assert.equal(active.validCount, 1); assert.equal(active.checkedInCount, 1); assert.equal(active.commissionCents, 500);
+  const detail = await api.loadAffiliateParticipants('it', ids.a, ids.affiliate);
+  assert.equal(detail.totalCount, 3); assert.equal(detail.validCount, 0); assert.equal(detail.checkedInCount, 0);
+  assert.equal(detail.affiliate.commissionPerParticipantCents, 500); assert.equal(detail.affiliate.commissionCents, 0);
+  assert.equal(detail.participants.find(row => row.id === 'awaiting-refund').status, 'paid');
+  assert.equal(detail.participants.find(row => row.id === 'used-awaiting-refund').status, 'used');
+  assert.ok(detail.participants.every(row => !row.checkedIn));
+  assert.ok(api.calls.filter(call => call.table === 'events').every(call => call.fields.includes('canceled_at')));
 });

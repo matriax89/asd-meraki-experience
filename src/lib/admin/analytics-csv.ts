@@ -21,6 +21,7 @@ export function adminAnalyticsCsv(data: AdminAnalytics, includeEvents = true): s
     ["Ordini pagati", data.metrics.paidOrders], ["Iscritti validi", data.metrics.validParticipants], ["Con almeno un check-in", data.metrics.checkedInParticipants],
     ["Contatti in lista d’attesa", data.metrics.waiting === null ? "Non attribuibile all’affiliato" : data.metrics.waiting],
     ["Ordini in attesa", data.metrics.pendingOrders], ["Ordini scaduti", data.metrics.expiredOrders], ["Pagamenti non riusciti", data.metrics.failedOrders],
+    ["Compensi affiliati maturati (€)", data.affiliates.reduce((sum, row) => sum + row.commissionCents, 0) / 100],
     [], ["Incassi per attività"], ["Attività", ...financialHeaders],
     ...data.revenue.map(row => [row.name, ...financialCells(row)]),
     [], ["Andamento per giorno di acquisto"], ["Giorno", ...financialHeaders, "Ordini pagati"],
@@ -29,8 +30,10 @@ export function adminAnalyticsCsv(data: AdminAnalytics, includeEvents = true): s
   for (const [title, entries] of [["Formule", data.packages], ["Scaglioni", data.tiers], ["Aggiunte", data.addons]] as const) {
     rows.push([], [title], ["Nome", "Vendite", "Lordo (€)"], ...entries.map(row => [row.name, row.count, row.grossCents / 100]));
   }
-  rows.push([], ["Attività: posti residui sugli accessi validi attuali, indipendenti dai filtri; prenotazioni da pagare non sottratte"], ["Evento", "Attività", "Capienza", "Accessi validi", "Check-in", "Posti residui attuali"], ...data.activities.map(row => [row.eventTitle, row.name, row.capacity, row.validAdmissions, row.checkedIn, row.remaining]));
-  rows.push([], ["Risultati per affiliato"], ["Evento", "Affiliato", "Iscritti validi", "Check-in", "Ordini pagati", ...financialHeaders], ...data.affiliates.map(row => [row.eventTitle, row.name, row.validParticipants, row.checkedInParticipants, row.paidOrders, ...financialCells(row)]));
+  rows.push([], ["Attività: disponibilità attuale indipendente dai filtri; posti liberi nella sessione prima delle prenotazioni temporanee, disponibilità per capienza dopo prenotazioni e limite complessivo"], ["Evento", "Attività", "Capienza", "Accessi validi nel periodo", "Check-in nel periodo", "Posti liberi nella sessione", "Posti occupati attuali", "Prenotazioni temporanee", "Disponibilità per capienza"], ...data.activities.map(row => [row.eventTitle, row.name, row.capacity, row.validAdmissions, row.checkedIn, row.remaining, row.occupied, row.reservedAdmissions, row.availableForSale]));
+  rows.push([], ["Persone distinte e formule: situazione attuale indipendente dai filtri"], ["Evento", "Persone distinte", "Solo workshop", "Solo masterclass", "Workshop e masterclass", "Altre attività", "Limite complessivo persone", "Posti liberi complessivi", "Persone prenotate in attesa"], ...data.attendanceGroups.map(row => [row.eventTitle, row.currentParticipants, row.workshopOnly, row.masterclassOnly, row.both, row.otherParticipants, row.capacity, row.remaining, row.reservedParticipants]));
+  rows.push([], ["Risultati per affiliato"], ["Evento", "Affiliato", "Iscritti validi", "Check-in", "Ordini pagati", ...financialHeaders, "Compenso per iscritto (€)", "Compenso maturato (€)"], ...data.affiliates.map(row => [row.eventTitle, row.name, row.validParticipants, row.checkedInParticipants, row.paidOrders, ...financialCells(row), row.id === "direct" ? "Non applicabile" : row.commissionPerParticipantCents / 100, row.commissionCents / 100]));
+  rows.push(["Criterio compensi affiliati", "Un compenso per iscritto valido nei filtri selezionati; formule combinate e upgrade non lo moltiplicano. Gli acquisti diretti non generano compensi. Compensi separati dal netto dopo commissioni Stripe e PayPal."]);
   if (includeEvents) rows.push([], ["Riepilogo per evento"], ["Evento", "Data evento", "Stato", ...financialHeaders, "Iscritti validi", "Check-in"], ...data.eventStats.map(row => [row.title, date(row.startsAt), state[row.status], ...financialCells(row), row.validParticipants, row.checkedInParticipants]));
   if (data.notes.length) rows.push([], ["Note sul report"], ...data.notes.map(note => [note]));
   const cell = (value: Cell) => {
