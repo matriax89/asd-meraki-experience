@@ -6,9 +6,9 @@ import { useLocale } from "next-intl";
 import { ArrowRight, LoaderCircle, LockKeyhole, Ticket, X } from "lucide-react";
 import { attendeeSchema } from "@/lib/commerce/attendee";
 import { CheckoutContactFields, emptyCheckoutContact } from "@/components/meraki/checkout-contact-fields";
-import { checkoutCopy, checkoutFailureCopy } from "@/components/meraki/checkout-copy";
+import { checkoutCopy, checkoutFieldError, checkoutFailureCopy, type CheckoutFieldError } from "@/components/meraki/checkout-copy";
 import { safeCommerceRedirect } from "@/components/meraki/commerce-public-model";
-import { useCheckoutViewport } from "@/components/meraki/use-checkout-viewport";
+import { focusCheckoutField, useCheckoutViewport } from "@/components/meraki/use-checkout-viewport";
 import styles from "@/components/meraki/commerce-purchase.module.css";
 import { DiscountBreakdown, DiscountCodeFields, discountCodeValue, type DiscountQuote } from "@/components/meraki/discount-code-fields";
 import { discountError } from "@/components/meraki/discount-copy";
@@ -21,6 +21,7 @@ export function CheckoutButton({ eventId, affiliates = [] }: { eventId: string; 
   const [affiliateId, setAffiliateId] = useState("");
   const [contact, setContact] = useState(() => emptyCheckoutContact(locale));
   const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<CheckoutFieldError | null>(null);
   const [discountInput, setDiscountInput] = useState("");
   const [discountCode, setDiscountCode] = useState("");
   const [quote, setQuote] = useState<DiscountQuote | null>(null);
@@ -65,6 +66,7 @@ export function CheckoutButton({ eventId, affiliates = [] }: { eventId: string; 
     document.body.style.overflow = "hidden";
     opened.current = true;
     setOpen(true);
+    setValidationError(null);
     if (!preserveAcceptedQuote) setQuoteLoading(true);
     setQuoteError("");
     dialog.current.showModal();
@@ -76,7 +78,14 @@ export function CheckoutButton({ eventId, affiliates = [] }: { eventId: string; 
     if (submitting.current || !currentQuote || quoteLoading) return;
     const form = new FormData(event.currentTarget);
     const checked = attendeeSchema.safeParse({ firstName: String(form.get("nome") || "").trim(), lastName: String(form.get("cognome") || "").trim(), ...contact, email: String(form.get("email") || "").trim() });
-    if (!checked.success) { setError(copy.invalidData); return; }
+    if (!checked.success) {
+      const invalid = checkoutFieldError(checked.error.issues, locale);
+      setValidationError(invalid); setError(null);
+      const name = invalid.field === "firstName" ? "nome" : invalid.field === "lastName" ? "cognome" : "";
+      const suffix = invalid.field.replace(/[A-Z]/g, character => `-${character.toLowerCase()}`);
+      focusCheckoutField(event.currentTarget, name, name ? undefined : `buyer-${suffix}`);
+      return;
+    }
     submitting.current = true;
     setLoading(true);
     setError(null);
@@ -115,10 +124,14 @@ export function CheckoutButton({ eventId, affiliates = [] }: { eventId: string; 
       <div className={styles.content}>
         <div className={styles.header}><div><p className={styles.eyebrow}>{copy.legacyEyebrow}</p><h2 id={`checkout-title-${eventId}`} className={styles.title}>{copy.legacyTitle}</h2></div><button type="button" aria-label={copy.close} disabled={loading} onClick={closeCheckout} className={styles.close}><X className="h-5 w-5" /></button></div>
         <div className={styles.scrollArea} data-checkout-scroll>
-          <form onSubmit={handleCheckout} onChange={resetCheckoutAttempt} className={styles.stack}>
+          <form onSubmit={handleCheckout} onChange={() => { resetCheckoutAttempt(); setValidationError(null); }} className={styles.stack}>
             <p className={styles.muted}>{copy.legacyIntro}</p>
-            <div className={styles.fields}><label className={styles.label} htmlFor={`buyer-name-${eventId}`}>{copy.firstName}<input id={`buyer-name-${eventId}`} className={styles.input} name="nome" required maxLength={100} autoComplete="given-name" disabled={loading} /></label><label className={styles.label} htmlFor={`buyer-surname-${eventId}`}>{copy.lastName}<input id={`buyer-surname-${eventId}`} className={styles.input} name="cognome" required maxLength={100} autoComplete="family-name" disabled={loading} /></label></div>
-            <CheckoutContactFields locale={locale} prefix="buyer" emailName="email" value={contact} onChange={(changes) => { resetCheckoutAttempt(); setContact((value) => ({ ...value, ...changes })); setError(null); }} disabled={loading} />
+            <div className={styles.fields}>{(["firstName", "lastName"] as const).map(field => {
+              const invalid = validationError?.field === field;
+              const errorId = `buyer-${field}-error`;
+              return <label key={field} className={styles.label} htmlFor={`buyer-${field}-${eventId}`}>{copy[field]}<input id={`buyer-${field}-${eventId}`} className={styles.input} name={field === "firstName" ? "nome" : "cognome"} required maxLength={100} autoComplete={field === "firstName" ? "given-name" : "family-name"} disabled={loading} aria-invalid={invalid || undefined} aria-describedby={invalid ? errorId : undefined} />{invalid && <span id={errorId} role="alert" className={styles.fieldError}>{validationError.message}</span>}</label>;
+            })}</div>
+            <CheckoutContactFields locale={locale} prefix="buyer" emailName="email" value={contact} validationError={validationError || undefined} onChange={(changes) => { resetCheckoutAttempt(); setContact((value) => ({ ...value, ...changes })); setError(null); }} disabled={loading} />
             {!!affiliates.length && <div className={styles.affiliateBox}>
               <label className={styles.label} htmlFor={`ticket-affiliate-${eventId}`}>{copy.affiliateLabel}</label>
               <CustomSelect id={`ticket-affiliate-${eventId}`} name="affiliateId" aria-label={copy.affiliateLabel} aria-describedby={`ticket-affiliate-hint-${eventId}`} className={styles.input} value={affiliateId} disabled={loading} onChange={(event) => { resetCheckoutAttempt(); setAffiliateId(event.target.value); setError(null); }}>

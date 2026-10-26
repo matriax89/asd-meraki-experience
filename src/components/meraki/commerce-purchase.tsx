@@ -10,9 +10,9 @@ import { ArrowRight, Check, LoaderCircle, LockKeyhole, Plus, Ticket, X } from "l
 import { activityAvailable, currentTier, eligiblePackages, nextTierComparison, packageAvailable, packageSavings, safeCommerceRedirect, type CommerceCatalog, type CommerceParticipant, type CommerceUpgrade } from "./commerce-public-model";
 import styles from "./commerce-purchase.module.css";
 import { attendeesSchema } from "@/lib/commerce/attendee";
-import { checkoutCopy, checkoutFailureCopy } from "./checkout-copy";
+import { checkoutCopy, checkoutFieldError, checkoutFailureCopy, type CheckoutFieldError } from "./checkout-copy";
 import { CheckoutContactFields, emptyCheckoutContact, type CheckoutContact } from "./checkout-contact-fields";
-import { useCheckoutViewport } from "./use-checkout-viewport";
+import { focusCheckoutField, useCheckoutViewport } from "./use-checkout-viewport";
 import { commerceText, commerceQuoteLabel, commerceDiscountScope } from "@/lib/commerce/localization";
 import { DiscountBreakdown, DiscountCodeFields, discountCodeValue, type DiscountQuote } from "./discount-code-fields";
 import { discountError } from "./discount-copy";
@@ -63,6 +63,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
   const [quoteKey, setQuoteKey] = useState("");
   const [checkoutHold, setCheckoutHold] = useState<{ inputKey: string; fingerprint: string } | null>(null);
   const [error, setError] = useState("");
+  const [validationError, setValidationError] = useState<CheckoutFieldError | null>(null);
   const [loading, setLoading] = useState(false);
   const [waitlistSaved, setWaitlistSaved] = useState(false);
   const initial = (): CommerceParticipant => ({ firstName: upgrade?.firstName || "", lastName: upgrade?.lastName || "", packageId: upgrade?.packageId || offers.find((offer) => packageAvailable(catalog, offer.id, upgrade?.activityIds, now))?.id || offers[0]?.id || "", addonIds: [], menuChoices: {} });
@@ -119,7 +120,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
   function show(asWaitlist = false, source?: HTMLButtonElement, openedAt = now) {
     if (!dialog.current || dialog.current.open) return;
     if (source) trigger.current = source;
-    setWaitlist(asWaitlist); setError(""); setWaitlistSaved(false); setNow(openedAt); setOpen(true);
+    setWaitlist(asWaitlist); setError(""); setValidationError(null); setWaitlistSaved(false); setNow(openedAt); setOpen(true);
     dialog.current.showModal();
   }
   function updateParticipant(index: number, changes: Partial<CommerceParticipant>) {
@@ -171,7 +172,14 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
       }
       const participants = base.participants.map((participant) => ({ ...participant, firstName: participant.firstName.trim(), lastName: participant.lastName.trim() }));
       const checked = upgrade ? null : attendeesSchema.safeParse(participants.map((participant, index) => ({ firstName: participant.firstName, lastName: participant.lastName, ...selection.contacts[index], email: selection.contacts[index].email.trim() })));
-      if (checked && !checked.success) throw new Error(copy.invalidData);
+      if (checked && !checked.success) {
+        const invalid = checkoutFieldError(checked.error.issues, locale);
+        setValidationError(invalid);
+        const nameField = invalid.field === "firstName" || invalid.field === "lastName";
+        const suffix = invalid.field.replace(/[A-Z]/g, character => `-${character.toLowerCase()}`);
+        focusCheckoutField(event.currentTarget, `${invalid.field}-${invalid.participantIndex}`, nameField ? undefined : `participant-${invalid.participantIndex}-${suffix}`);
+        return;
+      }
       const body = { ...base, participants, ...(checked?.success ? { attendees: checked.data } : {}), buyerEmail: upgrade ? selection.buyerEmail.trim() : selection.contacts[0].email.trim(), locale, expectedTotalCents: currentQuote!.totalCents, ...(!upgrade && affiliateId ? { affiliateId } : {}) };
       const fingerprint = JSON.stringify(body);
       if (preserveAcceptedQuote && checkoutHold.fingerprint !== fingerprint) {
@@ -230,7 +238,7 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
       <div className={styles.content}>
         <div className={styles.header}><div><p className={styles.eyebrow}>Meraki Experience</p><h2 id={`commerce-title-${catalog.event.id}`} className={styles.title}>{waitlist ? copy.waitlistTitle : upgrade ? copy.upgradeTitle : copy.title}</h2><p className={`${styles.muted} mt-2`}>{catalog.event.title}</p></div><button type="button" className={styles.close} disabled={loading} aria-label={copy.close} onClick={() => dialog.current?.close()}><X className="h-5 w-5" /></button></div>
         <div className={styles.scrollArea} data-checkout-scroll>
-        {waitlistSaved ? <div role="status" className={styles.success}><Check className="mr-2 inline h-5 w-5" /> {copy.waitlistSaved}</div> : <form className={styles.stack} onSubmit={submit}>
+        {waitlistSaved ? <div role="status" className={styles.success}><Check className="mr-2 inline h-5 w-5" /> {copy.waitlistSaved}</div> : <form className={styles.stack} onSubmit={submit} onChange={() => setValidationError(null)}>
           {!waitlist && !upgrade && <label className={styles.quantity}><span className={styles.label}> {copy.quantity}<span className={`${styles.muted} block font-normal`}>{copy.personalTicket}</span></span><CustomSelect aria-label={copy.quantityLabel} disabled={loading} value={selection.participants.length} onChange={(event) => { const quantity = Number(event.target.value); resetCheckoutAttempt(); setQuote(null); setSelection((value) => ({ ...value, participants: Array.from({ length: quantity }, (_, index) => value.participants[index] || initial()), contacts: Array.from({ length: quantity }, (_, index) => value.contacts[index] || emptyCheckoutContact(locale)) })); }}>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</CustomSelect></label>}
           {selection.participants.map((participant, index) => {
             const selectedPackage = catalog.config.packages.find((offer) => offer.id === participant.packageId);
@@ -239,8 +247,12 @@ function Purchase({ catalog, locale, upgrade, presentation }: { catalog: Commerc
             const menuActivities = catalog.config.activities.filter((activity) => includedIds.has(activity.id) && activity.menuOptions.length && !upgrade?.activityIds.includes(activity.id));
             return <fieldset key={index} className={styles.person} disabled={loading}>
               <legend>{waitlist ? copy.yourData : upgrade ? copy.yourTicket : `${copy.participant} ${index + 1}`}</legend>
-              <div className={styles.fields}><label className={styles.label}>{copy.firstName}<input className={styles.input} name={`firstName-${index}`} value={participant.firstName} onChange={(event) => updateParticipant(index, { firstName: event.target.value })} autoComplete={index === 0 ? "given-name" : "off"} required maxLength={100} readOnly={!!upgrade} /></label><label className={styles.label}>{copy.lastName}<input className={styles.input} name={`lastName-${index}`} value={participant.lastName} onChange={(event) => updateParticipant(index, { lastName: event.target.value })} autoComplete={index === 0 ? "family-name" : "off"} required maxLength={100} readOnly={!!upgrade} /></label></div>
-              <CheckoutContactFields locale={locale} prefix={`participant-${index}`} value={upgrade ? { ...emptyCheckoutContact(locale), email: selection.buyerEmail } : selection.contacts[index]} onChange={(changes) => { if (upgrade) { resetCheckoutAttempt(); setSelection((value) => ({ ...value, buyerEmail: changes.email ?? value.buyerEmail })); } else updateContact(index, changes); }} disabled={loading} emailOnly={waitlist || !!upgrade} originalEmail={!!upgrade} />
+              <div className={styles.fields}>{(["firstName", "lastName"] as const).map(field => {
+                const invalid = validationError?.participantIndex === index && validationError.field === field;
+                const errorId = `participant-${index}-${field}-error`;
+                return <label key={field} className={styles.label}>{copy[field]}<input className={styles.input} name={`${field}-${index}`} value={participant[field]} onChange={(event) => updateParticipant(index, { [field]: event.target.value })} autoComplete={index === 0 ? field === "firstName" ? "given-name" : "family-name" : "off"} required maxLength={100} readOnly={!!upgrade} aria-invalid={invalid || undefined} aria-describedby={invalid ? errorId : undefined} />{invalid && <span id={errorId} role="alert" className={styles.fieldError}>{validationError.message}</span>}</label>;
+              })}</div>
+              <CheckoutContactFields locale={locale} prefix={`participant-${index}`} value={upgrade ? { ...emptyCheckoutContact(locale), email: selection.buyerEmail } : selection.contacts[index]} validationError={validationError?.participantIndex === index ? validationError : undefined} onChange={(changes) => { if (upgrade) { resetCheckoutAttempt(); setSelection((value) => ({ ...value, buyerEmail: changes.email ?? value.buyerEmail })); } else updateContact(index, changes); }} disabled={loading} emailOnly={waitlist || !!upgrade} originalEmail={!!upgrade} />
               <h3 className={styles.sectionTitle}>{waitlist ? copy.interest : copy.chooseFormula}</h3><div className={styles.options} role="radiogroup" aria-label={waitlist ? copy.interest : copy.chooseFormula}>{orderedOffers.map((offer) => {
                 const tier = currentTier(offer.prices, now);
                 const valid = packageAvailable(catalog, offer.id, upgrade?.activityIds, now);

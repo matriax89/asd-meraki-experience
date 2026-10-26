@@ -166,6 +166,28 @@ test("guest commerce requires matching attendee contacts and accepts an unchecke
   assert.equal(endpoint.calls.length, 1);
 });
 
+test("guest commerce reaches its verified payment with no document in every checkout language", async () => {
+  const withoutDocument = Object.fromEntries(Object.entries(contact).filter(([key]) => !['documentType', 'documentCountry', 'documentNumber'].includes(key)));
+  const variants = [
+    withoutDocument,
+    { ...contact, documentNumber: '' },
+    { ...contact, documentType: 'foreign_id', documentCountry: '', documentNumber: '   ' },
+  ];
+  for (const locale of ['it', 'en', 'de', 'es']) for (const candidate of variants) {
+    const endpoint = checkoutEndpoint({ ...order, stripe_session_id: sessionId });
+    const response = await endpoint.post(8500, { locale, attendees: [candidate] });
+    assert.equal(response.status, 200, `${locale}: document is optional`);
+    assert.equal((await response.json()).url, 'https://checkout.stripe.com/existing');
+    const args = endpoint.calls[0][1];
+    assert.equal(args.p_locale, locale);
+    assert.equal(args.p_attendees[0].documentNumber, '');
+    assert.equal(args.p_attendees[0].documentCountry, '');
+    assert.equal(args.p_attendees[0].email, contact.email);
+    assert.equal(args.p_attendees[0].phone, contact.phone);
+    assert.equal(args.p_participants[0].documentNumber, undefined);
+  }
+});
+
 test("commerce sends only an affiliate identifier to the authoritative reservation and defaults to direct purchase", async () => {
   const affiliateId = "20000000-0000-4000-8000-000000000001";
   const endpoint = checkoutEndpoint({ ...order, stripe_session_id: sessionId });

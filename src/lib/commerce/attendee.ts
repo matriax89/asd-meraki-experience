@@ -41,19 +41,24 @@ export const attendeeSchema = z.object({
   lastName: readable,
   email: z.string().trim().max(254).pipe(z.email()).transform(value => value.toLowerCase()),
   phone: z.string().max(40).transform(normalizePhone).refine(value => /^\+[1-9]\d{6,14}$/.test(value), 'invalid_phone'),
-  documentType: z.enum(['codice_fiscale', 'foreign_id']),
-  documentCountry: z.string().trim().toUpperCase().refine(value => countries.has(value), 'invalid_country'),
-  documentNumber: z.string().trim().min(3).max(40).transform(value => value.toUpperCase().replace(/\s+/g, ' ')),
+  documentType: z.enum(['codice_fiscale', 'foreign_id']).default('codice_fiscale'),
+  documentCountry: z.string().trim().toUpperCase().refine(value => value === '' || countries.has(value), 'invalid_country').default(''),
+  documentNumber: z.string().trim().max(40).transform(value => value.toUpperCase().replace(/\s+/g, ' ')).default(''),
   marketingConsent: z.boolean(),
 }).strict().superRefine((attendee, ctx) => {
+  if (!attendee.documentNumber) return;
   if (attendee.documentType === 'codice_fiscale') {
     if (attendee.documentCountry !== 'IT') ctx.addIssue({ code: 'custom', message: 'invalid_country', path: ['documentCountry'] });
     if (!isValidItalianTaxCode(attendee.documentNumber)) ctx.addIssue({ code: 'custom', message: 'invalid_tax_code', path: ['documentNumber'] });
   } else {
-    if (attendee.documentCountry === 'IT') ctx.addIssue({ code: 'custom', message: 'foreign_country_required', path: ['documentCountry'] });
+    if (!attendee.documentCountry || attendee.documentCountry === 'IT') ctx.addIssue({ code: 'custom', message: 'foreign_country_required', path: ['documentCountry'] });
     if (!/^[A-Z0-9][A-Z0-9 -]{1,30}[A-Z0-9]$/.test(attendee.documentNumber)) ctx.addIssue({ code: 'custom', message: 'invalid_foreign_id', path: ['documentNumber'] });
   }
-});
+}).transform(attendee => ({
+  ...attendee,
+  documentCountry: attendee.documentNumber ? attendee.documentCountry : '',
+  documentNumber: attendee.documentType === 'codice_fiscale' ? attendee.documentNumber.replace(/\s/g, '') : attendee.documentNumber,
+}));
 
 export const attendeesSchema = z.array(attendeeSchema).min(1).max(20);
 

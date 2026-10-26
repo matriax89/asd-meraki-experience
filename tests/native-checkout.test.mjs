@@ -172,7 +172,8 @@ test("purchase opens an accessible native dialog and preserves required/email va
 
   const inputs = [...checkout.form.querySelectorAll("input")];
   assert.deepEqual(inputs.map((input) => input.name), ["nome", "cognome", "email", "buyer-phone", "buyer-document-number", "buyer-marketing-consent", "discountCode"]);
-  assert.ok(inputs.filter((input) => input.type !== "checkbox" && input.name !== "discountCode").every((input) => input.required));
+  assert.deepEqual(inputs.filter((input) => input.required).map((input) => input.name), ["nome", "cognome", "email", "buyer-phone"]);
+  assert.equal(checkout.form.elements.namedItem("buyer-document-number").required, false);
   assert.equal(inputs.find((input) => input.type === "checkbox").checked, false);
   assert.equal(inputs.find((input) => input.type === "checkbox").required, false);
   assert.equal(inputs.at(-1).required, false);
@@ -306,16 +307,74 @@ test("a guest purchase opens Meraki's Stripe custom domain without losing its Ch
 });
 
 
-test("guest contact fields reject invalid documents before starting a payment", async (context) => {
+test("guest contact fields focus an invalid provided tax code, while clearing it allows payment", async (context) => {
   const checkout = await setup(context);
   await checkout.open();
   await checkout.fill();
   const documentInput = checkout.form.elements.namedItem("buyer-document-number");
-  await act(async () => { Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(documentInput, "RSSMRA85T10A562A"); documentInput.dispatchEvent(new window.Event("input", { bubbles: true })); });
+  await checkout.change(documentInput, "RSSMRA85T10A562A");
   await checkout.submit();
   assert.equal(checkout.calls.length, 0);
-  assert.match(checkout.dialog.querySelector('[role="alert"]').textContent, /Controlla i dati/);
+  assert.equal(window.document.activeElement, documentInput);
+  assert.equal(documentInput.getAttribute("aria-invalid"), "true");
+  const error = window.document.getElementById("buyer-documentNumber-error");
+  assert.equal(error?.textContent, checkoutCopy.checkoutCopy("it").invalidFiscalCode);
+  assert.ok(documentInput.getAttribute("aria-describedby").split(" ").includes(error.id));
+  await checkout.change(documentInput, "");
+  assert.equal(checkout.form.reportValidity(), true);
+  await checkout.submit();
+  assert.equal(checkout.calls.length, 1);
+  assert.equal(checkout.calls[0].body.attendee.documentNumber, "");
+  assert.equal(checkout.calls[0].body.attendee.documentCountry, "");
+  await checkout.fail();
 });
+
+for (const locale of ["it", "en", "de", "es"]) {
+  for (const documentType of ["codice_fiscale", "foreign_id"]) test(`${locale} legacy checkout accepts a blank ${documentType} without requiring a document country`, async (context) => {
+    const checkout = await setup(context, { locale });
+    await checkout.open(); await checkout.fill();
+    await checkout.change(checkout.form.elements.namedItem("buyer-document-type"), documentType);
+    await checkout.change(checkout.form.elements.namedItem("buyer-document-number"), "");
+    if (documentType === "foreign_id") {
+      const country = checkout.form.elements.namedItem("buyer-document-country");
+      await checkout.change(country, "");
+      assert.equal(country.required, false);
+    }
+    assert.equal(checkout.form.reportValidity(), true, "An omitted optional document must not block native validation");
+    await act(async () => checkout.submitButton.click());
+    assert.equal(checkout.calls.length, 1);
+    assert.equal(checkout.calls[0].body.locale, locale);
+    assert.deepEqual(checkout.calls[0].body.attendee, {
+      firstName: "Matias", lastName: "Lisio", email: "buyer@example.test", phone: "+393331234567",
+      documentType, documentCountry: "", documentNumber: "", marketingConsent: false,
+    });
+    await checkout.fail();
+  });
+
+  test(`${locale} legacy checkout identifies a phone missing its country code and accepts a corrected phone without a document`, async (context) => {
+    const checkout = await setup(context, { locale });
+    await checkout.open(); await checkout.fill();
+    const phone = checkout.form.elements.namedItem("buyer-phone");
+    await checkout.change(checkout.form.elements.namedItem("buyer-document-number"), "");
+    await checkout.change(phone, "3331234567");
+    assert.equal(checkout.form.checkValidity(), true, "The domain check must explain the missing international prefix");
+    await act(async () => checkout.submitButton.click());
+    assert.equal(checkout.calls.length, 0);
+    assert.equal(window.document.activeElement, phone);
+    assert.equal(phone.getAttribute("aria-invalid"), "true");
+    const error = window.document.getElementById("buyer-phone-error");
+    assert.equal(error?.textContent, checkoutCopy.checkoutCopy(locale).invalidPhone);
+    assert.ok(phone.getAttribute("aria-describedby").split(" ").includes(error.id));
+    assert.equal(phone.value, "3331234567", "The site must not guess the attendee's country code");
+    await checkout.change(phone, "+39 333 1234567");
+    await act(async () => checkout.submitButton.click());
+    assert.equal(checkout.calls.length, 1);
+    assert.equal(checkout.calls[0].body.attendee.phone, "+393331234567");
+    assert.equal(checkout.calls[0].body.attendee.documentNumber, "");
+    assert.equal(checkout.calls[0].body.attendee.documentCountry, "");
+    await checkout.fail();
+  });
+}
 
 
 test("simple tickets apply a verified code before payment and require the quoted net amount", async (context) => {

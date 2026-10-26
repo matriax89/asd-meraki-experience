@@ -2,6 +2,20 @@
 
 import { useEffect, type RefObject } from "react";
 
+/** Reveal the actual invalid field inside the dialog rather than the summary below it. */
+export function focusCheckoutField(form: HTMLFormElement, name: string, id?: string) {
+  const input = id ? form.querySelector<HTMLElement>(`[id="${id}"]`) : form.elements.namedItem(name);
+  if (!(input instanceof HTMLElement)) return;
+  input.focus({ preventScroll: true });
+  const scroller = form.closest<HTMLElement>("[data-checkout-scroll]");
+  if (!scroller) return;
+  const field = input.getBoundingClientRect();
+  const bounds = scroller.getBoundingClientRect();
+  if (field.top < bounds.top + 18 || field.bottom > bounds.bottom - 18) {
+    scroller.scrollTop += field.top - bounds.top - 24;
+  }
+}
+
 /** Keep the single dialog scroller inside the visible viewport, including an open mobile keyboard. */
 export function useCheckoutViewport(dialog: RefObject<HTMLDialogElement | null>, open: boolean) {
   useEffect(() => {

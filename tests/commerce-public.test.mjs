@@ -445,6 +445,94 @@ test("a group checkout submits the authoritative selection once despite two rapi
   assert.equal(window.document.querySelector("dialog").open, true);
 });
 
+for (const locale of ["it", "en", "de", "es"]) {
+  for (const documentType of ["codice_fiscale", "foreign_id"]) test(`${locale} commerce checkout accepts a blank ${documentType} with no issuing country`, async (context) => {
+    const ui = await setup(context, catalog, locale);
+    await ui.open(); await ui.fillPerson();
+    await ui.change(window.document.querySelector('[name="participant-0-document-type"]'), documentType);
+    await ui.change(window.document.querySelector('[name="participant-0-document-number"]'), "");
+    if (documentType === "foreign_id") {
+      const country = window.document.querySelector('[name="participant-0-document-country"]');
+      await ui.change(country, "");
+      assert.equal(country.required, false);
+    }
+    await ui.settleQuote();
+    const form = window.document.querySelector("form");
+    assert.equal(form.reportValidity(), true, "An omitted optional document must not block native validation");
+    await act(async () => form.querySelector('button[type="submit"]').click());
+    const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].body.locale, locale);
+    assert.deepEqual(requests[0].body.attendees, [{
+      firstName: "Matias", lastName: "Lisio", email: "matias@example.test", phone: "+393331234567",
+      documentType, documentCountry: "", documentNumber: "", marketingConsent: false,
+    }]);
+  });
+
+  test(`${locale} commerce checkout focuses a phone missing its country code and accepts the correction without a document`, async (context) => {
+    const ui = await setup(context, catalog, locale);
+    await ui.open(); await ui.fillPerson();
+    const phone = window.document.querySelector('[name="participant-0-phone"]');
+    await ui.change(window.document.querySelector('[name="participant-0-document-number"]'), "");
+    await ui.change(phone, "3331234567");
+    await ui.settleQuote();
+    const form = window.document.querySelector("form");
+    assert.equal(form.checkValidity(), true, "The domain check must explain the missing international prefix");
+    await act(async () => form.querySelector('button[type="submit"]').click());
+    assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
+    assert.equal(window.document.activeElement, phone);
+    assert.equal(phone.getAttribute("aria-invalid"), "true");
+    const error = window.document.getElementById("participant-0-phone-error");
+    assert.equal(error?.textContent, checkoutCopy.checkoutCopy(locale).invalidPhone);
+    assert.ok(phone.getAttribute("aria-describedby").split(" ").includes(error.id));
+    assert.equal(phone.value, "3331234567", "The site must not guess the attendee's country code");
+    await ui.change(phone, "+39 333 1234567");
+    await ui.settleQuote();
+    await act(async () => form.querySelector('button[type="submit"]').click());
+    const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].body.attendees[0].phone, "+393331234567");
+    assert.equal(requests[0].body.attendees[0].documentNumber, "");
+    assert.equal(requests[0].body.attendees[0].documentCountry, "");
+  });
+
+  test(`${locale} group checkout identifies the second person's invalid tax code while the first person's omitted document remains valid`, async (context) => {
+    const ui = await setup(context, catalog, locale);
+    const copy = checkoutCopy.checkoutCopy(locale);
+    await ui.open();
+    await ui.change(window.document.querySelector(`select[aria-label="${copy.quantityLabel}"]`), "2");
+    await ui.fillPerson(0); await ui.fillPerson(1);
+    const firstDocument = window.document.querySelector('[name="participant-0-document-number"]');
+    await ui.change(firstDocument, "");
+    if (locale !== "it") await ui.change(window.document.querySelector('[name="participant-0-document-country"]'), "");
+    await ui.change(window.document.querySelector('[name="participant-1-document-type"]'), "codice_fiscale");
+    const secondDocument = window.document.querySelector('[name="participant-1-document-number"]');
+    await ui.change(secondDocument, "RSSMRA85T10A562A");
+    await ui.settleQuote();
+    const form = window.document.querySelector("form");
+    assert.equal(form.reportValidity(), true, "A full-length but invalid checksum is checked by the domain");
+    await act(async () => form.querySelector('button[type="submit"]').click());
+    assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
+    assert.equal(window.document.activeElement, secondDocument);
+    assert.equal(secondDocument.getAttribute("aria-invalid"), "true");
+    assert.equal(firstDocument.hasAttribute("aria-invalid"), false);
+    const error = window.document.getElementById("participant-1-documentNumber-error");
+    assert.equal(error?.textContent, copy.invalidFiscalCode);
+    assert.ok(secondDocument.getAttribute("aria-describedby").split(" ").includes(error.id));
+    assert.equal(window.document.querySelectorAll('[role="alert"]').length, 1, "Only the offending participant receives a field error");
+    await ui.change(secondDocument, "");
+    await ui.settleQuote();
+    assert.equal(form.reportValidity(), true);
+    await act(async () => form.querySelector('button[type="submit"]').click());
+    const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
+    assert.equal(requests.length, 1);
+    assert.deepEqual(requests[0].body.attendees.map(({ firstName, documentNumber, documentCountry }) => ({ firstName, documentNumber, documentCountry })), [
+      { firstName: "Matias", documentNumber: "", documentCountry: "" },
+      { firstName: "Anna", documentNumber: "", documentCountry: "" },
+    ]);
+  });
+}
+
 test("a discounted Masterclass opens Meraki's Stripe domain with the accepted 30-euro total", async (context) => {
   const screenshotCatalog = structuredClone(catalog);
   screenshotCatalog.config.packages.find((offer) => offer.id === "only-mc").prices = [{ ...tier("early", 3500), label: "Early Bird" }];

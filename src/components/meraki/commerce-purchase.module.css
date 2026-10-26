@@ -75,6 +75,8 @@
 .total { display:flex; align-items:center; justify-content:space-between; gap:15px; font-size:15px; font-weight:700; }
 .total span:last-child { font-size:25px; letter-spacing:-.04em; }
 .error { border-radius:14px; background:#fbe9e3; color:#913d2a; padding:13px; font-size:13px; line-height:1.7; }
+.fieldError { display:block; margin-top:6px; color:#913d2a; font-size:13px; line-height:1.5; font-weight:600; }
+.input[aria-invalid="true"] { border-color:#a64d36; box-shadow:0 0 0 2px #a64d361a; }
 .success { border-radius:14px; background:#eaf1e5; color:#37583b; padding:15px; font-size:13px; line-height:1.7; }
 .smallButton { min-height:40px; border:0; background:transparent; padding:8px 0; color:#5a6d52; text-decoration:underline; text-underline-offset:3px; cursor:pointer; font-size:12px; font-weight:650; }
 .discountBox { min-width:0; border:1px solid #e0e2d9; border-radius:19px; background:white; padding:16px; }

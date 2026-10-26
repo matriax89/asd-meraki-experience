@@ -36,6 +36,46 @@ test('foreign DNI/passport requires a real foreign country, safe identifier, and
   assert.equal(attendeeSchema.safeParse({ ...person(), consentEligible: true }).success, false);
 });
 
+test('optional documents can be omitted or left blank without weakening required contact details', () => {
+  const withoutDocument = Object.fromEntries(Object.entries(person()).filter(([key]) => !['documentType', 'documentCountry', 'documentNumber'].includes(key)));
+  const variants = [
+    withoutDocument,
+    { ...person(), documentNumber: '' },
+    { ...person(), documentNumber: ' \t ' },
+    { ...person(), documentType: 'foreign_id', documentCountry: '', documentNumber: '' },
+    { ...person(), documentType: 'foreign_id', documentCountry: 'ES', documentNumber: '   ' },
+  ];
+  for (const input of variants) {
+    const parsed = attendeeSchema.parse(input);
+    assert.equal(parsed.documentNumber, '');
+    assert.equal(parsed.documentCountry, '');
+    assert.equal(parsed.documentType, input.documentType || 'codice_fiscale');
+    assert.equal(parsed.phone, '+393331234567');
+    assert.equal(parsed.email, 'ada@example.test');
+    assert.equal(parsed.marketingConsent, false);
+    const contacts = parseCheckoutAttendees([input], [selection()]);
+    assert.equal(contacts[0].documentNumber, '');
+    assert.equal(contacts[0].documentCountry, '');
+  }
+  for (const override of [
+    { firstName: '' }, { lastName: '' }, { email: '' }, { email: 'invalid' },
+    { phone: '' }, { phone: '3409697093' }, { marketingConsent: 'true' },
+    { documentType: 'passport' }, { documentType: '' }, { documentNumber: null },
+  ]) assert.equal(attendeeSchema.safeParse({ ...withoutDocument, ...override }).success, false);
+});
+
+test('a supplied optional document still requires its correct country and full identifier validation', () => {
+  const foreign = { ...person(), documentType: 'foreign_id', documentCountry: 'ES', documentNumber: '12345678Z' };
+  for (const input of [
+    { ...person(), documentCountry: '' }, { ...person(), documentCountry: undefined },
+    { ...person(), documentNumber: 'RSSMRA80A01H501A' },
+    { ...foreign, documentCountry: '' }, { ...foreign, documentCountry: undefined },
+    { ...foreign, documentCountry: 'IT' }, { ...foreign, documentCountry: 'ZZ' },
+    { ...foreign, documentNumber: 'A' }, { ...foreign, documentNumber: '<script>' },
+  ]) assert.equal(attendeeSchema.safeParse(input).success, false);
+  assert.equal(attendeeSchema.parse({ ...person(), documentNumber: 'rssmra80 a01h501u' }).documentNumber, 'RSSMRA80A01H501U');
+});
+
 test('contacts match pricing participants by index even for identical names and remain outside quote objects', () => {
   const people = [selection(), selection()];
   const contacts = [person(), { ...person(), email: 'other@example.test', marketingConsent: true }];

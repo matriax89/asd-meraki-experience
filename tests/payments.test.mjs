@@ -140,6 +140,31 @@ test("guest single ticket checkout requires valid private contacts but never req
   assert.equal(checkout.rpcCalls.length, 1);
 });
 
+test("single ticket checkout reaches its verified payment without a tax code or foreign ID in all languages", async () => {
+  const withoutDocument = Object.fromEntries(Object.entries(checkoutBody.attendee).filter(([key]) => !['documentType', 'documentCountry', 'documentNumber'].includes(key)));
+  const variants = [
+    withoutDocument,
+    { ...checkoutBody.attendee, documentNumber: '' },
+    { ...checkoutBody.attendee, documentType: 'foreign_id', documentCountry: '', documentNumber: '   ' },
+  ];
+  for (const locale of ['it', 'en', 'de', 'es']) for (const contact of variants) {
+    const checkout = checkoutFor({ reservation: {
+      id: checkoutBody.checkoutAttemptId, stripe_session_id: paidSession.id,
+      expires_at: new Date(Date.now() + 1000).toISOString(),
+    } }, { checkout: { sessions: { retrieve: async () => ({ status: 'open', url: 'https://checkout.stripe.com/existing' }) } } });
+    const response = await checkout.post({ ...checkoutBody, locale, attendee: contact });
+    assert.equal(response.status, 200, `${locale}: document is optional`);
+    assert.equal((await response.json()).url, 'https://checkout.stripe.com/existing');
+    const args = checkout.rpcCalls[0][1];
+    assert.equal(args.p_locale, locale);
+    assert.equal(args.p_attendee.documentNumber, '');
+    assert.equal(args.p_attendee.documentCountry, '');
+    assert.equal(args.p_attendee.email, checkoutBody.buyerEmail);
+    assert.equal(args.p_attendee.phone, checkoutBody.attendee.phone);
+    assert.equal(checkout.creations.length, 0, 'No real or extra payment session is started by this test');
+  }
+});
+
 test("single-ticket affiliate attribution is optional and an untrusted label never reaches the reservation", async () => {
   const checkout = checkoutFor({ error: "sold_out" }, {});
   const affiliateId = "20000000-0000-4000-8000-000000000001";

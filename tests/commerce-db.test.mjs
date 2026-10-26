@@ -375,6 +375,56 @@ test("commerce integration with an isolated PostgreSQL cluster", {
     const people = contacts.map(a => person('ws',[],{},a.firstName));
     return (await service.query('select public.reserve_event_commerce_attendees($1,$2,$3,$4,$5,$6,$7,$8,$9) result', [id,request,contacts[0].email,locale,json(people),pass?.id??null,pass?.qr_code??null,json(contacts),'2026-10-18-v1'])).rows[0].result;
   }
+  await t.test('the optional-document migration is repeatable and keeps contact validation private', async () => {
+    const migration = await readFile(path.join(migrationsDirectory,'20261026100000_optional_attendee_documents.sql'),'utf8');
+    await db.query(migration);await db.query(migration);
+    const contact={...attendee(),documentCountry:'',documentNumber:''};
+    assert.equal((await service.query('select public.commerce_attendee_valid($1) valid',[json(contact)])).rows[0].valid,true);
+    assert.equal((await service.query('select public.commerce_attendee_valid($1) valid',[json(attendee())])).rows[0].valid,true);
+    for(const role of ['anon','authenticated']) {
+      const client=await connect(role);
+      await assert.rejects(client.query('select public.commerce_attendee_valid($1)',[json(contact)]),/permission denied/);
+    }
+  });
+  await t.test('mixed guests with and without documents reserve and fulfill without exposing private contacts', async () => {
+    const id=await event(5),request=randomUUID();
+    const contacts=[
+      {...attendee(),documentCountry:'',documentNumber:''},
+      {...attendee(undefined,true),documentType:'foreign_id',documentCountry:'',documentNumber:''},
+      attendee(),
+      {...attendee(),documentType:'foreign_id',documentCountry:'ES',documentNumber:'DNI12345678Z'},
+    ];
+    const {order}=await reserveGuests(id,contacts,request);assert.ok(order);
+    assert.equal((await reserveGuests(id,contacts,request)).order.id,order.id);
+    const session=`cs_nodocument_${randomUUID()}`;
+    const result=await fulfill(order,session);assert.equal(result.outcome,'fulfilled');assert.equal(result.passes.length,4);
+    const retry=await fulfill(order,session);assert.deepEqual(retry.passes.map(p=>p.id),result.passes.map(p=>p.id));
+    const saved=(await service.query('select participant_index,document_type,document_country,document_number,email from public.commerce_attendee_contacts where order_id=$1 order by participant_index',[order.id])).rows;
+    assert.equal(saved.length,4);
+    assert.deepEqual(saved.map(c=>[c.document_type,c.document_country,c.document_number]),contacts.map(c=>[c.documentType,c.documentCountry,c.documentNumber]));
+    assert.deepEqual(saved.map(c=>c.email),contacts.map(c=>c.email));
+    for(const pass of result.passes) {
+      assert.ok(pass.qr_code);
+      for(const field of ['document_number','documentNumber','document_country','email','phone']) assert.equal(pass[field],undefined);
+    }
+    assert.equal((await service.query('select count(*)::int count from public.marketing_contacts where email=$1',[contacts[0].email])).rows[0].count,0);
+    assert.equal((await service.query('select status from public.marketing_contacts where email=$1',[contacts[1].email])).rows[0].status,'pending');
+  });
+  await t.test('single guest tickets without either document type persist empty values in private contacts', async () => {
+    const id=await event(5);await db.query('update public.events set commerce_config=null where id=$1',[id]);
+    for(const documentType of ['codice_fiscale','foreign_id']) {
+      const contact={...attendee(),documentType,documentCountry:'',documentNumber:''},request=randomUUID();
+      const args=[request,id,contact.email,contact.firstName,contact.lastName,'en',json(contact),'2026-10-18-v1'];
+      const held=(await service.query('select public.reserve_event_ticket_attendee($1,$2,$3,$4,$5,$6,$7,$8) result',args)).rows[0].result;
+      assert.ok(held.reservation);assert.deepEqual(held.reservation.attendee,contact);
+      const session=`cs_legacy_nodocument_${randomUUID()}`;
+      const result=(await service.query('select public.fulfill_event_ticket($1,$2,$3,$4,$5,$6) result',[request,id,session,`pi_${session}`,contact.email,held.reservation.amount_cents])).rows[0].result;
+      assert.equal(result.outcome,'fulfilled');assert.ok(result.ticket.qr_code);
+      const saved=(await service.query('select document_type,document_country,document_number,email from public.legacy_ticket_attendee_contacts where ticket_id=$1',[result.ticket.id])).rows[0];
+      assert.deepEqual(saved,{document_type:documentType,document_country:'',document_number:'',email:contact.email});
+      for(const field of ['document_number','documentNumber','document_country','phone']) assert.equal(result.ticket[field],undefined);
+    }
+  });
   await t.test('private guest data is immutable by request, supports Spanish and maps identical names by participant index', async () => {
     const id = await event(5); const contacts = [attendee(),attendee()]; const request = randomUUID();
     const {order} = await reserveGuests(id,contacts,request,'es'); assert.ok(order); assert.equal(order.locale,'es');
@@ -442,7 +492,23 @@ test("commerce integration with an isolated PostgreSQL cluster", {
   });
   await t.test('SQL contact validation rejects malformed personal data before reserving any seats', async () => {
     const id=await event(5),contact=attendee();
-    for(const invalid of [{...contact,documentNumber:'RSSMRA80A01H501A'},{...contact,phone:'3331234567'},{...contact,email:'not-an-email'},{...contact,documentCountry:'ZZ'}, {...contact,marketingConsent:'true'}]) {
+    for(const invalid of [
+      {...contact,documentNumber:'RSSMRA80A01H501A'},
+      {...contact,documentType:'foreign_id',documentCountry:'ES',documentNumber:'??'},
+      {...contact,documentType:'foreign_id',documentCountry:'IT',documentNumber:'DNI12345678Z'},
+      {...contact,documentType:'foreign_id',documentCountry:'',documentNumber:'DNI12345678Z'},
+      {...contact,documentCountry:'ZZ'},
+      {...contact,documentCountry:'',documentNumber:'RSSMRA80A01H501U'},
+      {...contact,documentCountry:'IT',documentNumber:''},
+      {...contact,documentCountry:'',documentNumber:' '},
+      {...contact,documentType:'passport',documentCountry:'',documentNumber:''},
+      {...contact,documentType:null,documentCountry:'',documentNumber:''},
+      {...contact,firstName:'',documentCountry:'',documentNumber:''},
+      {...contact,lastName:'',documentCountry:'',documentNumber:''},
+      {...contact,phone:'3331234567',documentCountry:'',documentNumber:''},
+      {...contact,email:'not-an-email',documentCountry:'',documentNumber:''},
+      {...contact,marketingConsent:'true',documentCountry:'',documentNumber:''},
+    ]) {
       assert.equal((await reserveGuests(id,[invalid])).error,'invalid_attendees');
     }
     assert.equal((await db.query('select count(*)::int count from public.commerce_orders where event_id=$1',[id])).rows[0].count,0);
