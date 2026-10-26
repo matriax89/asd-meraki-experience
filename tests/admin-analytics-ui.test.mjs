@@ -32,15 +32,20 @@ function load(file, mocks = {}) {
 const eventId = "43491c74-13c3-4747-8eaa-fbf9432c323e";
 const eventB = "07836561-e1cc-4255-8a39-488edba0f433";
 const affiliateId = "5c9d7464-cf07-4f55-beb7-73263ff474f8";
-const metrics = { grossCents: 10000, refundedCents: 3000, netCents: 7000, paidOrders: 3, validParticipants: 2, checkedInParticipants: 1, waiting: 4, pendingOrders: 1, expiredOrders: 2, failedOrders: 3 };
+const metrics = { grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, paidOrders: 3, validParticipants: 2, checkedInParticipants: 1, waiting: 4, pendingOrders: 1, expiredOrders: 2, failedOrders: 3 };
 const fixture = () => ({
   filters: { eventId, period: "30", from: "2026-09-23", to: "2026-10-22", affiliateId: "all" },
   events: [{ id: eventId, title: "Vibra", startsAt: "2026-12-19T11:30:00Z" }, { id: eventB, title: "Meraki Estate", startsAt: "2027-06-01T10:00:00Z" }],
   affiliateOptions: [{ id: affiliateId, name: "Scuola Meraki" }], metrics,
-  trend: [{ date: "2026-10-21", grossCents: 10000, refundedCents: 3000, netCents: 7000, paidOrders: 3 }, { date: "2026-10-22", grossCents: 0, refundedCents: 0, netCents: 0, paidOrders: 0 }],
+  trend: [{ date: "2026-10-21", grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, paidOrders: 3 }, { date: "2026-10-22", grossCents: 0, refundedCents: 0, netCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0, paidOrders: 0 }],
+  revenue: [
+    { id: "masterclass", name: "Masterclass", grossCents: 4000, refundedCents: 1000, netCents: 3000, feesCents: 100, netAfterFeesCents: 2900, missingFeePayments: 0 },
+    { id: "workshop", name: "Workshop", grossCents: 4000, refundedCents: 1000, netCents: 3000, feesCents: 100, netAfterFeesCents: 2900, missingFeePayments: 0 },
+    { id: "dinner", name: "Cena", grossCents: 2000, refundedCents: 1000, netCents: 1000, feesCents: 50, netAfterFeesCents: 950, missingFeePayments: 0 },
+  ],
   packages: [{ id: "combo", name: "Workshop + Masterclass", count: 2, grossCents: 10000 }], tiers: [], addons: [],
   activities: [{ id: "ws", eventId, eventTitle: "Vibra", name: "Workshop", capacity: 100, validAdmissions: 20, checkedIn: 7, remaining: 80 }],
-  affiliates: [{ id: affiliateId, eventId, eventTitle: "Vibra", name: "Scuola Meraki", validParticipants: 2, checkedInParticipants: 1, paidOrders: 3, grossCents: 10000, refundedCents: 3000, netCents: 7000 }],
+  affiliates: [{ id: affiliateId, eventId, eventTitle: "Vibra", name: "Scuola Meraki", validParticipants: 2, checkedInParticipants: 1, paidOrders: 3, grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0 }],
   eventStats: [{ id: eventId, title: "Vibra", startsAt: "2026-12-19T11:30:00Z", endsAt: null, status: "upcoming", capacity: 100, remaining: 80, ...metrics }, { id: eventB, title: "Meraki Estate", startsAt: "2027-06-01T10:00:00Z", endsAt: null, status: "draft", capacity: null, remaining: null, ...metrics }],
   operations: { newLeads: 5, openShopOrders: 2, confirmedContacts: 31 },
   notes: ["La disponibilità usa l’occupazione attuale."],
@@ -69,7 +74,8 @@ const metric = label => [...window.document.querySelectorAll("dt")].find(node =>
 
 test("dashboard uses real cohort metrics and exposes chart values in an accessible table", async context => {
   await mount(context);
-  assert.equal(metric("Vendite lorde"), "100,00 €"); assert.equal(metric("Rimborsi"), "30,00 €"); assert.equal(metric("Incassi netti"), "70,00 €");
+  assert.equal(metric("Vendite lorde"), "100,00 €"); assert.equal(metric("Rimborsi"), "30,00 €"); assert.equal(metric("Incassi netti"), "67,50 €");
+  assert.equal(metric("Commissioni Stripe / PayPal"), "2,50 €");
   assert.equal(metric("Iscritti validi"), "2"); assert.equal(metric("Con check-in"), "1");
   assert.ok(window.document.body.textContent.includes("Acquisti creati nel periodo selezionato"));
   assert.ok(window.document.body.textContent.includes("anche se eseguiti successivamente"));
@@ -86,8 +92,65 @@ test("dashboard uses real cohort metrics and exposes chart values in an accessib
   assert.ok(explanation.textContent.includes(fixture().notes[0]));
 });
 
+
+test("masterclass, workshop and dinner show separate gross, refund, fee and true net values", async context => {
+  await mount(context);
+  const section = window.document.querySelector('[aria-labelledby="analytics-revenue-title"]');
+  assert.ok(section);
+  assert.deepEqual([...section.querySelectorAll("h3")].map(node => node.textContent), ["Masterclass", "Workshop", "Cena"]);
+  assert.ok(section.compareDocumentPosition(window.document.querySelector('[aria-labelledby="sales-trend-title"]')) & window.Node.DOCUMENT_POSITION_FOLLOWING);
+  for (const [kind, expected] of [["masterclass", ["29,00 €", "40,00 €", "10,00 €", "1,00 €"]], ["workshop", ["29,00 €", "40,00 €", "10,00 €", "1,00 €"]], ["dinner", ["9,50 €", "20,00 €", "10,00 €", "0,50 €"]]]) {
+    const card = section.querySelector(`[data-revenue-kind="${kind}"]`);
+    assert.deepEqual([card.querySelector("p").textContent, ...[...card.querySelectorAll("dd")].map(node => node.textContent)].map(value => value.replaceAll("\u00a0", " ")), expected);
+  }
+  const trend = [...window.document.querySelectorAll("table")].find(table => table.caption?.textContent === "Vendite per giorno, importi in euro");
+  assert.deepEqual([...trend.tBodies[0].rows[0].cells].map(cell => cell.textContent.replaceAll("\u00a0", " ")), ["21/10/2026", "100,00 €", "30,00 €", "2,50 €", "67,50 €", "3"]);
+  const affiliates = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"]');
+  assert.ok(affiliates.textContent.replaceAll("\u00a0", " ").includes("67,50 €"));
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(fixture());
+  assert.ok(csv.includes('"Commissioni Stripe / PayPal note (€)";"2,5"'));
+  assert.ok(csv.includes('"Netto dopo commissioni (€)";"67,5"'));
+  assert.ok(csv.includes('"Masterclass";"40";"10";"30";"1";"29";"Complete"'));
+  assert.ok(csv.includes('"Cena";"20";"10";"10";"0,5";"9,5";"Complete"'));
+});
+
+test("incomplete fees remain explicit in KPIs, categories, chart, affiliates, event totals and CSV", async context => {
+  const data = fixture();
+  const incomplete = row => ({ ...row, feesCents: 100, netAfterFeesCents: null, missingFeePayments: 1 });
+  data.metrics = incomplete(data.metrics);
+  data.revenue[0] = incomplete(data.revenue[0]);
+  data.trend[0] = incomplete(data.trend[0]);
+  data.affiliates = data.affiliates.map(incomplete);
+  data.eventStats = data.eventStats.map(incomplete);
+  await mount(context, { data });
+  assert.equal(metric("Incassi netti"), "Da verificare");
+  assert.equal(metric("Commissioni Stripe / PayPal"), "1,00 € (parziali)");
+  assert.ok(window.document.querySelector('[role="status"]').textContent.includes("Commissioni incomplete per 1 pagamento"));
+  assert.equal(window.document.querySelector('[data-revenue-kind="masterclass"] > p').textContent, "Da verificare");
+  assert.equal(window.document.querySelector('[data-revenue-kind="workshop"] > p').textContent.replaceAll("\u00a0", " "), "29,00 €");
+  assert.equal(window.document.querySelector('svg[role="img"]'), null);
+  assert.ok(window.document.body.textContent.includes("Il grafico del netto sarà disponibile quando le commissioni saranno complete"));
+  const affiliate = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"] tbody tr');
+  assert.equal(affiliate.cells[4].textContent, "Da verificare");
+  const eventsSection = [...window.document.querySelectorAll("section")].find(section => section.querySelector("h2")?.textContent === "Riepilogo per evento");
+  assert.deepEqual([...eventsSection.querySelectorAll("strong")].filter((_, index) => index % 2 === 0).map(node => node.textContent), ["Da verificare", "Da verificare"]);
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
+  assert.ok(csv.includes('"Netto dopo commissioni (€)";"Da verificare"'));
+  assert.ok(csv.includes('"Masterclass";"40";"10";"30";"1";"Da verificare";"Parziali: 1 pagamento da verificare"'));
+  assert.equal(/NaN|undefined/.test(csv), false);
+});
+
+test("retained processing fees after full refund remain a negative net", async context => {
+  const data = fixture();
+  data.metrics = { ...data.metrics, refundedCents: 10000, netCents: 0, netAfterFeesCents: -250 };
+  await mount(context, { data });
+  assert.equal(metric("Incassi netti"), "-2,50 €");
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
+  assert.ok(csv.includes('"Netto dopo commissioni (€)";"-2,5"'));
+});
+
 test("affiliate waitlist remains unavailable rather than a fabricated zero and empty sales have no fake chart", async context => {
-  const data = fixture(); data.metrics = { ...metrics, waiting: null }; data.trend = data.trend.map(row => ({ ...row, grossCents: 0, netCents: 0, refundedCents: 0, paidOrders: 0 }));
+  const data = fixture(); data.metrics = { ...metrics, waiting: null }; data.trend = data.trend.map(row => ({ ...row, grossCents: 0, netCents: 0, refundedCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0, paidOrders: 0 }));
   await mount(context, { data });
   assert.equal(metric("Lista d’attesa"), "—");
   assert.ok(window.document.body.textContent.includes("Non attribuibile a un affiliato"));

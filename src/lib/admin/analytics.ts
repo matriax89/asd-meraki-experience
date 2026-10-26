@@ -3,18 +3,20 @@ import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { fromRomeInput } from "@/lib/commerce/rome-time";
 import { parseEventAffiliates } from "@/lib/events/affiliates";
-import type { AdminAnalytics, AdminAnalyticsInput, AnalyticsAffiliateRow, AnalyticsBreakdown, AnalyticsEventRow, AnalyticsMetrics } from "./analytics-types";
+import { loadPaymentFees } from "@/lib/stripe/payment-fees";
+import type { AdminAnalytics, AdminAnalyticsInput, AnalyticsAffiliateRow, AnalyticsBreakdown, AnalyticsEventRow, AnalyticsFinancials, AnalyticsMetrics } from "./analytics-types";
 
 type Event = { id: string; titolo: unknown; data_inizio: string; data_fine: string | null; attivo: boolean | null; canceled_at: string | null; capacity: number | null; affiliates: unknown; activities: unknown };
-type FinancialRow = { id: string; event_id: string; amount_cents: number | null; state: string; created_at: string | null; expires_at?: string | null; stripe_payment_intent: string | null; stripe_session_id: string | null; refund_status: string | null; affiliate_id: string | null; affiliate_name: string | null; quote_lines?: unknown; upgrade_pass_id?: string | null };
+type FinancialRow = { id: string; event_id: string; amount_cents: number | null; state: string; created_at: string | null; expires_at?: string | null; stripe_payment_intent: string | null; stripe_session_id: string | null; refund_status: string | null; affiliate_id: string | null; affiliate_name: string | null; quote_lines?: unknown; quote_discount?: unknown; snapshot_activities?: unknown; upgrade_pass_id?: string | null };
 type Pass = { id: string; event_id: string; order_id: string; status: string; created_at: string; affiliate_id: string | null; affiliate_name: string | null };
 type Right = { id: string; event_id: string; pass_id: string; order_id: string; activity_id: string; activity_name: string; status: string; checked_in_at: string | null };
 type Ticket = { id: string; event_id: string; status: string | null; amount_cents: number | null; created_at: string | null; used_at: string | null; stripe_payment_intent: string | null; stripe_session_id: string | null; affiliate_id: string | null; affiliate_name: string | null };
 type Refund = { id: string; event_id: string; order_id: string | null; ticket_reservation_id: string | null; payment_intent: string; amount_cents: number; status: string; stripe_refund_id: string | null };
 type RefundMarker = { payment_intent: string; status?: string };
 type Waiting = { id: string; event_id: string; status: string; created_at: string };
-type Line = { kind: string; label: string; quantity: number; totalCents: number; packageId?: string; tierId?: string; addonId?: string; activityIds?: string[] };
-type Payment = { id: string; kind: "commerce" | "legacy"; eventId: string; createdAt: string | null; affiliateId: string; affiliateName: string; amount: number; refunded: number; captured: boolean; state: string; lines: Line[] };
+type Line = { kind: string; label: string; quantity: number; totalCents: number; discountCents?: number; activityAmounts?: Record<string, number>; packageId?: string; tierId?: string; addonId?: string; activityIds?: string[] };
+type RevenueKind = AdminAnalytics["revenue"][number]["id"];
+type Payment = { id: string; identity: string; paymentIntent: string | null; sessionId: string | null; kind: "commerce" | "legacy"; eventId: string; createdAt: string | null; affiliateId: string; affiliateName: string; amount: number; refunded: number; captured: boolean; state: string; lines: Line[]; activityKinds: Map<string, RevenueKind>; discountTargets: string[] | null };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const dateFormat = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" });
 const day = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? dateFormat.format(new Date(value)) : "";
@@ -24,7 +26,8 @@ const midnight = (value: string) => {
   return value;
 };
 const advance = (value: string, days: number) => new Date(Date.parse(`${value}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
-const empty = (waiting: number | null = 0): AnalyticsMetrics => ({ grossCents: 0, refundedCents: 0, netCents: 0, paidOrders: 0, validParticipants: 0, checkedInParticipants: 0, waiting, pendingOrders: 0, expiredOrders: 0, failedOrders: 0 });
+const emptyFinancials = (): AnalyticsFinancials => ({ grossCents: 0, refundedCents: 0, netCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0 });
+const empty = (waiting: number | null = 0): AnalyticsMetrics => ({ ...emptyFinancials(), paidOrders: 0, validParticipants: 0, checkedInParticipants: 0, waiting, pendingOrders: 0, expiredOrders: 0, failedOrders: 0 });
 const amount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 const alive = (status: string | null) => status === "valid" || status === "used";
 const paid = (status: string | null) => status === "paid" || status === "used";
@@ -64,21 +67,70 @@ function lines(value: unknown): Line[] {
   return value.flatMap(entry => {
     if (!entry || typeof entry !== "object" || !["package", "upgrade", "addon"].includes(entry.kind) || !Number.isSafeInteger(entry.quantity) || entry.quantity < 1 || !amount(entry.totalCents)) return [];
     if (entry.kind === "upgrade" && entry.tierId === "owned") return [];
-    return [{ kind: entry.kind, label: typeof entry.label === "string" ? entry.label : "Formula", quantity: entry.quantity, totalCents: entry.totalCents, packageId: typeof entry.packageId === "string" ? entry.packageId : undefined, tierId: typeof entry.tierId === "string" ? entry.tierId : undefined, addonId: typeof entry.addonId === "string" ? entry.addonId : undefined, activityIds: Array.isArray(entry.activityIds) ? entry.activityIds.filter((id: unknown): id is string => typeof id === "string") : [] }];
+    const activityAmounts = entry.activityAmounts && typeof entry.activityAmounts === "object" && !Array.isArray(entry.activityAmounts) && Object.values(entry.activityAmounts).every(amount) ? entry.activityAmounts as Record<string, number> : undefined;
+    return [{ kind: entry.kind, label: typeof entry.label === "string" ? entry.label : "Formula", quantity: entry.quantity, totalCents: entry.totalCents, discountCents: amount(entry.discountCents) ? entry.discountCents : undefined, activityAmounts, packageId: typeof entry.packageId === "string" ? entry.packageId : undefined, tierId: typeof entry.tierId === "string" ? entry.tierId : undefined, addonId: typeof entry.addonId === "string" ? entry.addonId : undefined, activityIds: Array.isArray(entry.activityIds) ? [...new Set(entry.activityIds.filter((id: unknown): id is string => typeof id === "string"))] as string[] : [] }];
   });
+}
+
+/** Integer cumulative allocation preserves every cent, including signed fee adjustments. */
+function split(total: number, weights: number[]): number[] {
+  const divisor = weights.reduce((sum, weight) => sum + BigInt(weight), BigInt(0));
+  if (!divisor) return weights.map(() => 0);
+  let cumulative = BigInt(0); let assigned = 0;
+  return weights.map(weight => {
+    cumulative += BigInt(weight);
+    const next = Number(BigInt(total) * cumulative / divisor);
+    const cents = next - assigned; assigned = next; return cents;
+  });
+}
+
+function activityKinds(value: unknown): Map<string, RevenueKind> {
+  const result = new Map<string, RevenueKind>();
+  if (Array.isArray(value)) for (const raw of value) if (raw && typeof raw === "object" && typeof raw.id === "string" && ["workshop", "masterclass", "dinner", "extra"].includes(raw.kind)) result.set(raw.id, raw.kind);
+  return result;
+}
+
+function addFinancials(target: AnalyticsFinancials, gross: number, refunded: number, fees: number, missing: number) {
+  target.grossCents += gross; target.refundedCents += refunded; target.netCents += gross - refunded;
+  target.feesCents += fees; target.missingFeePayments += missing;
+  target.netAfterFeesCents = target.missingFeePayments ? null : target.netCents - target.feesCents;
 }
 
 /** Allocate only the captured cents, including historical order-level discounts. */
 function allocated(payment: Payment) {
   const total = payment.lines.reduce((sum, line) => sum + line.totalCents, 0);
   const weights = payment.lines.map(line => total ? line.totalCents : 1);
-  const divisor = weights.reduce((sum, weight) => sum + weight, 0);
-  let assigned = 0;
-  return payment.lines.map((line, index) => {
-    const cents = index === payment.lines.length - 1 ? payment.amount - assigned : Math.floor(payment.amount * weights[index] / divisor);
-    assigned += cents;
-    return { line, cents };
-  });
+  const cents = split(payment.amount, weights);
+  return payment.lines.map((line, index) => ({ line, cents: cents[index] }));
+}
+
+function revenueAmounts(payment: Payment, notes: Set<string>): Map<RevenueKind, number> {
+  const result = new Map<RevenueKind, number>();
+  const add = (kind: RevenueKind, cents: number) => result.set(kind, (result.get(kind) || 0) + cents);
+  if (!payment.lines.length) add("unallocated", payment.amount);
+  for (const { line, cents } of allocated(payment)) {
+    const ids = line.activityIds || [];
+    if (!ids.length) { add("unallocated", cents); continue; }
+    const recorded = line.activityAmounts;
+    const explicit = recorded && ids.every(id => amount(recorded[id])) && Object.keys(recorded).length === ids.length;
+    const originalCents = line.totalCents + (line.discountCents || 0);
+    let weights = explicit ? ids.map(id => recorded[id]) : ids.map((_, index) => Math.floor(originalCents / ids.length) + (index < originalCents % ids.length ? 1 : 0));
+    if (!explicit && ids.length > 1 && cents > 0) notes.add("Per le formule storiche senza ripartizione registrata, l’importo è diviso in parti uguali tra le attività incluse, con arrotondamento al centesimo.");
+    if (line.discountCents) {
+      const eligible = ids.map((id, index) => !payment.discountTargets || payment.discountTargets.includes(id) ? weights[index] : 0);
+      const eligibleTotal = eligible.reduce((sum, value) => sum + value, 0);
+      const reductions = split(Math.min(line.discountCents, eligibleTotal), eligible);
+      weights = weights.map((weight, index) => weight - reductions[index]);
+    }
+    if (!weights.some(Boolean)) {
+      if (cents > 0) { add("unallocated", cents); continue; }
+      weights = ids.map(() => 1);
+    }
+    const amounts = split(cents, weights);
+    ids.forEach((id, index) => add(payment.activityKinds.get(id) || "unallocated", amounts[index]));
+  }
+  if ((result.get("unallocated") || 0) > 0) notes.add("Gli acquisti senza un’attività identificabile sono inclusi in «Non attribuito», senza assegnarli arbitrariamente a masterclass, workshop o cena.");
+  return result;
 }
 
 /** Staff-only financial reporting. All outputs are explicit DTOs without customer identities or payment capabilities. */
@@ -95,7 +147,7 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     return query.order(global ? "payment_intent" : "id").range(from, to);
   }, label);
   const [orders, reservations, passes, rights, tickets, refunds, commerceRefunds, ticketRefunds, waitlist, newLeads, openShopOrders, confirmedContacts] = await Promise.all([
-    read<FinancialRow>("commerce_orders", "id,event_id,state,amount_cents,created_at,expires_at,stripe_payment_intent,stripe_session_id,refund_status,affiliate_id,affiliate_name,upgrade_pass_id,quote_lines:quote->lines", "gli acquisti"),
+    read<FinancialRow>("commerce_orders", "id,event_id,state,amount_cents,created_at,expires_at,stripe_payment_intent,stripe_session_id,refund_status,affiliate_id,affiliate_name,upgrade_pass_id,quote_lines:quote->lines,quote_discount:quote->discount,snapshot_activities:event_snapshot->commerce_config->activities", "gli acquisti"),
     read<FinancialRow>("ticket_reservations", "id,event_id,state,amount_cents,created_at,expires_at,stripe_payment_intent,stripe_session_id,refund_status,affiliate_id,affiliate_name", "gli acquisti precedenti"),
     read<Pass>("commerce_passes", "id,event_id,order_id,status,created_at,affiliate_id,affiliate_name", "i partecipanti"),
     read<Right>("commerce_entitlements", "id,event_id,pass_id,order_id,activity_id,activity_name,status,checked_in_at", "gli accessi"),
@@ -110,7 +162,8 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
   ]);
   const notes = new Set([
     "Il periodo segue il giorno italiano di creazione dell’acquisto (Europe/Rome), non la data di accredito Stripe. I rimborsi riusciti si riferiscono a quegli acquisti anche quando avvenuti successivamente.",
-    "Il netto è lordo meno rimborsi, prima delle commissioni Stripe; non sottrae imposte o altri costi. Gli ordini gratuiti non aumentano il conteggio degli ordini pagati.",
+    "Il netto dopo le commissioni sottrae dal lordo i rimborsi riusciti e le commissioni effettive di pagamento Stripe, comprese quelle disponibili per PayPal. Non sottrae imposte o altri costi. Gli ordini gratuiti non aumentano il conteggio degli ordini pagati.",
+    "Gli importi di masterclass, workshop e cena seguono la ripartizione salvata nell’acquisto; rimborsi e commissioni del pagamento sono distribuiti in proporzione agli importi delle attività, con arrotondamento al centesimo.",
     "Ogni biglietto/pass valido conta una persona nel periodo di creazione dell’acquisto iniziale. Gli upgrade aumentano gli incassi senza creare un nuovo partecipante. I check-in sono lo stato attuale di queste persone.",
     "La disponibilità residua usa tutti gli accessi attualmente validi, indipendentemente dai filtri su acquisti e affiliati; non comprende prenotazioni temporanee ancora da pagare.",
     "Formule e scaglioni contano vendite e cambi formula; le aggiunte già possedute durante un upgrade non sono conteggiate di nuovo.",
@@ -138,7 +191,7 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     const key = `${eventId}:${affiliation}`;
     let row = affiliateRows.get(key);
     if (!row) {
-      row = { id: affiliation, eventId, eventTitle: title(eventId), name: affiliation === "direct" ? "Acquisti diretti" : snapshotName || "Affiliato archiviato", validParticipants: 0, checkedInParticipants: 0, paidOrders: 0, grossCents: 0, refundedCents: 0, netCents: 0 };
+      row = { ...emptyFinancials(), id: affiliation, eventId, eventTitle: title(eventId), name: affiliation === "direct" ? "Acquisti diretti" : snapshotName || "Affiliato archiviato", validParticipants: 0, checkedInParticipants: 0, paidOrders: 0 };
       affiliateRows.set(key, row);
     }
     if (id && !affiliateOptions.has(id)) affiliateOptions.set(id, row.name);
@@ -182,7 +235,11 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     const quoteLines = kind === "commerce" ? lines(row.quote_lines) : [{ kind: "package", label: "Ingresso evento", quantity: 1, totalCents: row.amount_cents, packageId: "legacy", tierId: "legacy" }];
     if (captured && !quoteLines.length && row.amount_cents > 0) notes.add("Alcuni acquisti storici non hanno righe prodotto leggibili: gli incassi sono inclusi nel totale ma non nel dettaglio delle formule.");
     const state = row.state === "reserved" && row.expires_at && Date.parse(row.expires_at) <= Date.now() ? "expired" : row.state;
-    paymentRows.set(identity, { id: row.id, kind, eventId: row.event_id, createdAt: row.created_at, affiliateId: row.affiliate_id || "direct", affiliateName: row.affiliate_name || "Acquisti diretti", amount: row.amount_cents, refunded: Math.min(row.amount_cents, full ? row.amount_cents : settled), captured, state, lines: quoteLines });
+    const discount = row.quote_discount && typeof row.quote_discount === "object" ? row.quote_discount as { targetType?: unknown; targetIds?: unknown } : null;
+    const frozenKinds = activityKinds(row.snapshot_activities);
+    // Current configuration is only a fallback when no frozen activity list exists.
+    const kinds = Array.isArray(row.snapshot_activities) ? frozenKinds : activityKinds(eventMap.get(row.event_id)?.activities);
+    paymentRows.set(identity, { id: row.id, identity, paymentIntent: intent || null, sessionId: session || null, kind, eventId: row.event_id, createdAt: row.created_at, affiliateId: row.affiliate_id || "direct", affiliateName: row.affiliate_name || "Acquisti diretti", amount: row.amount_cents, refunded: Math.min(row.amount_cents, full ? row.amount_cents : settled), captured, state, lines: quoteLines, activityKinds: kinds, discountTargets: discount?.targetType === "activity" && Array.isArray(discount.targetIds) ? discount.targetIds.filter((id): id is string => typeof id === "string") : null });
   };
   for (const order of orders) makePayment(order, "commerce");
   for (const reservation of reservations) makePayment(reservation, "legacy", ticketBySession.get(reservation.stripe_session_id || "") || ticketByIntent.get(reservation.stripe_payment_intent || ""));
@@ -190,30 +247,47 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     if (!paid(ticket.status) && ticket.status !== "refunded") continue;
     makePayment({ ...ticket, state: ticket.status === "refunded" ? "refunded" : "fulfilled", refund_status: null }, "legacy", ticket);
   }
+  const scopedPayments = [...paymentRows.values()].filter(payment => inPeriod(payment.createdAt) && inAffiliate(payment.affiliateId === "direct" ? null : payment.affiliateId));
+  const paymentFees = await loadPaymentFees(scopedPayments.filter(payment => payment.captured && payment.amount > 0).map(payment => ({ id: payment.identity, paymentIntent: payment.paymentIntent, sessionId: payment.sessionId, amountCents: payment.amount, refundedCents: payment.refunded })));
   const trend = new Map<string, AdminAnalytics["trend"][number]>();
+  const revenue = new Map<RevenueKind, AdminAnalytics["revenue"][number]>();
+  const revenueNames: Record<RevenueKind, string> = { masterclass: "Masterclass", workshop: "Workshop", dinner: "Cena", extra: "Altre attività", unallocated: "Non attribuito" };
+  const revenueRow = (id: RevenueKind) => {
+    let row = revenue.get(id);
+    if (!row) { row = { id, name: revenueNames[id], ...emptyFinancials() }; revenue.set(id, row); }
+    return row;
+  };
+  for (const id of ["masterclass", "workshop", "dinner"] as const) revenueRow(id);
   const breakdowns = { packages: new Map<string, AnalyticsBreakdown>(), tiers: new Map<string, AnalyticsBreakdown>(), addons: new Map<string, AnalyticsBreakdown>() };
   const increment = (collection: keyof typeof breakdowns, id: string, name: string, count: number, grossCents: number) => {
     const current = breakdowns[collection].get(id) || { id, name, count: 0, grossCents: 0 };
     current.count += count; current.grossCents += grossCents; breakdowns[collection].set(id, current);
   };
-  for (const payment of paymentRows.values()) {
-    if (!inPeriod(payment.createdAt) || !inAffiliate(payment.affiliateId === "direct" ? null : payment.affiliateId)) continue;
+  for (const payment of scopedPayments) {
     const event = eventStats.get(payment.eventId)!;
     if (!payment.captured) {
       const key = ["reserved", "awaiting_payment"].includes(payment.state) ? "pendingOrders" : payment.state === "expired" ? "expiredOrders" : payment.state === "payment_failed" ? "failedOrders" : null;
       if (key) { metrics[key] += 1; event[key] += 1; }
       continue;
     }
+    const fee = payment.amount === 0 ? { feeCents: 0, complete: true } : paymentFees.get(payment.identity) || { feeCents: 0, complete: false };
+    if (!fee.complete) notes.add("Alcune commissioni non sono ancora disponibili o verificabili: sono mostrate solo le commissioni note e il netto dopo le commissioni resta non disponibile per gli importi interessati.");
     const affiliateRow = affiliate(payment.eventId, payment.affiliateId === "direct" ? null : payment.affiliateId, payment.affiliateName);
     for (const item of [metrics, event, affiliateRow]) {
-      item.grossCents += payment.amount; item.refundedCents += payment.refunded; item.netCents += payment.amount - payment.refunded;
+      addFinancials(item, payment.amount, payment.refunded, fee.feeCents, fee.complete ? 0 : 1);
       if (payment.amount > 0) item.paidOrders += 1;
     }
     const date = day(payment.createdAt);
     if (date) {
-      const current = trend.get(date) || { date, grossCents: 0, refundedCents: 0, netCents: 0, paidOrders: 0 };
-      current.grossCents += payment.amount; current.refundedCents += payment.refunded; current.netCents += payment.amount - payment.refunded; current.paidOrders += payment.amount > 0 ? 1 : 0; trend.set(date, current);
+      const current = trend.get(date) || { date, ...emptyFinancials(), paidOrders: 0 };
+      addFinancials(current, payment.amount, payment.refunded, fee.feeCents, fee.complete ? 0 : 1);
+      current.paidOrders += payment.amount > 0 ? 1 : 0; trend.set(date, current);
     }
+    const categories = [...revenueAmounts(payment, notes)];
+    const categoryWeights = categories.map(([, cents]) => cents);
+    const categoryRefunds = split(payment.refunded, categoryWeights);
+    const categoryFees = split(fee.feeCents, categoryWeights);
+    categories.forEach(([id, gross], index) => addFinancials(revenueRow(id), gross, categoryRefunds[index], categoryFees[index], !fee.complete && gross > 0 ? 1 : 0));
     for (const { line, cents } of allocated(payment)) {
       const prefix = selected.eventId ? "" : `${title(payment.eventId)} · `;
       const packageId = `${payment.eventId}:${line.packageId || line.label}`;
@@ -277,7 +351,7 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     return { id: key.slice(event.id.length + 1), eventId: event.id, eventTitle: title(event.id), name: counter.name, capacity, validAdmissions: counter.participants.size, checkedIn: counter.checked.size, remaining: capacity === null ? null : Math.max(0, capacity - (activityOccupancy.get(key)?.size || 0)) };
   });
   if (selected.from && selected.to) {
-    for (let date = selected.from, count = 0; date <= selected.to && count < 3660; date = advance(date, 1), count += 1) if (!trend.has(date)) trend.set(date, { date, grossCents: 0, refundedCents: 0, netCents: 0, paidOrders: 0 });
+    for (let date = selected.from, count = 0; date <= selected.to && count < 3660; date = advance(date, 1), count += 1) if (!trend.has(date)) trend.set(date, { date, ...emptyFinancials(), paidOrders: 0 });
     if (advance(selected.from, 3660) <= selected.to) notes.add("Per intervalli oltre dieci anni l’andamento mantiene tutti i giorni con vendite e omette parte dei giorni senza acquisti.");
   }
   const breakdown = (collection: keyof typeof breakdowns) => [...breakdowns[collection].values()].sort((a, b) => b.grossCents - a.grossCents || a.name.localeCompare(b.name, "it"));
@@ -285,7 +359,7 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     filters: selected, events: eventRows.map(event => ({ id: event.id, title: getLocalizedText(event.titolo, input.locale) || "Evento", startsAt: event.data_inizio })),
     affiliateOptions: [...affiliateOptions].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "it")), metrics,
     operations: { newLeads, openShopOrders, confirmedContacts },
-    trend: [...trend.values()].sort((a, b) => a.date.localeCompare(b.date)), packages: breakdown("packages"), tiers: breakdown("tiers"), addons: breakdown("addons"), activities,
+    trend: [...trend.values()].sort((a, b) => a.date.localeCompare(b.date)), revenue: [...revenue.values()], packages: breakdown("packages"), tiers: breakdown("tiers"), addons: breakdown("addons"), activities,
     affiliates: [...affiliateRows.values()].filter(row => inAffiliate(row.id === "direct" ? null : row.id)).sort((a, b) => b.netCents - a.netCents || a.name.localeCompare(b.name, "it")), eventStats: [...eventStats.values()], notes: [...notes],
   };
 }
