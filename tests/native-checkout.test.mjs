@@ -63,7 +63,8 @@ function compileDependency(path, modules = {}) {
 const checkoutCopy = compileDependency("../src/components/meraki/checkout-copy.ts");
 const cssModule = { default: new Proxy({}, { get: (_, key) => key }) };
 const attendeeModel = compileDependency("../src/lib/commerce/attendee.ts");
-const contactFields = compileDependency("../src/components/meraki/checkout-contact-fields.tsx", { "./checkout-copy": checkoutCopy, "./commerce-purchase.module.css": cssModule });
+const phoneCountry = compileDependency("../src/lib/commerce/phone-country.ts");
+const contactFields = compileDependency("../src/components/meraki/checkout-contact-fields.tsx", { "./checkout-copy": checkoutCopy, "./commerce-purchase.module.css": cssModule, "@/lib/commerce/phone-country": phoneCountry });
 const discountCopyModule = compileDependency("../src/components/meraki/discount-copy.ts");
 const dependencies = {
   "@/components/meraki/discount-copy": discountCopyModule,
@@ -351,13 +352,13 @@ for (const locale of ["it", "en", "de", "es"]) {
     await checkout.fail();
   });
 
-  test(`${locale} legacy checkout identifies a phone missing its country code and accepts a corrected phone without a document`, async (context) => {
+  test(`${locale} legacy checkout identifies an incomplete phone and accepts a corrected phone without a document`, async (context) => {
     const checkout = await setup(context, { locale });
     await checkout.open(); await checkout.fill();
     const phone = checkout.form.elements.namedItem("buyer-phone");
     await checkout.change(checkout.form.elements.namedItem("buyer-document-number"), "");
-    await checkout.change(phone, "3331234567");
-    assert.equal(checkout.form.checkValidity(), true, "The domain check must explain the missing international prefix");
+    await checkout.change(phone, "123");
+    assert.equal(checkout.form.checkValidity(), true, "The domain check must explain an incomplete phone");
     await act(async () => checkout.submitButton.click());
     assert.equal(checkout.calls.length, 0);
     assert.equal(window.document.activeElement, phone);
@@ -365,7 +366,7 @@ for (const locale of ["it", "en", "de", "es"]) {
     const error = window.document.getElementById("buyer-phone-error");
     assert.equal(error?.textContent, checkoutCopy.checkoutCopy(locale).invalidPhone);
     assert.ok(phone.getAttribute("aria-describedby").split(" ").includes(error.id));
-    assert.equal(phone.value, "3331234567", "The site must not guess the attendee's country code");
+    assert.equal(phone.value, "+39123", "The selected country supplies the prefix while the number remains incomplete");
     await checkout.change(phone, "+39 333 1234567");
     await act(async () => checkout.submitButton.click());
     assert.equal(checkout.calls.length, 1);
@@ -376,6 +377,32 @@ for (const locale of ["it", "en", "de", "es"]) {
   });
 }
 
+
+for (const [locale, country, national, international] of [
+  ["it", "IT", "3331234567", "+393331234567"],
+  ["en", "GB", "07700900123", "+447700900123"],
+  ["de", "DE", "015112345678", "+4915112345678"],
+  ["es", "ES", "612345678", "+34612345678"],
+]) test(`${locale} legacy checkout submits a national phone with the chosen country prefix`, async (context) => {
+  const checkout = await setup(context, { locale });
+  await checkout.open();
+  const countryInput = checkout.form.elements.namedItem("buyer-phone-country");
+  assert.equal(countryInput.value, country);
+  await checkout.fill();
+  await checkout.change(checkout.form.elements.namedItem("buyer-document-number"), "");
+  await checkout.change(countryInput, country);
+  const phone = checkout.form.elements.namedItem("buyer-phone");
+  await checkout.change(phone, national);
+  assert.equal(phone.value, international);
+  assert.equal(countryInput.value, country);
+  assert.equal(checkout.form.reportValidity(), true);
+  await act(async () => checkout.submitButton.click());
+  assert.equal(checkout.calls.length, 1);
+  assert.equal(checkout.calls[0].body.attendee.phone, international);
+  assert.deepEqual(Object.keys(checkout.calls[0].body.attendee).sort(), ["documentCountry", "documentNumber", "documentType", "email", "firstName", "lastName", "marketingConsent", "phone"]);
+  assert.equal(checkout.calls[0].body.attendee.documentNumber, "");
+  await checkout.fail();
+});
 
 test("simple tickets apply a verified code before payment and require the quoted net amount", async (context) => {
   const checkout = await setup(context); await checkout.open(); await checkout.fill();

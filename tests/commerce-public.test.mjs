@@ -18,6 +18,7 @@ function compile(path, overrides = {}) {
   return exports;
 }
 const attendeeModel = compile("../src/lib/commerce/attendee.ts");
+const phoneCountry = compile("../src/lib/commerce/phone-country.ts");
 const checkoutCopy = compile("../src/components/meraki/checkout-copy.ts");
 const discountCopyModule = compile("../src/components/meraki/discount-copy.ts");
 const localization = compile("../src/lib/commerce/localization.ts");
@@ -135,7 +136,7 @@ async function setup(context, result = catalog, locale = "it", upgrade = undefin
       "@/lib/commerce/localization": localization, "./discount-copy": discountCopyModule,
       "./discount-code-fields": compile("../src/components/meraki/discount-code-fields.tsx", { modules: { "./discount-copy": discountCopyModule, "./commerce-purchase.module.css": cssModule } }),
       "./checkout-copy": checkoutCopy, "@/lib/commerce/attendee": attendeeModel,
-      "./checkout-contact-fields": compile("../src/components/meraki/checkout-contact-fields.tsx", { modules: { "./checkout-copy": checkoutCopy, "./commerce-purchase.module.css": cssModule } }),
+      "./checkout-contact-fields": compile("../src/components/meraki/checkout-contact-fields.tsx", { modules: { "./checkout-copy": checkoutCopy, "./commerce-purchase.module.css": cssModule, "@/lib/commerce/phone-country": phoneCountry } }),
       "./use-checkout-viewport": compile("../src/components/meraki/use-checkout-viewport.ts", { window, document: window.document, HTMLElement: window.HTMLElement }),
     },
     fetch: async (url, options = {}) => {
@@ -469,15 +470,15 @@ for (const locale of ["it", "en", "de", "es"]) {
     }]);
   });
 
-  test(`${locale} commerce checkout focuses a phone missing its country code and accepts the correction without a document`, async (context) => {
+  test(`${locale} commerce checkout focuses an incomplete phone and accepts the correction without a document`, async (context) => {
     const ui = await setup(context, catalog, locale);
     await ui.open(); await ui.fillPerson();
     const phone = window.document.querySelector('[name="participant-0-phone"]');
     await ui.change(window.document.querySelector('[name="participant-0-document-number"]'), "");
-    await ui.change(phone, "3331234567");
+    await ui.change(phone, "123");
     await ui.settleQuote();
     const form = window.document.querySelector("form");
-    assert.equal(form.checkValidity(), true, "The domain check must explain the missing international prefix");
+    assert.equal(form.checkValidity(), true, "The domain check must explain an incomplete phone");
     await act(async () => form.querySelector('button[type="submit"]').click());
     assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
     assert.equal(window.document.activeElement, phone);
@@ -485,7 +486,7 @@ for (const locale of ["it", "en", "de", "es"]) {
     const error = window.document.getElementById("participant-0-phone-error");
     assert.equal(error?.textContent, checkoutCopy.checkoutCopy(locale).invalidPhone);
     assert.ok(phone.getAttribute("aria-describedby").split(" ").includes(error.id));
-    assert.equal(phone.value, "3331234567", "The site must not guess the attendee's country code");
+    assert.equal(phone.value, "+39123", "The selected country supplies the prefix while the number remains incomplete");
     await ui.change(phone, "+39 333 1234567");
     await ui.settleQuote();
     await act(async () => form.querySelector('button[type="submit"]').click());
@@ -532,6 +533,63 @@ for (const locale of ["it", "en", "de", "es"]) {
     ]);
   });
 }
+
+for (const [locale, country, national, international] of [
+  ["it", "IT", "3331234567", "+393331234567"],
+  ["en", "GB", "07700900123", "+447700900123"],
+  ["de", "DE", "015112345678", "+4915112345678"],
+  ["es", "ES", "612345678", "+34612345678"],
+]) test(`${locale} commerce checkout uses the visible selected country for a national phone`, async (context) => {
+  const ui = await setup(context, catalog, locale);
+  await ui.open();
+  const countryInput = window.document.querySelector('[name="participant-0-phone-country"]');
+  assert.equal(countryInput.value, country, "The initial country is visible and can be changed");
+  await ui.fillPerson();
+  await ui.change(window.document.querySelector('[name="participant-0-document-number"]'), "");
+  await ui.change(countryInput, country);
+  const phone = window.document.querySelector('[name="participant-0-phone"]');
+  await ui.change(phone, national);
+  assert.equal(phone.value, international);
+  assert.equal(countryInput.value, country);
+  await ui.settleQuote();
+  const form = window.document.querySelector("form");
+  assert.equal(form.reportValidity(), true);
+  await act(async () => form.querySelector('button[type="submit"]').click());
+  const requests = ui.calls.filter(call => call.url === "/api/commerce/checkout");
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].body.attendees[0].phone, international);
+  assert.deepEqual(Object.keys(requests[0].body.attendees[0]).sort(), ["documentCountry", "documentNumber", "documentType", "email", "firstName", "lastName", "marketingConsent", "phone"], "Country selection is UI state, not an extra strict attendee-schema field");
+  assert.equal(requests[0].body.attendees[0].documentNumber, "");
+});
+
+test("group phone countries remain independent across quantity, formula changes and reopening", async (context) => {
+  const ui = await setup(context);
+  await ui.open();
+  const quantity = window.document.querySelector('select[aria-label="Numero di partecipanti"]');
+  await ui.change(quantity, "2");
+  await ui.fillPerson(0); await ui.fillPerson(1);
+  await ui.change(window.document.querySelector('[name="participant-0-phone"]'), "3331234567");
+  await ui.change(window.document.querySelector('[name="participant-1-phone-country"]'), "FR");
+  await ui.change(window.document.querySelector('[name="participant-1-phone"]'), "06 12 34 56 78");
+  for (const index of [0, 1]) await ui.change(window.document.querySelector(`[name="participant-${index}-document-number"]`), "");
+  await ui.change(quantity, "3");
+  await ui.change(quantity, "2");
+  await act(async () => window.document.querySelector('input[name="package-0"][value="only-ws"]').click());
+  await act(async () => window.document.querySelector('button[aria-label="Chiudi acquisto"]').click());
+  await ui.open();
+  assert.equal(window.document.querySelector('[name="participant-0-phone-country"]').value, "IT");
+  assert.equal(window.document.querySelector('[name="participant-0-phone"]').value, "+393331234567");
+  assert.equal(window.document.querySelector('[name="participant-1-phone-country"]').value, "FR");
+  assert.equal(window.document.querySelector('[name="participant-1-phone"]').value, "+33612345678");
+  await ui.settleQuote();
+  const form = window.document.querySelector("form");
+  assert.equal(form.reportValidity(), true);
+  await act(async () => form.querySelector('button[type="submit"]').click());
+  const requests = ui.calls.filter(call => call.url === "/api/commerce/checkout");
+  assert.equal(requests.length, 1);
+  assert.deepEqual(requests[0].body.attendees.map(attendee => attendee.phone), ["+393331234567", "+33612345678"]);
+  assert.deepEqual(requests[0].body.participants.map(participant => participant.packageId), ["only-ws", "bundle"]);
+});
 
 test("a discounted Masterclass opens Meraki's Stripe domain with the accepted 30-euro total", async (context) => {
   const screenshotCatalog = structuredClone(catalog);

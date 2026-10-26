@@ -32,8 +32,10 @@ function load(path, modules = {}) {
   return exports;
 }
 const copyModule = load("src/components/meraki/checkout-copy.ts");
+const phoneModule = load("src/lib/commerce/phone-country.ts");
 const contactModule = load("src/components/meraki/checkout-contact-fields.tsx", {
   "./checkout-copy": copyModule,
+  "@/lib/commerce/phone-country": phoneModule,
   "./commerce-purchase.module.css": { default: new Proxy({}, { get: (_, key) => key }) },
 });
 
@@ -111,9 +113,9 @@ for (const locale of ["it", "en", "de", "es"]) {
       assert.equal(form.reportValidity(), true);
       assert.equal(host.querySelector("#guest-email").required, true);
       assert.equal(phone.required, true);
-      assert.equal(phone.placeholder, copy.phonePlaceholder);
+      assert.ok(phone.placeholder.startsWith(phoneModule.phoneCallingCode(host.querySelector("#guest-phone-country").value)));
       assert.match(phone.placeholder, /^\+\d/);
-      assert.ok(host.querySelector("#guest-phone-hint").textContent.includes("+39"));
+      assert.equal(host.querySelector("#guest-phone-hint").textContent, copy.phoneHint);
       assert.equal(phone.getAttribute("aria-describedby"), "guest-phone-hint");
       assert.deepEqual(changes, [], "showing an optional document never invents identity or consent data");
     });
@@ -142,8 +144,8 @@ for (const locale of ["it", "en", "de", "es"]) {
     assert.equal(number.hasAttribute("minlength"), false);
     assert.equal(form.reportValidity(), true);
     await change(host.querySelector("#guest-phone"), "3331234567");
-    assert.equal(host.querySelector("#guest-phone").value, "3331234567");
-    assert.deepEqual(JSON.parse(JSON.stringify(changes.at(-1))), { phone: "3331234567" }, "country prefixes are explained, never inferred from the interface language");
+    assert.equal(host.querySelector("#guest-phone").value, "+393331234567");
+    assert.deepEqual(JSON.parse(JSON.stringify(changes.at(-1))), { phone: "+393331234567" }, "the visible selected country supplies the calling code");
   });
 }
 
@@ -190,7 +192,7 @@ test("a field-specific error is announced only next to its own contact control a
     const alert = host.querySelector('[role="alert"]');
     assert.equal(alert.id, `guest-${field}-error`);
     assert.equal(alert.textContent, message);
-    assert.ok(control.closest("label").contains(alert));
+    assert.ok((field === "phone" ? control.closest("label").parentElement.parentElement : control.closest("label")).contains(alert));
     assert.ok(host.querySelector("#guest-email").getAttribute("aria-describedby").includes("guest-operational-email-hint"));
   }
 });
@@ -203,4 +205,69 @@ test("pending purchase locks the contact fields and optional consent without enr
   await act(async () => promotion.click());
   assert.deepEqual(changes, []);
   assert.equal(host.querySelector('input[type="email"]').disabled, true);
+});
+
+for (const [locale, country, number, expected] of [
+  ["it", "IT", "3331234567", "+393331234567"],
+  ["en", "GB", "07700900123", "+447700900123"],
+  ["de", "DE", "015112345678", "+4915112345678"],
+  ["es", "ES", "612345678", "+34612345678"],
+]) test(`${locale}: choosing a country inserts its prefix and typing a national number completes it`, async context => {
+  const { host, change, changes } = await mount(context, locale, {}, { phone: "", documentNumber: "" });
+  const select = host.querySelector("#guest-phone-country");
+  const phone = host.querySelector("#guest-phone");
+  assert.equal(select.value, country);
+  assert.ok(select.labels[0].textContent.startsWith(copyModule.checkoutCopy(locale).phoneCountry));
+  assert.ok(select.options.length > 240);
+  assert.match(select.selectedOptions[0].textContent, /\(\+\d+\)$/);
+  assert.equal(phone.value, "");
+  assert.deepEqual(changes, [], "A default country does not invent a phone number");
+  await change(select, country);
+  assert.equal(phone.value, phoneModule.phoneCallingCode(country));
+  await change(phone, number);
+  assert.equal(phone.value, expected);
+  assert.equal(select.value, country);
+  assert.deepEqual(JSON.parse(JSON.stringify(changes.at(-1))), { phone: expected });
+});
+
+test("pasted international phone numbers update the country without adding a duplicate prefix", async context => {
+  const { host, change } = await mount(context, "it", {}, { phone: "", documentNumber: "" });
+  const select = host.querySelector("#guest-phone-country");
+  const phone = host.querySelector("#guest-phone");
+  await change(phone, "0044 (0)7700 900123");
+  assert.equal(phone.value, "+447700900123");
+  assert.equal(select.value, "GB");
+  await change(phone, "+39 02 1234 5678");
+  assert.equal(phone.value, "+390212345678");
+  assert.equal(select.value, "IT");
+  await change(select, "FR");
+  assert.equal(phone.value, "+330212345678");
+  assert.equal(select.value, "FR");
+  await change(phone, "");
+  assert.equal(select.value, "FR");
+  await change(phone, "0612345678");
+  assert.equal(phone.value, "+33612345678");
+});
+
+test("explicit country choices sharing a calling code remain selected", async context => {
+  const { host, change } = await mount(context, "it", {}, { phone: "+12045551234", documentNumber: "" });
+  const select = host.querySelector("#guest-phone-country");
+  const phone = host.querySelector("#guest-phone");
+  assert.equal(select.value, "CA");
+  await change(select, "US");
+  assert.equal(select.value, "US");
+  assert.equal(phone.value, "+12045551234");
+  await change(select, "CA");
+  assert.equal(select.value, "CA");
+  assert.equal(phone.value, "+12045551234");
+});
+
+test("each country selection stays separate from document country, consent and disabled states", async context => {
+  const { host, change } = await mount(context, "it", {}, { documentType: "foreign_id", documentCountry: "ES", documentNumber: "" });
+  await change(host.querySelector("#guest-phone-country"), "DE");
+  assert.equal(host.querySelector("#guest-document-country").value, "ES");
+  assert.equal(host.querySelector('[type="checkbox"]').checked, false);
+  const disabled = await mount(context, "en", { disabled: true }, { phone: "" });
+  assert.equal(disabled.host.querySelector("#guest-phone-country").disabled, true);
+  assert.equal(disabled.host.querySelector("#guest-phone").disabled, true);
 });

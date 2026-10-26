@@ -104,6 +104,9 @@
 .scrollArea { min-height:0; flex:1; overflow-y:auto; overscroll-behavior:contain; scroll-padding:18px; padding:20px 20px max(30px,env(safe-area-inset-bottom)); }
 .label { min-width:0; overflow-wrap:anywhere; line-height:1.6; }
 .contacts { display:grid; gap:16px; margin-bottom:22px; }
+.phoneContact { min-width:0; }
+.phoneFields { display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr); align-items:end; gap:10px; }
+@media(max-width:479px) { .phoneFields { grid-template-columns:minmax(0,1fr); gap:12px; } }
 .consentBox { min-width:0; border:1px solid #dfe3d8; border-radius:15px; background:#f6f7f1; padding:13px; }
 .consent { display:flex; align-items:flex-start; gap:11px; cursor:pointer; }
 .consent input { flex-shrink:0; width:38px; height:22px; appearance:none; border:1px solid #aeb6a9; border-radius:20px; background:#d9ded5; margin-top:2px; position:relative; cursor:pointer; transition:background .15s; }

@@ -1,9 +1,8 @@
 "use client";
 
 import { CustomSelect } from "@/components/ui/custom-select";
-
-
-import { useMemo } from "react";
+import { changePhoneCountry, defaultPhoneCountry, normalizeCountryPhone, PHONE_COUNTRIES, phoneCallingCode, phoneCountryForNumber, type PhoneCountry } from "@/lib/commerce/phone-country";
+import { useMemo, useState } from "react";
 import { checkoutCopy } from "./checkout-copy";
 import styles from "./commerce-purchase.module.css";
 
@@ -28,6 +27,7 @@ export function CheckoutContactFields({ locale, prefix, value, onChange, disable
   validationError?: { field: string; message: string };
 }) {
   const copy = checkoutCopy(locale);
+  const [phoneCountry, setSelectedPhoneCountry] = useState(() => phoneCountryForNumber(value.phone, defaultPhoneCountry(locale)));
   const hasDocumentNumber = value.documentNumber.trim().length > 0;
   const validationAttributes = (field: string, description?: string) => ({
     "aria-invalid": validationError?.field === field ? true : undefined,
@@ -40,13 +40,38 @@ export function CheckoutContactFields({ locale, prefix, value, onChange, disable
     const names = new Intl.DisplayNames([locale], { type: "region" });
     return countries.map((code) => ({ code, name: names.of(code) || code })).sort((a, b) => a.name.localeCompare(b.name, locale));
   }, [locale]);
+  const phoneOptions = useMemo(() => {
+    const names = new Intl.DisplayNames([locale], { type: "region" });
+    return PHONE_COUNTRIES.map((code) => ({ code, name: names.of(code) || code }))
+      .sort((a, b) => a.name.localeCompare(b.name, locale));
+  }, [locale]);
   return <div className={styles.contacts}>
     <label className={styles.label} htmlFor={`${prefix}-email`}>{originalEmail ? copy.originalEmail : emailOnly ? copy.contactEmail : copy.email}
       <input id={`${prefix}-email`} name={emailName || `${prefix}-email`} className={styles.input} type="email" {...validationAttributes("email", emailOnly ? undefined : `${prefix}-email-hint ${prefix}-operational-email-hint`)} inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} required disabled={disabled} value={value.email} onChange={(event) => onChange({ email: event.target.value })} />
       {!emailOnly && <><span id={`${prefix}-email-hint`} className={`${styles.muted} block mt-1`}>{copy.emailHint}</span><span id={`${prefix}-operational-email-hint`} className={styles.operationalEmailHint}>{copy.operationalEmailHint}</span></>}{fieldError("email")}
     </label>
     {!emailOnly && <>
-      <label className={styles.label} htmlFor={`${prefix}-phone`}>{copy.phone}<input id={`${prefix}-phone`} name={`${prefix}-phone`} className={styles.input} type="tel" inputMode="tel" autoComplete="tel" {...validationAttributes("phone", `${prefix}-phone-hint`)} placeholder={copy.phonePlaceholder} required maxLength={32} disabled={disabled} value={value.phone} onChange={(event) => onChange({ phone: event.target.value })} /><span id={`${prefix}-phone-hint`} className={`${styles.muted} block mt-1`}>{copy.phoneHint}</span>{fieldError("phone")}</label>
+      <div className={styles.phoneContact}>
+        <div className={styles.phoneFields}>
+          <label className={styles.label} htmlFor={`${prefix}-phone-country`}>{copy.phoneCountry}
+            <CustomSelect id={`${prefix}-phone-country`} name={`${prefix}-phone-country`} className={styles.input} aria-describedby={`${prefix}-phone-hint`} disabled={disabled} value={phoneCountry} onChange={(event) => {
+              const nextCountry = event.target.value as PhoneCountry;
+              setSelectedPhoneCountry(nextCountry);
+              onChange({ phone: changePhoneCountry(value.phone, phoneCountry, nextCountry) });
+            }}>
+              {phoneOptions.map(({ code, name }) => <option key={code} value={code}>{name} ({phoneCallingCode(code)})</option>)}
+            </CustomSelect>
+          </label>
+          <label className={styles.label} htmlFor={`${prefix}-phone`}>{copy.phone}
+            <input id={`${prefix}-phone`} name={`${prefix}-phone`} className={styles.input} type="tel" inputMode="tel" autoComplete="tel" {...validationAttributes("phone", `${prefix}-phone-hint`)} placeholder={phoneCountry === defaultPhoneCountry(locale) ? copy.phonePlaceholder : `${phoneCallingCode(phoneCountry)} …`} required maxLength={32} disabled={disabled} value={value.phone} onChange={(event) => {
+              const phone = normalizeCountryPhone(event.target.value, phoneCountry);
+              setSelectedPhoneCountry(phoneCountryForNumber(phone, phoneCountry));
+              onChange({ phone });
+            }} />
+          </label>
+        </div>
+        <span id={`${prefix}-phone-hint`} className={`${styles.muted} block mt-1`}>{copy.phoneHint}</span>{fieldError("phone")}
+      </div>
       <label className={styles.label} htmlFor={`${prefix}-document-type`}>{copy.documentType} ({copy.optional})<CustomSelect id={`${prefix}-document-type`} name={`${prefix}-document-type`} className={styles.input} {...validationAttributes("documentType", `${prefix}-document-type-hint`)} disabled={disabled} value={value.documentType} onChange={(event) => { const documentType = event.target.value as CheckoutContact["documentType"]; onChange({ documentType, documentCountry: documentType === "codice_fiscale" ? "IT" : "", documentNumber: "" }); }}><option value="codice_fiscale">{copy.fiscalCode}</option><option value="foreign_id">{copy.foreignId}</option></CustomSelect><span id={`${prefix}-document-type-hint`} className={`${styles.muted} block mt-1`}>{copy.documentTypeHint}</span>{fieldError("documentType")}</label>
       {value.documentType === "foreign_id" && <label className={styles.label} htmlFor={`${prefix}-document-country`}>{copy.documentCountry}<CustomSelect id={`${prefix}-document-country`} name={`${prefix}-document-country`} className={styles.input} {...validationAttributes("documentCountry", `${prefix}-document-country-hint`)} required={hasDocumentNumber} disabled={disabled} value={value.documentCountry} onChange={(event) => onChange({ documentCountry: event.target.value })}><option value="">{copy.selectCountry}</option>{options.filter(({ code }) => code !== "IT").map(({ code, name }) => <option key={code} value={code}>{name}</option>)}</CustomSelect><span id={`${prefix}-document-country-hint`} className={`${styles.muted} block mt-1`}>{copy.documentCountryHint}</span>{fieldError("documentCountry")}</label>}
       <label className={styles.label} htmlFor={`${prefix}-document-number`}>{value.documentType === "codice_fiscale" ? copy.fiscalNumber : copy.documentNumber} ({copy.optional})<input id={`${prefix}-document-number`} name={`${prefix}-document-number`} className={styles.input} {...validationAttributes("documentNumber", `${prefix}-document-number-hint`)} placeholder={value.documentType === "codice_fiscale" ? copy.fiscalNumberPlaceholder : copy.documentNumberPlaceholder} autoComplete="off" autoCapitalize="characters" spellCheck={false} minLength={hasDocumentNumber ? value.documentType === "codice_fiscale" ? 11 : 3 : undefined} maxLength={value.documentType === "codice_fiscale" ? 16 : 40} disabled={disabled} value={value.documentNumber} onChange={(event) => onChange({ documentNumber: event.target.value.toUpperCase() })} /><span id={`${prefix}-document-number-hint`} className={`${styles.muted} block mt-1`}>{copy.documentHint}</span>{fieldError("documentNumber")}</label>
