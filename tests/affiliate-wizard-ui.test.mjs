@@ -148,6 +148,30 @@ test("editing the default does not replace existing event rates and deselecting 
   assert.deepEqual(JSON.parse(JSON.stringify(ui.calls[0][2].assignments)), [eurRate(eventA.id, 700), eurRate(eventB.id, 900)]);
 });
 
+test("saved affiliate compensation opens directly on events and preserves every existing rate through final confirmation", async context => {
+  const ui = await setup(context, { affiliate: existing, initialStep: 2, assignments: [eurRate(eventA.id, 700), creditsRate(eventB.id, 12)] });
+  assert.equal(window.document.querySelector("h3").textContent, "Eventi associati");
+  assert.ok(window.document.querySelector('nav [aria-current="step"]').textContent.includes("Eventi"));
+  assert.equal(ui.field("Compenso per iscritto (€)").value, "7,00");
+  assert.equal(ui.field("Compenso per iscritto (crediti)").value, "12");
+  assert.equal(ui.calls.length, 0);
+  await ui.click("Avanti");
+  assert.ok(window.document.querySelector('[aria-label="Riepilogo eventi"]').textContent.includes("12 crediti"));
+  assert.equal(ui.calls.length, 0);
+  await ui.click("Salva modifiche");
+  assert.equal(ui.calls.length, 1); assert.equal(ui.calls[0][0], "update"); assert.equal(ui.calls[0][1], existing.id);
+  assert.equal(ui.calls[0][2].defaultCommissionCents, 500);
+  assert.deepEqual(JSON.parse(JSON.stringify(ui.calls[0][2].assignments)), [eurRate(eventA.id, 700), creditsRate(eventB.id, 12)]);
+});
+
+test("an invalid saved profile cannot skip data validation through the compensation entry point", async context => {
+  const ui = await setup(context, { affiliate: { ...existing, email: "invalid-email" }, initialStep: 2, assignments: [eurRate(eventA.id, 700)] });
+  assert.equal(window.document.querySelector("h3").textContent, "Dati dell’affiliato");
+  await ui.click("Avanti");
+  assert.ok(window.document.querySelector('[role="alert"]').textContent.includes("email"));
+  assert.equal(ui.calls.length, 0);
+});
+
 test("reactivating a historical event preserves its override instead of replacing it with the current default", async context => {
   const ui = await setup(context, { affiliate: existing, assignments: [{ eventId: eventA.id, commissionCents: 700, active: false }] });
   await ui.click("Avanti");

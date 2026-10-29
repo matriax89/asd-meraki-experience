@@ -49,10 +49,11 @@ async function setup(context, kind, props, options = {}) {
   window.history.replaceState(null, "", "/it/admin/affiliati?source=events");
   window.document.body.innerHTML = '<div id="root"></div>';
   const navigation = [];
+  const wizardProps = [];
   const component = load("app/[locale]/admin/affiliati/affiliates-client.tsx", {
     "next/navigation": { useRouter: () => ({ replace: (...args) => navigation.push(args), refresh: () => navigation.push(["refresh"]) }) },
     "@/app/api/admin/affiliati/actions": { deleteAffiliate: options.deleteAffiliate || (async () => ({success:true})), restoreAffiliate: options.restoreAffiliate || (async () => ({success:true})) },
-    "@/components/admin/affiliate-wizard": { AffiliateWizard: props => React.createElement("section", {"aria-label":"Wizard affiliato"}, React.createElement("button", {onClick: () => props.onSaved({id:affiliateA,name:"Nuova scuola",createdAt:"2026-10-26",deletedAt:null})}, "Salva wizard"), React.createElement("button", {onClick:props.onCancel}, "Annulla wizard")) },
+    "@/components/admin/affiliate-wizard": { AffiliateWizard: props => { wizardProps.push(props); return React.createElement("section", {"aria-label":"Wizard affiliato"}, React.createElement("button", {onClick: () => props.onSaved({id:affiliateA,name:"Nuova scuola",createdAt:"2026-10-26",deletedAt:null})}, "Salva wizard"), React.createElement("button", {onClick:props.onCancel}, "Annulla wizard")); } },
     "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) },
   });
   const Component = kind === "index" ? component.AffiliatesDirectoryClient : kind === "profile" ? component.AffiliateProfileClient : component.AffiliateParticipantsClient;
@@ -67,7 +68,7 @@ async function setup(context, kind, props, options = {}) {
       input.dispatchEvent(new window.Event("input", { bubbles: true }));
     });
   };
-  return { navigation, search, rerender: async next => { await act(async () => root.render(React.createElement(Component, { affiliates: [], ...next }))); } };
+  return { navigation, wizardProps, search, rerender: async next => { await act(async () => root.render(React.createElement(Component, { affiliates: [], ...next }))); } };
 }
 
 test("directory groups the same UUID across events and keeps same-name identities distinct", async context => {
@@ -258,8 +259,8 @@ test("profile shows event-specific compensation and links each event to its scop
   assert.ok(entries[0].textContent.includes("20/12/2026"));
   assert.ok(entries[0].textContent.includes("5,00")); assert.ok(entries[0].textContent.includes("40,00"));
   assert.ok(entries[0].textContent.includes("Compenso maturato"));
-  const settings = entries[0].querySelector('a[aria-label^="Imposta compenso"]');
-  assert.equal(settings.getAttribute("href"), `/admin/eventi/${eventA.id}#compensi-affiliati`);
+  const settings = entries[0].querySelector('button[aria-label^="Imposta compenso"]');
+  assert.equal(settings.type, "button");
   assert.equal(settings.parentElement.closest("a"), null, "settings link cannot be nested in the participant link");
   assert.ok(entries[1].textContent.includes("0,00"));
   assert.equal(window.document.body.textContent.includes("NaN"), false);
@@ -270,7 +271,7 @@ test("detail compensation uses valid totals and survives participant search", as
   const value = label => [...window.document.querySelectorAll("dt")].find(node => node.textContent === label)?.nextElementSibling?.textContent;
   assert.ok(value("Compenso per iscritto valido").includes("5,00"));
   assert.ok(value("Compenso maturato").includes("40,00"));
-  assert.ok(window.document.querySelector(`a[href="/admin/eventi/${eventA.id}#compensi-affiliati"]`));
+  assert.ok(window.document.querySelector(`a[href="/admin/affiliati/${affiliateA}?edit=compensi#new-affiliate"]`));
   await ui.search("rita");
   assert.ok(value("Compenso maturato").includes("40,00"));
 });
@@ -279,5 +280,57 @@ test("direct purchases never display payable compensation or an edit-compensatio
   await setup(context, "detail", { event: eventA, affiliate: { ...affiliate, id: "direct", name: "Acquisti diretti", commissionPerParticipantCents: 0, commissionCents: 0 }, participants, validCount: 1, checkedInCount: 1, totalCount: 2 });
   assert.ok(window.document.body.textContent.includes("Nessun compenso per gli acquisti diretti."));
   assert.equal(window.document.body.textContent.includes("Compenso maturato"), false);
-  assert.equal(window.document.querySelector('a[href$="#compensi-affiliati"]'), null);
+  assert.equal(window.document.querySelector('a[href*="edit=compensi"]'), null);
+});
+
+test("profile compensation opens saved rates directly while normal profile editing starts with data", async context => {
+  const entries = [row(eventA, affiliateA, { commissionPerParticipantCents: 700 }), row(eventB, affiliateA, { commissionType: "credits", commissionPerParticipantCents: 0, commissionPerParticipantCredits: 12, active: false })];
+  const ui = await setup(context, "profile", { affiliate, rows: entries, events: [eventA, eventB] });
+  const settings = window.document.querySelector('button[aria-label^="Imposta compenso"]');
+  await act(async () => settings.click());
+  assert.equal(ui.wizardProps.at(-1).initialStep, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(ui.wizardProps.at(-1).assignments)), [
+    { eventId: eventA.id, commissionType: "eur", commissionCents: 700, commissionCredits: 0, active: true },
+    { eventId: eventB.id, commissionType: "credits", commissionCents: 0, commissionCredits: 12, active: false },
+  ]);
+  assert.equal(ui.navigation.length, 0, "opening compensation does not save the event or call a server mutation");
+  await act(async () => [...window.document.querySelectorAll("button")].find(button => button.textContent === "Annulla wizard").click());
+  await act(async () => [...window.document.querySelectorAll("button")].find(button => button.textContent === "Modifica affiliato").click());
+  assert.equal(ui.wizardProps.at(-1).initialStep, 0);
+});
+
+for (const [label, entry] of [["direct", { ...affiliate, id: "direct" }], ["deleted", { ...affiliate, deletedAt: "2026-10-26T10:00:00Z" }]]) {
+  test(`${label} profile cannot open compensation from an initial editing request`, async context => {
+    const ui = await setup(context, "profile", { affiliate: entry, rows: [row(eventA, entry.id)], events: [eventA], initialEditing: true });
+    assert.equal(ui.wizardProps.length, 0);
+    assert.equal(window.document.querySelector('[aria-label="Wizard affiliato"]'), null);
+    assert.equal(window.document.querySelector('button[aria-label^="Imposta compenso"]'), null);
+  });
+}
+
+test("exact compensation query opens only the full editable affiliate profile and changes the component key", async () => {
+  const props = [];
+  const profiles = { [affiliateA]: { affiliate, rows: [row(eventA, affiliateA), row(eventB, affiliateA)], events: [eventA, eventB] }, direct: { affiliate: { ...affiliate, id: "direct" }, rows: [], events: [] }, deleted: { affiliate: { ...affiliate, id: "deleted", deletedAt: "2026-10-26" }, rows: [], events: [] } };
+  const page = load("app/[locale]/admin/affiliati/[id]/page.tsx", {
+    "../affiliates-client": { AffiliateProfileClient: input => { props.push(input); return React.createElement("p", null, "profile"); }, AffiliateParticipantsClient: () => React.createElement("p", null, "participants") },
+    "next/navigation": { notFound() { throw new Error("NOT_FOUND"); } },
+    "@/lib/events/affiliate-directory": { loadAffiliateProfile: async (_locale, id) => profiles[id], loadAffiliateParticipants: async () => ({ event: eventA, affiliate, participants: [], validCount: 0, checkedInCount: 0, totalCount: 0 }) },
+  }).default;
+  const render = async (id, query) => {
+    const element = await page({ params: Promise.resolve({ locale: "it", id }), searchParams: Promise.resolve(query) });
+    renderToStaticMarkup(element); return element;
+  };
+  const normal = await render(affiliateA, {});
+  assert.equal(props.at(-1).initialEditing, false);
+  const edit = await render(affiliateA, { edit: "compensi" });
+  assert.equal(props.at(-1).initialEditing, true); assert.equal(props.at(-1).rows.length, 2);
+  assert.notEqual(normal.key, edit.key, "same-profile navigation to compensation remounts the requested editor");
+  for (const value of ["other", "COMPENSI", ["compensi"], ["compensi", "compensi"]]) {
+    await render(affiliateA, { edit: value }); assert.equal(props.at(-1).initialEditing, false);
+  }
+  for (const id of ["direct", "deleted"]) { await render(id, { edit: "compensi" }); assert.equal(props.at(-1).initialEditing, false); }
+  const before = props.length;
+  const detail = await render(affiliateA, { event: eventA.id, edit: "compensi" });
+  assert.equal(renderToStaticMarkup(detail), "<p>participants</p>");
+  assert.equal(props.length, before, "an event parameter keeps the route in participant view");
 });

@@ -13,6 +13,7 @@ export type AffiliateWizardProps = {
   affiliate?: AffiliateRegistryEntry;
   events: AffiliateDirectoryEvent[];
   assignments?: AffiliateWizardAssignment[];
+  initialStep?: 0 | 1 | 2 | 3;
   onSaved: (affiliate: AffiliateRegistryEntry) => void;
   onCancel: () => void;
 };
@@ -28,15 +29,15 @@ const primaryClass = "inline-flex min-h-11 items-center justify-center gap-2 rou
 const assignmentDraft = (entry: AffiliateWizardAssignment) => affiliateCommissionDraft({ commissionType: entry.commissionType ?? "eur", commissionCents: entry.commissionCents, commissionCredits: entry.commissionCredits ?? 0 });
 const dateLabel = (value: string) => new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Rome" }).format(new Date(value));
 
-export function AffiliateWizard({ affiliate, events, assignments = [], onSaved, onCancel }: AffiliateWizardProps) {
+export function AffiliateWizard({ affiliate, events, assignments = [], initialStep = 0, onSaved, onCancel }: AffiliateWizardProps) {
   const id = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   const busy = useRef(false);
   const [pending, startTransition] = useTransition();
-  const [step, setStep] = useState(0);
-  const [maxStep, setMaxStep] = useState(0);
   const [draft, setDraft] = useState(() => ({ name: affiliate?.name || "", contactName: affiliate?.contactName || "", email: affiliate?.email || "", phone: affiliate?.phone || "", notes: affiliate?.notes || "" }));
   const [defaultRate, setDefaultRate] = useState(() => affiliateCommissionDraft({ commissionType: affiliate?.defaultCommissionType ?? "eur", commissionCents: affiliate?.defaultCommissionCents ?? 0, commissionCredits: affiliate?.defaultCommissionCredits ?? 0 }));
+  const [step, setStep] = useState<number>(() => affiliate && !affiliate.deletedAt && affiliate.id !== "direct" && affiliateProfileSchema.safeParse(draft).success && parseAffiliateCommissionDraft(defaultRate) !== null ? initialStep : 0);
+  const [maxStep, setMaxStep] = useState(step);
   const [eventRates, setEventRates] = useState<Record<string, AffiliateCommissionDraft>>(() => Object.fromEntries(assignments.filter(entry => entry.active !== false).map(entry => [entry.eventId, assignmentDraft(entry)])));
   const rememberedRates = useRef(new Map(assignments.map(entry => [entry.eventId, assignmentDraft(entry)])));
   const [eventSearch, setEventSearch] = useState("");
@@ -128,7 +129,7 @@ export function AffiliateWizard({ affiliate, events, assignments = [], onSaved, 
           <div className="space-y-2"><label htmlFor={`${id}-notes`} className="block text-sm font-semibold text-[#4c6044]">Note interne <span className="font-normal text-[#7c886f]">(facoltative)</span></label><textarea {...field("notes")} maxLength={2000} rows={3} placeholder="Accordi o informazioni utili alla gestione" className={`${inputClass} py-3`} /></div><p className="rounded-xl bg-[#f5f7f0] px-3 py-2.5 text-xs leading-5 text-[#6c7b5f]">Referente, contatti e note restano riservati al pannello amministrativo.</p>
         </>}
         {step === 1 && <>
-          <p className="text-sm leading-6 text-[#6e7c62]">Scegli euro oppure crediti e indica quanto riconoscere per ogni iscritto valido. Non vengono effettuate conversioni tra le due unità.</p><div className="max-w-sm"><AffiliateCommissionInput id={`${id}-default-rate`} value={defaultRate} onChange={setDefaultRate} label="Compenso per iscritto valido" context="Compenso predefinito" disabled={pending} invalid={error?.field === "default-rate"} errorId={`${id}-error`} /></div><div className="rounded-xl border border-[#e3dfcc] bg-[#f7f4e9] p-4 text-sm leading-6 text-[#796c4e]"><strong className="font-semibold">Vale per le nuove associazioni.</strong> Modificare importo o unità non ricalcola i compensi degli eventi già associati. I compensi esistenti si modificano nel passaggio Eventi o nella gestione dell’evento.</div>
+          <p className="text-sm leading-6 text-[#6e7c62]">Scegli euro oppure crediti e indica quanto riconoscere per ogni iscritto valido. Non vengono effettuate conversioni tra le due unità.</p><div className="max-w-sm"><AffiliateCommissionInput id={`${id}-default-rate`} value={defaultRate} onChange={setDefaultRate} label="Compenso per iscritto valido" context="Compenso predefinito" disabled={pending} invalid={error?.field === "default-rate"} errorId={`${id}-error`} /></div><div className="rounded-xl border border-[#e3dfcc] bg-[#f7f4e9] p-4 text-sm leading-6 text-[#796c4e]"><strong className="font-semibold">Vale per le nuove associazioni.</strong> Modificare importo o unità non ricalcola i compensi degli eventi già associati. I compensi esistenti si modificano nel passaggio Eventi di questo percorso.</div>
         </>}
         {step === 2 && <>
           <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-xl text-sm leading-6 text-[#6e7c62]">Abilita gli eventi a cui partecipa l’affiliato e controlla il compenso di ciascuno.</p><span className="rounded-full bg-[#edf3e8] px-3 py-1.5 text-xs font-semibold text-[#527044]">{selectedEvents.length} {selectedEvents.length === 1 ? "evento selezionato" : "eventi selezionati"}</span></div>

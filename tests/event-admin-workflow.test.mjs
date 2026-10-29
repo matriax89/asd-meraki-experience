@@ -686,7 +686,7 @@ test("event list exposes statistics, packages and check-in without stale legacy 
     "@/components/ui/custom-select": customSelect,
   });
   const { default: Page } = load("app/[locale]/admin/eventi/page.tsx", {
-    "@/lib/admin/analytics": { loadAdminAnalytics: async () => ({ eventStats: [{ id: eventId, title: "Meraki", startsAt: baseEvent.data_inizio, endsAt: null, status: "upcoming", capacity: 100, remaining: 83, netCents: 6500, validParticipants: 17, checkedInParticipants: 2 }] }) },
+    "@/lib/admin/analytics": { loadAdminAnalytics: async () => ({ eventStats: [{ id: eventId, title: "Meraki", startsAt: baseEvent.data_inizio, endsAt: null, status: "upcoming", capacity: 100, remaining: 83, netCents: 6500, validParticipants: 17, checkedInParticipants: 2, registrationSummary: { count: 17, netAfterFeesCents: 6500 }, dinnerSummary: { count: 0, netAfterFeesCents: 0 } }] }) },
     "./events-list-client": { EventsListClient },
     "next-intl/server": { getLocale: async () => "it" },
   });
@@ -695,7 +695,8 @@ test("event list exposes statistics, packages and check-in without stale legacy 
   assert.ok(html.includes(`href="/admin/eventi/${eventId}/commerce"`));
   assert.ok(html.includes(`href="/admin/biglietti?event=${eventId}"`));
   assert.ok(html.includes("Formule e prezzi"));
-  assert.ok(html.includes("Iscritti validi"));
+  assert.ok(html.includes("Iscritti attività"));
+  assert.ok(html.includes("Netto cena"));
   assert.equal(html.includes("venduti"), false);
   assert.equal(html.includes("Gratis"), false);
 });
@@ -914,25 +915,30 @@ test("new event associations display default credits with their unit and never c
   assert.doesNotMatch(added.textContent, /€/);
 });
 
-test("the event page serializes compensation units while excluding private affiliate contacts and notes", async () => {
+test("event creation and editing expose safe affiliate defaults without a duplicate compensation editor", async () => {
   const registryEntry = { ...affiliateB, createdAt: "2026-10-26T10:00:00Z", deletedAt: null, contactName: "PRIVATE CONTACT", email: "PRIVATE@example.test", phone: "PRIVATE PHONE", notes: "PRIVATE NOTES", defaultCommissionType: "credits", defaultCommissionCents: 0, defaultCommissionCredits: 3 };
   const EventForm = () => null;
+  let legacyCompensationReads = 0;
   const page = load("app/[locale]/admin/eventi/[id]/page.tsx", {
     "@/components/admin/discount-codes-editor": { DiscountCodesEditor: () => null },
     "@/app/api/admin/commerce/actions": { loadCommerceDiscountsAdmin: async () => null },
     "@/lib/commerce/config": config,
     "@/app/api/admin/eventi/actions": { getEvent: async () => ({ success: true, data: baseEvent }) },
     "./event-form": { EventForm }, "next/navigation": { notFound() { throw new Error("Unexpected 404"); } }, "@/i18n/routing": routing,
-    "@/components/admin/affiliate-commissions-editor": { AffiliateCommissionsEditor: () => null },
-    "@/app/api/admin/affiliati/commission-actions": { loadEventAffiliateCommissions: async () => null },
+    "@/components/admin/affiliate-commissions-editor": { AffiliateCommissionsEditor: () => React.createElement("section", { "data-duplicate-compensation": true }, "Compensi degli affiliati") },
+    "@/app/api/admin/affiliati/commission-actions": { loadEventAffiliateCommissions: async () => { legacyCompensationReads++; return { success: true, rates: {} }; } },
     "@/lib/events/affiliate-registry": { loadAffiliateRegistry: async () => [registryEntry] },
   }).default;
-  const tree = await page({ params: Promise.resolve({ id: "nuovo", locale: "it" }) });
   const find = node => !node || typeof node !== "object" ? undefined : node.type === EventForm ? node : React.Children.toArray(node.props?.children).map(find).find(Boolean);
-  const form = find(tree);
-  assert.ok(form);
-  assert.deepEqual(JSON.parse(JSON.stringify(form.props.availableAffiliates)), [{ id: affiliateB.id, name: affiliateB.name, deletedAt: null, defaultCommissionType: "credits", defaultCommissionCents: 0, defaultCommissionCredits: 3 }]);
-  assert.doesNotMatch(JSON.stringify(form.props), /PRIVATE|contactName|email|phone|notes|createdAt/);
+  for (const id of ["nuovo", eventId]) {
+    const tree = await page({ params: Promise.resolve({ id, locale: "it" }) });
+    const form = find(tree);
+    assert.ok(form);
+    assert.deepEqual(JSON.parse(JSON.stringify(form.props.availableAffiliates)), [{ id: affiliateB.id, name: affiliateB.name, deletedAt: null, defaultCommissionType: "credits", defaultCommissionCents: 0, defaultCommissionCredits: 3 }]);
+    assert.doesNotMatch(JSON.stringify(form.props), /PRIVATE|contactName|email|phone|notes|createdAt/);
+    assert.doesNotMatch(renderToStaticMarkup(tree), /data-duplicate-compensation|Compensi degli affiliati/);
+  }
+  assert.equal(legacyCompensationReads, 0, "the event wizard must not load or mount a second editor of the same rates");
 });
 
 test("a concurrent deletion rejected by the database returns a localized event retry without exposing SQL messages", async () => {

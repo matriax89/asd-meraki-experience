@@ -428,7 +428,8 @@ test("affiliate compensation uses valid people instead of orders and keeps direc
   assert.deepEqual(normalized(rows[2]).slice(6, 8), ["0,00 €", "0,00 €"]);
   assert.ok(section.textContent.replaceAll("\u00a0", " ").includes("Totale compensi affiliati: 40,00 €"));
   assert.ok(section.textContent.includes("una sola volta per ogni iscritto valido"));
-  assert.equal(section.querySelector('a').getAttribute("href"), `/admin/eventi/${eventId}#compensi-affiliati`);
+  assert.equal(section.querySelector('a').getAttribute("href"), `/admin/affiliati?event=${eventId}`);
+  assert.equal(section.querySelector('a').textContent, "Gestisci compensi");
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
   assert.ok(csv.includes('"Compensi affiliati maturati (€)";"40"'));
   assert.ok(csv.includes('"Compenso per iscritto (€)";"Compenso maturato (€)"'));
