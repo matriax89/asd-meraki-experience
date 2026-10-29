@@ -43,9 +43,9 @@ const fixture = () => ({
     { id: "workshop", name: "Workshop", grossCents: 4000, refundedCents: 1000, netCents: 3000, feesCents: 100, netAfterFeesCents: 2900, missingFeePayments: 0 },
     { id: "dinner", name: "Cena", grossCents: 2000, refundedCents: 1000, netCents: 1000, feesCents: 50, netAfterFeesCents: 950, missingFeePayments: 0 },
   ],
-  packages: [{ id: "combo", name: "Workshop + Masterclass", count: 2, grossCents: 10000 }], tiers: [], addons: [],
+  packages: [{ id: "combo", name: "Workshop + Masterclass", count: 2, netCents: 7000 }], tiers: [], addons: [],
   activities: [{ id: "ws", eventId, eventTitle: "Vibra", name: "Workshop", capacity: 100, validAdmissions: 20, checkedIn: 7, remaining: 80, occupied: 20, reservedAdmissions: 0, availableForSale: 80 }],
-  affiliates: [{ id: affiliateId, eventId, eventTitle: "Vibra", name: "Scuola Meraki", validParticipants: 2, checkedInParticipants: 1, paidOrders: 3, grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, commissionPerParticipantCents: 500, commissionCents: 1000 }],
+  affiliates: [{ id: affiliateId, eventId, eventTitle: "Vibra", name: "Scuola Meraki", validParticipants: 2, checkedInParticipants: 1, paidOrders: 3, grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, commissionType: "eur", commissionPerParticipantCents: 500, commissionCents: 1000, commissionPerParticipantCredits: 0, commissionCredits: 0 }],
   eventStats: [{ id: eventId, title: "Vibra", startsAt: "2026-12-19T11:30:00Z", endsAt: null, status: "upcoming", capacity: 100, remaining: 80, ...metrics }, { id: eventB, title: "Meraki Estate", startsAt: "2027-06-01T10:00:00Z", endsAt: null, status: "draft", capacity: null, remaining: null, ...metrics }],
   attendanceGroups: [{ eventId, eventTitle: "Vibra", currentParticipants: 20, workshopOnly: 20, masterclassOnly: 0, both: 0, otherParticipants: 0, capacity: 100, remaining: 80, reservedParticipants: 0 }],
   operations: { newLeads: 5, openShopOrders: 2, confirmedContacts: 31 },
@@ -91,6 +91,33 @@ test("dashboard uses real cohort metrics and exposes chart values in an accessib
   assert.ok(explanation);
   assert.equal(explanation.open, false);
   assert.ok(explanation.textContent.includes(fixture().notes[0]));
+});
+
+test("current formulas show active people and net receipts with matching CSV semantics", async context => {
+  const data = fixture();
+  data.packages = [
+    { id: "solo-mc", name: "Masterclass", count: 2, netCents: 7000 },
+    { id: "combo", name: "Workshop + Masterclass", count: 21, netCents: 133000 },
+  ];
+  data.tiers = [{ id: "solo-mc:early", name: "Masterclass · Early Bird", count: 1, netCents: 3500 }];
+  data.addons = [{ id: "dinner", name: "Cena", count: 1, netCents: 2000 }];
+  await mount(context, { data });
+  const section = title => [...window.document.querySelectorAll("section")].find(node => node.querySelector(":scope > h2")?.textContent === title);
+  const formulas = section("Formule attive");
+  assert.ok(formulas);
+  assert.deepEqual([...formulas.querySelectorAll("li")].map(node => node.textContent.replaceAll("\u00a0", " ")), ["Masterclass70,00 €2 iscritti", "Workshop + Masterclass1330,00 €21 iscritti"]);
+  assert.ok(formulas.textContent.includes("Ogni persona conta una sola volta nella formula attuale"));
+  assert.ok(formulas.textContent.includes("Le iscrizioni interamente rimborsate sono escluse"));
+  assert.ok(formulas.textContent.includes("al netto dei rimborsi e prima delle commissioni"));
+  assert.ok(formulas.textContent.includes("Il periodo segue il primo acquisto"));
+  assert.ok(section("Scaglioni delle formule attive").textContent.includes("1 iscritto"));
+  assert.ok(section("Aggiunte attive").textContent.includes("1 accesso"));
+  assert.equal(formulas.textContent.includes("vendite"), false);
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
+  assert.ok(csv.includes('"Formule attive"\r\n"Nome";"Iscritti";"Incassi al netto dei rimborsi (€)"\r\n"Masterclass";"2";"70"\r\n"Workshop + Masterclass";"21";"1330"'));
+  assert.ok(csv.includes('"Aggiunte attive"\r\n"Nome";"Accessi";"Incassi al netto dei rimborsi (€)"\r\n"Cena";"1";"20"'));
+  assert.ok(csv.includes("gli importi includono gli upgrade successivi"));
+  assert.equal(csv.includes('"Nome";"Vendite";"Lordo (€)"'), false);
 });
 
 
@@ -305,9 +332,27 @@ test("affiliate compensation uses valid people instead of orders and keeps direc
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
   assert.ok(csv.includes('"Compensi affiliati maturati (€)";"40"'));
   assert.ok(csv.includes('"Compenso per iscritto (€)";"Compenso maturato (€)"'));
-  assert.ok(csv.includes('"Scuola Meraki";"8";"1";"9";"100";"30";"70";"2,5";"67,5";"Complete";"5";"40"'));
-  assert.ok(csv.includes('"Acquisti diretti";"4";"1";"4";"100";"30";"70";"2,5";"67,5";"Complete";"Non applicabile";"0"'));
+  assert.ok(csv.includes('"Scuola Meraki";"8";"1";"9";"100";"30";"70";"2,5";"67,5";"Complete";"EUR";"5";"40";"0";"0"'));
+  assert.ok(csv.includes('"Acquisti diretti";"4";"1";"4";"100";"30";"70";"2,5";"67,5";"Complete";"Non applicabile";"Non applicabile";"0";"Non applicabile";"0"'));
   assert.ok(csv.includes('"Netto dopo commissioni (€)";"67,5"'), "affiliate compensation must not change processor net");
+});
+
+test("analytics and CSV display EUR and credits as separate compensation totals", async context => {
+  const data = fixture();
+  data.affiliates.push({ ...data.affiliates[0], id: "credit-affiliate", name: "Scuola a crediti", validParticipants: 3, commissionType: "credits", commissionPerParticipantCents: 0, commissionCents: 0, commissionPerParticipantCredits: 2, commissionCredits: 6 });
+  await mount(context, { data });
+  const section = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"]');
+  const row = section.querySelectorAll("tbody tr")[1];
+  assert.equal(row.cells[4].textContent.replaceAll("\u00a0", " "), "67,50 €");
+  assert.equal(row.cells[5].textContent, "2 crediti"); assert.equal(row.cells[6].textContent, "6 crediti");
+  assert.ok(section.textContent.replaceAll("\u00a0", " ").includes("Totale compensi affiliati: 10,00 € · 6 crediti"));
+  assert.ok(section.textContent.includes("senza conversioni"));
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
+  assert.ok(csv.includes('"Compensi affiliati maturati (€)";"10"'));
+  assert.ok(csv.includes('"Compensi affiliati maturati (crediti)";"6"'));
+  assert.ok(csv.includes('"Unità compenso";"Compenso per iscritto (€)";"Compenso maturato (€)";"Compenso per iscritto (crediti)";"Compenso maturato (crediti)"'));
+  assert.ok(csv.includes('"Scuola a crediti";"3";"1";"3";"100";"30";"70";"2,5";"67,5";"Complete";"Crediti";"0";"0";"2";"6"'));
+  assert.ok(csv.includes('"Netto dopo commissioni (€)";"67,5"'));
 });
 
 test("capacity shows distinct people, session seats and a separate purchase limit", async context => {

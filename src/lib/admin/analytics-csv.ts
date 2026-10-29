@@ -28,8 +28,9 @@ export function adminAnalyticsCsv(data: AdminAnalytics, includeEvents = true): s
     [], ["Andamento per giorno di acquisto"], ["Giorno", ...financialHeaders, "Ordini pagati"],
     ...data.trend.map(row => [date(row.date), ...financialCells(row), row.paidOrders]),
   ];
-  for (const [title, entries] of [["Formule", data.packages], ["Scaglioni", data.tiers], ["Aggiunte", data.addons]] as const) {
-    rows.push([], [title], ["Nome", "Vendite", "Lordo (€)"], ...entries.map(row => [row.name, row.count, row.grossCents / 100]));
+  rows.push([], ["Criterio formule e aggiunte attive", "Ogni persona conta una sola volta nella formula attuale; iscrizioni interamente rimborsate escluse. Il periodo segue il primo acquisto degli iscritti e gli importi includono gli upgrade successivi, al netto dei rimborsi e prima delle commissioni."]);
+  for (const [title, entries, unit] of [["Formule attive", data.packages, "Iscritti"], ["Scaglioni delle formule attive", data.tiers, "Iscritti"], ["Aggiunte attive", data.addons, "Accessi"]] as const) {
+    rows.push([], [title], ["Nome", unit, "Incassi al netto dei rimborsi (€)"], ...entries.map(row => [row.name, row.count, row.netCents / 100]));
   }
   rows.push([], ["Attività: disponibilità attuale indipendente dai filtri; posti liberi nella sessione prima delle prenotazioni temporanee, disponibilità per capienza dopo prenotazioni e limite complessivo"], ["Evento", "Attività", "Capienza", "Accessi validi nel periodo", "Check-in nel periodo", "Posti liberi nella sessione", "Posti occupati attuali", "Prenotazioni temporanee", "Disponibilità per capienza"], ...data.activities.map(row => [row.eventTitle, row.name, row.capacity, row.validAdmissions, row.checkedIn, row.remaining, row.occupied, row.reservedAdmissions, row.availableForSale]));
   rows.push([], ["Persone distinte e formule: situazione attuale indipendente dai filtri"], ["Evento", "Persone distinte", "Solo workshop", "Solo masterclass", "Workshop e masterclass", "Altre attività", "Limite complessivo persone", "Posti liberi complessivi", "Persone prenotate in attesa"], ...data.attendanceGroups.map(row => [row.eventTitle, row.currentParticipants, row.workshopOnly, row.masterclassOnly, row.both, row.otherParticipants, row.capacity, row.remaining, row.reservedParticipants]));

@@ -18,7 +18,11 @@ export type AnalyticsMetrics = AnalyticsFinancials & {
   validParticipants: number; checkedInParticipants: number; waiting: number | null;
   pendingOrders: number; expiredOrders: number; failedOrders: number;
 };
-export type AnalyticsBreakdown = { id: string; name: string; count: number; grossCents: number };
+export type AnalyticsBreakdown = {
+  id: string; name: string; count: number;
+  /** Cumulative receipts for the current formula or active addition, less successful refunds and before payment fees. */
+  netCents: number;
+};
 export type AnalyticsActivityRow = {
   id: string; eventId: string; eventTitle: string; name: string; capacity: number | null;
   validAdmissions: number; checkedIn: number; remaining: number | null;

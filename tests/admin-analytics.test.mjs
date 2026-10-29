@@ -15,6 +15,7 @@ function compile(file, mocks = {}) {
   return compiledModule.exports;
 }
 const affiliates = compile('lib/events/affiliates.ts');
+const commissions = compile('lib/events/affiliate-commissions.ts');
 const i18n = compile('lib/i18n-utils.ts');
 const romeTime = compile('lib/commerce/rome-time.ts');
 const A = '10000000-0000-4000-8000-000000000001', B = '10000000-0000-4000-8000-000000000002';
@@ -26,6 +27,15 @@ const pass = (id, order_id, overrides = {}) => ({ id, order_id, event_id: A, sta
 const right = (id, pass_id, order_id, activity_id = 'ws', overrides = {}) => ({ id, pass_id, order_id, activity_id, activity_name: activity_id === 'mc' ? 'Masterclass' : activity_id === 'dinner' ? 'Cena' : 'Workshop', event_id: A, status: 'valid', checked_in_at: null, menu_choice: 'PRIVATE-MENU', ...overrides });
 const ticket = (id, amount_cents, overrides = {}) => ({ id, event_id: A, status: 'paid', amount_cents, created_at: '2026-10-21T10:06:00Z', used_at: null, stripe_payment_intent: `pi_${id}`, stripe_session_id: `cs_${id}`, affiliate_id: null, affiliate_name: null, buyer_email: 'PRIVATE@example.test', qr_code: 'PRIVATE-QR-CAPABILITY', ...overrides });
 const refund = (id, order_id, amount_cents, overrides = {}) => ({ id, event_id: A, order_id, ticket_reservation_id: null, payment_intent: `pi_${order_id}`, amount_cents, status: 'succeeded', stripe_refund_id: `re_${id}`, reason: 'PRIVATE-REASON', ...overrides });
+const reportingOrder = (id = 'corrected', overrides = {}) => {
+  const originalLines = [
+    line(6118, { label: 'Combinata · Standard', packageId: 'combo', tierId: 'standard', participantIndex: 0, unitAmountCents: 6118, subtotalCents: 6500, discountCents: 382, activityIds: ['ws', 'mc'], activityAmounts: { ws: 3500, mc: 3000 } }),
+    line(1882, { kind: 'addon', label: 'Cena', packageId: undefined, addonId: 'dinner', tierId: 'standard', participantIndex: 0, unitAmountCents: 1882, subtotalCents: 2000, discountCents: 118, activityIds: ['dinner'], activityAmounts: { dinner: 2000 } }),
+  ];
+  const discount = { id: '30000000-0000-4000-8000-000000000001', code: 'SCONTO5', discountType: 'fixed_amount', discountValue: 500, targetType: 'order', targetIds: [], eligibleCents: 8500 };
+  const reporting = { subtotalCents: 8500, discountCents: 500, totalCents: 8000, discountExcludedActivityIds: ['dinner'], discount: { ...discount, targetType: 'package', targetIds: ['ws', 'mc', 'combo'], eligibleCents: 6500 }, lines: originalLines.map((entry, index) => ({ ...entry, totalCents: index ? 2000 : 6000, unitAmountCents: index ? 2000 : 6000, discountCents: index ? 0 : 500 })), reportingAdjustment: { version: 1, reason: 'dinner_full_price', originalDiscountTargetType: 'order', preservedTotalCents: 8000 }, participants: [{ firstName: 'PRIVATE', lastName: 'CUSTOMER' }], harmlessAdditionalField: { value: 'PRIVATE' } };
+  return order(id, 8000, { affiliate_id: AFF, snapshot_activities: event().activities, quote_lines: originalLines, quote_discount: discount, reporting_quote: reporting, ...overrides });
+};
 
 function fixture(data = {}, { denied = false, fail, fees = {} } = {}) {
   const calls = []; const feeCalls = []; let authorized = false;
@@ -51,7 +61,7 @@ function fixture(data = {}, { denied = false, fail, fees = {} } = {}) {
     };
     return query;
   } };
-  const api = compile('lib/admin/analytics.ts', { 'server-only': {}, '@/lib/commerce/admin-auth': { requireCommerceStaff: async () => { if (denied) throw new Error('Accesso negato'); authorized = true; return db; } }, '@/lib/i18n-utils': i18n, '@/lib/commerce/rome-time': romeTime, '@/lib/events/affiliates': affiliates, '@/lib/stripe/payment-fees': { loadPaymentFees: async refs => { assert.ok(authorized); feeCalls.push(plain(refs)); return new Map(refs.map(ref => [ref.id, fees[ref.id] || { feeCents: 0, complete: true }])); } } });
+  const api = compile('lib/admin/analytics.ts', { 'server-only': {}, '@/lib/commerce/admin-auth': { requireCommerceStaff: async () => { if (denied) throw new Error('Accesso negato'); authorized = true; return db; } }, '@/lib/i18n-utils': i18n, '@/lib/commerce/rome-time': romeTime, '@/lib/events/affiliates': affiliates, '@/lib/events/affiliate-commissions': commissions, '@/lib/stripe/payment-fees': { loadPaymentFees: async refs => { assert.ok(authorized); feeCalls.push(plain(refs)); return new Map(refs.map(ref => [ref.id, fees[ref.id] || { feeCents: 0, complete: true }])); } } });
   return { load: input => api.loadAdminAnalytics({ locale: 'it', ...input }), calls, feeCalls };
 }
 
@@ -90,7 +100,7 @@ test('gross/refunds/net use captured payments once, real successful refund cents
     commerce_orders: [base, upgrade, order('partial', 5000), order('full', 3000, { state: 'refunded', affiliate_id: AFF, affiliate_name: 'Martina' }), order('refund-needed', 1000, { state: 'refund_required' }), order('pending', 9999, { state: 'awaiting_payment' }), order('expired', 2000, { state: 'expired' }), order('failed', 500, { state: 'payment_failed' }), order('free', 0)],
     ticket_reservations: [legacy, refundedLegacy],
     tickets: [ticket('legacy', 4500, { status: 'used', affiliate_id: AFF, affiliate_name: 'Martina' }), ticket('orphan', 3500), ticket('legacy-refund', 2000, { status: 'refunded', affiliate_id: AFF, affiliate_name: 'Martina' })],
-    commerce_passes: [pass('person-1', 'base', { affiliate_id: AFF, affiliate_name: 'Martina' }), pass('person-2', 'partial'), pass('person-3', 'full', { status: 'refunded' }), pass('person-free', 'free')],
+    commerce_passes: [pass('person-1', 'base', { affiliate_id: AFF, affiliate_name: 'Martina' }), pass('person-2', 'partial'), pass('person-3', 'full', { status: 'refunded', affiliate_id: AFF, affiliate_name: 'Martina' }), pass('person-free', 'free')],
     commerce_entitlements: [right('r1', 'person-1', 'base', 'ws', { status: 'used' }), right('r2', 'person-1', 'base', 'mc'), right('r3', 'person-1', 'upgrade', 'dinner'), right('r4', 'person-2', 'partial'), right('r5', 'person-3', 'full', 'ws', { status: 'refunded' }), right('r6', 'person-free', 'free')],
     meraki_refunds: [refund('partial', 'partial', 1000), refund('partial-pending', 'partial', 900, { status: 'pending' }), refund('partial-failed', 'partial', 800, { status: 'failed' }), refund('full1', 'full', 1500), refund('full2', 'full', 1500), refund('full2', 'full', 1500), refund('legacyrefund', null, 2000, { ticket_reservation_id: 'legacy-refund', payment_intent: 'pi_legacy-refund' })],
     commerce_payment_refunds: [{ payment_intent: 'pi_full', status: 'succeeded' }], ticket_payment_refunds: [{ payment_intent: 'pi_legacy-refund' }],
@@ -98,8 +108,8 @@ test('gross/refunds/net use captured payments once, real successful refund cents
   };
   const api = fixture(data); const result = await api.load({ period: 'all' });
   assert.deepEqual(plain(result.metrics), { grossCents: 29500, refundedCents: 6000, netCents: 23500, feesCents: 0, netAfterFeesCents: 23500, missingFeePayments: 0, paidOrders: 8, validParticipants: 5, checkedInParticipants: 2, waiting: 2, pendingOrders: 1, expiredOrders: 1, failedOrders: 1 });
-  assert.equal(result.addons[0].count, 2); assert.equal(result.addons[0].grossCents, 4000);
-  assert.equal(result.packages.reduce((sum, item) => sum + item.grossCents, 0) + result.addons.reduce((sum, item) => sum + item.grossCents, 0), result.metrics.grossCents);
+  assert.equal(result.addons[0].count, 1); assert.equal(result.addons[0].netCents, 2000);
+  assert.equal(result.packages.reduce((sum, item) => sum + item.netCents, 0), 18500);
   assert.equal(result.eventStats.find(row => row.id === A).remaining, 0);
   assert.equal(result.eventStats.find(row => row.id === B).remaining, null);
   assert.equal(result.activities.find(row => row.eventId === A && row.id === 'ws').validAdmissions, 3);
@@ -138,6 +148,8 @@ test('a shared Stripe session joins historical rows with a missing intent before
     commerce_orders: [order('original', 6500, { stripe_payment_intent: null, stripe_session_id: 'cs_shared' })],
     ticket_reservations: [order('old-reservation', 6500, { stripe_payment_intent: 'pi_shared', stripe_session_id: 'cs_shared' })],
     tickets: [ticket('old-ticket', 6500, { stripe_payment_intent: 'pi_shared', stripe_session_id: 'cs_shared' })],
+    commerce_passes: [pass('issued-original', 'original')],
+    commerce_entitlements: [right('issued-original-ws', 'issued-original', 'original')],
     meraki_refunds: [refund('partial', 'original', 1500, { payment_intent: 'pi_shared' })],
   });
   const { metrics, packages, trend } = await api.load({});
@@ -194,9 +206,13 @@ test('current event states, canceled admissions and capacity use authoritative r
 });
 
 test('purchase-level discounts allocate only captured cents across product rows and zero/owned upgrades never inflate money', async () => {
-  const result = await fixture({ commerce_orders: [order('discounted', 6501, { quote_lines: [line(4500), line(3500, { packageId: 'mc', label: 'Masterclass · Early Bird', activityIds: ['mc'] })] }), order('dinner-only', 2000, { quote_lines: [line(0, { kind: 'upgrade', tierId: 'owned' }), line(2000, { kind: 'addon', label: 'Cena', activityIds: ['dinner'] })] }), order('free', 0)] }).load({});
+  const result = await fixture({
+    commerce_orders: [order('discounted', 6501, { quote_lines: [line(4500), line(3500, { packageId: 'mc', label: 'Masterclass · Early Bird', activityIds: ['mc'] })] }), order('dinner-only', 2000, { upgrade_pass_id: 'discount-ws', quote_lines: [line(0, { kind: 'upgrade', tierId: 'owned' }), line(2000, { kind: 'addon', label: 'Cena', activityIds: ['dinner'] })] }), order('free', 0)],
+    commerce_passes: [pass('discount-ws', 'discounted', { participant_index: 0 }), pass('discount-mc', 'discounted', { participant_index: 1 }), pass('free-person', 'free')],
+    commerce_entitlements: [right('discount-ws', 'discount-ws', 'discounted'), right('discount-mc', 'discount-mc', 'discounted', 'mc'), right('discount-dinner', 'discount-ws', 'dinner-only', 'dinner'), right('free-ws', 'free-person', 'free')],
+  }).load({});
   assert.equal(result.metrics.grossCents, 8501); assert.equal(result.metrics.paidOrders, 2);
-  assert.equal(result.packages.reduce((sum, item) => sum + item.grossCents, 0), 6501); assert.equal(result.addons[0].grossCents, 2000);
+  assert.equal(result.packages.reduce((sum, item) => sum + item.netCents, 0), 6501); assert.equal(result.addons[0].netCents, 2000);
   assert.equal(result.packages.reduce((sum, item) => sum + item.count, 0), 3, 'two paid formula lines plus one free formula, without the owned upgrade');
 });
 
@@ -243,6 +259,91 @@ test('an activity-target discount reduces only its own share of a mixed package'
   assert.equal(result.revenue.find(row => row.id === 'dinner').grossCents, 2000);
   assert.equal(result.revenue.find(row => row.id === 'workshop').netAfterFeesCents, 5220);
   assert.equal(result.metrics.netAfterFeesCents, 8700);
+});
+
+test('an explicit reporting correction keeps dinner full price across activity and product allocations without changing paid financials', async () => {
+  const purchase = reportingOrder();
+  const original = plain(purchase);
+  const data = { commerce_orders: [purchase], commerce_passes: [pass('corrected-person', purchase.id, { package_id: 'combo', package_name: 'Combinata', package_activity_ids: ['ws', 'mc'], affiliate_id: AFF })], commerce_entitlements: [right('corrected-ws', 'corrected-person', purchase.id), right('corrected-mc', 'corrected-person', purchase.id, 'mc'), right('corrected-dinner', 'corrected-person', purchase.id, 'dinner')], meraki_refunds: [refund('partial', purchase.id, 1200)] };
+  const fees = { [`pi:pi_${purchase.id}`]: { feeCents: 300, complete: true } };
+  const api = fixture(data, { fees });
+  const corrected = await api.load({});
+  const raw = await fixture({ ...data, commerce_orders: [{ ...purchase, reporting_quote: null }] }, { fees }).load({});
+  assert.deepEqual(plain(corrected.revenue.map(row => [row.id, row.grossCents])), [['masterclass', 2769], ['workshop', 3231], ['dinner', 2000]]);
+  assert.deepEqual(plain(raw.revenue.map(row => [row.id, row.grossCents])), [['masterclass', 2823], ['workshop', 3295], ['dinner', 1882]]);
+  assert.equal(corrected.packages[0].netCents, 5100); assert.equal(corrected.tiers[0].netCents, 5100); assert.equal(corrected.addons[0].netCents, 1700);
+  assert.equal(corrected.packages[0].count, raw.packages[0].count); assert.equal(corrected.addons[0].count, raw.addons[0].count);
+  for (const key of ['metrics', 'trend', 'eventStats', 'affiliates', 'activities', 'attendanceGroups', 'operations']) assert.deepEqual(plain(corrected[key]), plain(raw[key]), key);
+  for (const key of ['grossCents', 'refundedCents', 'netCents', 'feesCents', 'netAfterFeesCents']) assert.equal(corrected.revenue.reduce((total, row) => total + row[key], 0), corrected.metrics[key], key);
+  const dinner = corrected.revenue.find(row => row.id === 'dinner');
+  assert.equal(dinner.refundedCents, 300); assert.equal(dinner.feesCents, 75); assert.equal(dinner.netAfterFeesCents, 1625);
+  assert.deepEqual(plain(purchase), original, 'read-only reporting must preserve original quote, charge and correction');
+  assert.deepEqual(api.feeCalls[0], [{ id: `pi:pi_${purchase.id}`, paymentIntent: `pi_${purchase.id}`, sessionId: `cs_${purchase.id}`, amountCents: 8000, refundedCents: 1200 }]);
+  assert.ok(api.calls.find(call => call.table === 'commerce_orders').fields.includes('reporting_quote'));
+  assert.match(corrected.notes.join(' '), /ripartizione contabile rettificata/);
+  assert.doesNotMatch(JSON.stringify(corrected), /PRIVATE|reportingAdjustment|preservedTotalCents|dinner_full_price|reporting_quote/);
+  const csv = compile('lib/admin/analytics-csv.ts').adminAnalyticsCsv(corrected);
+  assert.ok(csv.includes('"Cena";"20";"3";"17";"0,75";"16,25";"Complete"'));
+  assert.ok(csv.includes('"Lordo (€)";"80"')); assert.ok(csv.includes('"Rimborsi riusciti (€)";"12"'));
+  assert.doesNotMatch(csv, /PRIVATE|reportingAdjustment|preservedTotalCents|dinner_full_price/);
+});
+
+test('three reviewed reporting corrections change only their allocation and leave every unrelated purchase intact', async () => {
+  const reviewed = ['reviewed-1', 'reviewed-2', 'reviewed-3'].map(id => reportingOrder(id));
+  const unaffected = order('unaffected', 10000, { quote_lines: [line(4500), line(3500, { packageId: 'mc', activityIds: ['mc'] }), line(2000, { kind: 'addon', label: 'Cena', addonId: 'dinner', packageId: undefined, activityIds: ['dinner'] })] });
+  const issued = { commerce_passes: [pass('unaffected-ws', unaffected.id, { participant_index: 0 }), pass('unaffected-mc', unaffected.id, { participant_index: 1 })], commerce_entitlements: [right('unaffected-ws', 'unaffected-ws', unaffected.id), right('unaffected-mc', 'unaffected-mc', unaffected.id, 'mc'), right('unaffected-dinner', 'unaffected-mc', unaffected.id, 'dinner')] };
+  const before = await fixture({ ...issued, commerce_orders: [...reviewed.map(entry => ({ ...entry, reporting_quote: null })), unaffected] }).load({});
+  const after = await fixture({ ...issued, commerce_orders: [...reviewed, unaffected] }).load({});
+  const gross = (result, id) => result.revenue.find(row => row.id === id).grossCents;
+  assert.equal(gross(after, 'workshop') - gross(before, 'workshop'), -192);
+  assert.equal(gross(after, 'masterclass') - gross(before, 'masterclass'), -162);
+  assert.equal(gross(after, 'dinner') - gross(before, 'dinner'), 354);
+  assert.deepEqual(plain(after.metrics), plain(before.metrics)); assert.equal(after.metrics.grossCents, 34000);
+  assert.deepEqual(plain(after.packages.find(entry => entry.id === `${A}:ws`)), plain(before.packages.find(entry => entry.id === `${A}:ws`)));
+  const withoutCorrection = await fixture({ commerce_orders: [unaffected] }).load({});
+  const withNull = await fixture({ commerce_orders: [{ ...unaffected, reporting_quote: null }] }).load({});
+  assert.deepEqual(plain(withoutCorrection), plain(withNull));
+});
+
+test('a present but invalid reporting correction fails closed rather than silently using the original paid allocation', async () => {
+  const purchase = reportingOrder();
+  const changes = [
+    () => ({}), () => false, () => [],
+    quote => { delete quote.reportingAdjustment; },
+    quote => { quote.reportingAdjustment.version = 2; },
+    quote => { quote.reportingAdjustment.reason = 'unknown'; },
+    quote => { quote.reportingAdjustment.preservedTotalCents = 8500; },
+    quote => { quote.totalCents = 8500; },
+    quote => { quote.discount.targetType = 'order'; },
+    quote => { quote.discount.discountValue = 600; },
+    quote => { quote.lines[0].discountCents = 499; },
+    quote => { quote.lines[0].activityAmounts.ws += 1; },
+    quote => { quote.lines[1].label = 'Other product'; },
+    quote => { quote.lines[1].quantity = 2; },
+    quote => { quote.lines[1].totalCents = 1900; },
+    quote => { quote.discountExcludedActivityIds = ['ws']; },
+    quote => { delete quote.discountExcludedActivityIds; },
+  ];
+  for (const change of changes) {
+    const reporting = plain(purchase.reporting_quote);
+    const result = change(reporting);
+    await assert.rejects(fixture({ commerce_orders: [{ ...purchase, reporting_quote: result === undefined ? reporting : result }] }).load({}), /Ripartizione contabile non verificabile/);
+  }
+  const changedOriginal = plain(purchase);
+  changedOriginal.quote_lines[0].discountCents += 1; changedOriginal.quote_lines[0].totalCents -= 1; changedOriginal.quote_lines[0].unitAmountCents -= 1;
+  changedOriginal.quote_lines[1].discountCents -= 1; changedOriginal.quote_lines[1].totalCents += 1; changedOriginal.quote_lines[1].unitAmountCents += 1;
+  await assert.rejects(fixture({ commerce_orders: [changedOriginal] }).load({}), /Ripartizione contabile non verificabile/);
+});
+
+test('future mixed bundles honor dinner exclusions from the paid quote without any reporting correction', async () => {
+  const data = { commerce_orders: [order('new-mixed', 7500, { quote_discount: { targetType: 'package', targetIds: ['mixed'] }, quote_discount_exclusions: ['dinner'], quote_lines: [line(7500, { packageId: 'mixed', activityIds: ['ws', 'dinner'], activityAmounts: { ws: 6000, dinner: 2000 }, subtotalCents: 8000, discountCents: 500 })] })] };
+  const api = fixture(data);
+  const result = await api.load({});
+  assert.equal(result.revenue.find(row => row.id === 'workshop').grossCents, 5500);
+  assert.equal(result.revenue.find(row => row.id === 'dinner').grossCents, 2000);
+  assert.equal(result.metrics.grossCents, 7500);
+  assert.ok(api.calls.find(call => call.table === 'commerce_orders').fields.includes('quote_discount_exclusions:quote->discountExcludedActivityIds'));
+  assert.doesNotMatch(result.notes.join(' '), /ripartizione contabile rettificata/);
 });
 
 test('missing fees make only affected net amounts unavailable and retained fees can make a full refund negative', async () => {
@@ -327,4 +428,335 @@ test('affiliate compensation follows valid people, never order count or number o
   assert.equal(noRate.affiliates.find(row => row.id === AFF).commissionCents, 0);
   await assert.rejects(fixture(data, { fail: call => call.table === 'event_affiliate_commissions' }).load({}), /compensi degli affiliati/);
   await assert.rejects(fixture({ event_affiliate_commissions: [{ event_id: A, affiliate_id: AFF, commission_cents: -1 }] }).load({}), /Compenso affiliato non valido/);
+});
+
+test('analytics keeps credit compensation separate from EUR without altering collected revenue or processor net', async () => {
+  const data = {
+    events: [event(), event(B)],
+    event_affiliate_commissions: [
+      { event_id: A, affiliate_id: AFF, commission_type: 'credits', commission_cents: 0, commission_credits: 3 },
+      { event_id: B, affiliate_id: AFF, commission_cents: 700 },
+      { event_id: A, affiliate_id: 'direct', commission_type: 'credits', commission_cents: 0, commission_credits: 99 },
+    ],
+    commerce_orders: [order('base', 20000, { affiliate_id: AFF }), order('upgrade', 2500, { affiliate_id: AFF, upgrade_pass_id: 'p1' })],
+    commerce_passes: [pass('p1', 'base', { affiliate_id: AFF }), pass('p2', 'base', { affiliate_id: AFF })],
+    commerce_entitlements: [right('ws1', 'p1', 'base'), right('mc1', 'p1', 'base', 'mc'), right('ws2', 'p2', 'base'), right('upgrade1', 'p1', 'upgrade', 'dinner')],
+    tickets: [ticket('legacy-a', 1000, { affiliate_id: AFF }), ticket('legacy-b', 1000, { event_id: B, affiliate_id: AFF }), ticket('direct', 1000)],
+  };
+  const result = await fixture(data).load({});
+  const credit = result.affiliates.find(row => row.eventId === A && row.id === AFF);
+  assert.equal(credit.validParticipants, 3); assert.equal(credit.commissionType, 'credits');
+  assert.equal(credit.commissionPerParticipantCredits, 3); assert.equal(credit.commissionCredits, 9);
+  assert.equal(credit.commissionPerParticipantCents, 0); assert.equal(credit.commissionCents, 0);
+  const euro = result.affiliates.find(row => row.eventId === B && row.id === AFF);
+  assert.equal(euro.commissionType, 'eur'); assert.equal(euro.commissionCents, 700); assert.equal(euro.commissionCredits, 0);
+  const direct = result.affiliates.find(row => row.id === 'direct');
+  assert.equal(direct.commissionCents, 0); assert.equal(direct.commissionCredits, 0);
+  const withoutRates = await fixture({ ...data, event_affiliate_commissions: [] }).load({});
+  assert.deepEqual(plain(result.metrics), plain(withoutRates.metrics));
+  assert.deepEqual(plain(result.revenue), plain(withoutRates.revenue));
+  assert.match(result.notes.join(' '), /Euro e crediti.*separatamente, senza conversioni/);
+});
+
+test('analytics rejects corrupt credit amounts or units without presenting an invented zero', async () => {
+  for (const rate of [
+    { commission_type: 'credits', commission_cents: 0, commission_credits: 1.5 },
+    { commission_type: 'credits', commission_cents: 0, commission_credits: -1 },
+    { commission_type: 'credits', commission_cents: 500, commission_credits: 3 },
+    { commission_type: 'eur', commission_cents: 500, commission_credits: 3 },
+    { commission_type: 'unknown', commission_cents: 0, commission_credits: 0 },
+  ]) await assert.rejects(fixture({ event_affiliate_commissions: [{ event_id: A, affiliate_id: AFF, ...rate }] }).load({}), /Compenso affiliato non valido/);
+});
+
+test('current per-person affiliation splits a shared payment, refunds and fees without attributing the whole group twice', async () => {
+  const purchase = order('group', 12000, { affiliate_id: AFF, affiliate_name: 'Original group affiliate', quote_lines: [
+    line(6000, { participantIndex: 0, packageId: 'combo', label: 'Combinata', activityIds: ['ws', 'mc'], activityAmounts: { ws: 3500, mc: 2500 } }),
+    line(2000, { participantIndex: 0, kind: 'addon', label: 'Cena', addonId: 'dinner', packageId: undefined, activityIds: ['dinner'], activityAmounts: { dinner: 2000 } }),
+    line(4000, { participantIndex: 1, packageId: 'ws', activityIds: ['ws'], activityAmounts: { ws: 4000 } }),
+  ] });
+  const people = [pass('person-a', purchase.id, { participant_index: 0, affiliate_id: AFF, affiliate_name: 'Martina' }), pass('person-b', purchase.id, { participant_index: 1, affiliate_id: OLD, affiliate_name: 'Seconda scuola' })];
+  const data = { commerce_orders: [purchase], commerce_passes: people, commerce_entitlements: [right('a-ws', 'person-a', purchase.id), right('a-mc', 'person-a', purchase.id, 'mc'), right('a-dinner', 'person-a', purchase.id, 'dinner'), right('b-ws', 'person-b', purchase.id)], meraki_refunds: [refund('partial', purchase.id, 1001)], event_affiliate_commissions: [{ event_id: A, affiliate_id: AFF, commission_cents: 500 }, { event_id: A, affiliate_id: OLD, commission_type: 'credits', commission_cents: 0, commission_credits: 2 }] };
+  const fees = { 'pi:pi_group': { feeCents: 301, complete: true } };
+  const before = await fixture({ ...data, commerce_passes: people.map(person => ({ ...person, affiliate_id: AFF, affiliate_name: 'Martina' })) }, { fees }).load({});
+  const currentApi = fixture(data, { fees });
+  const current = await currentApi.load({});
+  for (const key of ['metrics', 'trend', 'revenue', 'packages', 'tiers', 'addons', 'eventStats', 'attendanceGroups']) assert.deepEqual(plain(current[key]), plain(before[key]), key);
+  assert.equal(current.metrics.paidOrders, 1); assert.equal(current.metrics.validParticipants, 2);
+  const a = current.affiliates.find(row => row.id === AFF); const b = current.affiliates.find(row => row.id === OLD);
+  assert.deepEqual([a.grossCents, a.refundedCents, a.feesCents, a.netAfterFeesCents, a.validParticipants, a.paidOrders], [8000, 667, 200, 7133, 1, 1]);
+  assert.deepEqual([b.grossCents, b.refundedCents, b.feesCents, b.netAfterFeesCents, b.validParticipants, b.paidOrders], [4000, 334, 101, 3565, 1, 1]);
+  assert.equal(a.commissionCents, 500); assert.equal(b.commissionCredits, 2);
+  for (const key of ['grossCents', 'refundedCents', 'feesCents', 'netCents', 'netAfterFeesCents']) assert.equal(a[key] + b[key], current.metrics[key], key);
+  assert.ok(current.notes.includes('Un acquisto di gruppo può comparire tra gli ordini di più affiliati; il totale generale conta ogni ordine una sola volta.'));
+  const filteredA = await fixture(data, { fees }).load({ affiliateId: AFF });
+  const filteredBApi = fixture(data, { fees }); const filteredB = await filteredBApi.load({ affiliateId: OLD });
+  assert.deepEqual([filteredA.metrics.grossCents, filteredA.metrics.refundedCents, filteredA.metrics.feesCents], [8000, 667, 200]);
+  assert.deepEqual([filteredB.metrics.grossCents, filteredB.metrics.refundedCents, filteredB.metrics.feesCents], [4000, 334, 101]);
+  assert.equal(filteredA.metrics.paidOrders, 1); assert.equal(filteredB.metrics.paidOrders, 1);
+  assert.equal(filteredB.addons.length, 0); assert.equal(filteredB.packages.reduce((total, entry) => total + entry.netCents, 0), 3666);
+  for (const result of [filteredA, filteredB]) for (const key of ['grossCents', 'refundedCents', 'feesCents', 'netAfterFeesCents']) assert.equal(result.revenue.reduce((total, row) => total + row[key], 0), result.metrics[key], key);
+  assert.deepEqual(filteredBApi.feeCalls[0], [{ id: 'pi:pi_group', paymentIntent: 'pi_group', sessionId: 'cs_group', amountCents: 12000, refundedCents: 1001 }]);
+  assert.equal(currentApi.feeCalls[0].length, 1);
+  assert.ok(currentApi.calls.find(call => call.table === 'commerce_passes').fields.includes('participant_index'));
+  assert.doesNotMatch(JSON.stringify(current), /PRIVATE|participant_index|participantIndex|buyer_email|qr_code/);
+  assert.equal(purchase.affiliate_id, AFF); assert.equal(purchase.amount_cents, 12000);
+});
+
+test('an upgrade follows its current pass affiliation while the original group keeps its separate people and purchase cohorts', async () => {
+  const original = order('initial-group', 10000, { affiliate_id: AFF, created_at: '2026-09-01T10:00:00Z', quote_lines: [line(6000, { participantIndex: 0 }), line(4000, { participantIndex: 1 })] });
+  const upgrade = order('later-upgrade', 2000, { affiliate_id: AFF, upgrade_pass_id: 'reassigned', quote_lines: [line(0, { kind: 'upgrade', tierId: 'owned', participantIndex: 0 }), line(2000, { kind: 'addon', packageId: undefined, participantIndex: 0, activityIds: ['dinner'] })] });
+  const data = { commerce_orders: [original, upgrade], commerce_passes: [pass('original', original.id, { participant_index: 0, affiliate_id: AFF }), pass('reassigned', original.id, { participant_index: 1, affiliate_id: OLD, affiliate_name: 'Seconda scuola' })], commerce_entitlements: [right('original-ws', 'original', original.id), right('reassigned-ws', 'reassigned', original.id), right('later-dinner', 'reassigned', upgrade.id, 'dinner')], meraki_refunds: [refund('upgrade-partial', upgrade.id, 100)] };
+  const fees = { 'pi:pi_later-upgrade': { feeCents: 33, complete: true } };
+  const filteredApi = fixture(data, { fees }); const filtered = await filteredApi.load({ affiliateId: OLD, period: '7' });
+  assert.deepEqual([filtered.metrics.grossCents, filtered.metrics.refundedCents, filtered.metrics.feesCents, filtered.metrics.netAfterFeesCents, filtered.metrics.paidOrders, filtered.metrics.validParticipants], [2000, 100, 33, 1867, 1, 0]);
+  assert.equal(filtered.revenue.find(row => row.id === 'dinner').grossCents, 2000);
+  assert.deepEqual(filteredApi.feeCalls[0], [{ id: 'pi:pi_later-upgrade', paymentIntent: 'pi_later-upgrade', sessionId: 'cs_later-upgrade', amountCents: 2000, refundedCents: 100 }]);
+  const all = await fixture(data, { fees }).load({});
+  assert.equal(all.metrics.grossCents, 12000); assert.equal(all.metrics.paidOrders, 2); assert.equal(all.metrics.validParticipants, 2);
+  assert.equal(all.affiliates.find(row => row.id === OLD).grossCents, 6000); assert.equal(all.affiliates.find(row => row.id === OLD).validParticipants, 1);
+  assert.equal((await fixture(data, { fees }).load({ affiliateId: AFF, period: '7' })).metrics.grossCents, 0);
+});
+
+test('a current legacy ticket overrides its reservation affiliate including an explicit return to direct purchases', async () => {
+  const reservation = { ...order('reservation', 4500, { affiliate_id: AFF, affiliate_name: 'Snapshot affiliate', stripe_payment_intent: null, stripe_session_id: 'cs_shared' }), quote_lines: undefined };
+  const issued = ticket('issued', 4500, { affiliate_id: OLD, affiliate_name: 'Scuola aggiornata', stripe_payment_intent: 'pi_shared', stripe_session_id: 'cs_shared' });
+  const data = { ticket_reservations: [reservation], tickets: [issued], meraki_refunds: [refund('partial', null, 500, { ticket_reservation_id: reservation.id, payment_intent: 'pi_shared' })] };
+  const fees = { 'pi:pi_shared': { feeCents: 100, complete: true } };
+  const api = fixture(data, { fees }); const result = await api.load({ affiliateId: OLD });
+  assert.deepEqual([result.metrics.grossCents, result.metrics.refundedCents, result.metrics.feesCents, result.metrics.paidOrders, result.metrics.validParticipants], [4500, 500, 100, 1, 1]);
+  assert.equal(api.feeCalls[0].length, 1); assert.equal(result.affiliates[0].name, 'Scuola aggiornata');
+  const direct = await fixture({ ...data, tickets: [{ ...issued, affiliate_id: null, affiliate_name: null }] }, { fees }).load({ affiliateId: 'direct' });
+  assert.equal(direct.metrics.grossCents, 4500); assert.equal(direct.metrics.validParticipants, 1); assert.equal(direct.affiliates[0].id, 'direct');
+  assert.equal((await fixture(data, { fees }).load({ affiliateId: AFF })).metrics.grossCents, 0);
+});
+
+test('a duplicate record for one mixed-group payment never duplicates allocated fees or captured revenue', async () => {
+  const purchase = order('group', 10000, { affiliate_id: AFF, quote_lines: [line(6000, { participantIndex: 0 }), line(4000, { participantIndex: 1 })] });
+  const duplicate = { ...purchase, id: 'duplicate' };
+  const data = { commerce_orders: [purchase, duplicate], commerce_passes: [pass('a', purchase.id, { participant_index: 0, affiliate_id: AFF }), pass('b', purchase.id, { participant_index: 1, affiliate_id: OLD })] };
+  const api = fixture(data, { fees: { 'pi:pi_group': { feeCents: 300, complete: true } } }); const result = await api.load({});
+  assert.equal(result.metrics.grossCents, 10000); assert.equal(result.metrics.paidOrders, 1); assert.equal(result.metrics.feesCents, 300);
+  assert.equal(result.affiliates.find(row => row.id === AFF).grossCents, 6000); assert.equal(result.affiliates.find(row => row.id === OLD).grossCents, 4000);
+  assert.equal(api.feeCalls[0].length, 1);
+});
+
+test('moving a commerce person back to direct purchases overrides the original order and preserves a corrected dinner allocation', async () => {
+  const purchase = reportingOrder('corrected-person');
+  const original = plain(purchase);
+  const data = { commerce_orders: [purchase], commerce_passes: [pass('current-direct', purchase.id, { participant_index: 0, affiliate_id: null, affiliate_name: null })], commerce_entitlements: [right('current-ws', 'current-direct', purchase.id), right('current-dinner', 'current-direct', purchase.id, 'dinner')] };
+  const result = await fixture(data, { fees: { 'pi:pi_corrected-person': { feeCents: 300, complete: true } } }).load({ affiliateId: 'direct' });
+  assert.equal(result.metrics.grossCents, 8000); assert.equal(result.metrics.validParticipants, 1); assert.equal(result.metrics.paidOrders, 1);
+  assert.equal(result.affiliates[0].id, 'direct'); assert.equal(result.affiliates[0].netAfterFeesCents, 7700);
+  assert.equal(result.revenue.find(row => row.id === 'dinner').grossCents, 2000);
+  assert.equal(result.revenue.find(row => row.id === 'workshop').grossCents, 3231);
+  assert.equal(result.revenue.find(row => row.id === 'masterclass').grossCents, 2769);
+  assert.deepEqual(plain(purchase), original);
+  assert.equal((await fixture(data).load({ affiliateId: AFF })).metrics.grossCents, 0);
+  assert.ok(!result.notes.some(note => note.includes('più affiliati')));
+});
+
+test('historical per-person package order supports missing quote indices while an ambiguous mixed group fails explicitly', async () => {
+  const purchase = order('historic-group', 12000, { affiliate_id: AFF, quote_lines: [line(6000), line(2000, { kind: 'addon', packageId: undefined, activityIds: ['dinner'] }), line(4000)] });
+  const people = [pass('a', purchase.id, { participant_index: 0, affiliate_id: AFF }), pass('b', purchase.id, { participant_index: 1, affiliate_id: OLD })];
+  const result = await fixture({ commerce_orders: [purchase], commerce_passes: people }).load({ affiliateId: OLD });
+  assert.equal(result.metrics.grossCents, 4000); assert.equal(result.addons.length, 0);
+  const ambiguous = { ...purchase, quote_lines: [line(12000, { quantity: 2 })] };
+  const unindexed = people.map(person => ({ ...person, participant_index: null }));
+  await assert.rejects(fixture({ commerce_orders: [ambiguous], commerce_passes: unindexed }).load({}), /Non è possibile ripartire l’acquisto tra gli affiliati/);
+});
+
+test('four historical masterclass purchases become two active masterclasses after a refund and a package upgrade', async () => {
+  const mc = (cents = 3500, overrides = {}) => line(cents, { packageId: 'solo-mc', label: 'Masterclass · Early Bird', activityIds: ['mc'], participantIndex: 0, ...overrides });
+  const combo = (cents = 6500, overrides = {}) => line(cents, { packageId: 'combo', label: 'Workshop + Masterclass · Early Bird', activityIds: ['ws', 'mc'], participantIndex: 0, ...overrides });
+  const combinedOrders = Array.from({ length: 20 }, (_, index) => {
+    const cents = index < 7 ? 6000 : 6500;
+    return order(`combo-${index}`, cents, { quote_lines: [combo(cents)] });
+  });
+  const baseOrders = [order('refunded-mc', 3000, { state: 'refunded', quote_lines: [mc(3000)] }), ...['mc-a', 'mc-b', 'upgraded-mc'].map(id => order(id, 3500, { quote_lines: [mc()] }))];
+  const upgrade = order('upgrade-combo', 3000, { created_at: '2026-10-22T10:00:00Z', upgrade_pass_id: 'person-upgraded-mc', quote_lines: [combo(3000, { kind: 'upgrade' })] });
+  const people = [
+    ...baseOrders.map(purchase => pass(`person-${purchase.id}`, purchase.id, { participant_index: 0, status: purchase.state === 'refunded' ? 'refunded' : 'paid', package_id: purchase.id === 'upgraded-mc' ? 'combo' : 'solo-mc', package_name: purchase.id === 'upgraded-mc' ? 'Workshop + Masterclass' : 'Masterclass', package_activity_ids: purchase.id === 'upgraded-mc' ? ['ws', 'mc'] : ['mc'] })),
+    ...combinedOrders.map(purchase => pass(`person-${purchase.id}`, purchase.id, { participant_index: 0, package_id: 'combo', package_name: 'Workshop + Masterclass', package_activity_ids: ['ws', 'mc'] })),
+  ];
+  const accesses = [
+    ...baseOrders.map(purchase => right(`${purchase.id}-mc`, `person-${purchase.id}`, purchase.id, 'mc', { status: purchase.state === 'refunded' ? 'refunded' : 'valid' })),
+    right('upgrade-ws', 'person-upgraded-mc', upgrade.id),
+    ...combinedOrders.flatMap(purchase => [right(`${purchase.id}-mc`, `person-${purchase.id}`, purchase.id, 'mc'), right(`${purchase.id}-ws`, `person-${purchase.id}`, purchase.id)]),
+  ];
+  const result = await fixture({ commerce_orders: [...combinedOrders, ...baseOrders, upgrade], commerce_passes: people, commerce_entitlements: accesses, meraki_refunds: [refund('mc-refund', 'refunded-mc', 3000)] }).load({ eventId: A });
+  assert.deepEqual(plain(result.packages), [
+    { id: `${A}:combo`, name: 'Workshop + Masterclass', count: 21, netCents: 133000 },
+    { id: `${A}:solo-mc`, name: 'Masterclass', count: 2, netCents: 7000 },
+  ]);
+  assert.equal(result.packages.reduce((total, entry) => total + entry.count, 0), result.metrics.validParticipants);
+  assert.equal(result.packages.reduce((total, entry) => total + entry.netCents, 0), result.metrics.netCents);
+  assert.equal(result.tiers.reduce((total, entry) => total + entry.count, 0), 23);
+  assert.equal(result.metrics.grossCents, 143000); assert.equal(result.metrics.refundedCents, 3000);
+  assert.deepEqual([result.attendanceGroups[0].masterclassOnly, result.attendanceGroups[0].both], [2, 21]);
+});
+
+test('a refunded package upgrade restores the surviving original package without counting the refund or the failed change', async () => {
+  const initial = order('initial-mc', 3500, { quote_lines: [line(3500, { packageId: 'mc', label: 'Masterclass · Early', activityIds: ['mc'] })] });
+  const upgraded = order('returned-upgrade', 3000, { state: 'refunded', created_at: '2026-10-22T10:00:00Z', upgrade_pass_id: 'person', quote_lines: [line(3000, { kind: 'upgrade', packageId: 'combo', label: 'Combinata · Early', activityIds: ['ws', 'mc'] })] });
+  const result = await fixture({
+    commerce_orders: [initial, upgraded],
+    commerce_passes: [pass('person', initial.id, { package_id: 'mc', package_name: 'Masterclass', package_activity_ids: ['mc'] })],
+    commerce_entitlements: [right('mc', 'person', initial.id, 'mc'), right('ws', 'person', upgraded.id, 'ws', { status: 'refunded' })],
+    meraki_refunds: [refund('returned', upgraded.id, 3000)],
+  }).load({ eventId: A });
+  assert.deepEqual(plain(result.packages), [{ id: `${A}:mc`, name: 'Masterclass', count: 1, netCents: 3500 }]);
+  assert.equal(result.tiers[0].netCents, 3500); assert.equal(result.tiers[0].count, 1);
+  assert.equal(result.metrics.grossCents, 6500); assert.equal(result.metrics.refundedCents, 3000);
+});
+
+test('partial monetary refunds preserve an active formula while free formulas remain valid people', async () => {
+  const result = await fixture({
+    commerce_orders: [order('partial-money', 4500), order('free-formula', 0), order('never-issued', 1000)],
+    commerce_passes: [pass('partial-person', 'partial-money', { package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] }), pass('free-person', 'free-formula', { package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] })],
+    commerce_entitlements: [right('partial-ws', 'partial-person', 'partial-money', 'ws', { status: 'used' }), right('free-ws', 'free-person', 'free-formula')],
+    meraki_refunds: [refund('partial-success', 'partial-money', 1000), refund('partial-pending', 'partial-money', 3500, { status: 'pending' })],
+  }).load({ eventId: A });
+  assert.deepEqual(plain(result.packages), [{ id: `${A}:ws`, name: 'Workshop', count: 2, netCents: 3500 }]);
+  assert.equal(result.metrics.validParticipants, 2);
+  assert.equal(result.metrics.grossCents, 5500, 'captured but unissued funds remain in financial reporting only');
+  assert.equal(result.metrics.refundedCents, 1000);
+});
+
+test('revoked package admissions cannot reappear as a complete formula or through a surviving dinner extra', async () => {
+  const partial = await fixture({
+    commerce_orders: [order('partial-access', 6500, { quote_lines: [line(6500, { packageId: 'combo', label: 'Combinata · Early', activityIds: ['ws', 'mc'] })] })],
+    commerce_passes: [pass('partial-person', 'partial-access', { package_id: 'combo', package_name: 'Combinata', package_activity_ids: ['ws', 'mc'] })],
+    commerce_entitlements: [right('remaining-ws', 'partial-person', 'partial-access'), right('revoked-mc', 'partial-person', 'partial-access', 'mc', { status: 'refunded' })],
+    meraki_refunds: [refund('partial-access-return', 'partial-access', 3000)],
+  }).load({ eventId: A });
+  assert.deepEqual(plain(partial.packages), [{ id: `${A}:partial:ws`, name: 'Accessi parziali: Workshop', count: 1, netCents: 3500 }]);
+  assert.equal(partial.tiers.length, 0);
+
+  const dinner = await fixture({
+    commerce_orders: [order('returned-base', 3500, { state: 'refunded', quote_lines: [line(3500, { packageId: 'mc', label: 'Masterclass', activityIds: ['mc'] })] }), order('kept-dinner', 2000, { upgrade_pass_id: 'dinner-person', quote_lines: [line(0, { kind: 'upgrade', packageId: 'mc', tierId: 'owned', activityIds: ['mc'] }), line(2000, { kind: 'addon', packageId: undefined, tierId: undefined, addonId: 'dinner', label: 'Cena', activityIds: ['dinner'] })] })],
+    commerce_passes: [pass('dinner-person', 'returned-base', { package_id: 'mc', package_name: 'Masterclass', package_activity_ids: ['mc'] })],
+    commerce_entitlements: [right('returned-mc', 'dinner-person', 'returned-base', 'mc', { status: 'refunded' }), right('kept-dinner', 'dinner-person', 'kept-dinner', 'dinner')],
+    meraki_refunds: [refund('base-return', 'returned-base', 3500)],
+  }).load({ eventId: A });
+  assert.deepEqual(plain(dinner.packages), []); assert.deepEqual(plain(dinner.tiers), []);
+  assert.deepEqual(plain(dinner.addons), [{ id: `${A}:dinner`, name: 'Cena', count: 1, netCents: 2000 }]);
+  assert.equal(dinner.metrics.validParticipants, 1); assert.equal(dinner.attendanceGroups[0].otherParticipants, 1);
+});
+
+test('current package and extras follow the original group cohort and current person affiliate across later upgrades', async () => {
+  const initial = order('group-start', 7000, { affiliate_id: AFF, created_at: '2026-10-01T10:00:00Z', quote_lines: [line(3500, { participantIndex: 0, packageId: 'mc', label: 'Masterclass · Early', activityIds: ['mc'] }), line(3500, { participantIndex: 1, packageId: 'mc', label: 'Masterclass · Early', activityIds: ['mc'] })] });
+  const upgrade = order('package-change', 3000, { affiliate_id: AFF, created_at: '2026-10-15T10:00:00Z', upgrade_pass_id: 'moved-person', quote_lines: [line(3000, { kind: 'upgrade', packageId: 'combo', label: 'Combinata · Standard', tierId: 'standard', activityIds: ['ws', 'mc'], participantIndex: 0 })] });
+  const dinner = order('later-dinner', 2000, { affiliate_id: AFF, upgrade_pass_id: 'moved-person', quote_lines: [line(0, { kind: 'upgrade', tierId: 'owned', packageId: 'combo', activityIds: ['ws', 'mc'], participantIndex: 0 }), line(2000, { kind: 'addon', packageId: undefined, tierId: undefined, addonId: 'dinner', label: 'Cena', activityIds: ['dinner'], participantIndex: 0 })] });
+  const data = {
+    commerce_orders: [initial, upgrade, dinner],
+    commerce_passes: [pass('moved-person', initial.id, { participant_index: 0, affiliate_id: OLD, package_id: 'combo', package_name: 'Combinata', package_activity_ids: ['ws', 'mc'] }), pass('unchanged-person', initial.id, { participant_index: 1, affiliate_id: AFF, package_id: 'mc', package_name: 'Masterclass', package_activity_ids: ['mc'] })],
+    commerce_entitlements: [right('moved-mc', 'moved-person', initial.id, 'mc'), right('unchanged-mc', 'unchanged-person', initial.id, 'mc'), right('moved-ws', 'moved-person', upgrade.id), right('moved-dinner', 'moved-person', dinner.id, 'dinner')],
+  };
+  const current = await fixture(data).load({ eventId: A, affiliateId: OLD });
+  assert.deepEqual(plain(current.packages), [{ id: `${A}:combo`, name: 'Combinata', count: 1, netCents: 6500 }]);
+  assert.deepEqual(plain(current.tiers), [{ id: `${A}:combo:standard`, name: 'Combinata · Standard', count: 1, netCents: 6500 }]);
+  assert.deepEqual(plain(current.addons), [{ id: `${A}:dinner`, name: 'Cena', count: 1, netCents: 2000 }]);
+  const otherPerson = await fixture(data).load({ eventId: A, affiliateId: AFF });
+  assert.deepEqual(plain(otherPerson.packages), [{ id: `${A}:mc`, name: 'Masterclass', count: 1, netCents: 3500 }]);
+  assert.deepEqual(plain(otherPerson.addons), []);
+  const firstPurchase = await fixture(data).load({ eventId: A, affiliateId: OLD, period: 'custom', from: '2026-10-01', to: '2026-10-01' });
+  assert.deepEqual(plain(firstPurchase.packages), plain(current.packages)); assert.deepEqual(plain(firstPurchase.addons), plain(current.addons));
+  assert.equal(firstPurchase.metrics.grossCents, 3500, 'financial KPIs retain transaction dates while current formulas include later upgrades');
+  const onlyLaterPayment = await fixture(data).load({ eventId: A, affiliateId: OLD, period: 'custom', from: '2026-10-21', to: '2026-10-21' });
+  assert.equal(onlyLaterPayment.metrics.grossCents, 2000); assert.equal(onlyLaterPayment.metrics.validParticipants, 0);
+  assert.deepEqual(plain(onlyLaterPayment.packages), []); assert.deepEqual(plain(onlyLaterPayment.addons), []);
+});
+
+test('active product refunds use the same affiliate-first cent rounding as financial group reporting', async () => {
+  const purchase = order('rounding-group', 9000, { affiliate_id: AFF, quote_lines: [
+    line(5000, { participantIndex: 0 }), line(3000, { participantIndex: 1 }), line(1000, { participantIndex: 2 }),
+  ] });
+  const data = {
+    commerce_orders: [purchase],
+    commerce_passes: [
+      pass('first-a', purchase.id, { participant_index: 0, affiliate_id: AFF, package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] }),
+      pass('middle-b', purchase.id, { participant_index: 1, affiliate_id: OLD, package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] }),
+      pass('last-a', purchase.id, { participant_index: 2, affiliate_id: AFF, package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] }),
+    ],
+    commerce_entitlements: [right('first-ws', 'first-a', purchase.id), right('middle-ws', 'middle-b', purchase.id), right('last-ws', 'last-a', purchase.id)],
+    meraki_refunds: [refund('one-cent', purchase.id, 1)],
+  };
+  const a = await fixture(data).load({ eventId: A, affiliateId: AFF });
+  const b = await fixture(data).load({ eventId: A, affiliateId: OLD });
+  assert.deepEqual(plain(a.packages), [{ id: `${A}:ws`, name: 'Workshop', count: 2, netCents: 6000 }]);
+  assert.deepEqual(plain(b.packages), [{ id: `${A}:ws`, name: 'Workshop', count: 1, netCents: 2999 }]);
+  assert.equal(a.metrics.netCents, a.packages[0].netCents); assert.equal(b.metrics.netCents, b.packages[0].netCents);
+  assert.equal(a.metrics.refundedCents, 0); assert.equal(b.metrics.refundedCents, 1);
+  const all = await fixture(data).load({ eventId: A });
+  assert.deepEqual(plain(all.packages), [{ id: `${A}:ws`, name: 'Workshop', count: 3, netCents: 8999 }]);
+  assert.equal(all.packages[0].netCents, all.metrics.netCents);
+});
+
+test('successive paid package upgrades with unchanged activities retain every delta in the final package and tier', async () => {
+  const base = order('original-ws', 3500, { created_at: '2026-10-21T10:00:00Z', quote_lines: [line(3500)] });
+  const premium = order('premium-ws', 1000, { created_at: '2026-10-21T11:00:00Z', upgrade_pass_id: 'premium-person', quote_lines: [line(1000, { kind: 'upgrade', packageId: 'premium', label: 'Workshop Premium · Standard', tierId: 'standard' })] });
+  const premium2 = order('premium2-ws', 1000, { created_at: '2026-10-21T12:00:00Z', upgrade_pass_id: 'premium-person', quote_lines: [line(1000, { kind: 'upgrade', packageId: 'premium2', label: 'Workshop Premium 2 · Late', tierId: 'late' })] });
+  const result = await fixture({
+    commerce_orders: [premium2, base, premium],
+    commerce_passes: [pass('premium-person', base.id, { package_id: 'premium2', package_name: 'Workshop Premium 2', package_activity_ids: ['ws'] })],
+    commerce_entitlements: [right('original-ws-access', 'premium-person', base.id)],
+  }).load({ eventId: A });
+  assert.deepEqual(plain(result.packages), [{ id: `${A}:premium2`, name: 'Workshop Premium 2', count: 1, netCents: 5500 }]);
+  assert.deepEqual(plain(result.tiers), [{ id: `${A}:premium2:late`, name: 'Workshop Premium 2 · Late', count: 1, netCents: 5500 }]);
+  assert.equal(result.metrics.netCents, 5500); assert.equal(result.metrics.paidOrders, 3); assert.equal(result.metrics.validParticipants, 1);
+  assert.equal(result.activities.find(activity => activity.id === 'ws').occupied, 1);
+});
+
+test('an ambiguous unindexed historical group outside the selected cohort cannot block unrelated current formulas', async () => {
+  const historical = order('old-ambiguous-group', 10000, { affiliate_id: AFF, created_at: '2026-09-01T10:00:00Z', quote_lines: [line(10000, { quantity: 2 })] });
+  const selected = order('selected-purchase', 4000);
+  const data = {
+    commerce_orders: [historical, selected],
+    commerce_passes: [
+      pass('old-a', historical.id, { participant_index: null, affiliate_id: AFF, package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] }),
+      pass('old-b', historical.id, { participant_index: null, affiliate_id: OLD, package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] }),
+      pass('selected-person', selected.id, { participant_index: 0, package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] }),
+    ],
+    commerce_entitlements: [right('old-a-ws', 'old-a', historical.id), right('old-b-ws', 'old-b', historical.id), right('selected-ws', 'selected-person', selected.id)],
+  };
+  const result = await fixture(data).load({ eventId: A, period: 'custom', from: '2026-10-21', to: '2026-10-21' });
+  assert.deepEqual(plain(result.packages), [{ id: `${A}:ws`, name: 'Workshop', count: 1, netCents: 4000 }]);
+  assert.equal(result.metrics.netCents, 4000); assert.equal(result.metrics.paidOrders, 1); assert.equal(result.metrics.validParticipants, 1);
+  assert.equal(result.attendanceGroups[0].currentParticipants, 3, 'current event occupancy still includes people outside the selected purchase cohort');
+  await assert.rejects(fixture(data).load({ eventId: A }), /Non è possibile ripartire l’acquisto tra gli affiliati/);
+});
+
+test('unfulfilled same-activity upgrades awaiting refund never increase the active package amount', async () => {
+  for (const state of ['refund_required', 'refund_pending']) {
+    const initial = order('unchanged-workshop', 3500);
+    const attempted = order('unfulfilled-premium', 1000, { state, upgrade_pass_id: 'unchanged-person', created_at: '2026-10-22T10:00:00Z', quote_lines: [line(1000, { kind: 'upgrade', packageId: 'premium', label: 'Workshop Premium · Standard', tierId: 'standard' })] });
+    const result = await fixture({
+      commerce_orders: [initial, attempted],
+      commerce_passes: [pass('unchanged-person', initial.id, { package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] })],
+      commerce_entitlements: [right('unchanged-ws', 'unchanged-person', initial.id)],
+    }).load({ eventId: A });
+    assert.deepEqual(plain(result.packages), [{ id: `${A}:ws`, name: 'Workshop', count: 1, netCents: 3500 }], state);
+    assert.deepEqual(plain(result.tiers), [{ id: `${A}:ws:early`, name: 'Workshop · Early Bird', count: 1, netCents: 3500 }], state);
+    assert.equal(result.metrics.netCents, 4500, state); assert.equal(result.metrics.refundedCents, 0, state);
+    assert.equal(result.metrics.validParticipants, 1, state);
+  }
+});
+
+test('refunding one selected group member leaves the other active formula at its full paid amount', async () => {
+  for (const aggregate of [false, true]) {
+    const purchase = order('targeted-group', 7000, { affiliate_id: AFF, quote_lines: aggregate ? [line(7000, { quantity: 2 })] : [line(3500, { participantIndex: 0 }), line(3500, { participantIndex: 1 })] });
+    const result = await fixture({
+      commerce_orders: [purchase],
+      commerce_passes: [
+        pass('remaining-person', purchase.id, { participant_index: 0, affiliate_id: AFF, package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] }),
+        pass('refunded-person', purchase.id, { participant_index: 1, affiliate_id: AFF, status: 'refunded', package_id: 'ws', package_name: 'Workshop', package_activity_ids: ['ws'] }),
+      ],
+      commerce_entitlements: [right('remaining-ws', 'remaining-person', purchase.id), right('refunded-ws', 'refunded-person', purchase.id, 'ws', { status: 'refunded' })],
+      meraki_refunds: [refund('one-member-return', purchase.id, 3500, { revoke_entitlement_ids: ['refunded-ws'] })],
+    }).load({ eventId: A });
+    assert.deepEqual(plain(result.packages), [{ id: `${A}:ws`, name: 'Workshop', count: 1, netCents: 3500 }], `aggregate=${aggregate}`);
+    assert.equal(result.tiers[0].count, 1); assert.equal(result.tiers[0].netCents, 3500);
+    assert.equal(result.metrics.netCents, 3500); assert.equal(result.metrics.refundedCents, 3500);
+    assert.equal(result.metrics.validParticipants, 1); assert.equal(result.attendanceGroups[0].workshopOnly, 1);
+  }
 });
