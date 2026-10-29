@@ -81,6 +81,7 @@ function eventFormFixture({ realLogistics = false } = {}) {
     "@/components/admin/wizard-steps": load("components/admin/wizard-steps.tsx"),
     "@/components/admin/event-logistics-editor": realLogistics ? load("components/admin/event-logistics-editor.tsx", { "@/components/admin/form-elements": elements }) : { EventLogisticsEditor: () => null },
     "@/components/admin/poster-upload": { PosterUpload: () => null },
+    "@/components/admin/event-affiliates-picker": load("components/admin/event-affiliates-picker.tsx", { "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) } }),
     "@/lib/events/logistics": logistics,
     "@/lib/commerce/config": config,
     "@/lib/commerce/rome-time": rome,

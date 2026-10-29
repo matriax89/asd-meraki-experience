@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://meraki.test/it/admin/affiliati", pretendToBeVisual: true });
 const { window } = dom;
 const descriptors = new Map();
-for (const [key, value] of Object.entries({ window, document: window.document, navigator: window.navigator, HTMLElement: window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
+for (const [key, value] of Object.entries({ window, document: window.document, navigator: window.navigator, HTMLElement: window.HTMLElement, FormData: window.FormData, IS_REACT_ACT_ENVIRONMENT: true })) {
   descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
   Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
 }
@@ -27,9 +27,9 @@ after(() => {
 });
 function load(file, mocks = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  const module = { exports: {} };
-  vm.runInNewContext(source, { module, exports: module.exports, URL, window, console, require: name => name in mocks ? mocks[name] : name in nativeFormControlMocks ? nativeFormControlMocks[name] : require(name) });
-  return module.exports;
+  const loadedModule = { exports: {} };
+  vm.runInNewContext(source, { module: loadedModule, exports: loadedModule.exports, URL, window, console, require: name => name in mocks ? mocks[name] : name in nativeFormControlMocks ? nativeFormControlMocks[name] : require(name) });
+  return loadedModule.exports;
 }
 const eventA = { id: "b44b9ba0-11cc-4da7-80d0-a3acf193c379", title: "Meraki Inverno", startsAt: "2026-12-19T23:30:00Z" };
 const eventB = { id: "c732f0f8-fb0d-45fe-8e49-cdc1d8cc8d02", title: "Meraki Estate", startsAt: "2027-06-01T10:00:00Z" };
@@ -45,15 +45,18 @@ const participants = [
   { id: "ada", name: "Ada Rossi", email: "ada@example.test", packageName: "Workshop + Masterclass", status: "paid", checkedIn: true, activities: [{ id: "right-ws", name: "Workshop", status: "used", checkedInAt: "2026-12-20T00:00:00Z", menuChoice: null }] },
   { id: "rita", name: "Rita Bianchi", email: "rita@example.test", packageName: "Masterclass", status: "refunded", checkedIn: false, activities: [{ id: "right-mc", name: "Masterclass", status: "refunded", checkedInAt: null, menuChoice: null }] },
 ];
-async function setup(context, kind, props) {
+async function setup(context, kind, props, options = {}) {
   window.history.replaceState(null, "", "/it/admin/affiliati?source=events");
   window.document.body.innerHTML = '<div id="root"></div>';
   const navigation = [];
   const component = load("app/[locale]/admin/affiliati/affiliates-client.tsx", {
-    "next/navigation": { useRouter: () => ({ replace: (...args) => navigation.push(args) }) },
+    "next/navigation": { useRouter: () => ({ replace: (...args) => navigation.push(args), refresh: () => navigation.push(["refresh"]) }) },
+    "@/app/api/admin/affiliati/actions": { deleteAffiliate: options.deleteAffiliate || (async () => ({success:true})), restoreAffiliate: options.restoreAffiliate || (async () => ({success:true})) },
+    "@/components/admin/affiliate-wizard": { AffiliateWizard: props => React.createElement("section", {"aria-label":"Wizard affiliato"}, React.createElement("button", {onClick: () => props.onSaved({id:affiliateA,name:"Nuova scuola",createdAt:"2026-10-26",deletedAt:null})}, "Salva wizard"), React.createElement("button", {onClick:props.onCancel}, "Annulla wizard")) },
     "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) },
   });
-  const Component = kind === "index" ? component.AffiliatesDirectoryClient : component.AffiliateParticipantsClient;
+  const Component = kind === "index" ? component.AffiliatesDirectoryClient : kind === "profile" ? component.AffiliateProfileClient : component.AffiliateParticipantsClient;
+  if (kind === "index") props = { affiliates: [], ...props };
   const root = createRoot(window.document.getElementById("root"));
   await act(async () => root.render(React.createElement(Component, props)));
   context.after(async () => { await act(async () => root.unmount()); });
@@ -64,27 +67,25 @@ async function setup(context, kind, props) {
       input.dispatchEvent(new window.Event("input", { bubbles: true }));
     });
   };
-  return { navigation, search, rerender: async next => { await act(async () => root.render(React.createElement(Component, next))); } };
+  return { navigation, search, rerender: async next => { await act(async () => root.render(React.createElement(Component, { affiliates: [], ...next }))); } };
 }
 
-test("affiliate directory keeps same-name affiliates separate by event and opens the exact participant list", async context => {
-  await setup(context, "index", { events: [eventA, eventB], rows, selectedEventId: "" });
-  const links = [...window.document.querySelectorAll('a[aria-label^="Apri iscritti"]')];
-  assert.equal(links.length, 4);
-  assert.equal(links[0].getAttribute("href"), `/admin/affiliati/${affiliateA}?event=${eventA.id}`);
-  assert.equal(links[1].getAttribute("href"), `/admin/affiliati/${affiliateB}?event=${eventB.id}`);
-  assert.ok(links[0].textContent.includes("20/12/2026"), "show the Rome calendar day");
-  assert.ok(window.document.body.textContent.includes("Archiviato"));
-  assert.ok(window.document.body.textContent.includes("Disattivato"));
-  assert.ok(window.document.body.textContent.includes("0 iscritti validi"));
+test("directory groups the same UUID across events and keeps same-name identities distinct", async context => {
+  await setup(context, "index", { events: [eventA, eventB], rows: [...rows, row(eventB, affiliateA)], selectedEventId: "", affiliates: [{ id: "new", name: "Scuola appena creata", createdAt: "2026-10-26" }] });
+  const links = [...window.document.querySelectorAll('a[aria-label^="Apri fascicolo"]')];
+  assert.equal(links.length, 5);
+  assert.equal(links.filter(link => link.getAttribute("href") === `/admin/affiliati/${affiliateA}`).length, 1);
+  assert.equal(links.filter(link => link.getAttribute("href") === `/admin/affiliati/${affiliateB}`).length, 1);
+  assert.ok(links.find(link => link.getAttribute("href") === `/admin/affiliati/${affiliateA}`).textContent.includes("2 eventi associati"));
+  assert.ok(links.some(link => link.textContent.includes("Da associare a un evento")));
   assert.equal(window.document.querySelector("video,canvas"), null);
 });
 
 test("affiliate search is local and event changes navigate with an explicit event filter", async context => {
   const ui = await setup(context, "index", { events: [eventA, eventB], rows, selectedEventId: "" });
   await ui.search("scuola nuova");
-  assert.equal(window.document.querySelectorAll('a[aria-label^="Apri iscritti"]').length, 1);
-  assert.ok(window.document.querySelector('[role="status"]').textContent.includes("1 elenco disponibile"));
+  assert.equal(window.document.querySelectorAll('a[aria-label^="Apri fascicolo"]').length, 1);
+  assert.ok(window.document.querySelector('[role="status"]').textContent.includes("1 affiliato"));
   const select = window.document.getElementById("affiliates-event");
   await act(async () => { select.value = eventB.id; select.dispatchEvent(new window.Event("change", { bubbles: true })); });
   const next = new URL(ui.navigation[0][0], window.location.origin);
@@ -92,21 +93,103 @@ test("affiliate search is local and event changes navigate with an explicit even
   assert.equal(next.searchParams.get("event"), eventB.id);
   assert.equal(next.searchParams.get("source"), "events");
   await ui.rerender({ events: [eventA, eventB], rows: [rows[1]], selectedEventId: eventB.id });
-  assert.equal(window.document.querySelectorAll('a[aria-label^="Apri iscritti"]').length, 1);
-  assert.ok(window.document.querySelector('a[aria-label^="Apri iscritti"]').textContent.includes(eventB.title));
+  assert.equal(window.document.querySelectorAll('a[aria-label^="Apri fascicolo"]').length, 1);
+  assert.ok(window.document.querySelector('a[aria-label^="Apri fascicolo"]').textContent.includes(eventB.title));
 });
 
 test("empty affiliate lists distinguish no configuration from an unmatched search", async context => {
   const ui = await setup(context, "index", { events: [], rows: [], selectedEventId: "" });
-  assert.ok(window.document.body.textContent.includes("Non ci sono affiliati per questo elenco."));
+  assert.ok(window.document.body.textContent.includes("La tua rete di affiliati parte da qui."));
   await ui.search("non presente");
   assert.ok(window.document.body.textContent.includes("Nessun affiliato corrisponde alla ricerca."));
+});
+
+test("directory opens setup wizard and adds the saved dossier immediately", async context => {
+  await setup(context, "index", { events: [eventA], rows: [], affiliates: [], selectedEventId: "" });
+  const open = () => [...window.document.querySelectorAll("button")].find(button => button.textContent === "Nuovo affiliato");
+  await act(async () => open().click());
+  assert.ok(window.document.querySelector('[aria-label="Wizard affiliato"]'));
+  await act(async () => [...window.document.querySelectorAll("button")].find(button => button.textContent === "Salva wizard").click());
+  assert.ok(window.document.querySelector(`a[aria-label="Apri fascicolo di Nuova scuola"][href="/admin/affiliati/${affiliateA}"]`));
+  assert.ok(window.document.body.textContent.includes("affiliato creato"));
+  assert.equal(window.document.activeElement, open());
+});
+
+test("trash filter hides deleted affiliates even with historical event rows and exposes their dossiers", async context => {
+  await setup(context,"index",{events:[eventA],rows:[row(eventA,affiliateA)],selectedEventId:"",affiliates:[{id:affiliateA,name:"Nel cestino",createdAt:"2026-10-26",deletedAt:"2026-10-26"},{id:affiliateB,name:"Attivo",createdAt:"2026-10-26"}]});
+  assert.equal(window.document.querySelectorAll('a[aria-label^="Apri fascicolo"]').length,1);
+  assert.ok(window.document.querySelector('a[aria-label="Apri fascicolo di Attivo"]'));
+  await act(async () => [...window.document.querySelectorAll("button")].find(button => button.textContent.includes("Cestino (1)")).click());
+  assert.equal(window.document.querySelectorAll('a[aria-label^="Apri fascicolo"]').length,1);
+  assert.ok(window.document.querySelector('a[aria-label="Apri fascicolo di Nel cestino"]'));
+});
+
+test("dossier deletion requires its inline confirmation and can be restored with history retained", async context => {
+  const calls=[];
+  await setup(context,"profile",{affiliate,rows:[row(eventA,affiliateA)],events:[eventA]}, {deleteAffiliate:async id=>{calls.push(["delete",id]);return{success:true};},restoreAffiliate:async id=>{calls.push(["restore",id]);return{success:true};}});
+  const button=label=>[...window.document.querySelectorAll("button")].find(node=>node.textContent===label);
+  await act(async()=>button("Elimina affiliato").click());
+  assert.equal(calls.length,0);
+  assert.ok(window.document.querySelector('[aria-label="Conferma eliminazione affiliato"]'));
+  await act(async()=>button("Sposta nel cestino").click());
+  assert.deepEqual(calls,[["delete",affiliateA]]);
+  assert.ok(button("Ripristina affiliato"));
+  assert.ok(window.document.querySelector(`a[href="/admin/affiliati/${affiliateA}?event=${eventA.id}"]`));
+  await act(async()=>button("Ripristina affiliato").click());
+  assert.deepEqual(calls,[["delete",affiliateA],["restore",affiliateA]]);
+  assert.ok(button("Modifica affiliato"));
+});
+
+test("failed dossier deletion shows the error and keeps restore unavailable", async context => {
+  await setup(context,"profile",{affiliate,rows:[],events:[]},{deleteAffiliate:async()=>({success:false,error:"Operazione non disponibile."})});
+  const button=label=>[...window.document.querySelectorAll("button")].find(node=>node.textContent===label);
+  await act(async()=>button("Elimina affiliato").click());
+  await act(async()=>button("Sposta nel cestino").click());
+  assert.ok(window.document.querySelector('[role="alert"]').textContent.includes("Operazione non disponibile"));
+  assert.equal(button("Ripristina affiliato"),undefined);
+});
+
+test("profile searches events while retaining complete totals and historical events", async context => {
+  const ui = await setup(context, "profile", { affiliate, rows: [row(eventA, affiliateA), row(eventB, affiliateA, { active: false })] });
+  assert.ok(window.document.body.textContent.includes("Disabilitato"));
+  const before = [...window.document.querySelectorAll("dl:first-of-type dd")].map(item => item.textContent);
+  await ui.search("estate");
+  assert.equal(window.document.querySelectorAll('a[aria-label^="Apri iscritti"]').length, 1);
+  assert.equal(window.document.querySelector('a[aria-label^="Apri iscritti"]').getAttribute("href"), `/admin/affiliati/${affiliateA}?event=${eventB.id}`);
+  assert.deepEqual([...window.document.querySelectorAll("dl:first-of-type dd")].slice(0, 3).map(item => item.textContent), before.slice(0, 3));
+});
+
+test("directory and dossier keep euro and credit earnings separate across events", async context => {
+  const mixed = [row(eventA, affiliateA), row(eventB, affiliateA, { commissionType: "credits", commissionPerParticipantCents: 0, commissionPerParticipantCredits: 3, commissionCredits: 6 })];
+  const ui = await setup(context, "index", { events: [eventA, eventB], rows: mixed, selectedEventId: "" });
+  const earned = [...window.document.querySelectorAll("dt")].find(node => node.textContent === "Compenso maturato").nextElementSibling;
+  assert.match(earned.textContent, /10,00\s*€/);
+  assert.match(earned.textContent, /6 crediti/);
+  const profileLink = window.document.querySelector(`a[href="/admin/affiliati/${affiliateA}"]`);
+  assert.match(profileLink.textContent, /6 crediti/);
+  await ui.search("estate");
+  assert.match(earned.textContent, /6 crediti/, "search does not change the total");
+});
+
+test("credit dossier shows its default and per-event rate without a euro conversion", async context => {
+  await setup(context, "profile", { affiliate: { ...affiliate, defaultCommissionType: "credits", defaultCommissionCredits: 2, defaultCommissionCents: 0 }, rows: [row(eventA, affiliateA, { commissionType: "credits", commissionPerParticipantCents: 0, commissionPerParticipantCredits: 2, commissionCredits: 4 })] });
+  const valueFor = label => [...window.document.querySelectorAll("dt")].find(node => node.textContent === label).nextElementSibling.textContent;
+  assert.equal(valueFor("Compenso predefinito per iscritto"), "2 crediti");
+  assert.match(valueFor("Compenso maturato"), /^4 crediti/);
+  assert.equal(valueFor("Compenso per iscritto valido"), "2 crediti");
+  assert.equal(window.document.body.textContent.includes("€"), false);
+});
+
+test("participant list calculates credits for valid participants with the correct unit", async context => {
+  await setup(context, "detail", { event: eventA, affiliate: { ...affiliate, commissionType: "credits", commissionPerParticipantCents: 0, commissionCents: 0, commissionPerParticipantCredits: 1, commissionCredits: 1 }, participants, validCount: 1, checkedInCount: 1, totalCount: 2 });
+  assert.match(window.document.body.textContent, /1 iscritto valido × 1 credito = 1 credito\./);
+  assert.equal(window.document.body.textContent.includes("€"), false);
 });
 
 test("an affiliate detail searches participants without changing totals and preserves event scope in back/check-in links", async context => {
   const ui = await setup(context, "detail", { event: eventA, affiliate, participants, validCount: 1, checkedInCount: 1, totalCount: 2 });
   const links = [...window.document.querySelectorAll("a")];
-  assert.ok(links.some(link => link.getAttribute("href") === `/admin/affiliati?event=${eventA.id}`));
+  assert.ok(links.some(link => link.getAttribute("href") === `/admin/affiliati/${affiliateA}`));
   assert.ok(links.some(link => link.getAttribute("href") === `/admin/biglietti?event=${eventA.id}&affiliate=${affiliateA}`));
   assert.ok(window.document.body.textContent.includes("Rimborsato"));
   assert.ok(window.document.body.textContent.includes("Check-in non disponibile"));
@@ -123,13 +206,13 @@ test("an affiliate detail searches participants without changing totals and pres
 test("configured affiliates with no participants still show a scoped empty detail", async context => {
   await setup(context, "detail", { event: eventA, affiliate: { ...affiliate, active: false }, participants: [], validCount: 0, checkedInCount: 0, totalCount: 0 });
   assert.ok(window.document.body.textContent.includes("Non ci sono ancora iscritti per questo affiliato."));
-  assert.ok(window.document.body.textContent.includes("Disattivato"));
+  assert.ok(window.document.body.textContent.includes("Disabilitato"));
 });
 
 test("async route adapters forward explicit event/affiliate scope and never turn unknown details into a broader list", async () => {
   const calls = [];
   const clients = { AffiliatesDirectoryClient: props => React.createElement("p", null, `directory:${props.selectedEventId}`), AffiliateParticipantsClient: props => React.createElement("p", null, `detail:${props.affiliate.name}`) };
-  const mocks = { "./affiliates-client": clients, "../affiliates-client": clients, "next/navigation": { notFound() { throw new Error("NOT_FOUND"); } }, "@/lib/events/affiliate-directory": {
+  const mocks = { "@/lib/events/affiliate-registry": { loadAffiliateRegistry: async () => [] }, "./affiliates-client": clients, "../affiliates-client": clients, "next/navigation": { notFound() { throw new Error("NOT_FOUND"); } }, "@/lib/events/affiliate-directory": {
     loadAffiliateDirectory: async (...args) => { calls.push(["index", ...args]); return { events: [], rows: [], selectedEventId: args[1] || "" }; },
     loadAffiliateParticipants: async (...args) => { calls.push(["detail", ...args]); return args[2] === "missing" ? null : { event: eventA, affiliate, participants: [], validCount: 0, checkedInCount: 0, totalCount: 0 }; },
   } };
@@ -143,7 +226,7 @@ test("async route adapters forward explicit event/affiliate scope and never turn
 
 test("route failures display an error without leaking private records or exception contents", async () => {
   const error = async () => { throw new Error("private-participant@example.test"); };
-  const mocks = { "./affiliates-client": {}, "../affiliates-client": {}, "next/navigation": {}, "@/lib/events/affiliate-directory": { loadAffiliateDirectory: error, loadAffiliateParticipants: error } };
+  const mocks = { "@/lib/events/affiliate-registry": { loadAffiliateRegistry: error }, "./affiliates-client": {}, "../affiliates-client": {}, "next/navigation": {}, "@/lib/events/affiliate-directory": { loadAffiliateDirectory: error, loadAffiliateParticipants: error } };
   for (const [path, params] of [["page.tsx", { locale: "it" }], ["[id]/page.tsx", { locale: "it", id: affiliateA }]]) {
     const page = load(`app/[locale]/admin/affiliati/${path}`, mocks).default;
     const html = renderToStaticMarkup(await page({ params: Promise.resolve(params), searchParams: Promise.resolve({ event: eventA.id }) }));
@@ -152,10 +235,27 @@ test("route failures display an error without leaking private records or excepti
   }
 });
 
-test("directory shows event-specific rate and earned compensation outside the participant-list link", async context => {
-  await setup(context, "index", { events: [eventA], rows: [row(eventA, affiliateA, { validCount: 8, totalCount: 9 }), row(eventA, affiliateB, { name: "Scuola senza compenso", commissionPerParticipantCents: 0 })], selectedEventId: eventA.id });
-  const entries = [...window.document.querySelectorAll('section[aria-label="Elenco affiliati"] > ul > li')];
-  assert.ok(entries[0].textContent.includes("8 iscritti validi"));
+test("affiliate route without event opens a dossier and rejects ambiguous event parameters", async () => {
+  const calls = [];
+  const page = load("app/[locale]/admin/affiliati/[id]/page.tsx", {
+    "../affiliates-client": { AffiliateProfileClient: props => React.createElement("p", null, `profile:${props.affiliate.name}`) },
+    "next/navigation": { notFound() { throw new Error("NOT_FOUND"); } },
+    "@/lib/events/affiliate-directory": {
+      loadAffiliateProfile: async (...args) => { calls.push(args); return { affiliate, rows: [] }; },
+      loadAffiliateParticipants: async (_locale, event) => { assert.equal(event, ""); return null; },
+    },
+  }).default;
+  const html = renderToStaticMarkup(await page({ params: Promise.resolve({ locale: "it", id: affiliateA }), searchParams: Promise.resolve({}) }));
+  assert.ok(html.includes(`profile:${affiliate.name}`));
+  assert.deepEqual(calls, [["it", affiliateA]]);
+  await assert.rejects(page({ params: Promise.resolve({ locale: "it", id: affiliateA }), searchParams: Promise.resolve({ event: [eventA.id, eventB.id] }) }), /NOT_FOUND/);
+});
+
+test("profile shows event-specific compensation and links each event to its scoped participants", async context => {
+  await setup(context, "profile", { affiliate, rows: [row(eventA, affiliateA, { validCount: 8, totalCount: 9 }), row(eventB, affiliateA, { commissionPerParticipantCents: 0 })] });
+  const entries = [...window.document.querySelectorAll('section[aria-labelledby="affiliate-events-title"] > ul > li')];
+  assert.equal(entries[0].querySelector('a[aria-label^="Apri iscritti"]').getAttribute("href"), `/admin/affiliati/${affiliateA}?event=${eventA.id}`);
+  assert.ok(entries[0].textContent.includes("20/12/2026"));
   assert.ok(entries[0].textContent.includes("5,00")); assert.ok(entries[0].textContent.includes("40,00"));
   assert.ok(entries[0].textContent.includes("Compenso maturato"));
   const settings = entries[0].querySelector('a[aria-label^="Imposta compenso"]');

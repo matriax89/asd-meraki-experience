@@ -3,6 +3,7 @@ import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
 import { parseCommerceConfig } from "@/lib/commerce/config";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { parseEventAffiliates } from "@/lib/events/affiliates";
+import { loadAssignableParticipantAffiliates } from "@/app/api/admin/participants/affiliate-actions";
 import type { AdminTicket, CheckInEntitlement } from "@/lib/tickets/check-in-types";
 import { TicketsClient } from "./tickets-client";
 
@@ -46,10 +47,11 @@ export default async function AdminBigliettiPage({ searchParams }: {
   const events = eventResult.data.map((event) => ({ ...event, titolo: getLocalizedText(event.titolo, locale), affiliates: parseEventAffiliates(event.affiliates), activities: [] as { id: string; name: string }[] }));
   if (!initialEventId) return <TicketsClient initialTickets={[]} events={events} initialEventId="" />;
 
-  const [ticketResult, configResult, commerceResult] = await Promise.all([
+  const [ticketResult, configResult, commerceResult, affiliateResult] = await Promise.all([
     loadRows<LegacyCheckInTicket>((from, to) => admin.from("tickets").select("id,event_id,buyer_nome,buyer_cognome,buyer_email,qr_code,status,used_at,affiliate_id,affiliate_name,events(titolo,data_inizio)").eq("event_id", initialEventId).order("created_at", { ascending: false }).order("id").range(from, to)),
     admin.from("events").select("commerce_config").eq("id", initialEventId).single(),
     loadRows<CommerceCheckInPass>((from, to) => admin.from("commerce_passes").select("id,event_id,first_name,last_name,package_name,qr_code,status,affiliate_id,affiliate_name,events(titolo,data_inizio),commerce_orders:commerce_orders!commerce_passes_order_id_fkey(buyer_email),commerce_entitlements(activity_id,activity_name,status,checked_in_at,menu_choice)").eq("event_id", initialEventId).order("created_at", { ascending: false }).order("id").range(from, to)),
+    loadAssignableParticipantAffiliates(initialEventId),
   ]);
   if (ticketResult.error) return <div role="alert">Errore durante il caricamento dei biglietti. Ricarica la pagina.</div>;
   const selectedEvent = events.find((event) => event.id === initialEventId)!;
@@ -78,6 +80,6 @@ export default async function AdminBigliettiPage({ searchParams }: {
   return <div className="space-y-5">
     {(commerceResult.error || configResult.error) && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">I biglietti avanzati non sono disponibili. Verifica la migrazione commerce prima di controllare workshop, masterclass o cena. I biglietti precedenti restano utilizzabili.</p>}
     {contactResults.some((result) => result.error) && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Le email dei partecipanti non sono disponibili. Per questi biglietti viene mostrata l’email dell’acquirente.</p>}
-    <TicketsClient initialTickets={tickets} events={events} initialEventId={initialEventId} initialAffiliateId={initialAffiliateId} />
+    <TicketsClient initialTickets={tickets} events={events} initialEventId={initialEventId} initialAffiliateId={initialAffiliateId} affiliateOptions={affiliateResult.success ? affiliateResult.affiliates : []} affiliateOptionsError={affiliateResult.success ? undefined : affiliateResult.error} />
   </div>;
 }

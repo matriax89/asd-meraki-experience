@@ -2,13 +2,19 @@ import "server-only";
 import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { parseEventAffiliates } from "./affiliates";
+import { loadAffiliateRegistry, type AffiliateRegistryEntry } from "./affiliate-registry";
+import { affiliateCommissionValueSchema, type AffiliateCommissionValue } from "./affiliate-commissions";
 
 export type AffiliateDirectoryEvent = { id: string; title: string; startsAt: string };
+type AffiliateCommissionSummary = {
+  commissionType: AffiliateCommissionValue["commissionType"];
+  commissionPerParticipantCents: number; commissionCents: number;
+  commissionPerParticipantCredits: number; commissionCredits: number;
+};
 export type AffiliateDirectoryRow = {
   eventId: string; eventTitle: string; eventStartsAt: string; affiliateId: string; name: string;
   active: boolean; archived: boolean; validCount: number; checkedInCount: number; totalCount: number;
-  commissionPerParticipantCents: number; commissionCents: number;
-};
+} & AffiliateCommissionSummary;
 export type AffiliateParticipant = {
   id: string; name: string; email: string; packageName: string;
   status: "paid" | "used" | "pending" | "refunded" | "canceled";
@@ -16,8 +22,13 @@ export type AffiliateParticipant = {
   activities: { id: string; name: string; status: string; checkedInAt: string | null; menuChoice: string | null }[];
 };
 export type AffiliateDirectory = { events: AffiliateDirectoryEvent[]; rows: AffiliateDirectoryRow[]; selectedEventId: string };
+export type AffiliateProfile = {
+  affiliate: Pick<AffiliateRegistryEntry, "id" | "name"> & Partial<Omit<AffiliateRegistryEntry, "id" | "name">>;
+  rows: AffiliateDirectoryRow[];
+  events: AffiliateDirectoryEvent[];
+};
 export type AffiliateParticipants = {
-  event: AffiliateDirectoryEvent; affiliate: { id: string; name: string; active: boolean; archived: boolean; commissionPerParticipantCents: number; commissionCents: number };
+  event: AffiliateDirectoryEvent; affiliate: { id: string; name: string; active: boolean; archived: boolean } & AffiliateCommissionSummary;
   participants: AffiliateParticipant[]; validCount: number; checkedInCount: number; totalCount: number;
 };
 
@@ -33,7 +44,7 @@ type CommerceParticipant = Omit<Attribution, "commerce_entitlements"> & {
   commerce_entitlements: { id: string; activity_id: string; activity_name: string; status: string; checked_in_at: string | null; menu_choice: string | null }[];
 };
 type ContactRow = { pass_id: string; email: string; created_at: string };
-type CommissionRow = { event_id: string; affiliate_id: string; commission_cents: number };
+type CommissionRow = { event_id: string; affiliate_id: string; commission_type?: string; commission_cents: number; commission_credits?: number };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const pageSize = 500;
 
@@ -49,21 +60,29 @@ async function loadRows<T>(query: (from: number, to: number) => PromiseLike<{ da
 
 /** Private event-specific rates. Failed reads must not look like zero compensation. */
 async function loadCommissionRates(admin: Awaited<ReturnType<typeof requireCommerceStaff>>, eventIds: string[], affiliateId?: string) {
-  const rates = new Map<string, number>();
+  const rates = new Map<string, AffiliateCommissionValue>();
   if (affiliateId === "direct") return rates;
   for (let index = 0; index < eventIds.length; index += 100) {
     const ids = eventIds.slice(index, index + 100);
     const entries = await loadRows<CommissionRow>((from, to) => {
-      let query = admin.from("event_affiliate_commissions").select("event_id,affiliate_id,commission_cents").in("event_id", ids);
+      let query = admin.from("event_affiliate_commissions").select("event_id,affiliate_id,commission_type,commission_cents,commission_credits").in("event_id", ids);
       if (affiliateId) query = query.eq("affiliate_id", affiliateId);
       return query.order("event_id").order("affiliate_id").range(from, to);
     }, "Impossibile caricare i compensi degli affiliati. Riprova.");
     for (const entry of entries) {
-      if (!Number.isSafeInteger(entry.commission_cents) || entry.commission_cents < 0) throw new Error("Compenso dell’affiliato non valido. Verifica le impostazioni dell’evento.");
-      rates.set(`${entry.event_id}:${entry.affiliate_id}`, entry.commission_cents);
+      const parsed = affiliateCommissionValueSchema.safeParse({ commissionType: entry.commission_type ?? "eur", commissionCents: entry.commission_cents, commissionCredits: entry.commission_credits ?? 0 });
+      if (!parsed.success) throw new Error("Compenso dell’affiliato non valido. Verifica le impostazioni dell’evento.");
+      rates.set(`${entry.event_id}:${entry.affiliate_id}`, parsed.data);
     }
   }
   return rates;
+}
+
+function commissionSummary(rate?: AffiliateCommissionValue, validCount = 0): AffiliateCommissionSummary {
+  const commissionType = rate?.commissionType ?? "eur";
+  const commissionPerParticipantCents = commissionType === "eur" ? rate?.commissionCents ?? 0 : 0;
+  const commissionPerParticipantCredits = commissionType === "credits" ? rate?.commissionCredits ?? 0 : 0;
+  return { commissionType, commissionPerParticipantCents, commissionPerParticipantCredits, commissionCents: validCount * commissionPerParticipantCents, commissionCredits: validCount * commissionPerParticipantCredits };
 }
 
 function eventSummary(event: EventRow, locale: string): AffiliateDirectoryEvent {
@@ -100,7 +119,7 @@ export async function loadAffiliateDirectory(locale: string, eventFilter?: strin
   const canceledEvents = new Set(scopedEvents.filter(event => event.canceled_at).map(event => event.id));
   for (const event of scopedEvents) for (const affiliate of parseEventAffiliates(event.affiliates)) {
     const summary = eventMap.get(event.id)!;
-    rows.set(`${event.id}:${affiliate.id}`, { eventId: event.id, eventTitle: summary.title, eventStartsAt: summary.startsAt, affiliateId: affiliate.id, name: affiliate.name, active: affiliate.active, archived: false, validCount: 0, checkedInCount: 0, totalCount: 0, commissionPerParticipantCents: 0, commissionCents: 0 });
+    rows.set(`${event.id}:${affiliate.id}`, { eventId: event.id, eventTitle: summary.title, eventStartsAt: summary.startsAt, affiliateId: affiliate.id, name: affiliate.name, active: affiliate.active, archived: false, validCount: 0, checkedInCount: 0, totalCount: 0, ...commissionSummary() });
   }
   const loadAttributions = (table: "tickets" | "commerce_passes") => loadRows<Attribution>((from, to) => {
     let query = admin.from(table).select(`id,event_id,affiliate_id,affiliate_name,status,created_at${table === "commerce_passes" ? ",commerce_entitlements(status)" : ""}`);
@@ -117,7 +136,7 @@ export async function loadAffiliateDirectory(locale: string, eventFilter?: strin
     const key = `${record.event_id}:${affiliateId}`;
     let row = rows.get(key);
     if (!row) {
-      row = { eventId: event.id, eventTitle: event.title, eventStartsAt: event.startsAt, affiliateId, name: affiliateId === "direct" ? "Acquisti diretti" : record.affiliate_name || "Affiliato archiviato", active: affiliateId === "direct", archived: affiliateId !== "direct", validCount: 0, checkedInCount: 0, totalCount: 0, commissionPerParticipantCents: 0, commissionCents: 0 };
+      row = { eventId: event.id, eventTitle: event.title, eventStartsAt: event.startsAt, affiliateId, name: affiliateId === "direct" ? "Acquisti diretti" : record.affiliate_name || "Affiliato archiviato", active: affiliateId === "direct", archived: affiliateId !== "direct", validCount: 0, checkedInCount: 0, totalCount: 0, ...commissionSummary() };
       rows.set(key, row);
     }
     row.totalCount += 1;
@@ -125,10 +144,31 @@ export async function loadAffiliateDirectory(locale: string, eventFilter?: strin
     if (!canceledEvents.has(record.event_id) && checkedIn(record, isCommerce)) row.checkedInCount += 1;
   }
   for (const [key, row] of rows) {
-    row.commissionPerParticipantCents = row.affiliateId === "direct" ? 0 : commissionRates.get(key) || 0;
-    row.commissionCents = row.validCount * row.commissionPerParticipantCents;
+    Object.assign(row, commissionSummary(row.affiliateId === "direct" ? undefined : commissionRates.get(key), row.validCount));
   }
   return { events, rows: [...rows.values()].sort((a, b) => b.eventStartsAt.localeCompare(a.eventStartsAt) || a.eventId.localeCompare(b.eventId) || (a.affiliateId === "direct" ? 1 : b.affiliateId === "direct" ? -1 : a.name.localeCompare(b.name, "it"))), selectedEventId };
+}
+
+/** A dossier includes every associated event, including disabled and historical attributions. */
+export async function loadAffiliateProfile(locale: string, affiliateId: string): Promise<AffiliateProfile | null> {
+  await requireCommerceStaff();
+  if (affiliateId !== "direct" && !uuid.test(affiliateId)) return null;
+  affiliateId = affiliateId.toLowerCase();
+  const [directory, registry] = await Promise.all([
+    loadAffiliateDirectory(locale),
+    affiliateId === "direct" ? Promise.resolve([]) : loadAffiliateRegistry({ includeDeleted: true }),
+  ]);
+  const rows = directory.rows.filter(row => row.affiliateId === affiliateId);
+  const registered = registry.find(affiliate => affiliate.id === affiliateId);
+  if (affiliateId === "direct") return { affiliate: { id: affiliateId, name: "Acquisti diretti" }, rows, events: directory.events };
+  if (!registered && !rows.length) return null;
+  return {
+    affiliate: registered
+      ? { ...registered }
+      : { id: affiliateId, name: rows[0].name },
+    rows,
+    events: directory.events,
+  };
 }
 
 /** Every participant query is bounded by both the event and its affiliate attribution. */
@@ -157,7 +197,7 @@ export async function loadAffiliateParticipants(locale: string, eventId: string,
   const configured = parseEventAffiliates(event.affiliates).find(affiliate => affiliate.id === affiliateId);
   const historical = [...legacy, ...commerce].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))[0];
   if (!configured && !historical) return null;
-  const affiliate = { id: affiliateId, name: affiliateId === "direct" ? "Acquisti diretti" : configured?.name || historical?.affiliate_name || "Affiliato archiviato", active: affiliateId === "direct" || Boolean(configured?.active), archived: affiliateId !== "direct" && !configured, commissionPerParticipantCents: commissionRates.get(`${eventId}:${affiliateId}`) || 0, commissionCents: 0 };
+  const affiliate = { id: affiliateId, name: affiliateId === "direct" ? "Acquisti diretti" : configured?.name || historical?.affiliate_name || "Affiliato archiviato", active: affiliateId === "direct" || Boolean(configured?.active), archived: affiliateId !== "direct" && !configured, ...commissionSummary(commissionRates.get(`${eventId}:${affiliateId}`)) };
   const participantEmails = new Map<string, string>();
   const contactBatches = [];
   for (let index = 0; index < commerce.length; index += 100) {
@@ -174,5 +214,6 @@ export async function loadAffiliateParticipants(locale: string, eventId: string,
   ].sort((a, b) => a.name.localeCompare(b.name, "it") || a.id.localeCompare(b.id));
   const validCount = event.canceled_at ? 0 : legacy.filter(record => valid(record, false)).length + commerce.filter(record => valid(record, true)).length;
   affiliate.commissionCents = validCount * affiliate.commissionPerParticipantCents;
+  affiliate.commissionCredits = validCount * affiliate.commissionPerParticipantCredits;
   return { event: eventSummary(event, locale), affiliate, participants, validCount, checkedInCount: participants.filter(participant => participant.checkedIn).length, totalCount: participants.length };
 }

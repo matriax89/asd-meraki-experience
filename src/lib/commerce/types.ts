@@ -10,7 +10,7 @@ export type CommerceParticipant = { firstName: string; lastName: string; package
 export type CommerceAttendee = { firstName: string; lastName: string; email: string; phone: string; documentType: 'codice_fiscale' | 'foreign_id'; documentCountry: string; documentNumber: string; marketingConsent: boolean };
 export type CommerceDiscountSnapshot = { id: string; code: string; discountType: 'percentage' | 'fixed_amount'; discountValue: number; targetType: 'order' | 'package' | 'activity' | 'addon'; targetIds: string[]; eligibleCents: number };
 export type CommerceQuoteLine = { label: string; quantity: number; unitAmountCents: number; totalCents: number; subtotalCents?: number; discountCents?: number; activityAmounts?: Record<string, number>; participantIndex?: number; kind: 'package' | 'addon' | 'upgrade'; packageId?: string; addonId?: string; tierId?: string; activityIds: string[] };
-export type CommerceQuote = { totalCents: number; subtotalCents?: number; discountCents?: number; discount?: CommerceDiscountSnapshot; lines: CommerceQuoteLine[]; participants: CommerceParticipant[] };
+export type CommerceQuote = { totalCents: number; subtotalCents?: number; discountCents?: number; discount?: CommerceDiscountSnapshot; discountExcludedActivityIds?: string[]; lines: CommerceQuoteLine[]; participants: CommerceParticipant[] };
 export type CommerceOrderState = 'reserved' | 'awaiting_payment' | 'fulfilled' | 'expired' | 'payment_failed' | 'refund_required' | 'refund_pending' | 'refunded';
 export type CommerceOrder = {
   id: string; request_id: string; event_id: string; buyer_email: string; locale: 'it' | 'en' | 'de' | 'es'; state: CommerceOrderState;

@@ -27,5 +27,6 @@ export function parseEventAffiliates(value: unknown): EventAffiliate[] {
 }
 
 export function publicEventAffiliates(value: unknown): PublicEventAffiliate[] {
-  return parseEventAffiliates(value).filter((affiliate) => affiliate.active).map(({ id, name }) => ({ id, name }));
+  return parseEventAffiliates(value).filter((affiliate) => affiliate.active).map(({ id, name }) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "it", { sensitivity: "base" }) || a.id.localeCompare(b.id));
 }

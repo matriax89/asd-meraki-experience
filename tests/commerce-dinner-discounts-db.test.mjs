@@ -1,0 +1,76 @@
+import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { existsSync,readFileSync } from 'node:fs';
+import { mkdtemp,readFile,readdir,rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import vm from 'node:vm';
+import test from 'node:test';
+import pg from 'pg';
+import ts from 'typescript';
+const exec=promisify(execFile);const binaries=process.env.MERAKI_PG_BIN||'/opt/homebrew/bin';const bin=name=>path.join(binaries,name);
+const migration='20261026190000_dinner_full_price_discounts.sql';const eventId='30da43c2-3ee7-4e7d-97b4-28c789e366de';
+const reviewed=['0b15b70f-8957-4a53-af3b-9d6e7c38afaf','630f4111-c2f3-4b9e-995c-76637b709085','b400e4b7-4271-4edd-baf9-0cdf605a2e32'];
+const require=createRequire(import.meta.url);const filename=fileURLToPath(new URL('../src/lib/commerce/discounts.ts',import.meta.url));const compiledModule={exports:{}};vm.runInNewContext(ts.transpileModule(readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:compiledModule,exports:compiledModule.exports,require,Set},{filename});const {discountQuote}=compiledModule.exports;
+const json=JSON.stringify;const plain=value=>JSON.parse(json(value));
+test('dinner discount migration preserves financial orders and protects future prices in isolated PostgreSQL',{skip:!['initdb','pg_ctl'].every(name=>existsSync(bin(name))),timeout:90000},async t=>{
+ const directory=await mkdtemp(path.join(tmpdir(),'meraki-dinner-pg-'));const dataDirectory=path.join(directory,'data');const clients=[];let started=false;
+ const listener=createServer();await new Promise((resolve,reject)=>{listener.once('error',reject);listener.listen(0,'127.0.0.1',resolve);});const port=listener.address().port;await new Promise(resolve=>listener.close(resolve));
+ const connect=async role=>{const client=new pg.Client({host:'127.0.0.1',port,user:'postgres',database:'postgres'});await client.connect();clients.push(client);if(role)await client.query(`set role ${role}`);return client;};
+ t.after(async()=>{await Promise.allSettled(clients.map(client=>client.end()));if(started)await exec(bin('pg_ctl'),['-D',dataDirectory,'-m','immediate','-w','stop']);await rm(directory,{recursive:true,force:true});});
+ await exec(bin('initdb'),['-D',dataDirectory,'-U','postgres','-A','trust','--no-instructions']);await exec(bin('pg_ctl'),['-D',dataDirectory,'-l',path.join(directory,'postgres.log'),'-o',`-h 127.0.0.1 -p ${port} -k ${directory}`,'-w','start']);started=true;
+ const db=await connect();await db.query(`create role anon nologin;create role authenticated nologin;create role service_role nologin bypassrls;create schema auth;create schema storage;create schema extensions;create table auth.users(id uuid primary key);create table storage.buckets(id text primary key,name text,public boolean);create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema public,auth to anon,authenticated,service_role;alter default privileges in schema public grant all on tables to anon,authenticated,service_role;alter default privileges in schema public grant all on sequences to anon,authenticated,service_role;`);
+ const migrations=new URL('../supabase/migrations/',import.meta.url);for(const name of(await readdir(migrations)).filter(name=>/^\d+.*\.sql$/.test(name)&&name<migration).sort())await db.query(await readFile(new URL(name,migrations),'utf8'));
+ const service=await connect('service_role');const config={version:1,enabled:true,waitlistEnabled:false,upgradesEnabled:true,activities:[{id:'workshop',name:'Workshop',kind:'workshop',capacity:100,startsAt:null,salesEnd:null,menuOptions:[]},{id:'masterclass',name:'Masterclass',kind:'masterclass',capacity:100,startsAt:null,salesEnd:null,menuOptions:[]},{id:'cena',name:'Cena',kind:'dinner',capacity:100,startsAt:null,salesEnd:null,menuOptions:[]},{id:'extra',name:'Extra',kind:'extra',capacity:100,startsAt:null,salesEnd:null,menuOptions:[]}],packages:[{id:'solo-ws',name:'Workshop',description:'',activityIds:['workshop'],prices:[{id:'standard',label:'Early Bird',amountCents:4500,startsAt:null,endsAt:null}]},{id:'solo-mc',name:'Masterclass',description:'',activityIds:['masterclass'],prices:[{id:'standard',label:'Early Bird',amountCents:3500,startsAt:null,endsAt:null}]},{id:'ws-mc',name:'Workshop + Masterclass',description:'',activityIds:['workshop','masterclass'],prices:[{id:'standard',label:'Early Bird',amountCents:6500,activityAmounts:{workshop:3500,masterclass:3000},startsAt:null,endsAt:null}]}],addons:[{id:'aggiungi-cena',name:'Aggiungi la cena',activityId:'cena',amountCents:2000},{id:'extra',name:'Extra',activityId:'extra',amountCents:700}]};
+ await db.query(`insert into public.events(id,slug,titolo,data_inizio,prezzo_cents,capacity,commerce_config) values($1::uuid,$1::uuid::text,'{"it":"Vibra"}',now()+interval '30 days',6500,100,$2)`,[eventId,json(config)]);
+ const input=(overrides={})=>({code:'ILPRESIDENTE',name:'Five euros',active:true,startsAt:null,endsAt:null,discountType:'fixed_amount',discountValue:500,minSubtotalCents:0,maxUses:null,targetType:'order',targetIds:[],allowedTierIds:[],...overrides});
+ const save=async(value=input(),id=eventId)=>(await service.query('select public.save_event_discount_code($1,$2) a',[id,json(value)])).rows[0].a;
+ const firstCode=(await save()).discount;await save(input({code:'SCUB'}));await save(input({code:'OTHER'}));
+ const sql=await readFile(new URL(migration,migrations),'utf8');
+ const assertMigrationRollback=async()=>{
+  assert.equal((await db.query("select count(*)::int n from information_schema.columns where table_schema='public' and table_name='commerce_orders' and column_name='reporting_quote'")).rows[0].n,0);
+  assert.equal((await db.query('select target_type from public.event_discount_codes where id=$1',[firstCode.id])).rows[0].target_type,'order');
+ };
+ await t.test('Vibra without all three reviewed orders aborts the entire migration even when none exist',async()=>{
+  await db.query('begin');await assert.rejects(db.query(sql),/incomplete reviewed orders/);await db.query('rollback');await assertMigrationRollback();
+ });
+ const person=(packageId='ws-mc',addonIds=['aggiungi-cena'])=>({firstName:'Test',lastName:'Person',packageId,addonIds,menuChoices:{}});
+ const quote=async(people=[person()],code='ILPRESIDENTE',id=eventId)=>(await service.query('select public.quote_event_commerce_discount($1,$2,null,null,$3) a',[id,json(people),code])).rows[0].a;
+ const frozen=(await quote()).quote;assert.deepEqual(frozen.lines.map(line=>line.totalCents),[6118,1882]);
+ const unrelated=randomUUID();for(const [index,id] of [...reviewed,unrelated].entries()){
+  await db.query(`insert into public.commerce_orders(id,request_id,event_id,buyer_email,locale,state,amount_cents,quote,participants,demand,event_snapshot,stripe_session_id,stripe_payment_intent,discount_code_id,refund_id,refund_status,attendees,attendee_privacy_version) values($1,$2,$3,'fixture@example.test','it',$4,8000,$5,$6,'{}',$7,$8,$9,$10,$11,$12,$13,'fixture-v1')`,[id,randomUUID(),eventId,index===2?'refunded':'fulfilled',json(frozen),json([person()]),json({commerce_config:config,titolo:'Vibra',slug:'vibra'}),`cs_fixture_${index}`,`pi_fixture_${index}`,firstCode.id,index===2?'re_fixture':null,index===2?'succeeded':null,json([{firstName:'Test',lastName:'Person',email:'fixture@example.test',phone:'+391234567',documentType:'foreign_id',documentCountry:'DE',documentNumber:'FIXTURE',marketingConsent:false}])]);
+  await db.query(`insert into public.commerce_passes(id,event_id,order_id,first_name,last_name,package_id,package_name,package_paid_cents,package_activity_ids,original_package_paid_cents,qr_code,status) values($1,$2,$3,'Test','Person','ws-mc','Workshop + Masterclass',6118,array['workshop','masterclass'],6118,$4,$5)`,[randomUUID(),eventId,id,`qr_fixture_${index}`,index===2?'refunded':'paid']);
+ }
+ const before=(await db.query('select to_jsonb(o) row from public.commerce_orders o order by id')).rows;const beforePasses=(await db.query('select to_jsonb(p) row from public.commerce_passes p order by id')).rows;
+ await t.test('one or two missing reviewed orders abort schema and code changes atomically',async()=>{
+  for(const missing of [1,2]){
+   await db.query('begin');await db.query('delete from public.commerce_passes where order_id=any($1::uuid[])',[reviewed.slice(0,missing)]);await db.query('delete from public.commerce_orders where id=any($1::uuid[])',[reviewed.slice(0,missing)]);
+   await assert.rejects(db.query(sql),/incomplete reviewed orders/);await db.query('rollback');await assertMigrationRollback();
+  }
+ });
+ await t.test('reviewed-row drift aborts all schema, code and reporting changes',async()=>{await db.query('begin');await db.query("update public.commerce_orders set quote=jsonb_set(quote,'{lines,1,totalCents}','1881') where id=$1",[reviewed[0]]);await assert.rejects(db.query(sql),/reviewed order changed/);await db.query('rollback');assert.equal((await db.query("select count(*)::int n from information_schema.columns where table_schema='public' and table_name='commerce_orders' and column_name='reporting_quote'")).rows[0].n,0);assert.equal((await db.query('select target_type from public.event_discount_codes where id=$1',[firstCode.id])).rows[0].target_type,'order');});
+ await db.query(sql);
+ await t.test('only allowlisted allocations change; financial snapshots, payments, customers and passes stay identical',async()=>{
+  assert.deepEqual((await db.query("select to_jsonb(o)-'reporting_quote' row from public.commerce_orders o order by id")).rows,before);assert.deepEqual((await db.query('select to_jsonb(p) row from public.commerce_passes p order by id')).rows,beforePasses);
+  const rows=(await db.query('select id,reporting_quote from public.commerce_orders order by id')).rows;assert.equal(rows.filter(row=>row.reporting_quote).length,3);assert.equal(rows.find(row=>row.id===unrelated).reporting_quote,null);
+  for(const {reporting_quote:q} of rows.filter(row=>row.reporting_quote)){assert.deepEqual(q.lines.map(line=>[line.totalCents,line.discountCents]),[[6000,500],[2000,0]]);assert.deepEqual(q.lines.map(line=>line.activityAmounts),frozen.lines.map(line=>line.activityAmounts));assert.deepEqual(q.reportingAdjustment,{version:1,reason:'dinner_full_price',originalDiscountTargetType:'order',preservedTotalCents:8000});assert.deepEqual(q.discountExcludedActivityIds,['cena']);assert.equal(q.totalCents,8000);assert.equal(q.discount.targetType,'package');assert.deepEqual(q.discount.targetIds,['solo-ws','solo-mc','ws-mc']);assert.equal(q.discount.eligibleCents,6500);}
+  const codes=(await db.query('select code,target_type,target_ids from public.event_discount_codes order by code')).rows;assert.deepEqual(codes.filter(code=>code.code!=='OTHER').map(code=>code.target_type),['package','package']);assert.equal(codes.find(code=>code.code==='OTHER').target_type,'order');
+ });
+ await t.test('future coupons and previews agree exactly and always leave twenty euro dinner intact',async()=>{
+  for(const details of [input({code:'ORDER5'}),input({code:'PKG5',targetType:'package',targetIds:['ws-mc']}),input({code:'PERCENT',discountType:'percentage',discountValue:20}),input({code:'ACTIVITY',targetType:'activity',targetIds:['workshop'],discountType:'percentage',discountValue:20})]){const {discount}=await save(details);const q=(await quote([person()],details.code)).quote;const gross=(await quote([person()],null)).quote;assert.deepEqual(q,plain(discountQuote(gross,details,discount.id)));assert.equal(q.lines[1].totalCents,2000);assert.equal(q.lines[1].discountCents,0);assert.deepEqual(q.discountExcludedActivityIds,['cena']);}
+  const q=(await quote()).quote;assert.deepEqual(q.lines.map(line=>line.totalCents),[6000,2000]);
+  assert.equal((await save(input({code:'DINNER',targetType:'activity',targetIds:['cena']}))).error,'invalid_discount_target');assert.equal((await save(input({code:'DINNERADD',targetType:'addon',targetIds:['aggiungi-cena']}))).error,'invalid_discount_target');
+  await save(input({code:'EXTRA',targetType:'addon',targetIds:['extra']}));const withExtra=(await quote([person('ws-mc',['aggiungi-cena','extra'])],'EXTRA')).quote;assert.deepEqual(withExtra.lines.map(line=>line.totalCents),[6500,2000,200]);
+  const attendees=[{firstName:'Test',lastName:'Person',email:'fixture@example.test',phone:'+391234567',documentType:'foreign_id',documentCountry:'DE',documentNumber:'FIXTURE',marketingConsent:false}];const reserved=(await service.query('select public.reserve_event_commerce_discount($1,$2,$3,$4,$5,null,null,$6,$7,$8) a',[eventId,randomUUID(),'fixture@example.test','it',json([person()]),json(attendees),'2026-10-18-v1','ILPRESIDENTE'])).rows[0].a;assert.ok(reserved.order,JSON.stringify(reserved));assert.equal(reserved.order.amount_cents,8000);assert.deepEqual(reserved.order.quote.lines.map(line=>line.totalCents),[6000,2000]);assert.equal(reserved.order.reporting_quote,null);
+ });
+ await t.test('embedded dinner, arbitrary activity IDs, caps and mixed add-on eligibility remain consistent in SQL and TypeScript',async()=>{
+  const id=randomUUID();const mixed=structuredClone(config);mixed.activities[2].id='evening-meal';mixed.addons[0].activityId='evening-meal';mixed.packages.push({id:'mixed',name:'Workshop and dinner',description:'',activityIds:['workshop','evening-meal'],prices:[{id:'standard',label:'Standard',amountCents:8000,activityAmounts:{workshop:6000,'evening-meal':2000},startsAt:null,endsAt:null}]});await db.query(`insert into public.events(id,slug,titolo,data_inizio,prezzo_cents,capacity,commerce_config) values($1::uuid,$1::uuid::text,'{"it":"Mixed"}',now()+interval '30 days',8000,100,$2)`,[id,json(mixed)]);
+  for(const details of [input({code:'CAP',discountValue:10000}),input({code:'MIXPKG',targetType:'package',targetIds:['mixed'],discountValue:10000}),input({code:'MIXACT',targetType:'activity',targetIds:['workshop'],discountValue:10000})]){const {discount}=await save(details,id);const q=(await quote([person('mixed',[])],details.code,id)).quote;const gross=(await quote([person('mixed',[])],null,id)).quote;assert.deepEqual(q,plain(discountQuote(gross,details,discount.id)));assert.equal(q.totalCents,2000);assert.equal(q.discount.eligibleCents,6000);assert.equal(q.discountCents,6000);assert.deepEqual(q.discountExcludedActivityIds,['evening-meal']);}
+ });
+ await t.test('reporting allocations and discount internals remain private to staff service operations',async()=>{for(const role of ['anon','authenticated']){const visitor=await connect(role);await assert.rejects(visitor.query('select reporting_quote from public.commerce_orders'),{code:'42501'});await assert.rejects(visitor.query("select public.commerce_apply_discount('{}','{}')"),{code:'42501'});await assert.rejects(visitor.query("select public.commerce_quote_details('{}','{}')"),{code:'42501'});}});
+});

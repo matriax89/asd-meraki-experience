@@ -519,6 +519,75 @@ test("discount categories reflect only saved collections and update without clea
   } finally { await fixture.close(); }
 });
 
+const dinnerDiscountConfig = {
+  ...validConfig,
+  activities: [...validConfig.activities, { id: "meal-evening", name: "Cena sociale", kind: "dinner", capacity: null, startsAt: null, salesEnd: null, menuOptions: [] }],
+  packages: [...validConfig.packages, { id: "ws-and-meal", name: "Workshop e cena", description: "", activityIds: ["ws", "meal-evening"], prices: [{ id: "standard", label: "Standard", amountCents: 4500, activityAmounts: { ws: 2500, "meal-evening": 2000 }, startsAt: null, endsAt: null }] }, { id: "meal-only", name: "Solo cena", description: "", activityIds: ["meal-evening"], prices: [{ id: "meal-price", label: "Cena", amountCents: 2000, startsAt: null, endsAt: null }] }],
+  addons: [{ id: "meal-addon", name: "Cena aggiuntiva", activityId: "meal-evening", amountCents: 2000 }, { id: "ws-addon", name: "Workshop aggiuntivo", activityId: "ws", amountCents: 500 }],
+};
+
+test("new coupons select all discountable packages and save a fixed five euro package discount with dinner excluded", async () => {
+  const fixture = await discountEditorFixture({ config: dinnerDiscountConfig });
+  try {
+    await fixture.click("Crea codice sconto");
+    await fixture.input("Codice da condividere", "PACCHETTI5"); await fixture.input("Nome interno", "Cinque euro sui pacchetti");
+    assert.equal(fixture.document.querySelector("select[aria-label='Tipo di sconto']").value, "percentage", "the unrelated discount type default remains unchanged");
+    await fixture.select("Tipo di sconto", "fixed_amount"); await fixture.input("Importo (€)", "5"); await fixture.click("Avanti");
+    assert.equal(fixture.document.querySelector("select[aria-label='Applica lo sconto a']").value, "package");
+    for (const name of ["Solo Workshop", "Workshop e cena"]) assert.equal([...fixture.document.querySelectorAll("label")].find(label => label.textContent.trim() === name).querySelector("input").checked, true);
+    assert.equal([...fixture.document.querySelectorAll("label")].some(label => label.textContent.trim() === "Solo cena"), false);
+    await fixture.click("Avanti");
+    assert.match(fixture.document.querySelector("[data-discount-step='2']").textContent, /cena esclusa/);
+    assert.equal(fixture.saved.length, 0);
+    await fixture.click("Salva codice sconto");
+    assert.equal(fixture.saved[0].discountType, "fixed_amount"); assert.equal(fixture.saved[0].discountValue, 500);
+    assert.equal(fixture.saved[0].targetType, "package"); assert.deepEqual(fixture.saved[0].targetIds, ["only-ws", "ws-and-meal"]);
+    assert.equal(dinnerDiscountConfig.addons[0].amountCents, 2000, "editing a coupon never changes the dinner price");
+  } finally { await fixture.close(); }
+});
+
+test("coupon product choices exclude dinner activities and addons while keeping other advanced targets", async () => {
+  const fixture = await discountEditorFixture({ config: dinnerDiscountConfig });
+  try {
+    await fixture.click("Crea codice sconto"); await fixture.input("Codice da condividere", "SCONTO10"); await fixture.input("Nome interno", "Prodotti ammessi"); await fixture.click("Avanti");
+    const select = fixture.document.querySelector("select[aria-label='Applica lo sconto a']");
+    assert.equal([...select.options].find(option => option.value === "order").textContent, "Tutti i pacchetti · cena esclusa");
+    await fixture.select("Applica lo sconto a", "activity");
+    assert.ok([...fixture.document.querySelectorAll("label")].some(label => label.textContent.trim() === "Workshop"));
+    assert.equal([...fixture.document.querySelectorAll("label")].some(label => label.textContent.trim() === "Cena sociale"), false);
+    await fixture.select("Applica lo sconto a", "addon");
+    assert.ok([...fixture.document.querySelectorAll("label")].some(label => label.textContent.trim() === "Workshop aggiuntivo"));
+    assert.equal([...fixture.document.querySelectorAll("label")].some(label => label.textContent.trim() === "Cena aggiuntiva"), false);
+    assert.equal(fixture.saved.length, 0);
+  } finally { await fixture.close(); }
+});
+
+test("dinner-only saved collections never offer dinner as a coupon target", async () => {
+  const fixture = await discountEditorFixture({ config: { ...dinnerDiscountConfig, activities: dinnerDiscountConfig.activities.filter(activity => activity.kind === "dinner"), packages: dinnerDiscountConfig.packages.filter(pkg => pkg.id === "meal-only"), addons: [dinnerDiscountConfig.addons[0]] } });
+  try {
+    await fixture.click("Crea codice sconto"); await fixture.input("Codice da condividere", "NO-CENA"); await fixture.input("Nome interno", "Nessuna cena scontabile"); await fixture.click("Avanti");
+    assert.deepEqual([...fixture.document.querySelector("select[aria-label='Applica lo sconto a']").options].map(option => option.value), ["order"]);
+    assert.match(fixture.document.body.textContent, /La cena è esclusa anche se è l’unico prodotto/);
+    assert.equal(fixture.saved.length, 0);
+  } finally { await fixture.close(); }
+});
+
+test("editing a legacy dinner coupon requires an allowed target without silently saving the correction", async () => {
+  const fixture = await discountEditorFixture({ config: dinnerDiscountConfig, initialDiscounts: [{ ...discountRow, target_type: "activity", target_ids: ["meal-evening"] }] });
+  try {
+    await fixture.click("Modifica MERAKI20");
+    assert.match(fixture.document.body.textContent, /La cena è esclusa dai codici sconto/);
+    await fixture.click("Avanti"); await fixture.click("Avanti");
+    assert.equal(fixture.document.querySelector("[data-discount-step='1']").hidden, false);
+    assert.equal(fixture.saved.length, 0);
+    await fixture.select("Applica lo sconto a", "activity");
+    const workshop = [...fixture.document.querySelectorAll("label")].find(label => label.textContent.trim() === "Workshop").querySelector("input");
+    await fixture.React.act(async () => workshop.click());
+    await fixture.click("Avanti"); await fixture.click("Salva codice sconto");
+    assert.deepEqual(fixture.saved[0].targetIds, ["ws"]);
+  } finally { await fixture.close(); }
+});
+
 test("bundle allocation and translated content survive navigation and require an exact package sum", async () => {
   const fixture = await editorFixture();
   try {

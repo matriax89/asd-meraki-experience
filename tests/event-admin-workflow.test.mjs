@@ -44,12 +44,13 @@ const eventId = "12345678-1111-4111-8111-123456789abc";
 const validConfig = { version: 1, enabled: true, waitlistEnabled: true, upgradesEnabled: true, activities: [{ id: "ws", name: "Workshop", kind: "workshop", capacity: 20, startsAt: null, salesEnd: null, menuOptions: [] }], packages: [{ id: "only-ws", name: "Solo Workshop", description: "", activityIds: ["ws"], prices: [{ id: "standard", label: "Standard", amountCents: 2000, startsAt: null, endsAt: null }] }], addons: [] };
 const baseEvent = { id: eventId, titolo: { it: "Evento di prova" }, sottotitolo: null, descrizione: null, slug: "evento-di-prova", tipo: "evento", data_inizio: "2027-08-01T08:30:00.000Z", data_fine: "2027-08-01T10:30:00.000Z", check_in_starts_at: null, prezzo_cents: 3500, capacity: 0, location: "Bolzano", indirizzo: null, copertina_url: null, attivo: true, posti_venduti: 0 };
 
-function serverFixture(existing = baseEvent) {
+function serverFixture(existing = baseEvent, { registered = existing?.affiliates || [], registryError = false, upsertError = null } = {}) {
   const saved = [];
   const db = { from(table) {
+    if (table === "affiliates") return { select() { return this; }, async in(_key, ids) { return { data: registryError ? null : registered.filter(row => ids.includes(row.id)), error: registryError ? { message: "Private registry error" } : null }; } };
     assert.equal(table, "events");
     let patch;
-    return { select() { return this; }, eq() { return this; }, upsert(value) { patch = value; saved.push(value); return this; }, async single() { return { data: patch ? { ...patch, id: eventId } : existing, error: null }; } };
+    return { select() { return this; }, eq() { return this; }, upsert(value) { patch = value; saved.push(value); return this; }, async single() { return patch && upsertError ? { data: null, error: upsertError } : { data: patch ? { ...patch, id: eventId } : existing, error: null }; } };
   } };
   const actions = load("app/api/admin/eventi/actions.ts", { "@/lib/events/logistics": logistics, "@/lib/commerce/config": config, "@/lib/commerce/admin-auth": { requireCommerceStaff: async () => db }, "next/cache": { revalidatePath() {} } });
   return { saved, actions };
@@ -121,6 +122,7 @@ async function mount(context, initialData = null, result = { success: true, id: 
     "@/components/admin/date-time-field": dateTime,
     "@/components/admin/wizard-steps": wizard,
     "@/components/admin/event-logistics-editor": logisticsEditor,
+    "@/components/admin/event-affiliates-picker": load("components/admin/event-affiliates-picker.tsx", { "@/i18n/routing": routing }),
     "@/components/admin/poster-upload": poster,
     "@/lib/events/logistics": logistics,
     "@/lib/commerce/config": config, "@/lib/commerce/rome-time": rome,
@@ -130,7 +132,7 @@ async function mount(context, initialData = null, result = { success: true, id: 
   });
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
   context.after(async () => { await act(async () => root.unmount()); host.remove(); });
-  await act(async () => root.render(React.createElement(EventForm, { initialData, locale: "de", initialTicketingMode })));
+  await act(async () => root.render(React.createElement(EventForm, { initialData, locale: "de", initialTicketingMode, availableAffiliates: options.availableAffiliates || initialData?.affiliates || [], affiliateRegistryError: options.affiliateRegistryError })));
   const field = (text) => {
     const label = [...host.querySelectorAll("label")].find((candidate) => candidate.textContent.startsWith(text));
     if (label?.control) return label.control;
@@ -758,51 +760,60 @@ test("the final review and save keep ordered connections and reload their transl
 const affiliateA = { id: "aaaaaaaa-1111-4111-8111-111111111111", name: "Scuola Aurora", active: true };
 const affiliateB = { id: "bbbbbbbb-2222-4222-8222-222222222222", name: "Referente Bruno", active: false };
 
-test("event affiliates are saved only after review and retain manual names and stable identifiers", async (context) => {
-  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA, affiliateB] });
+test("event affiliates use registry switches and save their stable identities only after review", async (context) => {
+  const affiliateC = { id: "cccccccc-3333-4333-8333-333333333333", name: "Nuovo referente" };
+  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA, affiliateB] }, undefined, undefined, { availableAffiliates: [affiliateA, affiliateB, affiliateC] });
   await screen.advance(); await screen.advance();
   assert.equal(screen.currentStep(), 2);
   const original = screen.host.querySelector(`[data-event-affiliate="${affiliateA.id}"]`);
-  assert.equal(original.querySelector('input[type="text"], input:not([type])').value, affiliateA.name);
-  assert.equal([...original.querySelectorAll("button")].some((button) => button.textContent === "Rimuovi affiliato"), false);
-  assert.equal(original.querySelector("a").getAttribute("href"), `/admin/biglietti?event=${eventId}&affiliate=${affiliateA.id}`);
-  await screen.click("Aggiungi affiliato");
-  const added = screen.host.querySelectorAll("[data-event-affiliate]")[2];
-  const addedId = added.dataset.eventAffiliate;
-  assert.match(addedId, /^[0-9a-f-]{36}$/);
-  await screen.change(withinField(added, "Nome affiliato"), "Nuovo referente");
-  await screen.click("Aggiungi affiliato");
-  await screen.click("Rimuovi affiliato", screen.host.querySelectorAll("[data-event-affiliate]")[3]);
-  await act(async () => original.querySelector('input[type="checkbox"]').click());
+  assert.equal(original.querySelector('input[type="text"], input:not([type])'), null, "names come from the registry");
+  assert.equal([...screen.host.querySelectorAll("button")].some(button => button.textContent === "Aggiungi affiliato"), false);
+  assert.equal(original.querySelector("a").getAttribute("href"), `/admin/affiliati/${affiliateA.id}?event=${eventId}`);
+  assert.ok(screen.host.querySelector(`[data-event-affiliate="${affiliateB.id}"] a`), "saved inactive affiliates retain participant access");
+  const added = screen.host.querySelector(`[data-event-affiliate="${affiliateC.id}"]`);
+  assert.equal(added.querySelector('[role="switch"]').checked, false);
+  await act(async () => added.querySelector('[role="switch"]').click());
+  assert.equal(added.querySelector("a"), null, "an unsaved association cannot link to an unavailable participant list");
+  await act(async () => original.querySelector('[role="switch"]').click());
   await screen.review();
   assert.equal(screen.saved.length, 0);
   assert.match(screen.host.querySelector('[aria-label="Riepilogo biglietteria"]').textContent, /Affiliati: 1 attivi/);
   await screen.advance();
-  assert.equal(JSON.stringify(screen.saved[0].affiliates), JSON.stringify([{ ...affiliateA, active: false }, affiliateB, { id: addedId, name: "Nuovo referente", active: true }]));
+  assert.equal(JSON.stringify(screen.saved[0].affiliates), JSON.stringify([{ ...affiliateA, active: false }, affiliateB, { ...affiliateC, active: true }]));
+  assert.equal(added.querySelector("a").getAttribute("href"), `/admin/affiliati/${affiliateC.id}?event=${eventId}`, "participant access becomes available after a successful save");
 });
 
-test("empty or duplicate active affiliate names stop the wizard without saving", async (context) => {
-  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA] });
+test("event affiliate search leaves selected affiliates intact and duplicate active names cannot be enabled", async (context) => {
+  const duplicate = { id: "cccccccc-3333-4333-8333-333333333333", name: "Scuola Aurora" };
+  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA] }, undefined, undefined, { availableAffiliates: [affiliateA, affiliateB, duplicate] });
   await screen.advance(); await screen.advance();
-  await screen.click("Aggiungi affiliato");
-  const added = screen.host.querySelectorAll("[data-event-affiliate]")[1];
-  await screen.advance();
-  assert.equal(screen.currentStep(), 2);
-  assert.match(screen.host.querySelector('[role="alert"]').textContent, /nome per ogni affiliato/);
-  await screen.change(withinField(added, "Nome affiliato"), " scuola AURORA ");
-  await screen.advance();
-  assert.equal(screen.currentStep(), 2);
-  assert.equal(screen.saved.length, 0);
-  await screen.change(withinField(added, "Nome affiliato"), "Seconda scuola");
-  await screen.advance();
-  assert.equal(screen.currentStep(), 3);
+  await act(async () => screen.host.querySelector(`[data-event-affiliate="${duplicate.id}"] [role="switch"]`).click());
+  assert.match(screen.host.querySelector('[data-event-affiliates] [role="alert"]').textContent, /già abilitato/);
+  assert.equal(screen.host.querySelector(`[data-event-affiliate="${duplicate.id}"] [role="switch"]`).checked, false);
+  await screen.change(screen.host.querySelector('[data-event-affiliates] input[type="search"]'), "bruno");
+  assert.equal(screen.host.querySelectorAll('[data-event-affiliate]').length, 1);
+  assert.equal(screen.host.querySelector('[data-event-affiliate]').dataset.eventAffiliate, affiliateB.id);
+  await screen.submit();
+  assert.equal(screen.saved[0].affiliates.length, 1);
+  assert.equal(screen.saved[0].affiliates[0].id, affiliateA.id);
+  assert.equal(screen.saved[0].affiliates[0].active, true);
 });
 
-test("affiliate updates preserve retired entries and omission does not overwrite event attribution settings", async () => {
+test("a failed registry read disables switches and cannot overwrite saved event affiliates", async (context) => {
+  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA] }, undefined, undefined, { affiliateRegistryError: "Anagrafica non disponibile." });
+  await screen.advance(); await screen.advance();
+  assert.match(screen.host.querySelector('[data-event-affiliates] [role="alert"]').textContent, /conservate/);
+  assert.equal(screen.host.querySelector('[data-event-affiliates] [role="switch"]').disabled, true);
+  await screen.submit();
+  assert.equal(screen.saved.length, 1);
+  assert.equal("affiliates" in screen.saved[0], false);
+});
+
+test("affiliate updates use registry names, preserve retired entries and leave omitted attribution settings untouched", async () => {
   const fixture = serverFixture({ ...baseEvent, affiliates: [affiliateA, affiliateB] });
   const result = await fixture.actions.upsertEvent({ ...baseEvent, affiliates: [{ ...affiliateA, name: "Scuola Aurora nuova" }] });
   assert.equal(result.success, true);
-  assert.equal(JSON.stringify(fixture.saved[0].affiliates), JSON.stringify([{ ...affiliateA, name: "Scuola Aurora nuova" }, affiliateB]));
+  assert.equal(JSON.stringify(fixture.saved[0].affiliates), JSON.stringify([affiliateA, affiliateB]));
   const retired = serverFixture({ ...baseEvent, affiliates: [affiliateA] });
   assert.equal((await retired.actions.upsertEvent({ ...baseEvent, affiliates: [] })).success, true);
   assert.equal(JSON.stringify(retired.saved[0].affiliates), JSON.stringify([{ ...affiliateA, active: false }]));
@@ -827,4 +838,107 @@ test("a failed historical affiliate lookup stops the event update instead of era
   assert.equal(result.success, false);
   assert.match(result.error, /verificare lo storico degli affiliati/);
   assert.equal(fixture.saved.length, 0);
+});
+
+test("unknown affiliate identifiers and unavailable registry reads cannot create event affiliations", async () => {
+  const unknown = serverFixture(baseEvent);
+  const unknownResult = await unknown.actions.upsertEvent({ ...baseEvent, affiliates: [affiliateA] });
+  assert.equal(unknownResult.success, false);
+  assert.match(unknownResult.error, /Seleziona gli affiliati dall’anagrafica/);
+  assert.equal(unknown.saved.length, 0);
+  const unavailable = serverFixture({ ...baseEvent, affiliates: [affiliateA] }, { registryError: true });
+  const unavailableResult = await unavailable.actions.upsertEvent({ ...baseEvent, affiliates: [affiliateA] });
+  assert.equal(unavailableResult.success, false);
+  assert.doesNotMatch(unavailableResult.error, /Private/);
+  assert.equal(unavailable.saved.length, 0);
+});
+
+
+test("deleted affiliates are absent from new choices and retained as disabled history in an event", async context => {
+  const removed = { ...affiliateA, deletedAt: "2026-10-26T13:00:00Z" };
+  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA] }, undefined, undefined, { availableAffiliates: [removed, affiliateB] });
+  await screen.advance(); await screen.advance();
+  const historical = screen.host.querySelector(`[data-event-affiliate="${affiliateA.id}"]`);
+  assert.match(historical.textContent, /Eliminato dall’anagrafica/);
+  assert.equal(historical.querySelector('[role="switch"]').disabled, true);
+  assert.equal(historical.querySelector('[role="switch"]').checked, false);
+  assert.ok(historical.querySelector('a'), "existing participant lists remain available");
+  await screen.submit();
+  assert.equal(screen.saved[0].affiliates[0].active, false, "stale open forms cannot reactivate a deleted affiliate");
+});
+
+test("new events cannot select deleted affiliates", async context => {
+  const removed = { ...affiliateA, deletedAt: "2026-10-26T13:00:00Z" };
+  const fresh = await mount(context, null, undefined, undefined, { availableAffiliates: [removed, affiliateB] });
+  await fresh.change(fresh.field("Titolo"), "Nuovo evento"); await fresh.advance();
+  await fresh.changeDateTime("Inizio Evento", "2027-08-01T10:30"); await fresh.advance();
+  assert.equal(fresh.host.querySelector(`[data-event-affiliate="${affiliateA.id}"]`), null);
+  assert.ok(fresh.host.querySelector(`[data-event-affiliate="${affiliateB.id}"]`));
+});
+
+test("staff action rejects active deleted affiliates while allowing inactive historic snapshots with original names", async () => {
+  const deleted = { ...affiliateA, deleted_at: "2026-10-26T13:00:00Z" };
+  const blocked = serverFixture({ ...baseEvent, affiliates: [affiliateA] }, { registered: [deleted] });
+  const result = await blocked.actions.upsertEvent({ ...baseEvent, affiliates: [affiliateA] });
+  assert.equal(result.success, false);
+  assert.match(result.error, /eliminato dall’anagrafica/);
+  assert.equal(blocked.saved.length, 0);
+  const history = serverFixture({ ...baseEvent, affiliates: [affiliateA] }, { registered: [{ ...deleted, name: "Nuovo nome in anagrafica" }] });
+  assert.equal((await history.actions.upsertEvent({ ...baseEvent, affiliates: [{ ...affiliateA, active: false }] })).success, true);
+  assert.equal(history.saved[0].affiliates[0].name, affiliateA.name);
+});
+
+
+test("historical fallback entries cannot be activated when their registry entry is unavailable", async context => {
+  const screen = await mount(context, { ...baseEvent, affiliates: [{ ...affiliateA, active: false }] }, undefined, undefined, { availableAffiliates: [affiliateB] });
+  await screen.advance(); await screen.advance();
+  const fallback = screen.host.querySelector(`[data-event-affiliate="${affiliateA.id}"]`);
+  assert.match(fallback.textContent, /Non disponibile nell’anagrafica/);
+  assert.equal(fallback.querySelector('[role="switch"]').checked, false);
+  assert.equal(fallback.querySelector('[role="switch"]').disabled, true);
+});
+
+test("new event associations display the initial default compensation before activation", async context => {
+  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA] }, undefined, undefined, { availableAffiliates: [affiliateA, { ...affiliateB, defaultCommissionCents: 700 }] });
+  await screen.advance(); await screen.advance();
+  const added = screen.host.querySelector(`[data-event-affiliate="${affiliateB.id}"]`);
+  assert.match(added.textContent, /Compenso iniziale: 7,00/);
+  assert.match(screen.host.querySelector('[data-event-affiliates]').textContent, /importi già impostati.*conservati/);
+});
+
+test("new event associations display default credits with their unit and never convert them to euro", async context => {
+  const screen = await mount(context, { ...baseEvent, affiliates: [affiliateA] }, undefined, undefined, { availableAffiliates: [affiliateA, { ...affiliateB, defaultCommissionType: "credits", defaultCommissionCents: 0, defaultCommissionCredits: 3 }] });
+  await screen.advance(); await screen.advance();
+  const added = screen.host.querySelector(`[data-event-affiliate="${affiliateB.id}"]`);
+  assert.match(added.textContent, /Compenso iniziale: 3 crediti per iscritto valido/);
+  assert.doesNotMatch(added.textContent, /€/);
+});
+
+test("the event page serializes compensation units while excluding private affiliate contacts and notes", async () => {
+  const registryEntry = { ...affiliateB, createdAt: "2026-10-26T10:00:00Z", deletedAt: null, contactName: "PRIVATE CONTACT", email: "PRIVATE@example.test", phone: "PRIVATE PHONE", notes: "PRIVATE NOTES", defaultCommissionType: "credits", defaultCommissionCents: 0, defaultCommissionCredits: 3 };
+  const EventForm = () => null;
+  const page = load("app/[locale]/admin/eventi/[id]/page.tsx", {
+    "@/components/admin/discount-codes-editor": { DiscountCodesEditor: () => null },
+    "@/app/api/admin/commerce/actions": { loadCommerceDiscountsAdmin: async () => null },
+    "@/lib/commerce/config": config,
+    "@/app/api/admin/eventi/actions": { getEvent: async () => ({ success: true, data: baseEvent }) },
+    "./event-form": { EventForm }, "next/navigation": { notFound() { throw new Error("Unexpected 404"); } }, "@/i18n/routing": routing,
+    "@/components/admin/affiliate-commissions-editor": { AffiliateCommissionsEditor: () => null },
+    "@/app/api/admin/affiliati/commission-actions": { loadEventAffiliateCommissions: async () => null },
+    "@/lib/events/affiliate-registry": { loadAffiliateRegistry: async () => [registryEntry] },
+  }).default;
+  const tree = await page({ params: Promise.resolve({ id: "nuovo", locale: "it" }) });
+  const find = node => !node || typeof node !== "object" ? undefined : node.type === EventForm ? node : React.Children.toArray(node.props?.children).map(find).find(Boolean);
+  const form = find(tree);
+  assert.ok(form);
+  assert.deepEqual(JSON.parse(JSON.stringify(form.props.availableAffiliates)), [{ id: affiliateB.id, name: affiliateB.name, deletedAt: null, defaultCommissionType: "credits", defaultCommissionCents: 0, defaultCommissionCredits: 3 }]);
+  assert.doesNotMatch(JSON.stringify(form.props), /PRIVATE|contactName|email|phone|notes|createdAt/);
+});
+
+test("a concurrent deletion rejected by the database returns a localized event retry without exposing SQL messages", async () => {
+  const fixture = serverFixture({ ...baseEvent, affiliates: [affiliateA] }, { upsertError: { code: "22023", message: "Affiliate unavailable" } });
+  const result = await fixture.actions.upsertEvent({ ...baseEvent, affiliates: [affiliateA] });
+  assert.equal(result.success, false);
+  assert.match(result.error, /eliminato mentre modificavi/);
+  assert.doesNotMatch(result.error, /Affiliate unavailable/);
 });

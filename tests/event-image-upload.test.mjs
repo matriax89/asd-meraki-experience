@@ -8,9 +8,9 @@ import ts from "typescript";
 const require = createRequire(import.meta.url);
 function load(path, mocks = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const module = { exports: {} };
-  vm.runInNewContext(source, { module, exports: module.exports, require: (name) => name in mocks ? mocks[name] : require(name), File, FormData, Buffer, crypto, console: { error() {} } });
-  return module.exports;
+  const compiledModule = { exports: {} };
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : require(name), File, FormData, Buffer, crypto, console: { error() {} } });
+  return compiledModule.exports;
 }
 const images = load("src/lib/uploads/images.ts");
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
@@ -37,6 +37,7 @@ test("poster uploads retain the original image bytes with a generated safe exten
   assert.match(f.calls[0].path, /^events\/[0-9a-f-]+\.png$/);
   assert.deepEqual(f.calls[0].bytes, png);
   assert.equal(f.calls[0].options.contentType, "image/png");
+  assert.equal(f.calls[0].options.cacheControl, "31536000", "UUID assets can be reused by browsers for a year");
   assert.equal(f.calls[0].options.upsert, false);
 });
 test("uploads reject oversized files, disguised HTML, mismatched MIME and traversal paths", async () => {

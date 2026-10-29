@@ -67,7 +67,7 @@ export function activityPriceAmounts(activityIds: string[], tier: Pick<CommerceP
 export function previewCommerceQuote(config: CommerceConfig, participants: CommerceParticipant[], now = new Date()): CommerceQuote | null {
   const parsed = participantsSchema.safeParse(participants);
   if (!config.enabled || !parsed.success) return null;
-  const quote: CommerceQuote = { totalCents: 0, lines: [], participants: parsed.data };
+  const quote: CommerceQuote = { totalCents: 0, lines: [], participants: parsed.data, discountExcludedActivityIds: config.activities.filter(activity => activity.kind === 'dinner').map(activity => activity.id) };
   for (const [participantIndex, person] of parsed.data.entries()) {
     const pkg = config.packages.find(p => p.id === person.packageId);
     const tier = pkg && activePrice(pkg.prices, now);

@@ -31,12 +31,19 @@ export function discountQuote(quote: CommerceQuote, discount: CommerceDiscountCo
   if (quote.lines.some(line => line.kind === 'upgrade')) return { error: 'discount_upgrade_unsupported' };
   const subtotalCents = quote.lines.reduce((sum, line) => sum + line.totalCents, 0);
   if (subtotalCents < discount.minSubtotalCents) return { error: 'discount_minimum_subtotal' };
+  const excluded = new Set(quote.discountExcludedActivityIds ?? []);
   const eligible = quote.lines.map(line => {
     if (discount.allowedTierIds.length && (!line.tierId || !discount.allowedTierIds.includes(line.tierId))) return 0;
-    if (discount.targetType === 'order') return line.totalCents;
-    if (discount.targetType === 'package') return line.packageId && discount.targetIds.includes(line.packageId) ? line.totalCents : 0;
-    if (discount.targetType === 'addon') return line.addonId && discount.targetIds.includes(line.addonId) ? line.totalCents : 0;
-    return discount.targetIds.reduce((sum, activityId) => sum + (line.activityAmounts?.[activityId] || 0), 0);
+    // Dinner remains full price, including when it is part of a package. Quotes
+    // without a reliable split conservatively exclude the entire affected line.
+    const excludedIds = line.activityIds.filter(activityId => excluded.has(activityId));
+    const excludedCents = excludedIds.some(activityId => line.activityAmounts?.[activityId] === undefined)
+      ? line.totalCents : excludedIds.reduce((sum, activityId) => sum + (line.activityAmounts?.[activityId] ?? 0), 0);
+    const nonDinnerCents = Math.max(0, line.totalCents - excludedCents);
+    if (discount.targetType === 'order') return line.kind === 'package' ? nonDinnerCents : 0;
+    if (discount.targetType === 'package') return line.kind === 'package' && line.packageId && discount.targetIds.includes(line.packageId) ? nonDinnerCents : 0;
+    if (discount.targetType === 'addon') return line.kind === 'addon' && line.addonId && discount.targetIds.includes(line.addonId) ? nonDinnerCents : 0;
+    return Math.min(nonDinnerCents, discount.targetIds.reduce((sum, activityId) => sum + (excluded.has(activityId) ? 0 : line.activityAmounts?.[activityId] || 0), 0));
   });
   const eligibleCents = eligible.reduce((sum, amount) => sum + amount, 0);
   if (!eligibleCents) return { error: 'discount_not_applicable' };

@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://meraki.test/it/admin/biglietti", pretendToBeVisual: true });
 const { window } = dom;
 const descriptors = new Map();
-for (const [key, value] of Object.entries({ window, document: window.document, navigator: window.navigator, HTMLElement: window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
+for (const [key, value] of Object.entries({ window, document: window.document, navigator: window.navigator, HTMLElement: window.HTMLElement, FormData: window.FormData, IS_REACT_ACT_ENVIRONMENT: true })) {
   descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
   Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
 }
@@ -59,7 +59,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-async function setup(context, { initialEventId = "", initialAffiliateId = "", ticketRows = tickets, eventRows = events, url = "/it/admin/biglietti?source=events#iscritti" } = {}) {
+async function setup(context, { initialEventId = "", initialAffiliateId = "", ticketRows = tickets, eventRows = events, assignableAffiliates, affiliateOptionsError, url = "/it/admin/biglietti?source=events#iscritti" } = {}) {
   window.history.replaceState(null, "", url);
   window.document.body.innerHTML = '<div id="tickets-root"></div>';
   const actionCalls = [];
@@ -68,6 +68,8 @@ async function setup(context, { initialEventId = "", initialAffiliateId = "", ti
   const authorizationCalls = [];
   const decoders = [];
   const navigationCalls = [];
+  const affiliateCalls = [];
+  const refreshes = [];
   const storedTickets = structuredClone(ticketRows);
   const actions = {
     checkInTicket(id, selectedEvent, activityId) {
@@ -98,15 +100,16 @@ async function setup(context, { initialEventId = "", initialAffiliateId = "", ti
   }
   const scanner = compile("../src/app/[locale]/admin/biglietti/qr-scanner.tsx", { "@/app/api/admin/biglietti/actions": actions, "@zxing/browser": { BrowserQRCodeReader } });
   const dataTable = compile("../src/components/admin/data-table.tsx", { "./data-table-view": compile("../src/components/admin/data-table-view.tsx", {}) });
-  const router = { replace(href, options) {
+  const router = { refresh() { refreshes.push(true); render(new URL(window.location.href).searchParams.get("event") || initialEventId); }, replace(href, options) {
     navigationCalls.push({ href, options });
     window.history.replaceState(null, "", href);
     const selected = new URL(window.location.href).searchParams.get("event") || "";
     render(selected);
   } };
-  const { TicketsClient } = compile("../src/app/[locale]/admin/biglietti/tickets-client.tsx", { "next/navigation": { useRouter: () => router }, "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) }, "@/app/api/admin/biglietti/actions": actions, "@/components/admin/data-table": dataTable, "./qr-scanner": scanner });
+  const editor = compile("../src/components/admin/ticket-affiliate-editor.tsx", { "@/app/api/admin/participants/affiliate-actions": { assignParticipantAffiliate(input) { const pending = deferred(); affiliateCalls.push({ ...pending, input }); return pending.promise; } } });
+  const { TicketsClient } = compile("../src/app/[locale]/admin/biglietti/tickets-client.tsx", { "next/navigation": { useRouter: () => router }, "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) }, "@/app/api/admin/biglietti/actions": actions, "@/components/admin/data-table": dataTable, "@/components/admin/ticket-affiliate-editor": editor, "./qr-scanner": scanner });
   const root = createRoot(window.document.getElementById("tickets-root"));
-  const render = (id) => root.render(React.createElement(TicketsClient, { initialTickets: storedTickets.filter((ticket) => ticket.event_id === id), events: eventRows, initialEventId: id, initialAffiliateId: new URL(window.location.href).searchParams.get("affiliate") || initialAffiliateId }));
+  const render = (id) => root.render(React.createElement(TicketsClient, { initialTickets: storedTickets.filter((ticket) => ticket.event_id === id), events: eventRows, initialEventId: id, initialAffiliateId: new URL(window.location.href).searchParams.get("affiliate") || initialAffiliateId, affiliateOptions: assignableAffiliates ?? eventRows.find(event => event.id === id)?.affiliates?.filter(affiliate => affiliate.active).map(({ id, name }) => ({ id, name })) ?? [], affiliateOptionsError }));
   context.after(async () => { await act(async () => root.unmount()); });
   await act(async () => render(initialEventId));
   const rows = () => [...window.document.querySelectorAll("tbody tr")];
@@ -127,7 +130,12 @@ async function setup(context, { initialEventId = "", initialAffiliateId = "", ti
     if (result.ticket) Object.assign(storedTickets.find((ticket) => ticket.id === result.ticket.id), result.ticket);
     await act(async () => actionCalls.at(-1).resolve(result));
   };
-  return { actionCalls, qrCalls, mediaRequests, authorizationCalls, decoders, navigationCalls, rows, row, button, select, selectEvent, search, counts, respond };
+  const respondAffiliate = async result => {
+    if (result.success) { const participant = result.participant; Object.assign(storedTickets.find(ticket => ticket.id === participant.id && Boolean(ticket.commerce) === (participant.source === "commerce")), { affiliate_id: participant.affiliateId, affiliate_name: participant.affiliateName }); }
+    await act(async () => affiliateCalls.at(-1).resolve(result));
+  };
+  const storeAttribution = (id, affiliateId, affiliateName) => Object.assign(storedTickets.find(ticket => ticket.id === id), { affiliate_id: affiliateId, affiliate_name: affiliateName });
+  return { actionCalls, qrCalls, mediaRequests, authorizationCalls, decoders, navigationCalls, affiliateCalls, refreshes, rows, row, button, select, selectEvent, search, counts, respond, respondAffiliate, storeAttribution };
 }
 
 test("the participant list requires an explicit event and keeps the URL event filter", async (context) => {
@@ -300,8 +308,9 @@ test("changing the event stops a running scanner and the new event always starts
   assert.equal(ui.qrCalls.length, 0);
 });
 
-function pageHarness({ authorized = true, rows = {}, errors = {} } = {}) {
+function pageHarness({ authorized = true, rows = {}, errors = {}, affiliateResult = { success: true, affiliates: [] } } = {}) {
   const queries = [];
+  const affiliateLoads = [];
   const data = { events: events.map((event) => ({ ...event, commerce_config: { activities: event.activities } })), tickets: [], commerce_passes: [], commerce_attendee_contacts: [], ...rows };
   const admin = { from(table) {
     let fields = "";
@@ -339,10 +348,11 @@ function pageHarness({ authorized = true, rows = {}, errors = {} } = {}) {
     "@/lib/commerce/admin-auth": { async requireCommerceStaff() { if (!authorized) throw new Error("Forbidden"); return admin; } },
     "@/lib/commerce/config": { parseCommerceConfig: (config) => config },
     "@/lib/i18n-utils": { getLocalizedText: (text) => text },
+    "@/app/api/admin/participants/affiliate-actions": { async loadAssignableParticipantAffiliates(eventId) { assert.equal(authorized, true); affiliateLoads.push(eventId); return affiliateResult; } },
     "./tickets-client": { TicketsClient: () => null },
   });
   const clientProps = (tree) => tree.props.initialTickets ? tree.props : React.Children.toArray(tree.props.children).find((child) => child.props?.initialTickets)?.props;
-  return { Page, queries, clientProps };
+  return { Page, queries, clientProps, affiliateLoads };
 }
 
 for (const [label, event, expected] of [["valid", eventA, eventA], ["unknown", "unknown", ""], ["repeated", [eventA, eventB], ""], ["missing", undefined, ""]]) {
@@ -503,4 +513,149 @@ test("unknown affiliate links default to the event list and snapshot-only affili
   assert.equal(ui.rows().length, 1);
   assert.ok(ui.row("Edo Bianchi"));
   assert.deepEqual(ui.counts(), { "Iscritti validi": 1, "Con check-in": 0, "Senza check-in": 1 });
+});
+
+test("a direct purchase receives an affiliate only after explicit confirmation and cancel never writes", async context => {
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, ticketRows: affiliatedTickets });
+  const row = () => ui.row("Nina Blu");
+  await act(async () => ui.button("Assegna affiliato", row()).click());
+  await ui.select(row().querySelector('select[aria-label="Affiliato per Nina Blu"]'), affiliateA);
+  assert.equal(ui.affiliateCalls.length, 0);
+  assert.match(row().textContent, /Conferma per salvare/);
+  await act(async () => ui.button("Annulla", row()).click());
+  assert.equal(ui.affiliateCalls.length, 0); assert.match(row().textContent, /Acquisto diretto/);
+  assert.equal(window.document.activeElement, ui.button("Assegna affiliato", row()));
+  await act(async () => ui.button("Assegna affiliato", row()).click());
+  const select = row().querySelector('select[aria-label="Affiliato per Nina Blu"]');
+  assert.equal(select.value, "");
+  assert.equal(select.querySelector(`option[value="${affiliateB}"]`), null, "inactive affiliates are not offered for new assignment");
+  await ui.select(select, affiliateA);
+  await act(async () => ui.button("Salva affiliato", row()).click());
+  assert.equal(ui.affiliateCalls.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(ui.affiliateCalls[0].input)), { source: "legacy", id: "nina", eventId: eventA, affiliateId: affiliateA, expectedAffiliateId: null });
+  assert.equal(window.document.getElementById("tickets-event").disabled, true);
+  assert.equal(window.document.getElementById("tickets-affiliate").disabled, true);
+  await act(async () => ui.button("Salvataggio", row()).click());
+  assert.equal(ui.affiliateCalls.length, 1);
+  await ui.respondAffiliate({ success: true, changed: true, participant: { source: "legacy", id: "nina", eventId: eventA, affiliateId: affiliateA, affiliateName: "Scuola Aurora" } });
+  assert.match(row().textContent, /Scuola Aurora/); assert.match(row().textContent, /nina_opaque/);
+  assert.equal(window.document.activeElement, ui.button("Modifica affiliato", row()));
+  assert.match(window.document.getElementById("tickets-affiliate").querySelector(`option[value="${affiliateA}"]`).textContent, /3 iscritti validi/);
+  assert.equal(ui.refreshes.length, 1); assert.equal(ui.actionCalls.length, 0); assert.equal(ui.mediaRequests.length, 0);
+  assert.ok(ui.button("Registra ingresso", row()));
+});
+
+test("commerce attribution changes just one participant and later check-in preserves the new affiliate", async context => {
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents });
+  await act(async () => ui.button("Assegna affiliato", ui.row("Ada Rossi")).click());
+  await ui.select(ui.row("Ada Rossi").querySelector('select[aria-label="Affiliato per Ada Rossi"]'), affiliateA);
+  await act(async () => ui.button("Salva affiliato", ui.row("Ada Rossi")).click());
+  assert.deepEqual(JSON.parse(JSON.stringify(ui.affiliateCalls[0].input)), { source: "commerce", id: "ada", eventId: eventA, affiliateId: affiliateA, expectedAffiliateId: null });
+  await ui.respondAffiliate({ success: true, changed: true, participant: { source: "commerce", id: "ada", eventId: eventA, affiliateId: affiliateA, affiliateName: "Scuola Aurora" } });
+  assert.match(ui.row("Ada Rossi").textContent, /Scuola Aurora/);
+  assert.match(ui.row("Edo Bianchi").textContent, /Acquisto diretto/);
+  await ui.select(ui.row("Ada Rossi").querySelector('select[aria-label="Attività per Ada Rossi"]'), "workshop");
+  await act(async () => ui.button("Registra attività", ui.row("Ada Rossi")).click());
+  await ui.respond({ outcome: "admitted", message: "Workshop confermato.", ticket: { id: "ada", event_id: eventA, buyer_nome: "Ada", buyer_cognome: "Rossi", status: "paid", used_at: null, commerce: true, entitlements: [entitlement("workshop", "Workshop", { status: "used", checked_in_at: "2026-11-19T00:30:00Z" }), entitlement("dinner", "Cena")] } });
+  assert.match(ui.row("Ada Rossi").textContent, /Scuola Aurora/); assert.match(ui.row("Ada Rossi").textContent, /Check-in registrato/);
+  assert.equal(ui.mediaRequests.length, 0);
+});
+
+test("an existing archived attribution can be removed and the active affiliate filter updates without changing check-in", async context => {
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, ticketRows: affiliatedTickets, url: `/it/admin/biglietti?event=${eventA}&affiliate=${affiliateB}` });
+  await act(async () => ui.button("Modifica affiliato", ui.row("Luca Verdi")).click());
+  const select = ui.row("Luca Verdi").querySelector('select[aria-label="Affiliato per Luca Verdi"]');
+  assert.equal(select.querySelector(`option[value="${affiliateB}"]`).disabled, true);
+  assert.match(ui.row("Luca Verdi").textContent, /non disponibile per nuove assegnazioni/);
+  await ui.select(select, ""); await act(async () => ui.button("Salva affiliato", ui.row("Luca Verdi")).click());
+  assert.equal(ui.affiliateCalls[0].input.expectedAffiliateId, affiliateB); assert.equal(ui.affiliateCalls[0].input.affiliateId, null);
+  await ui.respondAffiliate({ success: true, changed: true, participant: { source: "legacy", id: "luca", eventId: eventA, affiliateId: null, affiliateName: null } });
+  assert.equal(ui.row("Luca Verdi"), undefined, "the row leaves the currently selected affiliate list");
+  assert.equal(window.document.getElementById("tickets-affiliate").value, affiliateB);
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 0, "Con check-in": 0, "Senza check-in": 0 });
+  assert.match(window.document.body.textContent, /attribuzione rimossa/);
+  await ui.select(window.document.getElementById("tickets-affiliate"), "direct");
+  assert.ok(ui.row("Luca Verdi")); assert.match(ui.row("Luca Verdi").textContent, /Utilizzato/);
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 2, "Con check-in": 1, "Senza check-in": 1 });
+});
+
+test("changing affiliates sends the current snapshot as a concurrency check and refreshes only after success", async context => {
+  const nextId = "cccccccc-3333-4333-8333-333333333333";
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, ticketRows: affiliatedTickets, assignableAffiliates: [{ id: affiliateA, name: "Scuola Aurora" }, { id: nextId, name: "Nuova scuola" }] });
+  await act(async () => ui.button("Modifica affiliato", ui.row("Ada Rossi")).click());
+  await ui.select(ui.row("Ada Rossi").querySelector('select[aria-label="Affiliato per Ada Rossi"]'), nextId);
+  await act(async () => ui.button("Salva affiliato", ui.row("Ada Rossi")).click());
+  assert.equal(ui.affiliateCalls[0].input.expectedAffiliateId, affiliateA);
+  await ui.respondAffiliate({ success: false, code: "conflict", error: "Un altro operatore ha modificato l’affiliato. Ricarica l’elenco." });
+  assert.match(ui.row("Ada Rossi").querySelector('[role="alert"]').textContent, /altro operatore/);
+  assert.equal(ui.row("Ada Rossi").querySelector('select[aria-label="Affiliato per Ada Rossi"]').value, nextId);
+  assert.match(ui.row("Ada Rossi").textContent, /Scuola Aurora originale/);
+  assert.equal(ui.refreshes.length, 0);
+  await act(async () => ui.button("Ricarica elenco iscritti", ui.row("Ada Rossi")).click());
+  assert.equal(ui.refreshes.length, 1); assert.equal(ui.affiliateCalls.length, 1);
+  assert.equal(ui.row("Ada Rossi").querySelector('select[aria-label="Affiliato per Ada Rossi"]'), null);
+});
+
+test("conflict reload replaces a previously saved local attribution with the current server value", async context => {
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, ticketRows: affiliatedTickets });
+  await act(async () => ui.button("Assegna affiliato", ui.row("Nina Blu")).click());
+  await ui.select(ui.row("Nina Blu").querySelector('select[aria-label="Affiliato per Nina Blu"]'), affiliateA);
+  await act(async () => ui.button("Salva affiliato", ui.row("Nina Blu")).click());
+  await ui.respondAffiliate({ success: true, changed: true, participant: { source: "legacy", id: "nina", eventId: eventA, affiliateId: affiliateA, affiliateName: "Scuola Aurora" } });
+  await act(async () => ui.button("Modifica affiliato", ui.row("Nina Blu")).click());
+  await ui.select(ui.row("Nina Blu").querySelector('select[aria-label="Affiliato per Nina Blu"]'), "");
+  await act(async () => ui.button("Salva affiliato", ui.row("Nina Blu")).click());
+  ui.storeAttribution("nina", affiliateB, "Referente Bruno");
+  await ui.respondAffiliate({ success: false, code: "conflict", error: "Affiliato aggiornato da un altro operatore." });
+  await act(async () => ui.button("Ricarica elenco iscritti", ui.row("Nina Blu")).click());
+  assert.match(ui.row("Nina Blu").textContent, /Referente Bruno/);
+  assert.doesNotMatch(ui.row("Nina Blu").textContent, /Scuola Aurora/);
+  await act(async () => ui.button("Modifica affiliato", ui.row("Nina Blu")).click());
+  await ui.select(ui.row("Nina Blu").querySelector('select[aria-label="Affiliato per Nina Blu"]'), "");
+  await act(async () => ui.button("Salva affiliato", ui.row("Nina Blu")).click());
+  assert.equal(ui.affiliateCalls.at(-1).input.expectedAffiliateId, affiliateB);
+  await ui.respondAffiliate({ success: false, code: "unavailable", error: "Test completato senza salvataggio." });
+});
+
+test("network errors retain the affiliate draft and pending or refunded participants remain read-only", async context => {
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, ticketRows: affiliatedTickets });
+  assert.equal(ui.button("Assegna affiliato", ui.row("Rita Viola")), undefined);
+  assert.equal(ui.button("Assegna affiliato", ui.row("Pino Gialli")), undefined);
+  await act(async () => ui.button("Assegna affiliato", ui.row("Nina Blu")).click());
+  await ui.select(ui.row("Nina Blu").querySelector('select[aria-label="Affiliato per Nina Blu"]'), affiliateA);
+  await act(async () => ui.button("Salva affiliato", ui.row("Nina Blu")).click());
+  await act(async () => ui.affiliateCalls[0].reject(new Error("network unavailable")));
+  assert.match(ui.row("Nina Blu").querySelector('[role="alert"]').textContent, /Connessione interrotta/);
+  assert.equal(ui.row("Nina Blu").querySelector('select[aria-label="Affiliato per Nina Blu"]').value, affiliateA);
+  assert.match(ui.row("Nina Blu").textContent, /Acquisto diretto/);
+  assert.equal(ui.refreshes.length, 0); assert.equal(window.document.getElementById("tickets-event").disabled, false);
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 4, "Con check-in": 1, "Senza check-in": 3 });
+});
+
+test("the roster offers a clear empty assignment state and a loader retry without inventing affiliate choices", async context => {
+  const ui = await setup(context, { initialEventId: eventA, eventRows: affiliatedEvents, assignableAffiliates: [], affiliateOptionsError: "Affiliati temporaneamente non disponibili." });
+  await act(async () => ui.button("Assegna affiliato", ui.row("Nina Blu")).click());
+  const select = ui.row("Nina Blu").querySelector('select[aria-label="Affiliato per Nina Blu"]');
+  assert.deepEqual([...select.options].map(option => option.value), [""]);
+  assert.equal(ui.button("Salva affiliato", ui.row("Nina Blu")).disabled, true);
+  assert.match(ui.row("Nina Blu").textContent, /temporaneamente non disponibili/);
+  await act(async () => ui.button("Ricarica affiliati", ui.row("Nina Blu")).click());
+  assert.equal(ui.refreshes.length, 1); assert.equal(ui.affiliateCalls.length, 0);
+});
+
+test("the server loads assignable affiliates only after staff authorization and only for the validated event", async () => {
+  const options = [{ id: affiliateA, name: "Scuola Aurora" }];
+  const harness = pageHarness({ affiliateResult: { success: true, affiliates: options } });
+  const tree = await harness.Page({ searchParams: Promise.resolve({ event: eventA }) });
+  assert.deepEqual(harness.affiliateLoads, [eventA]);
+  assert.deepEqual(harness.clientProps(tree).affiliateOptions, options);
+  assert.equal(harness.clientProps(tree).affiliateOptionsError, undefined);
+  const unavailable = pageHarness({ affiliateResult: { success: false, error: "Affiliati non disponibili" } });
+  const failedTree = await unavailable.Page({ searchParams: Promise.resolve({ event: eventA }) });
+  assert.deepEqual(Array.from(unavailable.clientProps(failedTree).affiliateOptions), []);
+  assert.equal(unavailable.clientProps(failedTree).affiliateOptionsError, "Affiliati non disponibili");
+  for (const query of [{}, { event: "unknown" }]) {
+    const noEvent = pageHarness(); await noEvent.Page({ searchParams: Promise.resolve(query) }); assert.equal(noEvent.affiliateLoads.length, 0);
+  }
+  const denied = pageHarness({ authorized: false }); await denied.Page({ searchParams: Promise.resolve({ event: eventA }) }); assert.equal(denied.affiliateLoads.length, 0);
 });

@@ -92,6 +92,18 @@ export async function upsertEvent(raw: unknown) {
   }
   // Configurations, counters and Stripe IDs have dedicated transactional paths.
   const { ticketing_mode: ticketingMode, ...eventData } = validation.data;
+  if (eventData.affiliates?.length) {
+    const { data: registered, error: registryError } = await supabase.from("affiliates").select("id,name,deleted_at")
+      .in("id", eventData.affiliates.map((affiliate) => affiliate.id));
+    if (registryError || !registered) return { success: false, error: "Impossibile verificare l’anagrafica degli affiliati. Ricarica l’evento e riprova." };
+    const names = new Map(registered.map((affiliate) => [affiliate.id, affiliate.name]));
+    if (eventData.affiliates.some((affiliate) => !names.has(affiliate.id))) return { success: false, error: "Seleziona gli affiliati dall’anagrafica. Crea prima i nuovi affiliati nella pagina Affiliati." };
+    const deletedIds = new Set(registered.filter((affiliate) => affiliate.deleted_at).map((affiliate) => affiliate.id));
+    if (eventData.affiliates.some((affiliate) => affiliate.active && deletedIds.has(affiliate.id))) return { success: false, error: "Un affiliato selezionato è stato eliminato dall’anagrafica. Ricarica l’elenco oppure ripristinalo dal Cestino prima di abilitarlo." };
+    const canonical = eventAffiliatesSchema.safeParse(eventData.affiliates.map((affiliate) => ({ ...affiliate, name: affiliate.active ? names.get(affiliate.id) : affiliate.name })));
+    if (!canonical.success) return { success: false, error: "Gli affiliati abilitati devono avere nomi diversi. Verifica la selezione nell’anagrafica." };
+    eventData.affiliates = canonical.data;
+  }
   if (eventData.id && eventData.affiliates !== undefined) {
     const { data: existing, error: existingError } = await supabase.from("events").select("affiliates").eq("id", eventData.id).single();
     if (existingError || !existing) return { success: false, error: "Impossibile verificare lo storico degli affiliati. Ricarica l’evento e riprova." };
@@ -139,6 +151,7 @@ export async function upsertEvent(raw: unknown) {
 
   if (error) {
     console.error("Error saving event:", error);
+    if (error.code === "22023" && error.message === "Affiliate unavailable") return { success: false, error: "Un affiliato selezionato è stato eliminato mentre modificavi l’evento. Aggiorna l’elenco e riprova: le iscrizioni già presenti sono conservate." };
     return { success: false, error: error.message };
   }
 

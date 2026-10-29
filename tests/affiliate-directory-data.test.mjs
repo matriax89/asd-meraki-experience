@@ -9,11 +9,12 @@ const require = createRequire(import.meta.url);
 const plain = value => JSON.parse(JSON.stringify(value));
 function compile(file, mocks = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const module = { exports: {} };
-  vm.runInNewContext(source, { module, exports: module.exports, require: name => name in mocks ? mocks[name] : require(name), Map, Set, Date });
-  return module.exports;
+  const loadedModule = { exports: {} };
+  vm.runInNewContext(source, { module: loadedModule, exports: loadedModule.exports, require: name => name in mocks ? mocks[name] : require(name), Map, Set, Date });
+  return loadedModule.exports;
 }
 const affiliates = compile('lib/events/affiliates.ts');
+const commissionValues = compile('lib/events/affiliate-commissions.ts');
 const i18n = compile('lib/i18n-utils.ts');
 const ids = {
   a: '10000000-0000-4000-8000-000000000001', b: '10000000-0000-4000-8000-000000000002',
@@ -23,8 +24,9 @@ const event = (id = ids.a, configured = [{ id: ids.affiliate, name: 'Martina agg
 const legacy = (id, overrides = {}) => ({ id, event_id: ids.a, affiliate_id: ids.affiliate, affiliate_name: 'Martina originale', status: 'paid', created_at: '2026-10-01T10:00:00Z', buyer_nome: 'Ada', buyer_cognome: 'Rossi', buyer_email: 'buyer@example.test', qr_code: 'PRIVATE-CAPABILITY', ...overrides });
 const pass = (id, overrides = {}) => ({ ...legacy(id), first_name: 'Ada', last_name: 'Rossi', package_name: 'Workshop + Masterclass', commerce_orders: { buyer_email: 'purchaser@example.test' }, commerce_entitlements: [{ activity_id: 'workshop', activity_name: 'Workshop', status: 'valid', checked_in_at: null, menu_choice: null }], ...overrides });
 
-function fixture({ events = [event()], tickets = [], passes = [], contacts = [], commissions = [], denied = false, fail } = {}) {
+function fixture({ events = [event()], tickets = [], passes = [], contacts = [], commissions = [], registry = [], registryFailure = false, denied = false, fail } = {}) {
   const calls = [];
+  const registryCalls = [];
   let authenticated = false;
   const tables = { events, tickets, commerce_passes: passes, commerce_attendee_contacts: contacts, event_affiliate_commissions: commissions };
   const db = { from(table) {
@@ -50,13 +52,19 @@ function fixture({ events = [event()], tickets = [], passes = [], contacts = [],
   } };
   const api = compile('lib/events/affiliate-directory.ts', {
     'server-only': {}, '@/lib/commerce/admin-auth': { requireCommerceStaff: async () => { if (denied) throw new Error('Accesso negato'); authenticated = true; return db; } },
-    '@/lib/i18n-utils': i18n, './affiliates': affiliates,
+    '@/lib/i18n-utils': i18n, './affiliates': affiliates, './affiliate-commissions': commissionValues,
+    './affiliate-registry': { loadAffiliateRegistry: async (options) => {
+      assert.ok(authenticated, 'registry reads must follow staff authorization');
+      registryCalls.push(options);
+      if (registryFailure) throw new Error('Impossibile caricare l’anagrafica affiliati.');
+      return options?.includeDeleted ? registry : registry.filter(entry => !entry.deletedAt);
+    } },
   });
-  return { ...api, calls };
+  return { ...api, calls, registryCalls };
 }
 
 test('staff authorization precedes every directory/detail read, including invalid identifiers', async () => {
-  for (const method of ['loadAffiliateDirectory', 'loadAffiliateParticipants']) {
+  for (const method of ['loadAffiliateDirectory', 'loadAffiliateParticipants', 'loadAffiliateProfile']) {
     const api = fixture({ denied: true });
     await assert.rejects(api[method]('it', 'invalid', 'invalid'), /Accesso negato/);
     assert.equal(api.calls.length, 0);
@@ -64,6 +72,7 @@ test('staff authorization precedes every directory/detail read, including invali
   const api = fixture();
   assert.equal(await api.loadAffiliateParticipants('it', 'invalid', ids.affiliate), null);
   assert.equal(await api.loadAffiliateParticipants('it', ids.a, 'invalid'), null);
+  assert.equal(await api.loadAffiliateProfile('it', 'invalid'), null);
   await assert.rejects(api.loadAffiliateDirectory('it', 'invalid'), /Evento non disponibile/);
   assert.equal(api.calls.length, 0);
 });
@@ -76,7 +85,7 @@ test('directory keeps each event separate, zero/disabled affiliates and snapshot
   });
   const result = await api.loadAffiliateDirectory('en');
   const current = result.rows.find(row => row.eventId === ids.a && row.affiliateId === ids.affiliate);
-  assert.deepEqual(plain(current), { eventId: ids.a, eventTitle: 'Meraki Day EN', eventStartsAt: '2026-12-19T11:30:00Z', affiliateId: ids.affiliate, name: 'Martina aggiornata', active: true, archived: false, validCount: 3, checkedInCount: 2, totalCount: 7, commissionPerParticipantCents: 0, commissionCents: 0 });
+  assert.deepEqual(plain(current), { eventId: ids.a, eventTitle: 'Meraki Day EN', eventStartsAt: '2026-12-19T11:30:00Z', affiliateId: ids.affiliate, name: 'Martina aggiornata', active: true, archived: false, validCount: 3, checkedInCount: 2, totalCount: 7, commissionType: 'eur', commissionPerParticipantCents: 0, commissionCents: 0, commissionPerParticipantCredits: 0, commissionCredits: 0 });
   assert.equal(result.rows.find(row => row.eventId === ids.b).name, 'Martina altro evento');
   const disabled = result.rows.find(row => row.affiliateId === ids.disabled);
   assert.equal(disabled.validCount, 0); assert.equal(disabled.active, false); assert.equal(disabled.archived, false);
@@ -256,4 +265,119 @@ test('a canceled event stops valid counts, check-ins and compensation before leg
   assert.equal(detail.participants.find(row => row.id === 'used-awaiting-refund').status, 'used');
   assert.ok(detail.participants.every(row => !row.checkedIn));
   assert.ok(api.calls.filter(call => call.table === 'events').every(call => call.fields.includes('canceled_at')));
+});
+
+test('a central affiliate dossier keeps event-specific totals, disabled associations and same-name identities separate', async () => {
+  const api = fixture({
+    registry: [{ id: ids.affiliate, name: 'Nome in anagrafica', createdAt: '2026-10-26T12:00:00Z' }, { id: ids.disabled, name: 'Nome in anagrafica', createdAt: '2026-10-26T12:01:00Z' }],
+    events: [
+      event(ids.a, [{ id: ids.affiliate, name: 'Nome evento A', active: true }, { id: ids.disabled, name: 'Omonimo distinto', active: true }]),
+      { ...event(ids.b, [{ id: ids.affiliate, name: 'Nome evento B', active: false }]), data_inizio: '2027-01-15T11:00:00Z' },
+    ],
+    tickets: [legacy('a'), legacy('b', { event_id: ids.b }), legacy('same-name', { affiliate_id: ids.disabled })],
+    commissions: [{ event_id: ids.a, affiliate_id: ids.affiliate, commission_cents: 500 }, { event_id: ids.b, affiliate_id: ids.affiliate, commission_cents: 700 }],
+  });
+  const profile = await api.loadAffiliateProfile('en', ids.affiliate);
+  assert.deepEqual(plain(profile.affiliate), { id: ids.affiliate, name: 'Nome in anagrafica', createdAt: '2026-10-26T12:00:00Z' });
+  assert.equal(profile.rows.length, 2);
+  assert.deepEqual(plain(profile.rows.map(row => [row.eventId, row.active, row.validCount, row.commissionCents])), [[ids.b, false, 1, 700], [ids.a, true, 1, 500]]);
+  assert.ok(profile.rows.every(row => row.affiliateId === ids.affiliate && row.eventTitle === 'Meraki Day EN'));
+  assert.equal(api.registryCalls.length, 1);
+  assert.equal(api.calls.some(call => call.table === 'commerce_attendee_contacts'), false);
+  assert.doesNotMatch(JSON.stringify(profile), /buyer@example|qr_code|PRIVATE-CAPABILITY/);
+});
+
+test('new affiliates have an empty dossier and unknown identifiers never inherit another affiliate events', async () => {
+  const api = fixture({ registry: [{ id: ids.archived, name: 'Nuovo affiliato', createdAt: '2026-10-26T12:00:00Z' }] });
+  const standalone = await api.loadAffiliateProfile('it', ids.archived);
+  assert.deepEqual(plain(standalone), { affiliate: { id: ids.archived, name: 'Nuovo affiliato', createdAt: '2026-10-26T12:00:00Z' }, rows: [], events: [{ id: ids.a, title: 'Meraki Day', startsAt: '2026-12-19T11:30:00Z' }] });
+  assert.equal(await api.loadAffiliateProfile('it', 'a0000000-0000-4000-8000-000000000000'), null);
+});
+
+test('historical and direct dossiers preserve attribution without inventing registry records', async () => {
+  const api = fixture({ tickets: [legacy('historical', { affiliate_id: ids.archived, affiliate_name: 'Nome storico' }), legacy('direct', { affiliate_id: null, affiliate_name: null })] });
+  const historical = await api.loadAffiliateProfile('it', ids.archived);
+  assert.deepEqual(plain(historical.affiliate), { id: ids.archived, name: 'Nome storico' });
+  assert.equal(historical.rows.length, 1); assert.equal(historical.rows[0].archived, true);
+  const direct = await api.loadAffiliateProfile('it', 'direct');
+  assert.deepEqual(plain(direct.affiliate), { id: 'direct', name: 'Acquisti diretti' });
+  assert.equal(direct.rows.length, 1); assert.equal(direct.rows[0].totalCount, 1);
+  assert.equal(api.registryCalls.length, 1, 'only the historical profile reads the affiliate registry');
+  const empty = await fixture({ events: [] }).loadAffiliateProfile('it', 'direct');
+  assert.equal(empty.rows.length, 0);
+});
+
+test('profile failures are explicit and malformed IDs do not trigger registry or event queries', async () => {
+  const invalid = fixture({ registryFailure: true });
+  assert.equal(await invalid.loadAffiliateProfile('it', 'invalid'), null);
+  assert.equal(invalid.calls.length, 0); assert.equal(invalid.registryCalls.length, 0);
+  await assert.rejects(fixture({ registryFailure: true }).loadAffiliateProfile('it', ids.affiliate), /anagrafica affiliati/);
+  await assert.rejects(fixture({ fail: call => call.table === 'tickets' }).loadAffiliateProfile('it', ids.affiliate), /conteggi degli affiliati/);
+});
+
+
+test('a deleted dossier retains private profile data, available event choices and historic compensation', async () => {
+  const entry = { id: ids.affiliate, name: 'Scuola nel Cestino', createdAt: '2026-10-26T12:00:00Z', contactName: 'Referente', email: 'affiliate@example.test', phone: '+390001234567', notes: 'Nota interna', defaultCommissionCents: 700, deletedAt: '2026-10-26T13:00:00Z' };
+  const api = fixture({ registry: [entry], events: [event(ids.a, [{ id: ids.affiliate, name: 'Nome sul vecchio evento', active: false }]), event(ids.b, [])], tickets: [legacy('retained')], commissions: [{ event_id: ids.a, affiliate_id: ids.affiliate, commission_cents: 500 }] });
+  const profile = await api.loadAffiliateProfile('it', ids.affiliate);
+  assert.deepEqual(plain(profile.affiliate), entry);
+  assert.equal(profile.rows.length, 1);
+  assert.equal(profile.rows[0].active, false);
+  assert.equal(profile.rows[0].commissionCents, 500);
+  assert.equal(profile.events.length, 2, 'wizard can associate another available event on edit');
+  assert.deepEqual(plain(api.registryCalls[0]), { includeDeleted: true });
+  const directory = await api.loadAffiliateDirectory('it');
+  assert.doesNotMatch(JSON.stringify(directory), /affiliate@example|Nota interna|390001234567/);
+});
+
+test('credit rates count valid people once and remain separate from EUR across directory, dossier and participant summaries', async () => {
+  const api = fixture({
+    events: [event(), event(ids.b)],
+    commissions: [
+      { event_id: ids.a, affiliate_id: ids.affiliate, commission_type: 'credits', commission_cents: 0, commission_credits: 3 },
+      { event_id: ids.b, affiliate_id: ids.affiliate, commission_cents: 700 },
+      { event_id: ids.a, affiliate_id: 'direct', commission_type: 'credits', commission_cents: 0, commission_credits: 99 },
+    ],
+    tickets: [legacy('paid'), legacy('other-event', { event_id: ids.b }), legacy('direct', { affiliate_id: null })],
+    passes: [pass('bundle', { commerce_entitlements: [{ status: 'valid' }, { status: 'used' }] }), pass('refunded', { status: 'refunded' }), pass('pending', { status: 'pending' }), pass('revoked', { commerce_entitlements: [{ status: 'refunded' }] })],
+  });
+  const directory = await api.loadAffiliateDirectory('it');
+  const credit = directory.rows.find(row => row.eventId === ids.a && row.affiliateId === ids.affiliate);
+  assert.equal(credit.validCount, 2); assert.equal(credit.totalCount, 5);
+  assert.equal(credit.commissionType, 'credits'); assert.equal(credit.commissionPerParticipantCredits, 3); assert.equal(credit.commissionCredits, 6);
+  assert.equal(credit.commissionPerParticipantCents, 0); assert.equal(credit.commissionCents, 0);
+  const eur = directory.rows.find(row => row.eventId === ids.b && row.affiliateId === ids.affiliate);
+  assert.equal(eur.commissionType, 'eur'); assert.equal(eur.commissionCents, 700); assert.equal(eur.commissionCredits, 0); assert.equal(eur.commissionPerParticipantCredits, 0);
+  const direct = directory.rows.find(row => row.affiliateId === 'direct');
+  assert.equal(direct.commissionCents, 0); assert.equal(direct.commissionCredits, 0);
+  const detail = await api.loadAffiliateParticipants('it', ids.a, ids.affiliate);
+  assert.equal(detail.affiliate.commissionType, 'credits'); assert.equal(detail.affiliate.commissionCredits, 6); assert.equal(detail.affiliate.commissionCents, 0);
+  assert.equal(detail.affiliate.commissionPerParticipantCredits, 3); assert.equal(detail.affiliate.commissionPerParticipantCents, 0);
+  const profile = await api.loadAffiliateProfile('it', ids.affiliate);
+  assert.equal(profile.rows.reduce((total, row) => total + row.commissionCents, 0), 700);
+  assert.equal(profile.rows.reduce((total, row) => total + row.commissionCredits, 0), 6);
+  assert.ok(api.calls.filter(call => call.table === 'event_affiliate_commissions').every(call => call.fields.includes('commission_type') && call.fields.includes('commission_credits')));
+});
+
+test('canceled events preserve the credit rate while stopping all accrued credits', async () => {
+  const api = fixture({ events: [{ ...event(), canceled_at: '2026-10-26T10:00:00Z' }], tickets: [legacy('still-paid')], commissions: [{ event_id: ids.a, affiliate_id: ids.affiliate, commission_type: 'credits', commission_cents: 0, commission_credits: 2 }] });
+  const directory = await api.loadAffiliateDirectory('it');
+  const detail = await api.loadAffiliateParticipants('it', ids.a, ids.affiliate);
+  for (const row of [directory.rows.find(row => row.affiliateId === ids.affiliate), detail.affiliate]) {
+    assert.equal(row.commissionType, 'credits'); assert.equal(row.commissionPerParticipantCredits, 2); assert.equal(row.commissionCredits, 0); assert.equal(row.commissionCents, 0);
+  }
+});
+
+test('malformed credit units and amounts fail closed instead of silently converting to EUR', async () => {
+  for (const rate of [
+    { commission_type: 'credits', commission_cents: 0, commission_credits: -1 },
+    { commission_type: 'credits', commission_cents: 0, commission_credits: 1.5 },
+    { commission_type: 'credits', commission_cents: 1, commission_credits: 3 },
+    { commission_type: 'eur', commission_cents: 100, commission_credits: 3 },
+    { commission_type: 'unknown', commission_cents: 0, commission_credits: 0 },
+  ]) {
+    const api = fixture({ commissions: [{ event_id: ids.a, affiliate_id: ids.affiliate, ...rate }] });
+    await assert.rejects(api.loadAffiliateDirectory('it'), /Compenso dell’affiliato non valido/);
+    await assert.rejects(api.loadAffiliateParticipants('it', ids.a, ids.affiliate), /Compenso dell’affiliato non valido/);
+  }
 });

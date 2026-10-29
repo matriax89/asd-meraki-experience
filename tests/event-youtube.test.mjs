@@ -62,8 +62,96 @@ const translations = {
   de: ["Entdecke, was dich erwartet", "Video ansehen", "Einblick im Video"],
   es: ["Descubre lo que te espera", "Ver el vídeo", "El vídeo de la experiencia"],
 };
+
+function observeNativeVideo(context) {
+  const previous = Object.getOwnPropertyDescriptor(dom.window, "IntersectionObserver");
+  const observers = [];
+  dom.window.IntersectionObserver = class {
+    constructor(callback, options) { this.callback = callback; this.options = options; this.disconnected = false; observers.push(this); }
+    observe(target) { this.target = target; }
+    disconnect() { this.disconnected = true; }
+    notify(isIntersecting) { this.callback([{ target: this.target, isIntersecting }], this); }
+  };
+  context.after(() => {
+    if (previous) Object.defineProperty(dom.window, "IntersectionObserver", previous);
+    else delete dom.window.IntersectionObserver;
+  });
+  return observers;
+}
+
+test("native video stays resource-free offscreen, starts once near the viewport and supports close/reopen", async context => {
+  const observers = observeNativeVideo(context);
+  const { host } = await mount(context, { videoUrl: nativeVideoFixtureUrl });
+  assert.equal(observers.length, 1);
+  const observer = observers[0];
+  assert.equal(observer.options.rootMargin, "200px 0px");
+  assert.ok(observer.target.querySelector("[data-native-video-placeholder].aspect-video"));
+  assert.equal(host.querySelector("video,source,iframe,img,script"), null);
+  assert.equal(host.innerHTML.includes(nativeVideoFixtureUrl), false, "offscreen markup cannot initiate an MP4 request");
+  await act(async () => observer.notify(false));
+  assert.equal(host.querySelector("video"), null);
+  await act(async () => observer.notify(true));
+  const firstPlayer = host.querySelector("video");
+  assert.equal(firstPlayer.src, nativeVideoFixtureUrl);
+  assert.equal(observer.disconnected, true);
+  await act(async () => observer.notify(false));
+  assert.equal(host.querySelector("video"), firstPlayer, "leaving the viewport must not remount or restart playback");
+  await act(async () => host.querySelector('button[aria-label="Chiudi il video"]').click());
+  assert.equal(host.querySelector("video"), null);
+  await act(async () => [...host.querySelectorAll("button")].find(button => button.textContent === "Guarda il video").click());
+  assert.equal(host.querySelector("video").src, nativeVideoFixtureUrl);
+  assert.equal(observers.length, 1, "reopening uses the already admitted player without another observer");
+});
+
+test("native video disconnects an unused observer and ignores queued callbacks after unmount", async context => {
+  const observers = observeNativeVideo(context);
+  const { host, render } = await mount(context, { videoUrl: nativeVideoFixtureUrl });
+  const observer = observers[0];
+  await render({ url: null, videoUrl: null });
+  assert.equal(observer.disconnected, true);
+  await act(async () => observer.notify(true));
+  assert.equal(host.innerHTML, "");
+});
+
+test("near-viewport activation preserves keyboard focus when it replaces the focused watch button", async context => {
+  const observers = observeNativeVideo(context);
+  const { host } = await mount(context, { videoUrl: nativeVideoFixtureUrl });
+  const watch = [...host.querySelectorAll("button")].find(button => button.textContent === "Guarda il video");
+  watch.focus();
+  assert.equal(document.activeElement, watch);
+  await act(async () => observers[0].notify(true));
+  const group = host.querySelector('[role="group"]');
+  assert.equal(document.activeElement, group);
+  assert.ok(group.contains(host.querySelector("video")));
+  assert.equal(document.getElementById(group.getAttribute("aria-labelledby")).textContent, "Scopri cosa ti aspetta");
+});
+
+test("near-viewport activation does not take focus from another part of the page", async context => {
+  const observers = observeNativeVideo(context);
+  const { host } = await mount(context, { videoUrl: nativeVideoFixtureUrl });
+  const elsewhere = document.createElement("button");
+  elsewhere.textContent = "Continua la lettura";
+  document.body.append(elsewhere);
+  context.after(() => elsewhere.remove());
+  elsewhere.focus();
+  await act(async () => observers[0].notify(true));
+  assert.ok(host.querySelector("video"));
+  assert.equal(document.activeElement, elsewhere);
+});
+
+test("an explicit watch action can start an offscreen native video without waiting for the observer", async context => {
+  const observers = observeNativeVideo(context);
+  const { host } = await mount(context, { videoUrl: nativeVideoFixtureUrl });
+  const watch = [...host.querySelectorAll("button")].find(button => button.textContent === "Guarda il video");
+  watch.focus();
+  await act(async () => watch.click());
+  assert.equal(host.querySelector("video").src, nativeVideoFixtureUrl);
+  assert.equal(observers[0].disconnected, true);
+  assert.equal(document.activeElement, host.querySelector('[role="group"]'));
+});
+
 for (const [locale, [heading, watch, videoLabel]] of Object.entries(translations)) {
-  test(`${locale}: a first-party MP4 takes precedence without YouTube or a marketing-consent gate`, async context => {
+  test(`${locale}: first-party MP4 keeps the unsupported-observer fallback without YouTube or a consent gate`, async context => {
     const { host } = await mount(context, { videoUrl: nativeVideoFixtureUrl, locale }, { marketing: false });
     assert.equal(host.querySelector("video").src, nativeVideoFixtureUrl);
     assert.equal(host.querySelector("h2").textContent, heading);
@@ -77,7 +165,9 @@ for (const [locale, [heading, watch, videoLabel]] of Object.entries(translations
     await act(async () => [...host.querySelectorAll("button")].find(button => button.textContent === watch).click());
     assert.equal(host.querySelector("video").src, nativeVideoFixtureUrl);
     const html = renderToStaticMarkup(React.createElement(EventVideo, { url: canonical, videoUrl: nativeVideoFixtureUrl, locale }));
-    assert.match(html, /<video/);
+    assert.ok(html.includes("data-native-video-placeholder"));
+    assert.doesNotMatch(html, /<video|<source|src=/);
+    assert.equal(html.includes(nativeVideoFixtureUrl), false, "server rendering must never preload the MP4");
     assert.doesNotMatch(html, /YouTube|youtube|<iframe|<script/);
   });
   test(`${locale}: player is gated without remote thumbnails and one-page permission does not change cookie consent`, async context => {

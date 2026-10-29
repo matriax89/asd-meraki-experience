@@ -51,6 +51,42 @@ const data = {
 };
 const render = (Component, props) => JSDOM.fragment(renderToStaticMarkup(React.createElement(Component, props)));
 
+test("poster previews generate optimized responsive images without requesting the original zoom image", () => {
+  const optimizedPoster = load("components/meraki/event-poster.tsx", { "next/image": require("next/image") });
+  const original = "/images/original-poster.png";
+  for (const compact of [false, true]) {
+    const fragment = render(optimizedPoster.EventPoster, { src: original, title: event.title, locale: "it", compact });
+    const preview = fragment.querySelector("button[data-event-poster] img");
+    assert.equal(new URL(preview.getAttribute("src"), "https://meraki.test").pathname, "/_next/image");
+    assert.equal(new URL(preview.getAttribute("src"), "https://meraki.test").searchParams.get("url"), original);
+    assert.match(preview.getAttribute("srcset"), /\/_next\/image\?[^,]+w=\d+[^,]+ \d+w/);
+    assert.equal(preview.getAttribute("sizes"), compact ? "(min-width: 640px) 112px, 96px" : "(min-width: 420px) 420px, 100vw");
+    assert.equal(preview.getAttribute("loading"), "lazy");
+    assert.equal(preview.classList.contains("object-contain"), true);
+    assert.equal(fragment.querySelectorAll("img").length, 1, "closed dialogs cannot request the original asset");
+  }
+});
+
+test("legacy HTTP posters bypass the HTTPS-only optimizer while HTTPS posters stay optimized", () => {
+  const optimizedPoster = load("components/meraki/event-poster.tsx", { "next/image": require("next/image") });
+  const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
+  const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
+  const imageConfig = { ...imageConfigDefault, remotePatterns: [{ protocol: "https", hostname: "assets.example.test" }] };
+  for (const src of ["http://assets.example.test/poster.png", "HTTP://assets.example.test/poster.png", "https://assets.example.test/poster.png"]) {
+    const fragment = JSDOM.fragment(renderToStaticMarkup(React.createElement(ImageConfigContext.Provider, { value: imageConfig }, React.createElement(optimizedPoster.EventPoster, { src, title: event.title, locale: "it" }))));
+    const preview = fragment.querySelector("button[data-event-poster] img");
+    if (new URL(src).protocol === "http:") {
+      assert.equal(preview.getAttribute("src"), src, "legacy HTTP URLs must not fail optimizer protocol validation");
+      assert.equal(preview.getAttribute("srcset"), null);
+    } else {
+      assert.equal(new URL(preview.getAttribute("src"), "https://meraki.test").pathname, "/_next/image");
+      assert.equal(new URL(preview.getAttribute("src"), "https://meraki.test").searchParams.get("url"), src);
+      assert.ok(preview.getAttribute("srcset"));
+    }
+    assert.equal(fragment.querySelector("dialog img"), null);
+  }
+});
+
 for (const locale of ["it", "en", "de", "es"]) {
   test(`${locale} package purchase belongs after the description and before ticket and travel information`, () => {
     const fragment = render(detail.EventDetail, { event: { ...event, logistics: data }, locale });
@@ -273,10 +309,13 @@ test("poster zoom is contained inside its scroll area, resets on opening and clo
     const zoom = dialog.querySelector("button[aria-pressed]");
     const close = dialog.querySelector('button[aria-label="Chiudi locandina"]');
     const viewport = dialog.querySelector("[data-poster-viewport]");
-    const enlarged = viewport.querySelector("img");
+    assert.equal(viewport.querySelector("img"), null, "the original is absent until the visitor opens the poster");
     assert.ok(dom.window.document.getElementById(dialog.getAttribute("aria-labelledby")));
     await React.act(async () => trigger.click());
     assert.equal(dialog.open, true); assert.equal(dom.window.document.body.style.overflow, "hidden");
+    const enlarged = viewport.querySelector("img");
+    assert.ok(enlarged, "opening the dialog loads the original for a sharp zoom");
+    assert.ok(dialog.contains(dom.window.document.activeElement), "focus moves inside the modal");
     assert.equal(zoom.textContent, "Ingrandisci"); assert.equal(zoom.getAttribute("aria-pressed"), "false");
     assert.equal(zoom.getAttribute("aria-controls"), viewport.id);
     assert.equal(viewport.contains(zoom), false, "the toolbar stays outside the image's scrolling area");
@@ -294,12 +333,15 @@ test("poster zoom is contained inside its scroll area, resets on opening and clo
     await React.act(async () => zoom.click());
     await React.act(async () => dialog.dispatchEvent(new dom.window.Event("cancel", { cancelable: true })));
     assert.equal(dialog.open, false); assert.equal(dom.window.document.body.style.overflow, "auto");
+    assert.equal(viewport.querySelector("img"), null, "Esc releases the original image from the closed dialog");
     assert.equal(dom.window.document.activeElement, trigger);
     await React.act(async () => trigger.click());
     assert.equal(zoom.getAttribute("aria-pressed"), "false", "every opening starts at fit-to-screen size");
+    assert.equal(viewport.querySelector("img").getAttribute("src"), event.cover);
     assert.equal(viewport.scrollTop, 0); assert.equal(viewport.scrollLeft, 0);
     await React.act(async () => close.click());
     assert.equal(dialog.open, false); assert.equal(dom.window.document.activeElement, trigger);
+    assert.equal(viewport.querySelector("img"), null);
     await React.act(async () => trigger.click());
     await React.act(async () => root.unmount());
     assert.equal(dom.window.document.body.style.overflow, "auto", "unmounting an open poster releases scroll lock");

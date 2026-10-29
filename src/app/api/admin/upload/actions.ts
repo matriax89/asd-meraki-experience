@@ -23,6 +23,7 @@ export async function uploadImageAction(formData: FormData) {
       .from("public-assets")
       .upload(filePath, buffer, {
         contentType: type.mime,
+        cacheControl: "31536000",
         upsert: false
       });
 

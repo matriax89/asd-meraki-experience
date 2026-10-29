@@ -32,6 +32,7 @@ export type AnalyticsAttendanceGroup = {
 export type AnalyticsAffiliateRow = AnalyticsFinancials & {
   id: string; eventId: string; eventTitle: string; name: string; validParticipants: number; checkedInParticipants: number;
   paidOrders: number; commissionPerParticipantCents: number; commissionCents: number;
+  commissionType: "eur" | "credits"; commissionPerParticipantCredits: number; commissionCredits: number;
 };
 export type AnalyticsEventRow = AnalyticsMetrics & {
   id: string; title: string; startsAt: string; endsAt: string | null;

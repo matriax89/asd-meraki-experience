@@ -90,8 +90,8 @@ test('discounts quote, reserve and redeem atomically in isolated PostgreSQL', { 
     await save(id,input({code:'FUTURE',startsAt:new Date(Date.now()+3600000).toISOString()})); assert.equal((await quote(id,[person()],'FUTURE')).error,'discount_unavailable');
     await save(id,input({code:'ENDED',endsAt:new Date(Date.now()-3600000).toISOString()})); assert.equal((await quote(id,[person()],'ENDED')).error,'discount_unavailable');
     await save(id,input({code:'FREE',discountType:'fixed_amount',discountValue:3000,targetType:'order',targetIds:[]})); assert.equal((await quote(id,[person()],'FREE')).error,'discount_minimum_payment');
-    await save(id,input({code:'ADDON',targetType:'addon',targetIds:['dinner']})); assert.equal((await quote(id,[person()],'ADDON')).error,'discount_not_applicable'); assert.equal((await quote(id,[person('ws',['dinner'])],'ADDON')).quote.discountCents,400);
-    await save(id,input({code:'EARLYDINNER',targetType:'addon',targetIds:['dinner'],allowedTierIds:['early']})); assert.equal((await quote(id,[person('ws',['dinner'])],'EARLYDINNER')).quote.discountCents,400); assert.equal((await quote(id,[person('mc',['dinner'])],'EARLYDINNER')).error,'discount_not_applicable');
+    assert.equal((await save(id,input({code:'ADDON',targetType:'addon',targetIds:['dinner']}))).error,'invalid_discount_target');
+    assert.equal((await save(id,input({code:'EARLYDINNER',targetType:'addon',targetIds:['dinner'],allowedTierIds:['early']}))).error,'invalid_discount_target');
     await save(id,input({code:'PKG',targetType:'package',targetIds:['bundle']})); assert.equal((await quote(id,[person('bundle',['dinner'])],'PKG')).quote.discountCents,1200);
     assert.equal((await quote(id,[person()],'UNKNOWN')).error,'discount_invalid');
     assert.equal((await save(id,input({code:'ALLFREE',discountValue:100}))).error,'invalid_discount');
@@ -102,7 +102,7 @@ test('discounts quote, reserve and redeem atomically in isolated PostgreSQL', { 
     assert.equal(order.amount_cents,6998); assert.equal(order.quote.lines.reduce((sum,line)=>sum+line.discountCents,0),1002);
     const paid=await fulfill(order); assert.equal(paid.outcome,'fulfilled');
     assert.deepEqual(paid.passes.map(pass=>pass.package_paid_cents),order.quote.lines.filter(line=>line.kind==='package').map(line=>line.totalCents));
-    assert.notEqual(paid.passes[0].package_paid_cents,paid.passes[1].package_paid_cents);
+    assert.equal(paid.passes[0].package_paid_cents,paid.passes[1].package_paid_cents); assert.equal(order.quote.lines.find(line=>line.kind==='addon').totalCents,2000);
   });
   await t.test('idempotent retries freeze the quote and privacy but cannot switch the code',async()=>{
     const id=await event(); const {discount}=await save(id); const request=randomUUID(); const first=await reserve(id,[person()],'ws20',request);

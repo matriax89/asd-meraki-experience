@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ArrowUpRight, Clapperboard, Play, X } from "lucide-react";
 import { COOKIE_CONSENT_CHANGED_EVENT, COOKIE_CONSENT_KEY, storedMarketingConsent } from "@/lib/facebook-pixel";
 import { normalizeYoutubeUrl, youtubeEmbedUrl } from "@/lib/events/youtube";
@@ -28,10 +28,49 @@ function NativeEventVideo({ src, title, locale }: { src: string; title?: string;
   const text = labels[locale as keyof typeof labels] || labels.it;
   const heading = title?.trim() || text.title;
   const headingId = useId();
+  const viewport = useRef<HTMLDivElement>(null);
+  const focusAfterLoad = useRef(false);
+  const [nearViewport, setNearViewport] = useState(false);
   const [closed, setClosed] = useState(false);
+
+  useEffect(() => {
+    const target = viewport.current;
+    if (!target || nearViewport) return;
+    let active = true;
+    const start = () => {
+      focusAfterLoad.current = Boolean(target.querySelector("[data-native-video-placeholder]")?.contains(target.ownerDocument.activeElement));
+      setNearViewport(true);
+    };
+    if (typeof window.IntersectionObserver !== "function") {
+      const timer = window.setTimeout(() => { if (active) start(); }, 0);
+      return () => { active = false; window.clearTimeout(timer); };
+    }
+    const observer = new window.IntersectionObserver((entries) => {
+      if (!active || !entries.some(entry => entry.isIntersecting)) return;
+      observer.disconnect();
+      start();
+    }, { rootMargin: "200px 0px" });
+    observer.observe(target);
+    return () => { active = false; observer.disconnect(); };
+  }, [nearViewport]);
+
+  useEffect(() => {
+    if (!nearViewport || closed || !focusAfterLoad.current) return;
+    focusAfterLoad.current = false;
+    const target = viewport.current;
+    if (target && (target.ownerDocument.activeElement === target.ownerDocument.body || target.contains(target.ownerDocument.activeElement))) {
+      target.focus({ preventScroll: true });
+    }
+  }, [nearViewport, closed]);
+
   return <section data-event-video data-video-provider="native" aria-labelledby={headingId} className="mt-6 min-w-0 rounded-[22px] border border-[#dfe2d6] bg-white p-4 sm:p-5">
     <VideoHeading headingId={headingId} heading={heading} caption={text.video} closeLabel={text.close} onClose={closed ? undefined : () => setClosed(true)} />
-    {closed ? <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-[16px] bg-[#18251f] p-5"><button type="button" onClick={() => setClosed(false)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#18251f] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d9c38e]"><Play className="h-4 w-4" aria-hidden="true" />{text.watch}</button></div> : <NativeVideoPlayer src={src} title={heading} locale={locale} />}
+    <div ref={viewport} role="group" aria-labelledby={headingId} tabIndex={-1} className="outline-offset-4 focus-visible:outline-2 focus-visible:outline-[#a58d58]">
+      {nearViewport && !closed ? <NativeVideoPlayer src={src} title={heading} locale={locale} /> : <>
+        <div data-native-video-placeholder className="relative flex aspect-video items-center justify-center overflow-hidden rounded-[16px] bg-[#18251f] p-5"><button type="button" onClick={(event) => { focusAfterLoad.current = event.currentTarget === event.currentTarget.ownerDocument.activeElement; setNearViewport(true); setClosed(false); }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#18251f] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d9c38e]"><Play className="h-4 w-4" aria-hidden="true" />{text.watch}</button></div>
+        {!nearViewport && <div aria-hidden="true"><div className="mt-3 min-h-11" /><div className="mt-2 h-5" /></div>}
+      </>}
+    </div>
   </section>;
 }
 
