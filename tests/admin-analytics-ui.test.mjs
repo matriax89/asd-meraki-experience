@@ -77,6 +77,8 @@ test("dashboard uses real cohort metrics and exposes chart values in an accessib
   await mount(context);
   assert.equal(metric("Vendite lorde"), "100,00 €"); assert.equal(metric("Rimborsi"), "30,00 €"); assert.equal(metric("Incassi netti"), "67,50 €");
   assert.equal(metric("Commissioni Stripe / PayPal"), "2,50 €");
+  assert.equal(metric("Ordini pagati"), "3");
+  assert.ok(window.document.body.textContent.includes("Include aggiunte e upgrade; esclude rimborsi totali"));
   assert.equal(metric("Iscritti validi"), "2"); assert.equal(metric("Con check-in"), "1");
   assert.ok(window.document.body.textContent.includes("Acquisti creati nel periodo selezionato"));
   assert.ok(window.document.body.textContent.includes("anche se eseguiti successivamente"));
@@ -203,6 +205,7 @@ test("aggregate CSV export keeps Italian values and neutralizes spreadsheet form
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data, false);
   assert.ok(csv.startsWith("\uFEFF"));
   assert.ok(csv.includes('"Rimborsi riusciti (€)";"30"'));
+  assert.ok(csv.includes('"Criterio ordini pagati";"Comprende aggiunte e upgrade; esclude gli ordini gratuiti e interamente rimborsati.'));
   assert.ok(csv.includes('"Periodo";"23/09/2026";"22/10/2026"'));
   assert.ok(csv.includes("'=HYPERLINK")); assert.ok(csv.includes("'\t+SUM"));
   assert.equal(csv.includes("private@example.test"), false);

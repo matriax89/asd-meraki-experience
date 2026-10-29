@@ -107,7 +107,7 @@ test('gross/refunds/net use captured payments once, real successful refund cents
     commerce_waitlist: [{ id: 'w1', event_id: A, status: 'waiting', created_at: base.created_at }, { id: 'w2', event_id: B, status: 'waiting', created_at: base.created_at }, { id: 'w3', event_id: A, status: 'notified', created_at: base.created_at }],
   };
   const api = fixture(data); const result = await api.load({ period: 'all' });
-  assert.deepEqual(plain(result.metrics), { grossCents: 29500, refundedCents: 6000, netCents: 23500, feesCents: 0, netAfterFeesCents: 23500, missingFeePayments: 0, paidOrders: 8, validParticipants: 5, checkedInParticipants: 2, waiting: 2, pendingOrders: 1, expiredOrders: 1, failedOrders: 1 });
+  assert.deepEqual(plain(result.metrics), { grossCents: 29500, refundedCents: 6000, netCents: 23500, feesCents: 0, netAfterFeesCents: 23500, missingFeePayments: 0, paidOrders: 6, validParticipants: 5, checkedInParticipants: 2, waiting: 2, pendingOrders: 1, expiredOrders: 1, failedOrders: 1 });
   assert.equal(result.addons[0].count, 1); assert.equal(result.addons[0].netCents, 2000);
   assert.equal(result.packages.reduce((sum, item) => sum + item.netCents, 0), 18500);
   assert.equal(result.eventStats.find(row => row.id === A).remaining, 0);
@@ -125,6 +125,48 @@ test('partial refund success does not become a full refund merely because anothe
   const api = fixture({ commerce_orders: [order('o', 6500, { state: 'refund_pending' })], meraki_refunds: [refund('succeeded', 'o', 1500), refund('pending', 'o', 5000, { status: 'pending' }), refund('failed', 'o', 5000, { status: 'failed' })], commerce_payment_refunds: [{ payment_intent: 'pi_o', status: 'pending' }] });
   const { metrics } = await api.load({});
   assert.equal(metrics.grossCents, 6500); assert.equal(metrics.refundedCents, 1500); assert.equal(metrics.netCents, 5000);
+  assert.equal(metrics.paidOrders, 1);
+});
+
+test('paid order counts exclude full refunds while retaining partial refunds, upgrades and additions without counting people twice', async () => {
+  const group = order('group', 7000, { affiliate_id: AFF, quote_lines: [line(3500, { participantIndex: 0 }), line(3500, { participantIndex: 1 })] });
+  const upgrade = order('upgrade', 1000, { affiliate_id: AFF, upgrade_pass_id: 'group-0', quote_lines: [line(1000, { kind: 'upgrade', packageId: 'premium', tierId: 'standard' })] });
+  const addon = order('dinner', 2000, { affiliate_id: AFF, upgrade_pass_id: 'group-1', quote_lines: [line(2000, { kind: 'addon', addonId: 'dinner', packageId: undefined, tierId: undefined, activityIds: ['dinner'] })] });
+  const api = fixture({
+    commerce_orders: [group, upgrade, addon, order('free', 0, { affiliate_id: AFF }), order('full-status', 3500, { affiliate_id: AFF, state: 'refunded' }), order('full-ledger', 3500, { affiliate_id: AFF })],
+    commerce_passes: [pass('group-0', group.id, { affiliate_id: AFF, participant_index: 0 }), pass('group-1', group.id, { affiliate_id: AFF, participant_index: 1 }), pass('free-person', 'free', { affiliate_id: AFF }), pass('refunded-status', 'full-status', { affiliate_id: AFF, status: 'refunded' }), pass('refunded-ledger', 'full-ledger', { affiliate_id: AFF, status: 'refunded' })],
+    commerce_entitlements: [right('ws-0', 'group-0', group.id), right('ws-1', 'group-1', group.id), right('dinner-1', 'group-1', addon.id, 'dinner'), right('free-ws', 'free-person', 'free')],
+    meraki_refunds: [refund('partial', group.id, 1000), refund('full-ledger', 'full-ledger', 3500)],
+  }, { fees: {
+    'pi:pi_group': { feeCents: 200, complete: true }, 'pi:pi_upgrade': { feeCents: 50, complete: true }, 'pi:pi_dinner': { feeCents: 70, complete: true },
+    'pi:pi_full-status': { feeCents: 100, complete: true }, 'pi:pi_full-ledger': { feeCents: 100, complete: true },
+  } });
+  const result = await api.load({ eventId: A, affiliateId: AFF });
+  assert.equal(result.metrics.paidOrders, 3, 'a group order counts once; each later paid purchase counts once; full refunds and free orders do not count');
+  assert.equal(result.metrics.validParticipants, 3, 'upgrades and additions do not issue another person; a valid free participant still counts');
+  assert.equal(result.eventStats[0].paidOrders, 3); assert.equal(result.affiliates.find(row => row.id === AFF).paidOrders, 3);
+  assert.equal(result.trend.reduce((sum, row) => sum + row.paidOrders, 0), 3);
+  assert.deepEqual([result.metrics.grossCents, result.metrics.refundedCents, result.metrics.netCents, result.metrics.feesCents, result.metrics.netAfterFeesCents], [17000, 8000, 9000, 520, 8480], 'refunded payments and retained fees remain in the financial totals');
+  assert.equal(api.feeCalls[0].length, 5, 'fees are still read for fully refunded payments');
+});
+
+test('an affiliate with only a free or fully refunded share does not gain a paid order from the rest of the group', async () => {
+  for (const secondAmount of [0, 1]) {
+    const purchase = order('mixed-group', 100, { affiliate_id: AFF, quote_lines: [line(100 - secondAmount, { participantIndex: 0 }), line(secondAmount, { participantIndex: 1 })] });
+    const data = {
+      commerce_orders: [purchase],
+      commerce_passes: [pass('person-a', purchase.id, { affiliate_id: AFF, participant_index: 0 }), pass('person-b', purchase.id, { affiliate_id: OLD, participant_index: 1 })],
+      commerce_entitlements: [right('ws-a', 'person-a', purchase.id), right('ws-b', 'person-b', purchase.id)],
+      meraki_refunds: secondAmount ? [refund('almost-full', purchase.id, 99)] : [],
+    };
+    const all = await fixture(data).load({ eventId: A });
+    assert.equal(all.metrics.paidOrders, 1); assert.equal(all.affiliates.find(row => row.id === AFF).paidOrders, 1);
+    assert.equal(all.affiliates.find(row => row.id === OLD).paidOrders, 0);
+    const filtered = await fixture(data).load({ eventId: A, affiliateId: OLD });
+    assert.deepEqual([filtered.metrics.grossCents, filtered.metrics.refundedCents, filtered.metrics.netCents], [secondAmount, secondAmount, 0]);
+    assert.equal(filtered.metrics.paidOrders, 0); assert.equal(filtered.eventStats[0].paidOrders, 0);
+    assert.equal(filtered.trend.reduce((sum, row) => sum + row.paidOrders, 0), 0);
+  }
 });
 
 test('reserved holds that passed their expiry are expired while asynchronous awaiting payments remain pending', async () => {
@@ -141,6 +183,7 @@ test('whole-refund status and legacy external tombstones fill missing ledger dat
   const api = fixture({ commerce_orders: [order('full-status', 2000, { state: 'refunded' }), order('full-marker', 3000)], commerce_payment_refunds: [{ payment_intent: 'pi_full-marker', status: 'succeeded' }], tickets: [ticket('legacy', 4000, { status: 'refunded' })], meraki_refunds: [refund('some', 'full-marker', 1000)] });
   const { metrics } = await api.load({});
   assert.equal(metrics.grossCents, 9000); assert.equal(metrics.refundedCents, 9000); assert.equal(metrics.netCents, 0);
+  assert.equal(metrics.paidOrders, 0);
 });
 
 test('a shared Stripe session joins historical rows with a missing intent before deduplicating revenue and refunds', async () => {

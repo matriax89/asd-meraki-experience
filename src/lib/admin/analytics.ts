@@ -281,7 +281,7 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
   ]);
   const notes = new Set([
     "Il periodo segue il giorno italiano di creazione dell’acquisto (Europe/Rome), non la data di accredito Stripe. I rimborsi riusciti si riferiscono a quegli acquisti anche quando avvenuti successivamente.",
-    "Il netto dopo le commissioni sottrae dal lordo i rimborsi riusciti e le commissioni effettive di pagamento Stripe, comprese quelle disponibili per PayPal. Non sottrae imposte o altri costi. Gli ordini gratuiti non aumentano il conteggio degli ordini pagati.",
+    "Il netto dopo le commissioni sottrae dal lordo i rimborsi riusciti e le commissioni effettive di pagamento Stripe, comprese quelle disponibili per PayPal. Non sottrae imposte o altri costi. Gli ordini pagati comprendono aggiunte e upgrade, escludono gli ordini gratuiti e quelli interamente rimborsati; i rimborsi parziali mantengono l’ordine nel conteggio. Lordo, rimborsi e commissioni conservano lo storico contabile.",
     "Gli importi di masterclass, workshop e cena seguono la ripartizione salvata nell’acquisto; rimborsi e commissioni del pagamento sono distribuiti in proporzione agli importi delle attività, con arrotondamento al centesimo.",
     "Ogni biglietto/pass valido conta una persona nel periodo di creazione dell’acquisto iniziale. Gli upgrade aumentano gli incassi senza creare un nuovo partecipante. I check-in sono lo stato attuale di queste persone.",
     "La disponibilità residua usa tutti gli accessi attualmente validi, indipendentemente dai filtri su acquisti e affiliati; non comprende prenotazioni temporanee ancora da pagare.",
@@ -430,18 +430,18 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     const missing = !fee.complete && gross > 0 ? 1 : 0;
     for (const item of [metrics, event]) {
       addFinancials(item, gross, refunded, scopedFees, missing);
-      if (payment.amount > 0) item.paidOrders += 1;
+      if (gross > refunded) item.paidOrders += 1;
     }
     for (const share of included) {
       const affiliateRow = affiliate(payment.eventId, share.affiliateId === "direct" ? null : share.affiliateId, share.affiliateName);
       addFinancials(affiliateRow, share.amount, share.refunded, share.feeCents, !fee.complete && share.amount > 0 ? 1 : 0);
-      if (payment.amount > 0) affiliateRow.paidOrders += 1;
+      if (share.amount > share.refunded) affiliateRow.paidOrders += 1;
     }
     const date = day(payment.createdAt);
     if (date) {
       const current = trend.get(date) || { date, ...emptyFinancials(), paidOrders: 0 };
       addFinancials(current, gross, refunded, scopedFees, missing);
-      current.paidOrders += payment.amount > 0 ? 1 : 0; trend.set(date, current);
+      current.paidOrders += gross > refunded ? 1 : 0; trend.set(date, current);
     }
     const includedLines = new Set(included.flatMap(share => [...share.lineIndices]));
     const allocatedLines = allocated(payment).filter((_, index) => includedLines.has(index));

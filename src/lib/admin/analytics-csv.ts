@@ -15,6 +15,7 @@ export function adminAnalyticsCsv(data: AdminAnalytics, includeEvents = true): s
     ["Periodo", data.filters.from ? date(data.filters.from) : "Tutto lo storico", date(data.filters.to)],
     ["Affiliato", data.filters.affiliateId === "direct" ? "Acquisti diretti" : data.affiliateOptions.find(affiliate => affiliate.id === data.filters.affiliateId)?.name || "Tutti gli affiliati e acquisti diretti"],
     ["Criterio", "Acquisti creati nel periodo; rimborsi riferiti agli stessi acquisti, anche se successivi."],
+    ["Criterio ordini pagati", "Comprende aggiunte e upgrade; esclude gli ordini gratuiti e interamente rimborsati. I rimborsi parziali mantengono l’ordine nel conteggio. Gli importi conservano lo storico contabile."],
     [], ["Riepilogo", "Valore"],
     ["Lordo (€)", data.metrics.grossCents / 100], ["Rimborsi riusciti (€)", data.metrics.refundedCents / 100], ["Netto prima delle commissioni (€)", data.metrics.netCents / 100],
     ["Commissioni Stripe / PayPal note (€)", data.metrics.feesCents / 100], ["Stato commissioni", commissionStatus(data.metrics)], ["Netto dopo commissioni (€)", afterFees(data.metrics)],

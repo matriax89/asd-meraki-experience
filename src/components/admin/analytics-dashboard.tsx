@@ -133,7 +133,7 @@ export function AnalyticsDashboard({ data, fixedEventId }: { data: AdminAnalytic
     { label: "Rimborsi", value: euro(metrics.refundedCents), detail: "Rimborsi riusciti degli stessi acquisti" },
     { label: "Commissioni Stripe / PayPal", value: fees(metrics), detail: metrics.missingFeePayments ? "Importo parziale: mancano alcune commissioni" : "Commissioni effettive dei pagamenti" },
     { label: "Incassi netti", value: net(metrics.netAfterFeesCents), detail: `Dopo rimborsi e commissioni · prima delle commissioni: ${euro(metrics.netCents)}`, highlight: true },
-    { label: "Ordini pagati", value: number(metrics.paidOrders), detail: "Comprende gli acquisti di aggiunte" },
+    { label: "Ordini pagati", value: number(metrics.paidOrders), detail: "Include aggiunte e upgrade; esclude rimborsi totali" },
     { label: "Iscritti validi", value: number(metrics.validParticipants), detail: "Ogni persona conta una volta" },
     { label: "Con check-in", value: number(metrics.checkedInParticipants), detail: "Almeno un accesso registrato" },
     { label: "Lista d’attesa", value: metrics.waiting === null ? "—" : number(metrics.waiting), detail: metrics.waiting === null ? "Non attribuibile a un affiliato" : "Contatti ancora in attesa" },

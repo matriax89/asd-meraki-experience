@@ -14,6 +14,7 @@ export type AnalyticsRevenueRow = AnalyticsFinancials & {
   name: string;
 };
 export type AnalyticsMetrics = AnalyticsFinancials & {
+  /** Captured orders with a positive amount remaining after successful refunds, including additions and upgrades. */
   paidOrders: number;
   validParticipants: number; checkedInParticipants: number; waiting: number | null;
   pendingOrders: number; expiredOrders: number; failedOrders: number;
