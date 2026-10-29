@@ -9,6 +9,14 @@ export type AnalyticsFinancials = {
   netAfterFeesCents: number | null;
   missingFeePayments: number;
 };
+export type AnalyticsSummary = AnalyticsFinancials & {
+  /** Active people, counted once per event in the current formula or dinner. */
+  count: number;
+};
+export type AnalyticsSummaryPartitions = {
+  registrationSummary: AnalyticsSummary;
+  dinnerSummary: AnalyticsSummary;
+};
 export type AnalyticsRevenueRow = AnalyticsFinancials & {
   id: "masterclass" | "workshop" | "dinner" | "extra" | "unallocated";
   name: string;
@@ -34,23 +42,23 @@ export type AnalyticsAttendanceGroup = {
   workshopOnly: number; masterclassOnly: number; both: number; otherParticipants: number;
   capacity: number | null; remaining: number | null; reservedParticipants: number;
 };
-export type AnalyticsAffiliateRow = AnalyticsFinancials & {
+export type AnalyticsAffiliateRow = AnalyticsFinancials & AnalyticsSummaryPartitions & {
   id: string; eventId: string; eventTitle: string; name: string; validParticipants: number; checkedInParticipants: number;
   paidOrders: number; commissionPerParticipantCents: number; commissionCents: number;
   commissionType: "eur" | "credits"; commissionPerParticipantCredits: number; commissionCredits: number;
 };
-export type AnalyticsEventRow = AnalyticsMetrics & {
+export type AnalyticsEventRow = AnalyticsMetrics & AnalyticsSummaryPartitions & {
   id: string; title: string; startsAt: string; endsAt: string | null;
   status: "draft" | "upcoming" | "ongoing" | "past" | "canceled";
   capacity: number | null; remaining: number | null;
 };
-export type AdminAnalytics = {
+export type AdminAnalytics = AnalyticsSummaryPartitions & {
   filters: { eventId: string; period: AdminAnalyticsPeriod; from: string; to: string; affiliateId: string };
   events: { id: string; title: string; startsAt: string }[];
   affiliateOptions: { id: string; name: string }[];
   metrics: AnalyticsMetrics;
   operations: { newLeads: number; openShopOrders: number; confirmedContacts: number };
-  trend: (AnalyticsFinancials & { date: string; paidOrders: number })[];
+  trend: (AnalyticsFinancials & AnalyticsSummaryPartitions & { date: string; paidOrders: number })[];
   revenue: AnalyticsRevenueRow[];
   packages: AnalyticsBreakdown[]; tiers: AnalyticsBreakdown[]; addons: AnalyticsBreakdown[];
   activities: AnalyticsActivityRow[]; affiliates: AnalyticsAffiliateRow[]; eventStats: AnalyticsEventRow[];

@@ -33,11 +33,13 @@ const eventId = "43491c74-13c3-4747-8eaa-fbf9432c323e";
 const eventB = "07836561-e1cc-4255-8a39-488edba0f433";
 const affiliateId = "5c9d7464-cf07-4f55-beb7-73263ff474f8";
 const metrics = { grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, paidOrders: 3, validParticipants: 2, checkedInParticipants: 1, waiting: 4, pendingOrders: 1, expiredOrders: 2, failedOrders: 3 };
+const summary = (grossCents, refundedCents, feesCents, count) => ({ grossCents, refundedCents, netCents: grossCents - refundedCents, feesCents, netAfterFeesCents: grossCents - refundedCents - feesCents, missingFeePayments: 0, count });
+const summaries = () => ({ registrationSummary: summary(8000, 2000, 200, 2), dinnerSummary: summary(2000, 1000, 50, 1) });
 const fixture = () => ({
   filters: { eventId, period: "30", from: "2026-09-23", to: "2026-10-22", affiliateId: "all" },
   events: [{ id: eventId, title: "Vibra", startsAt: "2026-12-19T11:30:00Z" }, { id: eventB, title: "Meraki Estate", startsAt: "2027-06-01T10:00:00Z" }],
-  affiliateOptions: [{ id: affiliateId, name: "Scuola Meraki" }], metrics,
-  trend: [{ date: "2026-10-21", grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, paidOrders: 3 }, { date: "2026-10-22", grossCents: 0, refundedCents: 0, netCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0, paidOrders: 0 }],
+  affiliateOptions: [{ id: affiliateId, name: "Scuola Meraki" }], metrics, ...summaries(),
+  trend: [{ date: "2026-10-21", grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, paidOrders: 3, ...summaries() }, { date: "2026-10-22", grossCents: 0, refundedCents: 0, netCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0, paidOrders: 0, registrationSummary: summary(0, 0, 0, 0), dinnerSummary: summary(0, 0, 0, 0) }],
   revenue: [
     { id: "masterclass", name: "Masterclass", grossCents: 4000, refundedCents: 1000, netCents: 3000, feesCents: 100, netAfterFeesCents: 2900, missingFeePayments: 0 },
     { id: "workshop", name: "Workshop", grossCents: 4000, refundedCents: 1000, netCents: 3000, feesCents: 100, netAfterFeesCents: 2900, missingFeePayments: 0 },
@@ -45,8 +47,8 @@ const fixture = () => ({
   ],
   packages: [{ id: "combo", name: "Workshop + Masterclass", count: 2, netCents: 7000 }], tiers: [], addons: [],
   activities: [{ id: "ws", eventId, eventTitle: "Vibra", name: "Workshop", capacity: 100, validAdmissions: 20, checkedIn: 7, remaining: 80, occupied: 20, reservedAdmissions: 0, availableForSale: 80 }],
-  affiliates: [{ id: affiliateId, eventId, eventTitle: "Vibra", name: "Scuola Meraki", validParticipants: 2, checkedInParticipants: 1, paidOrders: 3, grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, commissionType: "eur", commissionPerParticipantCents: 500, commissionCents: 1000, commissionPerParticipantCredits: 0, commissionCredits: 0 }],
-  eventStats: [{ id: eventId, title: "Vibra", startsAt: "2026-12-19T11:30:00Z", endsAt: null, status: "upcoming", capacity: 100, remaining: 80, ...metrics }, { id: eventB, title: "Meraki Estate", startsAt: "2027-06-01T10:00:00Z", endsAt: null, status: "draft", capacity: null, remaining: null, ...metrics }],
+  affiliates: [{ id: affiliateId, eventId, eventTitle: "Vibra", name: "Scuola Meraki", validParticipants: 2, checkedInParticipants: 1, paidOrders: 3, grossCents: 10000, refundedCents: 3000, netCents: 7000, feesCents: 250, netAfterFeesCents: 6750, missingFeePayments: 0, commissionType: "eur", commissionPerParticipantCents: 500, commissionCents: 1000, commissionPerParticipantCredits: 0, commissionCredits: 0, ...summaries() }],
+  eventStats: [{ id: eventId, title: "Vibra", startsAt: "2026-12-19T11:30:00Z", endsAt: null, status: "upcoming", capacity: 100, remaining: 80, ...metrics, ...summaries() }, { id: eventB, title: "Meraki Estate", startsAt: "2027-06-01T10:00:00Z", endsAt: null, status: "draft", capacity: null, remaining: null, ...metrics, ...summaries() }],
   attendanceGroups: [{ eventId, eventTitle: "Vibra", currentParticipants: 20, workshopOnly: 20, masterclassOnly: 0, both: 0, otherParticipants: 0, capacity: 100, remaining: 80, reservedParticipants: 0 }],
   operations: { newLeads: 5, openShopOrders: 2, confirmedContacts: 31 },
   notes: ["La disponibilità usa l’occupazione attuale."],
@@ -71,19 +73,70 @@ async function mount(context, { data = fixture(), fixedEventId, list = false, ur
   const submit = async () => { await act(async () => window.document.querySelector('form[aria-label="Filtri statistiche"]').dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }))); };
   return { navigation, fill, select, submit };
 }
-const metric = label => [...window.document.querySelectorAll("dt")].find(node => node.textContent === label)?.nextElementSibling?.textContent.replaceAll("\u00a0", " ");
+const metric = (label, scope = window.document) => [...scope.querySelectorAll("dt")].find(node => node.textContent === label)?.nextElementSibling?.textContent.replaceAll("\u00a0", " ");
+const csvRows = csv => csv.split("\r\n").map(line => [...line.matchAll(/"((?:[^"]|"")*)"/g)].map(match => match[1].replaceAll('""', '"')));
+
+test("main registrations exclude dinner and upgrades while dinner finances and accounting receipts remain separate", async context => {
+  const data = fixture();
+  data.registrationSummary = summary(153500, 3000, 3740, 26);
+  data.dinnerSummary = summary(18000, 0, 441, 9);
+  data.metrics = { ...data.metrics, grossCents: 171500, refundedCents: 3000, netCents: 168500, feesCents: 4181, netAfterFeesCents: 164319, paidOrders: 28, validParticipants: 26, checkedInParticipants: 0, waiting: 0 };
+  data.trend = [{ date: "2026-10-21", ...data.metrics, registrationSummary: { ...data.registrationSummary }, dinnerSummary: { ...data.dinnerSummary } }];
+  data.affiliates = [{ ...data.affiliates[0], ...data.metrics, registrationSummary: { ...data.registrationSummary }, dinnerSummary: { ...data.dinnerSummary } }];
+  data.eventStats = [{ ...data.eventStats[0], ...data.metrics, registrationSummary: { ...data.registrationSummary }, dinnerSummary: { ...data.dinnerSummary } }];
+  await mount(context, { data });
+  const activities = window.document.querySelector('[aria-labelledby="analytics-registration-summary"]');
+  const dinner = window.document.querySelector('[aria-labelledby="analytics-dinner-summary"]');
+  assert.equal(window.document.getElementById("analytics-registration-summary").textContent, "Iscrizioni e incassi delle attività");
+  assert.equal(metric("Iscritti validi", activities), "26");
+  assert.equal(metric("Vendite lorde", activities), "1535,00 €");
+  assert.equal(metric("Rimborsi", activities), "30,00 €");
+  assert.equal(metric("Commissioni Stripe / PayPal", activities), "37,40 €");
+  assert.equal(metric("Incassi netti", activities), "1467,60 €");
+  assert.equal(metric("Ordini pagati", activities), undefined);
+  assert.equal(metric("Pagamenti ricevuti", activities), undefined);
+  assert.equal([...activities.querySelectorAll("dd")].some(node => node.textContent === "28"), false);
+  assert.equal(metric("Cene prenotate", dinner), "9");
+  assert.ok(dinner.textContent.replaceAll("\u00a0", " ").includes("180,00 €"));
+  assert.ok(dinner.textContent.replaceAll("\u00a0", " ").includes("4,41 €"));
+  assert.ok(dinner.textContent.replaceAll("\u00a0", " ").includes("175,59 €"));
+  const accounting = [...window.document.querySelectorAll("details")].find(node => node.textContent.includes("Pagamenti ricevuti"));
+  assert.ok(accounting); assert.equal(accounting.open, false); assert.ok(accounting.textContent.includes("28"));
+  const row = window.document.querySelector('[aria-labelledby="sales-trend-title"] tbody tr');
+  assert.deepEqual([...row.cells].map(cell => cell.textContent.replaceAll("\u00a0", " ")), ["21/10/2026", "1535,00 €", "30,00 €", "37,40 €", "1467,60 €", "26"]);
+  const affiliate = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"] tbody tr');
+  assert.deepEqual([...affiliate.cells].slice(1, 6).map(cell => cell.textContent.replaceAll("\u00a0", " ")), ["26", "9", "0", "1467,60 €", "175,59 €"]);
+  const events = [...window.document.querySelectorAll("section")].find(node => node.querySelector("h2")?.textContent === "Riepilogo per evento");
+  assert.ok(events.textContent.replaceAll("\u00a0", " ").includes("1467,60 €"));
+  assert.ok(events.textContent.replaceAll("\u00a0", " ").includes("175,59 €"));
+  assert.ok([...events.querySelectorAll("strong")].some(node => node.textContent === "26"));
+  assert.ok([...events.querySelectorAll("strong")].some(node => node.textContent === "9"));
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
+  const rows = csvRows(csv);
+  const historicalStart = rows.findIndex(entry => entry[0] === "Storico contabile complessivo · attività e cena");
+  assert.ok(historicalStart > 0);
+  const activeRows = rows.slice(0, historicalStart);
+  for (const [label, value] of [["Iscritti validi", "26"], ["Cene prenotate", "9"], ["Lordo (€)", "1535"], ["Rimborsi riusciti (€)", "30"], ["Commissioni Stripe / PayPal note (€)", "37,4"], ["Netto dopo commissioni (€)", "1467,6"], ["Lordo cena (€)", "180"], ["Commissioni cena note (€)", "4,41"], ["Netto cena dopo commissioni (€)", "175,59"]]) {
+    assert.equal(activeRows.find(entry => entry[0] === label)?.[1], value, label);
+  }
+  assert.equal(activeRows.some(entry => entry[0] === "Ordini pagati" || entry[0] === "Pagamenti ricevuti"), false);
+  assert.ok(rows.slice(historicalStart).some(entry => entry.includes("28")));
+});
 
 test("dashboard uses real cohort metrics and exposes chart values in an accessible table", async context => {
   await mount(context);
-  assert.equal(metric("Vendite lorde"), "100,00 €"); assert.equal(metric("Rimborsi"), "30,00 €"); assert.equal(metric("Incassi netti"), "67,50 €");
-  assert.equal(metric("Commissioni Stripe / PayPal"), "2,50 €");
-  assert.equal(metric("Ordini pagati"), "3");
-  assert.ok(window.document.body.textContent.includes("Include aggiunte e upgrade; esclude rimborsi totali"));
-  assert.equal(metric("Iscritti validi"), "2"); assert.equal(metric("Con check-in"), "1");
+  const registrations = window.document.querySelector('[aria-labelledby="analytics-registration-summary"]');
+  const dinner = window.document.querySelector('[aria-labelledby="analytics-dinner-summary"]');
+  assert.ok(registrations); assert.ok(dinner);
+  assert.equal(metric("Vendite lorde", registrations), "80,00 €"); assert.equal(metric("Rimborsi", registrations), "20,00 €"); assert.equal(metric("Incassi netti", registrations), "58,00 €");
+  assert.equal(metric("Commissioni Stripe / PayPal", registrations), "2,00 €");
+  assert.equal(metric("Ordini pagati", registrations), undefined);
+  assert.equal(metric("Iscritti validi", registrations), "2"); assert.equal(metric("Con check-in", registrations), "1");
+  assert.equal(metric("Cene prenotate", dinner), "1");
   assert.ok(window.document.body.textContent.includes("Acquisti creati nel periodo selezionato"));
   assert.ok(window.document.body.textContent.includes("anche se eseguiti successivamente"));
   assert.ok(window.document.querySelector('svg[role="img"]'));
-  const table = [...window.document.querySelectorAll("table")].find(table => table.caption?.textContent === "Vendite per giorno, importi in euro");
+  const table = window.document.querySelector('[aria-labelledby="sales-trend-title"] table');
   assert.equal(table.tBodies[0].rows.length, 2);
   assert.ok(table.textContent.includes("21/10/2026"));
   assert.ok(window.document.body.textContent.includes("80 posti liberi nella sessione"));
@@ -127,19 +180,26 @@ test("masterclass, workshop and dinner show separate gross, refund, fee and true
   await mount(context);
   const section = window.document.querySelector('[aria-labelledby="analytics-revenue-title"]');
   assert.ok(section);
-  assert.deepEqual([...section.querySelectorAll("h3")].map(node => node.textContent), ["Masterclass", "Workshop", "Cena"]);
+  assert.deepEqual([...section.querySelectorAll("h3")].map(node => node.textContent), ["Masterclass", "Workshop"]);
   assert.ok(section.compareDocumentPosition(window.document.querySelector('[aria-labelledby="sales-trend-title"]')) & window.Node.DOCUMENT_POSITION_FOLLOWING);
-  for (const [kind, expected] of [["masterclass", ["29,00 €", "40,00 €", "10,00 €", "1,00 €"]], ["workshop", ["29,00 €", "40,00 €", "10,00 €", "1,00 €"]], ["dinner", ["9,50 €", "20,00 €", "10,00 €", "0,50 €"]]]) {
+  for (const [kind, expected] of [["masterclass", ["29,00 €", "40,00 €", "10,00 €", "1,00 €"]], ["workshop", ["29,00 €", "40,00 €", "10,00 €", "1,00 €"]]]) {
     const card = section.querySelector(`[data-revenue-kind="${kind}"]`);
     assert.deepEqual([card.querySelector("p").textContent, ...[...card.querySelectorAll("dd")].map(node => node.textContent)].map(value => value.replaceAll("\u00a0", " ")), expected);
   }
-  const trend = [...window.document.querySelectorAll("table")].find(table => table.caption?.textContent === "Vendite per giorno, importi in euro");
-  assert.deepEqual([...trend.tBodies[0].rows[0].cells].map(cell => cell.textContent.replaceAll("\u00a0", " ")), ["21/10/2026", "100,00 €", "30,00 €", "2,50 €", "67,50 €", "3"]);
+  const dinner = window.document.querySelector('[aria-labelledby="analytics-dinner-summary"]');
+  assert.equal(metric("Vendite cena", dinner), "20,00 €"); assert.equal(metric("Rimborsi cena", dinner), "10,00 €");
+  assert.equal(metric("Commissioni cena", dinner), "0,50 €"); assert.equal(metric("Incassi netti cena", dinner), "9,50 €");
+  const trend = window.document.querySelector('[aria-labelledby="sales-trend-title"] table');
+  assert.deepEqual([...trend.tBodies[0].rows[0].cells].map(cell => cell.textContent.replaceAll("\u00a0", " ")), ["21/10/2026", "80,00 €", "20,00 €", "2,00 €", "58,00 €", "2"]);
+  assert.equal(trend.tHead.rows[0].cells[5].textContent, "Iscrizioni");
+  assert.equal(window.document.getElementById("sales-trend-title").textContent, "Andamento delle attività · cena esclusa");
   const affiliates = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"]');
-  assert.ok(affiliates.textContent.replaceAll("\u00a0", " ").includes("67,50 €"));
+  assert.ok(affiliates.textContent.replaceAll("\u00a0", " ").includes("58,00 €"));
+  assert.ok(affiliates.textContent.replaceAll("\u00a0", " ").includes("9,50 €"));
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(fixture());
-  assert.ok(csv.includes('"Commissioni Stripe / PayPal note (€)";"2,5"'));
-  assert.ok(csv.includes('"Netto dopo commissioni (€)";"67,5"'));
+  assert.ok(csv.includes('"Commissioni Stripe / PayPal note (€)";"2"'));
+  assert.ok(csv.includes('"Netto dopo commissioni (€)";"58"'));
+  assert.ok(csv.includes('"Netto cena dopo commissioni (€)";"9,5"'));
   assert.ok(csv.includes('"Masterclass";"40";"10";"30";"1";"29";"Complete"'));
   assert.ok(csv.includes('"Cena";"20";"10";"10";"0,5";"9,5";"Complete"'));
 });
@@ -148,14 +208,15 @@ test("incomplete fees remain explicit in KPIs, categories, chart, affiliates, ev
   const data = fixture();
   const incomplete = row => ({ ...row, feesCents: 100, netAfterFeesCents: null, missingFeePayments: 1 });
   data.metrics = incomplete(data.metrics);
+  data.registrationSummary = incomplete(data.registrationSummary);
   data.revenue[0] = incomplete(data.revenue[0]);
-  data.trend[0] = incomplete(data.trend[0]);
-  data.affiliates = data.affiliates.map(incomplete);
-  data.eventStats = data.eventStats.map(incomplete);
+  data.trend[0] = { ...incomplete(data.trend[0]), registrationSummary: incomplete(data.trend[0].registrationSummary) };
+  data.affiliates = data.affiliates.map(row => ({ ...incomplete(row), registrationSummary: incomplete(row.registrationSummary) }));
+  data.eventStats = data.eventStats.map(row => ({ ...incomplete(row), registrationSummary: incomplete(row.registrationSummary) }));
   await mount(context, { data });
   assert.equal(metric("Incassi netti"), "Da verificare");
   assert.equal(metric("Commissioni Stripe / PayPal"), "1,00 € (parziali)");
-  assert.ok(window.document.querySelector('[role="status"]').textContent.includes("Commissioni incomplete per 1 pagamento"));
+  assert.ok(window.document.querySelector('[role="status"]').textContent.includes("Commissioni delle attività incomplete per 1 pagamento"));
   assert.equal(window.document.querySelector('[data-revenue-kind="masterclass"] > p').textContent, "Da verificare");
   assert.equal(window.document.querySelector('[data-revenue-kind="workshop"] > p').textContent.replaceAll("\u00a0", " "), "29,00 €");
   assert.equal(window.document.querySelector('svg[role="img"]'), null);
@@ -163,24 +224,53 @@ test("incomplete fees remain explicit in KPIs, categories, chart, affiliates, ev
   const affiliate = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"] tbody tr');
   assert.equal(affiliate.cells[4].textContent, "Da verificare");
   const eventsSection = [...window.document.querySelectorAll("section")].find(section => section.querySelector("h2")?.textContent === "Riepilogo per evento");
-  assert.deepEqual([...eventsSection.querySelectorAll("strong")].filter((_, index) => index % 2 === 0).map(node => node.textContent), ["Da verificare", "Da verificare"]);
+  for (const event of eventsSection.querySelectorAll("li")) assert.equal(event.querySelector("strong").textContent, "Da verificare");
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
   assert.ok(csv.includes('"Netto dopo commissioni (€)";"Da verificare"'));
   assert.ok(csv.includes('"Masterclass";"40";"10";"30";"1";"Da verificare";"Parziali: 1 pagamento da verificare"'));
   assert.equal(/NaN|undefined/.test(csv), false);
 });
 
+test("unavailable dinner fees do not hide verified activity receipts or the activity chart", async context => {
+  const data = fixture();
+  const unavailable = row => ({ ...row, feesCents: 20, netAfterFeesCents: null, missingFeePayments: 1 });
+  data.dinnerSummary = unavailable(data.dinnerSummary);
+  data.metrics = { ...data.metrics, feesCents: 220, netAfterFeesCents: null, missingFeePayments: 1 };
+  data.affiliates[0].dinnerSummary = unavailable(data.affiliates[0].dinnerSummary);
+  data.eventStats[0].dinnerSummary = unavailable(data.eventStats[0].dinnerSummary);
+  await mount(context, { data });
+  const registrations = window.document.querySelector('[aria-labelledby="analytics-registration-summary"]');
+  const dinner = window.document.querySelector('[aria-labelledby="analytics-dinner-summary"]');
+  assert.equal(metric("Incassi netti", registrations), "58,00 €");
+  assert.equal(metric("Commissioni Stripe / PayPal", registrations), "2,00 €");
+  assert.equal(metric("Incassi netti cena", dinner), "Da verificare");
+  assert.equal(metric("Commissioni cena", dinner), "0,20 € (parziali)");
+  assert.ok(window.document.querySelector('[aria-labelledby="sales-trend-title"] svg'));
+  const affiliate = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"] tbody tr');
+  assert.equal(affiliate.cells[4].textContent.replaceAll("\u00a0", " "), "58,00 €");
+  assert.equal(affiliate.cells[5].textContent, "Da verificare");
+  const exported = csvRows(load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data));
+  assert.equal(exported.find(row => row[0] === "Netto dopo commissioni (€)")[1], "58");
+  assert.equal(exported.find(row => row[0] === "Netto cena dopo commissioni (€)")[1], "Da verificare");
+  assert.equal(exported.find(row => row[0] === "Stato commissioni")[1], "Complete");
+  assert.equal(exported.find(row => row[0] === "Stato commissioni cena")[1], "Parziali: 1 pagamento da verificare");
+});
+
 test("retained processing fees after full refund remain a negative net", async context => {
   const data = fixture();
   data.metrics = { ...data.metrics, refundedCents: 10000, netCents: 0, netAfterFeesCents: -250 };
+  data.registrationSummary = { ...data.registrationSummary, count: 0, refundedCents: 8000, netCents: 0, netAfterFeesCents: -200 };
+  data.dinnerSummary = { ...data.dinnerSummary, count: 0, refundedCents: 2000, netCents: 0, netAfterFeesCents: -50 };
   await mount(context, { data });
-  assert.equal(metric("Incassi netti"), "-2,50 €");
+  assert.equal(metric("Incassi netti"), "-2,00 €");
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
-  assert.ok(csv.includes('"Netto dopo commissioni (€)";"-2,5"'));
+  assert.ok(csv.includes('"Netto dopo commissioni (€)";"-2"'));
+  assert.ok(csv.includes('"Netto cena dopo commissioni (€)";"-0,5"'));
+  assert.ok(csvRows(csv).some(row => JSON.stringify(row) === JSON.stringify(["Totale attività e cena", "100", "100", "0", "2,5", "-2,5", "Complete"])));
 });
 
 test("affiliate waitlist remains unavailable rather than a fabricated zero and empty sales have no fake chart", async context => {
-  const data = fixture(); data.metrics = { ...metrics, waiting: null }; data.trend = data.trend.map(row => ({ ...row, grossCents: 0, netCents: 0, refundedCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0, paidOrders: 0 }));
+  const data = fixture(); data.metrics = { ...metrics, waiting: null }; data.trend = data.trend.map(row => ({ ...row, grossCents: 0, netCents: 0, refundedCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0, paidOrders: 0, registrationSummary: summary(0, 0, 0, 0), dinnerSummary: summary(0, 0, 0, 0) }));
   await mount(context, { data });
   assert.equal(metric("Lista d’attesa"), "—");
   assert.ok(window.document.body.textContent.includes("Non attribuibile a un affiliato"));
@@ -204,8 +294,11 @@ test("aggregate CSV export keeps Italian values and neutralizes spreadsheet form
   data.participant_private_email = "private@example.test";
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data, false);
   assert.ok(csv.startsWith("\uFEFF"));
-  assert.ok(csv.includes('"Rimborsi riusciti (€)";"30"'));
-  assert.ok(csv.includes('"Criterio ordini pagati";"Comprende aggiunte e upgrade; esclude gli ordini gratuiti e interamente rimborsati.'));
+  assert.ok(csv.includes('"Rimborsi riusciti (€)";"20"'));
+  assert.ok(csv.includes('"Rimborsi cena (€)";"10"'));
+  assert.ok(csv.includes('"Criterio iscrizioni";"Ogni persona conta una sola volta nella formula attuale; gli upgrade aggiornano la stessa iscrizione'));
+  assert.ok(csv.includes('"Criterio pagamenti";"Ogni pagamento di iscrizione, upgrade o cena conta una volta; esclusi ordini gratuiti e interamente rimborsati.'));
+  assert.ok(csvRows(csv).some(row => JSON.stringify(row) === JSON.stringify(["Totale attività e cena", "100", "30", "70", "2,5", "67,5", "Complete"])));
   assert.ok(csv.includes('"Periodo";"23/09/2026";"22/10/2026"'));
   assert.ok(csv.includes("'=HYPERLINK")); assert.ok(csv.includes("'\t+SUM"));
   assert.equal(csv.includes("private@example.test"), false);
@@ -286,6 +379,10 @@ test("event list searches and filters status while titles open statistics withou
   assert.ok(cardDetails.parentElement.classList.contains("sm:flex-row"));
   assert.ok(cardDetails.nextElementSibling.classList.contains("text-left"));
   assert.ok(cardDetails.nextElementSibling.classList.contains("sm:text-right"));
+  assert.equal(metric("Netto attività", cardDetails.nextElementSibling), "58,00 €");
+  assert.equal(metric("Iscritti attività", cardDetails.nextElementSibling), "2");
+  assert.equal(metric("Netto cena", cardDetails.nextElementSibling), "9,50 €");
+  assert.equal(metric("Cene", cardDetails.nextElementSibling), "1");
   await ui.fill("events-search", "estate"); assert.equal(window.document.querySelectorAll("h2").length, 1); assert.equal(window.document.querySelector("h2").textContent, "Meraki Estate");
   await ui.select("events-status", "upcoming"); assert.equal(window.document.querySelectorAll("h2").length, 0); assert.ok(window.document.body.textContent.includes("Nessun evento corrisponde ai filtri."));
   await ui.fill("events-search", ""); assert.equal(window.document.querySelector("h2").textContent, "Vibra");
@@ -318,44 +415,52 @@ test("data errors remain explicit and do not turn missing financial data into ze
 
 test("affiliate compensation uses valid people instead of orders and keeps direct purchases separate", async context => {
   const data = fixture();
-  const paid = { ...data.affiliates[0], validParticipants: 8, paidOrders: 9, commissionPerParticipantCents: 500, commissionCents: 4000 };
-  const direct = { ...data.affiliates[0], id: "direct", name: "Acquisti diretti", validParticipants: 4, paidOrders: 4, commissionPerParticipantCents: 0, commissionCents: 0 };
-  const noCommission = { ...data.affiliates[0], id: "no-commission", name: "Affiliato senza compenso", validParticipants: 1, paidOrders: 2, commissionPerParticipantCents: 0, commissionCents: 0 };
+  const paid = { ...data.affiliates[0], validParticipants: 8, paidOrders: 9, commissionPerParticipantCents: 500, commissionCents: 4000, registrationSummary: { ...data.affiliates[0].registrationSummary, count: 8 }, dinnerSummary: { ...data.affiliates[0].dinnerSummary, count: 2 } };
+  const direct = { ...data.affiliates[0], id: "direct", name: "Acquisti diretti", validParticipants: 4, paidOrders: 4, commissionPerParticipantCents: 0, commissionCents: 0, registrationSummary: { ...data.affiliates[0].registrationSummary, count: 4 } };
+  const noCommission = { ...data.affiliates[0], id: "no-commission", name: "Affiliato senza compenso", validParticipants: 1, paidOrders: 2, commissionPerParticipantCents: 0, commissionCents: 0, registrationSummary: { ...data.affiliates[0].registrationSummary, count: 1 }, dinnerSummary: { ...data.affiliates[0].dinnerSummary, count: 0 } };
   data.affiliates = [paid, direct, noCommission];
   await mount(context, { data, fixedEventId: eventId });
   const section = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"]');
   const rows = section.querySelectorAll("tbody tr");
   const normalized = row => [...row.cells].map(cell => cell.textContent.replaceAll("\u00a0", " "));
-  assert.deepEqual(normalized(rows[0]).slice(1, 7), ["8", "1", "9", "67,50 €", "5,00 €", "40,00 €"]);
-  assert.deepEqual(normalized(rows[1]).slice(5, 7), ["—", "0,00 €"]);
-  assert.deepEqual(normalized(rows[2]).slice(5, 7), ["0,00 €", "0,00 €"]);
+  assert.deepEqual(normalized(rows[0]).slice(1, 8), ["8", "2", "1", "58,00 €", "9,50 €", "5,00 €", "40,00 €"]);
+  assert.deepEqual(normalized(rows[1]).slice(6, 8), ["—", "0,00 €"]);
+  assert.deepEqual(normalized(rows[2]).slice(6, 8), ["0,00 €", "0,00 €"]);
   assert.ok(section.textContent.replaceAll("\u00a0", " ").includes("Totale compensi affiliati: 40,00 €"));
   assert.ok(section.textContent.includes("una sola volta per ogni iscritto valido"));
   assert.equal(section.querySelector('a').getAttribute("href"), `/admin/eventi/${eventId}#compensi-affiliati`);
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
   assert.ok(csv.includes('"Compensi affiliati maturati (€)";"40"'));
   assert.ok(csv.includes('"Compenso per iscritto (€)";"Compenso maturato (€)"'));
-  assert.ok(csv.includes('"Scuola Meraki";"8";"1";"9";"100";"30";"70";"2,5";"67,5";"Complete";"EUR";"5";"40";"0";"0"'));
-  assert.ok(csv.includes('"Acquisti diretti";"4";"1";"4";"100";"30";"70";"2,5";"67,5";"Complete";"Non applicabile";"Non applicabile";"0";"Non applicabile";"0"'));
-  assert.ok(csv.includes('"Netto dopo commissioni (€)";"67,5"'), "affiliate compensation must not change processor net");
+  const exported = csvRows(csv);
+  const affiliated = exported.find(row => row[1] === "Scuola Meraki");
+  const directPurchase = exported.find(row => row[1] === "Acquisti diretti");
+  assert.ok(affiliated.includes("8")); assert.ok(affiliated.includes("2"));
+  assert.ok(affiliated.includes("58")); assert.ok(affiliated.includes("9,5"));
+  assert.deepEqual(affiliated.slice(-5), ["EUR", "5", "40", "0", "0"]);
+  assert.deepEqual(directPurchase.slice(-5), ["Non applicabile", "Non applicabile", "0", "Non applicabile", "0"]);
+  assert.ok(csv.includes('"Netto dopo commissioni (€)";"58"'), "affiliate compensation must not change activity processor net");
 });
 
 test("analytics and CSV display EUR and credits as separate compensation totals", async context => {
   const data = fixture();
-  data.affiliates.push({ ...data.affiliates[0], id: "credit-affiliate", name: "Scuola a crediti", validParticipants: 3, commissionType: "credits", commissionPerParticipantCents: 0, commissionCents: 0, commissionPerParticipantCredits: 2, commissionCredits: 6 });
+  data.affiliates.push({ ...data.affiliates[0], id: "credit-affiliate", name: "Scuola a crediti", validParticipants: 3, commissionType: "credits", commissionPerParticipantCents: 0, commissionCents: 0, commissionPerParticipantCredits: 2, commissionCredits: 6, registrationSummary: { ...data.affiliates[0].registrationSummary, count: 3 } });
   await mount(context, { data });
   const section = window.document.querySelector('[aria-labelledby="analytics-affiliates-title"]');
   const row = section.querySelectorAll("tbody tr")[1];
-  assert.equal(row.cells[4].textContent.replaceAll("\u00a0", " "), "67,50 €");
-  assert.equal(row.cells[5].textContent, "2 crediti"); assert.equal(row.cells[6].textContent, "6 crediti");
+  assert.equal(row.cells[4].textContent.replaceAll("\u00a0", " "), "58,00 €");
+  assert.equal(row.cells[5].textContent.replaceAll("\u00a0", " "), "9,50 €");
+  assert.equal(row.cells[6].textContent, "2 crediti"); assert.equal(row.cells[7].textContent, "6 crediti");
   assert.ok(section.textContent.replaceAll("\u00a0", " ").includes("Totale compensi affiliati: 10,00 € · 6 crediti"));
   assert.ok(section.textContent.includes("senza conversioni"));
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
   assert.ok(csv.includes('"Compensi affiliati maturati (€)";"10"'));
   assert.ok(csv.includes('"Compensi affiliati maturati (crediti)";"6"'));
   assert.ok(csv.includes('"Unità compenso";"Compenso per iscritto (€)";"Compenso maturato (€)";"Compenso per iscritto (crediti)";"Compenso maturato (crediti)"'));
-  assert.ok(csv.includes('"Scuola a crediti";"3";"1";"3";"100";"30";"70";"2,5";"67,5";"Complete";"Crediti";"0";"0";"2";"6"'));
-  assert.ok(csv.includes('"Netto dopo commissioni (€)";"67,5"'));
+  const exported = csvRows(csv).find(entry => entry[1] === "Scuola a crediti");
+  assert.ok(exported.includes("3")); assert.ok(exported.includes("58")); assert.ok(exported.includes("9,5"));
+  assert.deepEqual(exported.slice(-5), ["Crediti", "0", "0", "2", "6"]);
+  assert.ok(csv.includes('"Netto dopo commissioni (€)";"58"'));
 });
 
 test("capacity shows distinct people, session seats and a separate purchase limit", async context => {

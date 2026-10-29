@@ -6,7 +6,7 @@ import { fromRomeInput } from "@/lib/commerce/rome-time";
 import { parseEventAffiliates } from "@/lib/events/affiliates";
 import { affiliateCommissionValueSchema, type AffiliateCommissionValue } from "@/lib/events/affiliate-commissions";
 import { loadPaymentFees } from "@/lib/stripe/payment-fees";
-import type { AdminAnalytics, AdminAnalyticsInput, AnalyticsAffiliateRow, AnalyticsBreakdown, AnalyticsEventRow, AnalyticsFinancials, AnalyticsMetrics } from "./analytics-types";
+import type { AdminAnalytics, AdminAnalyticsInput, AnalyticsAffiliateRow, AnalyticsBreakdown, AnalyticsEventRow, AnalyticsFinancials, AnalyticsMetrics, AnalyticsSummaryPartitions } from "./analytics-types";
 
 type Event = { id: string; titolo: unknown; data_inizio: string; data_fine: string | null; attivo: boolean | null; canceled_at: string | null; capacity: number | null; affiliates: unknown; activities: unknown };
 type FinancialRow = { id: string; event_id: string; amount_cents: number | null; state: string; created_at: string | null; expires_at?: string | null; demand?: unknown; stripe_payment_intent: string | null; stripe_session_id: string | null; refund_status: string | null; affiliate_id: string | null; affiliate_name: string | null; quote_lines?: unknown; quote_discount?: unknown; quote_discount_exclusions?: unknown; reporting_quote?: unknown; snapshot_activities?: unknown; upgrade_pass_id?: string | null };
@@ -31,6 +31,7 @@ const midnight = (value: string) => {
 };
 const advance = (value: string, days: number) => new Date(Date.parse(`${value}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 const emptyFinancials = (): AnalyticsFinancials => ({ grossCents: 0, refundedCents: 0, netCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0 });
+const emptySummaries = (): AnalyticsSummaryPartitions => ({ registrationSummary: { ...emptyFinancials(), count: 0 }, dinnerSummary: { ...emptyFinancials(), count: 0 } });
 const empty = (waiting: number | null = 0): AnalyticsMetrics => ({ ...emptyFinancials(), paidOrders: 0, validParticipants: 0, checkedInParticipants: 0, waiting, pendingOrders: 0, expiredOrders: 0, failedOrders: 0 });
 const amount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 const alive = (status: string | null) => status === "valid" || status === "used";
@@ -243,6 +244,7 @@ function revenueAmounts(payment: Payment, notes: Set<string>): Map<RevenueKind, 
     const amounts = split(cents, weights);
     ids.forEach((id, index) => add(payment.activityKinds.get(id) || "unallocated", amounts[index]));
   }
+  if (!result.size && payment.amount > 0) add("unallocated", payment.amount);
   if ((result.get("unallocated") || 0) > 0) notes.add("Gli acquisti senza un’attività identificabile sono inclusi in «Non attribuito», senza assegnarli arbitrariamente a masterclass, workshop o cena.");
   return result;
 }
@@ -282,7 +284,8 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
   const notes = new Set([
     "Il periodo segue il giorno italiano di creazione dell’acquisto (Europe/Rome), non la data di accredito Stripe. I rimborsi riusciti si riferiscono a quegli acquisti anche quando avvenuti successivamente.",
     "Il netto dopo le commissioni sottrae dal lordo i rimborsi riusciti e le commissioni effettive di pagamento Stripe, comprese quelle disponibili per PayPal. Non sottrae imposte o altri costi. Gli ordini pagati comprendono aggiunte e upgrade, escludono gli ordini gratuiti e quelli interamente rimborsati; i rimborsi parziali mantengono l’ordine nel conteggio. Lordo, rimborsi e commissioni conservano lo storico contabile.",
-    "Gli importi di masterclass, workshop e cena seguono la ripartizione salvata nell’acquisto; rimborsi e commissioni del pagamento sono distribuiti in proporzione agli importi delle attività, con arrotondamento al centesimo.",
+    "Gli importi di masterclass, workshop e cena seguono la ripartizione salvata nell’acquisto. Rimborsi e commissioni sono attribuiti prima alle quote degli affiliati e poi alle attività della stessa quota, in proporzione agli importi e con arrotondamento al centesimo. I riepiloghi delle iscrizioni escludono la cena, conteggiata separatamente.",
+    "Le iscrizioni attive contano una volta ogni persona con almeno un accesso valido diverso dalla cena; la cena conta una volta ogni persona con un accesso cena valido. Gli upgrade aggiornano la formula della stessa persona. I conteggi seguono il primo acquisto e l’affiliato attuale; gli incassi seguono il giorno di ciascun pagamento.",
     "Ogni biglietto/pass valido conta una persona nel periodo di creazione dell’acquisto iniziale. Gli upgrade aumentano gli incassi senza creare un nuovo partecipante. I check-in sono lo stato attuale di queste persone.",
     "La disponibilità residua usa tutti gli accessi attualmente validi, indipendentemente dai filtri su acquisti e affiliati; non comprende prenotazioni temporanee ancora da pagare.",
     "Formule, scaglioni e aggiunte descrivono gli accessi attualmente validi degli iscritti selezionati per primo acquisto e affiliato attuale. Ogni persona conta una volta nella formula attuale; gli importi comprendono acquisto iniziale e upgrade successivi, al netto dei rimborsi e prima delle commissioni. Le formule interamente rimborsate sono escluse.",
@@ -297,12 +300,13 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
   const inAffiliate = (id: string | null) => selected.affiliateId === "all" || (selected.affiliateId === "direct" ? !id : id === selected.affiliateId);
   const title = (eventId: string) => getLocalizedText(eventMap.get(eventId)?.titolo, input.locale) || "Evento";
   const metrics = empty(selected.affiliateId === "all" ? 0 : null);
+  const summaries = emptySummaries();
   const eventStats = new Map<string, AnalyticsEventRow>();
   for (const event of scopedEvents) {
     const now = Date.now();
     const status = event.canceled_at ? "canceled" : !event.attivo ? "draft" : Date.parse(event.data_fine || event.data_inizio) <= now ? "past" : Date.parse(event.data_inizio) <= now ? "ongoing" : "upcoming";
     const capacity = amount(event.capacity) ? event.capacity : null;
-    eventStats.set(event.id, { ...empty(metrics.waiting), id: event.id, title: title(event.id), startsAt: event.data_inizio, endsAt: event.data_fine, status, capacity, remaining: capacity });
+    eventStats.set(event.id, { ...empty(metrics.waiting), ...emptySummaries(), id: event.id, title: title(event.id), startsAt: event.data_inizio, endsAt: event.data_fine, status, capacity, remaining: capacity });
   }
   const affiliateRows = new Map<string, AnalyticsAffiliateRow>();
   const rates = new Map<string, AffiliateCommissionValue>();
@@ -319,7 +323,7 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     if (!row) {
       const rate = id ? rates.get(key) : undefined;
       const commissionType = rate?.commissionType ?? "eur";
-      row = { ...emptyFinancials(), id: affiliation, eventId, eventTitle: title(eventId), name: affiliation === "direct" ? "Acquisti diretti" : snapshotName || "Affiliato archiviato", validParticipants: 0, checkedInParticipants: 0, paidOrders: 0, commissionType, commissionPerParticipantCents: commissionType === "eur" ? rate?.commissionCents ?? 0 : 0, commissionPerParticipantCredits: commissionType === "credits" ? rate?.commissionCredits ?? 0 : 0, commissionCents: 0, commissionCredits: 0 };
+      row = { ...emptyFinancials(), ...emptySummaries(), id: affiliation, eventId, eventTitle: title(eventId), name: affiliation === "direct" ? "Acquisti diretti" : snapshotName || "Affiliato archiviato", validParticipants: 0, checkedInParticipants: 0, paidOrders: 0, commissionType, commissionPerParticipantCents: commissionType === "eur" ? rate?.commissionCents ?? 0 : 0, commissionPerParticipantCredits: commissionType === "credits" ? rate?.commissionCredits ?? 0 : 0, commissionCents: 0, commissionCredits: 0 };
       affiliateRows.set(key, row);
     }
     if (id && !affiliateOptions.has(id)) affiliateOptions.set(id, row.name);
@@ -432,25 +436,45 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
       addFinancials(item, gross, refunded, scopedFees, missing);
       if (gross > refunded) item.paidOrders += 1;
     }
+    const categoryTotals = new Map<RevenueKind, AnalyticsFinancials>();
     for (const share of included) {
       const affiliateRow = affiliate(payment.eventId, share.affiliateId === "direct" ? null : share.affiliateId, share.affiliateName);
       addFinancials(affiliateRow, share.amount, share.refunded, share.feeCents, !fee.complete && share.amount > 0 ? 1 : 0);
       if (share.amount > share.refunded) affiliateRow.paidOrders += 1;
+      const allocatedLines = allocated(payment).filter((_, index) => share.lineIndices.has(index));
+      const sharePayment = { ...payment, amount: share.amount, refunded: share.refunded, lines: allocatedLines.map(entry => entry.line), allocatedLines };
+      const categories = [...revenueAmounts(sharePayment, notes)];
+      const weights = categories.map(([, cents]) => cents);
+      const categoryRefunds = split(share.refunded, weights);
+      const categoryFees = split(share.feeCents, weights);
+      const shareSummaries = emptySummaries();
+      categories.forEach(([id, gross], index) => {
+        const category = categoryTotals.get(id) || emptyFinancials();
+        addFinancials(category, gross, categoryRefunds[index], categoryFees[index], 0);
+        categoryTotals.set(id, category);
+        addFinancials(id === "dinner" ? shareSummaries.dinnerSummary : shareSummaries.registrationSummary, gross, categoryRefunds[index], categoryFees[index], 0);
+      });
+      for (const key of ["registrationSummary", "dinnerSummary"] as const) {
+        const row = shareSummaries[key];
+        addFinancials(affiliateRow[key], row.grossCents, row.refundedCents, row.feesCents, !fee.complete && row.grossCents > 0 ? 1 : 0);
+      }
     }
     const date = day(payment.createdAt);
     if (date) {
-      const current = trend.get(date) || { date, ...emptyFinancials(), paidOrders: 0 };
+      const current = trend.get(date) || { date, ...emptyFinancials(), ...emptySummaries(), paidOrders: 0 };
       addFinancials(current, gross, refunded, scopedFees, missing);
       current.paidOrders += gross > refunded ? 1 : 0; trend.set(date, current);
     }
-    const includedLines = new Set(included.flatMap(share => [...share.lineIndices]));
-    const allocatedLines = allocated(payment).filter((_, index) => includedLines.has(index));
-    const scopedPayment = { ...payment, amount: gross, refunded, lines: allocatedLines.map(entry => entry.line), allocatedLines };
-    const categories = [...revenueAmounts(scopedPayment, notes)];
-    const categoryWeights = categories.map(([, cents]) => cents);
-    const categoryRefunds = split(refunded, categoryWeights);
-    const categoryFees = split(scopedFees, categoryWeights);
-    categories.forEach(([id, gross], index) => addFinancials(revenueRow(id), gross, categoryRefunds[index], categoryFees[index], !fee.complete && gross > 0 ? 1 : 0));
+    const paymentSummaries = emptySummaries();
+    for (const [id, category] of categoryTotals) {
+      addFinancials(revenueRow(id), category.grossCents, category.refundedCents, category.feesCents, !fee.complete && category.grossCents > 0 ? 1 : 0);
+      addFinancials(id === "dinner" ? paymentSummaries.dinnerSummary : paymentSummaries.registrationSummary, category.grossCents, category.refundedCents, category.feesCents, 0);
+    }
+    for (const key of ["registrationSummary", "dinnerSummary"] as const) {
+      const row = paymentSummaries[key];
+      const targets = [summaries[key], event[key], ...(date ? [trend.get(date)![key]] : [])];
+      for (const target of targets) addFinancials(target, row.grossCents, row.refundedCents, row.feesCents, !fee.complete && row.grossCents > 0 ? 1 : 0);
+    }
   }
   const rightsByPass = new Map<string, Right[]>();
   const originalOrders = new Map(orders.map(order => [order.id, order]));
@@ -593,6 +617,16 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     row.validParticipants += 1;
     if (checkedIn) { metrics.checkedInParticipants += 1; eventStats.get(eventId)!.checkedInParticipants += 1; row.checkedInParticipants += 1; }
   };
+  const addSummaryPerson = (eventId: string, affiliateId: string | null, name: string | null, createdAt: string | null, registration: boolean, dinner: boolean) => {
+    const row = affiliate(eventId, affiliateId, name);
+    const date = day(createdAt);
+    const current = date ? trend.get(date) || { date, ...emptyFinancials(), ...emptySummaries(), paidOrders: 0 } : null;
+    for (const [key, included] of [["registrationSummary", registration], ["dinnerSummary", dinner]] as const) if (included) {
+      summaries[key].count += 1; eventStats.get(eventId)![key].count += 1; row[key].count += 1;
+      if (current) current[key].count += 1;
+    }
+    if (current) trend.set(date, current);
+  };
   for (const pass of passes) {
     const event = eventMap.get(pass.event_id);
     const currentRights = (rightsByPass.get(pass.id) || []).filter(right => alive(right.status));
@@ -607,7 +641,10 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     else if (kinds.has("masterclass")) group.masterclassOnly += 1;
     else group.otherParticipants += 1;
     const scoped = inPeriod(originalOrders.get(pass.order_id)?.created_at || pass.created_at) && inAffiliate(pass.affiliate_id);
-    if (scoped) addPerson(event.id, pass.affiliate_id, pass.affiliate_name, currentRights.some(right => right.status === "used"));
+    if (scoped) {
+      addPerson(event.id, pass.affiliate_id, pass.affiliate_name, currentRights.some(right => right.status === "used"));
+      addSummaryPerson(event.id, pass.affiliate_id, pass.affiliate_name, originalOrders.get(pass.order_id)?.created_at || pass.created_at, [...kinds].some(kind => kind !== "dinner"), kinds.has("dinner"));
+    }
     for (const right of currentRights) {
       const key = `${event.id}:${right.activity_id}`;
       const seats = activityOccupancy.get(key) || new Set<string>(); seats.add(pass.id); activityOccupancy.set(key, seats);
@@ -623,7 +660,10 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     const group = attendanceGroups.get(event.id)!;
     group.currentParticipants += 1; group.otherParticipants += 1;
     const reservation = reservationsBySession.get(ticket.stripe_session_id || "") || reservationsByIntent.get(ticket.stripe_payment_intent || "");
-    if (inPeriod(reservation?.created_at || ticket.created_at) && inAffiliate(ticket.affiliate_id)) addPerson(event.id, ticket.affiliate_id, ticket.affiliate_name, ticket.status === "used");
+    if (inPeriod(reservation?.created_at || ticket.created_at) && inAffiliate(ticket.affiliate_id)) {
+      addPerson(event.id, ticket.affiliate_id, ticket.affiliate_name, ticket.status === "used");
+      addSummaryPerson(event.id, ticket.affiliate_id, ticket.affiliate_name, reservation?.created_at || ticket.created_at, true, false);
+    }
   }
   for (const entry of waitlist) if (selected.affiliateId === "all" && eventMap.has(entry.event_id) && entry.status === "waiting" && inPeriod(entry.created_at)) {
     metrics.waiting! += 1; eventStats.get(entry.event_id)!.waiting! += 1;
@@ -649,13 +689,13 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     return { id: key.slice(event.id.length + 1), eventId: event.id, eventTitle: title(event.id), name: counter.name, capacity, validAdmissions: counter.participants.size, checkedIn: counter.checked.size, occupied, reservedAdmissions, availableForSale, remaining };
   });
   if (selected.from && selected.to) {
-    for (let date = selected.from, count = 0; date <= selected.to && count < 3660; date = advance(date, 1), count += 1) if (!trend.has(date)) trend.set(date, { date, ...emptyFinancials(), paidOrders: 0 });
+    for (let date = selected.from, count = 0; date <= selected.to && count < 3660; date = advance(date, 1), count += 1) if (!trend.has(date)) trend.set(date, { date, ...emptyFinancials(), ...emptySummaries(), paidOrders: 0 });
     if (advance(selected.from, 3660) <= selected.to) notes.add("Per intervalli oltre dieci anni l’andamento mantiene tutti i giorni con vendite e omette parte dei giorni senza acquisti.");
   }
   const breakdown = (collection: keyof typeof breakdowns) => [...breakdowns[collection].values()].sort((a, b) => b.netCents - a.netCents || a.name.localeCompare(b.name, "it"));
   return {
     filters: selected, events: eventRows.map(event => ({ id: event.id, title: getLocalizedText(event.titolo, input.locale) || "Evento", startsAt: event.data_inizio })),
-    affiliateOptions: [...affiliateOptions].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "it")), metrics,
+    affiliateOptions: [...affiliateOptions].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "it")), metrics, ...summaries,
     operations: { newLeads, openShopOrders, confirmedContacts },
     trend: [...trend.values()].sort((a, b) => a.date.localeCompare(b.date)), revenue: [...revenue.values()], packages: breakdown("packages"), tiers: breakdown("tiers"), addons: breakdown("addons"), activities, attendanceGroups: [...attendanceGroups.values()],
     affiliates: [...affiliateRows.values()].filter(row => inAffiliate(row.id === "direct" ? null : row.id)).sort((a, b) => b.validParticipants - a.validParticipants || a.name.localeCompare(b.name, "it", { sensitivity: "base" }) || a.eventId.localeCompare(b.eventId) || a.id.localeCompare(b.id)), eventStats: [...eventStats.values()], notes: [...notes],
