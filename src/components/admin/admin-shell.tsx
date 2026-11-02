@@ -46,7 +46,8 @@ export function AdminShell({ children, fullName, email, role, dateLabel }: {
   const searchButton = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
   const fieldId = useId();
-  const section = [...items].reverse().find(item => item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href)) || items[0];
+  const navigationPath = pathname === "/admin/partecipanti" || pathname.startsWith("/admin/partecipanti/") ? "/admin/biglietti" : pathname;
+  const section = [...items].reverse().find(item => item.href === "/admin" ? navigationPath === "/admin" : navigationPath.startsWith(item.href)) || items[0];
   const pageLabel = pathname.endsWith("/statistiche") ? "Statistiche evento" : pathname.endsWith("/commerce") ? "Formule e prezzi" : pathname === "/admin/eventi/nuovo" ? "Nuovo evento" : section.name;
   const matches = useMemo(() => items.filter(item => normalize(`${item.name} ${item.hint}`).includes(normalize(query.trim()))), [query]);
   const closeMenu = () => menu.current?.close();
