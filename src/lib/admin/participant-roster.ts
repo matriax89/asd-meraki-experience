@@ -2,7 +2,7 @@ import "server-only";
 import { requireCommerceStaff } from "@/lib/commerce/admin-auth";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { parseEventAffiliates } from "@/lib/events/affiliates";
-import type { ParticipantRoster, ParticipantRosterActivity, ParticipantRosterInput, ParticipantRosterRow } from "./participant-roster-types";
+import type { ParticipantDetails, ParticipantDetailsInput, ParticipantRoster, ParticipantRosterActivity, ParticipantRosterInput, ParticipantRosterRow } from "./participant-roster-types";
 
 export class ParticipantRosterError extends Error {
   constructor(public readonly status: 400 | 403 | 404 | 503, message: string) {
@@ -103,7 +103,11 @@ export async function loadParticipantRoster(input: ParticipantRosterInput): Prom
   const eventId = text(input.eventId).trim().toLowerCase();
   const affiliateFilter = text(input.affiliateId).trim().toLowerCase();
   const affiliateId = !affiliateFilter || affiliateFilter === "all" ? null : affiliateFilter;
+  const singleParticipant = input.participantId !== undefined || input.source !== undefined;
+  const participantId = text(input.participantId).trim().toLowerCase();
+  const source = text(input.source);
   if (!uuid.test(eventId) || affiliateId && affiliateId !== "direct" && !uuid.test(affiliateId)) throw new ParticipantRosterError(400, "Seleziona un evento e un affiliato validi.");
+  if (singleParticipant && (!uuid.test(participantId) || !["commerce", "legacy"].includes(source) || !["it", "en", "de", "es"].includes(input.locale))) throw new ParticipantRosterError(400, "Seleziona un partecipante valido.");
   let event: EventRow;
   try {
     const response = await admin.from("events").select("id,titolo,data_inizio,canceled_at,affiliates,commerce_config").eq("id", eventId).maybeSingle();
@@ -115,17 +119,20 @@ export async function loadParticipantRoster(input: ParticipantRosterInput): Prom
     throw new ParticipantRosterError(503, "Impossibile caricare l’evento. Riprova.");
   }
   const [passes, tickets] = await Promise.all([
-    loadRows<PassRow>((from, to) => {
+    source === "legacy" ? Promise.resolve([] as PassRow[]) : loadRows<PassRow>((from, to) => {
       let query = admin.from("commerce_passes").select("id,event_id,order_id,participant_index,first_name,last_name,package_name,package_activity_ids,status,created_at,affiliate_id,affiliate_name,commerce_entitlements(activity_id,activity_name,kind,status,checked_in_at,menu_choice)").eq("event_id", eventId);
+      if (singleParticipant) query = query.eq("id", participantId);
       if (affiliateId) query = affiliateId === "direct" ? query.is("affiliate_id", null) : query.eq("affiliate_id", affiliateId);
       return query.order("created_at", { ascending: false }).order("id").range(from, to);
     }, "i partecipanti"),
-    loadRows<TicketRow>((from, to) => {
+    source === "commerce" ? Promise.resolve([] as TicketRow[]) : loadRows<TicketRow>((from, to) => {
       let query = admin.from("tickets").select("id,event_id,buyer_nome,buyer_cognome,buyer_email,buyer_telefono,status,used_at,created_at,affiliate_id,affiliate_name").eq("event_id", eventId);
+      if (singleParticipant) query = query.eq("id", participantId);
       if (affiliateId) query = affiliateId === "direct" ? query.is("affiliate_id", null) : query.eq("affiliate_id", affiliateId);
       return query.order("created_at", { ascending: false }).order("id").range(from, to);
     }, "i biglietti precedenti"),
   ]);
+  if (singleParticipant && !passes.length && !tickets.length) throw new ParticipantRosterError(404, "Partecipante non disponibile per questo evento.");
   const configured = parseEventAffiliates(event.affiliates);
   const configuredAffiliate = configured.find(entry => entry.id === affiliateId);
   const historical = [...passes, ...tickets].sort((a, b) => text(b.created_at).localeCompare(text(a.created_at)) || a.id.localeCompare(b.id))[0];
@@ -193,4 +200,12 @@ export async function loadParticipantRoster(input: ParticipantRosterInput): Prom
     affiliate: affiliateId ? { id: affiliateId, name: affiliateId === "direct" ? "Acquisti diretti" : configuredAffiliate?.name || historical?.affiliate_name || "Affiliato archiviato" } : null,
     participants,
   };
+}
+
+/** Full registration details are read only after an explicit staff request for one person. */
+export async function loadParticipantDetails(input: ParticipantDetailsInput): Promise<ParticipantDetails> {
+  const roster = await loadParticipantRoster({ locale: input.locale, eventId: input.eventId, participantId: text(input.participantId), source: text(input.source), includeDocuments: true });
+  const participant = roster.participants[0];
+  if (!participant) throw new ParticipantRosterError(404, "Partecipante non disponibile per questo evento.");
+  return { event: roster.event, participant };
 }

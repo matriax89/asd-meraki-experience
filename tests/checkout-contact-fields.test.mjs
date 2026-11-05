@@ -92,42 +92,48 @@ for (const locale of ["it", "en", "de", "es"]) {
 
 for (const locale of ["it", "en", "de", "es"]) {
   for (const documentType of ["codice_fiscale", "foreign_id"]) {
-    test(`${locale}: a blank ${documentType} never blocks native form validation`, async context => {
-      const { host, form, changes } = await mount(context, locale, {}, { documentType, documentCountry: "", documentNumber: "" });
+    test(`${locale}: every participant must provide a ${documentType} before native form validation permits purchase`, async context => {
+      const { host, form, changes, change } = await mount(context, locale, {}, { documentType, documentCountry: "", documentNumber: "" });
       const copy = copyModule.checkoutCopy(locale);
       const type = host.querySelector("#guest-document-type");
       const number = host.querySelector("#guest-document-number");
       const country = host.querySelector("#guest-document-country");
       const phone = host.querySelector("#guest-phone");
-      assert.equal(type.required, false);
+      assert.equal(type.required, true);
       assert.equal(type.value, documentType);
       assert.deepEqual([...type.options].map(option => option.value), ["codice_fiscale", "foreign_id"]);
-      assert.ok(type.closest("label").textContent.startsWith(`${copy.documentType} (${copy.optional})`));
+      assert.ok(type.closest("label").textContent.startsWith(copy.documentType));
+      assert.equal(type.closest("label").textContent.includes(`(${copy.optional})`), false);
       assert.equal(host.querySelector("#guest-document-type-hint").textContent, copy.documentTypeHint);
-      assert.equal(number.required, false);
-      assert.equal(number.hasAttribute("minlength"), false);
+      assert.equal(number.required, true);
+      assert.equal(number.minLength, documentType === "codice_fiscale" ? 11 : 3);
       assert.equal(number.placeholder, documentType === "codice_fiscale" ? copy.fiscalNumberPlaceholder : copy.documentNumberPlaceholder);
-      assert.ok(number.closest("label").textContent.startsWith(`${documentType === "codice_fiscale" ? copy.fiscalNumber : copy.documentNumber} (${copy.optional})`));
+      assert.ok(number.closest("label").textContent.startsWith(documentType === "codice_fiscale" ? copy.fiscalNumber : copy.documentNumber));
+      assert.equal(number.closest("label").textContent.includes(`(${copy.optional})`), false);
       assert.equal(host.querySelector("#guest-document-number-hint").textContent, copy.documentHint);
-      assert.equal(country?.required || false, false);
-      assert.equal(form.reportValidity(), true);
+      assert.equal(country?.required || false, documentType === "foreign_id");
+      assert.equal(number.validity.valueMissing, true);
+      assert.equal(form.reportValidity(), false);
       assert.equal(host.querySelector("#guest-email").required, true);
       assert.equal(phone.required, true);
       assert.ok(phone.placeholder.startsWith(phoneModule.phoneCallingCode(host.querySelector("#guest-phone-country").value)));
       assert.match(phone.placeholder, /^\+\d/);
       assert.equal(host.querySelector("#guest-phone-hint").textContent, copy.phoneHint);
       assert.equal(phone.getAttribute("aria-describedby"), "guest-phone-hint");
-      assert.deepEqual(changes, [], "showing an optional document never invents identity or consent data");
+      assert.deepEqual(changes, [], "showing required identity fields never invents identity or consent data");
+      if (country) await change(country, "DE");
+      await change(number, documentType === "codice_fiscale" ? "RSSMRA80A01H501U" : "ABC123456");
+      assert.equal(form.reportValidity(), true);
     });
   }
 
-  test(`${locale}: issuing country is required only while a foreign document number is present`, async context => {
+  test(`${locale}: foreign identity requires both the issuing country and document number`, async context => {
     const { host, form, change, changes } = await mount(context, locale, {}, { documentType: "foreign_id", documentCountry: "", documentNumber: "" });
     const copy = copyModule.checkoutCopy(locale);
     const number = host.querySelector("#guest-document-number");
     const country = host.querySelector("#guest-document-country");
-    assert.equal(country.required, false);
-    assert.equal(form.reportValidity(), true);
+    assert.equal(country.required, true);
+    assert.equal(form.reportValidity(), false);
     assert.equal(host.querySelector("#guest-document-country-hint").textContent, copy.documentCountryHint);
     await change(number, "abc123456");
     assert.equal(number.value, "ABC123456");
@@ -137,11 +143,12 @@ for (const locale of ["it", "en", "de", "es"]) {
     await change(country, "DE");
     assert.equal(form.reportValidity(), true);
     await change(number, ""); await change(country, "");
-    assert.equal(country.required, false);
-    assert.equal(form.reportValidity(), true);
-    await change(number, "   ");
-    assert.equal(country.required, false, "whitespace is not an entered identity number");
-    assert.equal(number.hasAttribute("minlength"), false);
+    assert.equal(country.required, true);
+    assert.equal(form.reportValidity(), false);
+    await change(country, "ES");
+    assert.equal(form.reportValidity(), false, "a country cannot replace the missing identity number");
+    await change(number, "DEF123456");
+    assert.equal(number.minLength, 3);
     assert.equal(form.reportValidity(), true);
     await change(host.querySelector("#guest-phone"), "3331234567");
     assert.equal(host.querySelector("#guest-phone").value, "+393331234567");
@@ -149,17 +156,19 @@ for (const locale of ["it", "en", "de", "es"]) {
   });
 }
 
-test("changing the document type clears the previous number without making the new document mandatory", async context => {
+test("changing the document type clears the previous identity and requires the replacement document", async context => {
   const { host, form, change } = await mount(context, "it");
   const number = host.querySelector("#guest-document-number");
   await change(host.querySelector("#guest-document-type"), "foreign_id");
   assert.equal(number.value, "");
   assert.equal(host.querySelector("#guest-document-country").value, "");
-  assert.equal(host.querySelector("#guest-document-country").required, false);
-  assert.equal(form.reportValidity(), true);
+  assert.equal(host.querySelector("#guest-document-country").required, true);
+  assert.equal(form.reportValidity(), false);
   await change(host.querySelector("#guest-document-type"), "codice_fiscale");
   assert.equal(host.querySelector("#guest-document-country"), null);
-  assert.equal(number.required, false);
+  assert.equal(number.required, true);
+  assert.equal(form.reportValidity(), false);
+  await change(number, "RSSMRA80A01H501U");
   assert.equal(form.reportValidity(), true);
 });
 

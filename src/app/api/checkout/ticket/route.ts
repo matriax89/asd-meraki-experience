@@ -94,6 +94,9 @@ export async function POST(request: Request) {
     // Keep the hold on ambiguous failures. A concurrent retry may already have
     // received this Checkout URL; Stripe expiration and the hold TTL release it.
     if (error instanceof z.ZodError || error instanceof SyntaxError) {
+      if (error instanceof z.ZodError && error.issues.some(issue => issue.path[0] === "attendee")) {
+        return NextResponse.json({ code: "invalid_attendees", error: "Controlla i dati del partecipante. Per un nuovo iscritto è obbligatorio il codice fiscale italiano o un documento estero." }, { status: 400 });
+      }
       return NextResponse.json({ error: "Inserisci un indirizzo email valido e seleziona un evento." }, { status: 400 });
     }
     if (error instanceof PaymentConfigurationError) {

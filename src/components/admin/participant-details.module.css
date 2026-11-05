@@ -1,0 +1,23 @@
+.trigger { display:inline-flex; flex-shrink:0; align-items:center; justify-content:center; width:44px; height:44px; border:1px solid #dce2d5; border-radius:12px; background:#fff; color:#36533e; cursor:pointer; }
+.trigger:hover { background:#edf3e8; }
+.trigger:focus-visible,.dialog button:focus-visible { outline:3px solid #b69b62; outline-offset:3px; }
+.dialog { width:min(760px,calc(100vw - 24px)); max-height:calc(100dvh - 32px); margin:auto; padding:0; overflow:auto; border:1px solid #dce2d5; border-radius:24px; background:#fff; color:#24382c; box-shadow:0 24px 80px #14271e33; }
+.dialog::backdrop { background:#14271e80; backdrop-filter:blur(3px); }
+.header { position:sticky; top:0; z-index:1; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:24px; border-bottom:1px solid #e5eadf; background:#fff; }
+.header h2 { margin:3px 0 8px; font-size:24px; line-height:1.25; font-weight:650; overflow-wrap:anywhere; }
+.eyebrow { margin:0; color:#8d7750; font-size:11px; letter-spacing:.1em; font-weight:600; text-transform:uppercase; }
+.close { display:grid; flex-shrink:0; place-items:center; width:44px; height:44px; border:1px solid #dce2d5; border-radius:12px; background:#f8faf5; color:#36533e; cursor:pointer; }
+.body { padding:24px; }
+.sections { display:grid; gap:24px; }
+.sections section+section { padding-top:24px; border-top:1px solid #e5eadf; }
+.sections h3 { margin:0 0 16px; font-size:16px; font-weight:650; }
+.fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 24px; margin:0; }
+.fields dt,.muted { margin:0; color:#63715b; font-size:12px; line-height:1.6; }
+.fields dd { margin:4px 0 0; overflow-wrap:anywhere; font-size:14px; line-height:1.5; }
+.notice { margin:0; padding:12px 16px; border:1px solid #e3d6b0; border-radius:12px; color:#685527; background:#fbf7eb; font-size:13px; line-height:1.7; }
+.activities { display:grid; gap:12px; padding:0; margin:16px 0 0; list-style:none; }
+.activities li { display:grid; gap:4px; padding:14px 16px; border:1px solid #e5eadf; border-radius:12px; overflow-wrap:anywhere; font-size:13px; line-height:1.5; }
+.activities span { color:#63715b; font-size:12px; }
+.loading { display:flex; align-items:center; gap:10px; min-height:100px; margin:0; color:#63715b; font-size:14px; }
+.retry { min-height:44px; margin-top:16px; padding:10px 18px; border:0; border-radius:12px; background:#254332; color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+@media (max-width:540px) { .header,.body { padding:20px; } .header h2 { font-size:21px; } .fields { grid-template-columns:minmax(0,1fr); } }

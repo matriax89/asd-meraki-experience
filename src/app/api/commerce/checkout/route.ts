@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     if (body.discountCode && body.upgradePassId) return commerceFailure("discount_upgrade_unsupported");
     const attendees = body.upgradePassId ? null : parseCheckoutAttendees(body.attendees, body.participants);
     if (!body.upgradePassId && (!attendees || attendees[0].email !== body.buyerEmail)) {
-      return commerceResponse({ code: "invalid_attendees", error: "Controlla i dati di ogni partecipante e l’email dell’acquirente." }, 400);
+      return commerceResponse({ code: "invalid_attendees", error: "Controlla i dati di ogni partecipante e l’email dell’acquirente. Per ogni nuovo iscritto è obbligatorio il codice fiscale italiano o un documento estero." }, 400);
     }
     const stripe = await getVerifiedStripe();
     const db = commerceClient();

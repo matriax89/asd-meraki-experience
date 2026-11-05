@@ -36,7 +36,7 @@ test('foreign DNI/passport requires a real foreign country, safe identifier, and
   assert.equal(attendeeSchema.safeParse({ ...person(), consentEligible: true }).success, false);
 });
 
-test('optional documents can be omitted or left blank without weakening required contact details', () => {
+test('every new attendee needs an Italian tax code or a foreign identity document', () => {
   const withoutDocument = Object.fromEntries(Object.entries(person()).filter(([key]) => !['documentType', 'documentCountry', 'documentNumber'].includes(key)));
   const variants = [
     withoutDocument,
@@ -46,16 +46,10 @@ test('optional documents can be omitted or left blank without weakening required
     { ...person(), documentType: 'foreign_id', documentCountry: 'ES', documentNumber: '   ' },
   ];
   for (const input of variants) {
-    const parsed = attendeeSchema.parse(input);
-    assert.equal(parsed.documentNumber, '');
-    assert.equal(parsed.documentCountry, '');
-    assert.equal(parsed.documentType, input.documentType || 'codice_fiscale');
-    assert.equal(parsed.phone, '+393331234567');
-    assert.equal(parsed.email, 'ada@example.test');
-    assert.equal(parsed.marketingConsent, false);
-    const contacts = parseCheckoutAttendees([input], [selection()]);
-    assert.equal(contacts[0].documentNumber, '');
-    assert.equal(contacts[0].documentCountry, '');
+    const parsed = attendeeSchema.safeParse(input);
+    assert.equal(parsed.success, false);
+    assert.ok(parsed.error.issues.some(issue => issue.path.join('.') === 'documentNumber' && issue.message === 'document_required'));
+    assert.equal(parseCheckoutAttendees([input], [selection()]), null);
   }
   for (const override of [
     { firstName: '' }, { lastName: '' }, { email: '' }, { email: 'invalid' },
@@ -64,7 +58,7 @@ test('optional documents can be omitted or left blank without weakening required
   ]) assert.equal(attendeeSchema.safeParse({ ...withoutDocument, ...override }).success, false);
 });
 
-test('a supplied optional document still requires its correct country and full identifier validation', () => {
+test('a supplied identity requires its correct country and full identifier validation', () => {
   const foreign = { ...person(), documentType: 'foreign_id', documentCountry: 'ES', documentNumber: '12345678Z' };
   for (const input of [
     { ...person(), documentCountry: '' }, { ...person(), documentCountry: undefined },
@@ -84,6 +78,9 @@ test('contacts match pricing participants by index even for identical names and 
   assert.equal(parsed[1].email, 'other@example.test');
   assert.equal(parseCheckoutAttendees([person()], people), null);
   assert.equal(parseCheckoutAttendees([{ ...person(), firstName: 'Other' }], [selection()]), null);
+  assert.equal(parseCheckoutAttendees([person(), { ...person(), documentNumber: '' }], people), null, 'a valid lead participant cannot hide a missing identity in a group');
+  const foreign = { ...person(), documentType: 'foreign_id', documentCountry: 'ES', documentNumber: '12345678Z' };
+  assert.equal(parseCheckoutAttendees([person(), foreign], people)[1].documentNumber, '12345678Z');
   assert.equal(JSON.stringify(people).includes('documentNumber'), false);
   assert.equal(JSON.stringify(people).includes('email'), false);
   assert.equal(JSON.stringify(people).includes('marketingConsent'), false);

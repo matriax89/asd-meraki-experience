@@ -1,3 +1,4 @@
+import { nominalTicketModules } from "./helpers/nominal-ticket-modules.mjs";
 import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
@@ -20,7 +21,7 @@ function load(file, overrides = {}) {
   vm.runInNewContext(source, {
     module: compiledModule, exports: compiledModule.exports, Buffer, URL, console,
     process: { env: { RESEND_API_KEY: "synthetic-test-only", NEXT_PUBLIC_SITE_URL: "https://meraki.example.test" } },
-    require: (name) => name in overrides ? overrides[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : require(name),
+    require: (name) => name in overrides ? overrides[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : (nominalTicketModules[name] || require(name)),
   });
   return compiledModule.exports;
 }

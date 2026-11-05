@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { Search, Ticket, Users } from "lucide-react";
 import { checkInTicket } from "@/app/api/admin/biglietti/actions";
 import { DataTable } from "@/components/admin/data-table";
+import { ParticipantDetailsButton } from "@/components/admin/participant-details-button";
 import { TicketAffiliateEditor, type ParticipantAffiliateOption, type ParticipantAffiliateUpdate } from "@/components/admin/ticket-affiliate-editor";
 import type { AdminTicket, CheckInEvent, CheckInResult, CheckInTicketSummary } from "@/lib/tickets/check-in-types";
 import { QrScanner } from "./qr-scanner";
@@ -130,7 +131,7 @@ export function TicketsClient({ initialTickets, events, initialEventId = "", ini
   const columns = [
     {
       header: "Partecipante",
-      cell: (ticket: AdminTicket) => <div><span className="block font-bold text-slate-900">{participantName(ticket)}</span><span className="mt-0.5 block break-all text-[13px] text-slate-500">{ticket.buyer_email}</span></div>,
+      cell: (ticket: AdminTicket) => <div><div className="flex items-center justify-between gap-3"><span className="block font-bold text-slate-900">{participantName(ticket)}</span><ParticipantDetailsButton eventId={eventId} participantId={ticket.id} source={ticket.commerce ? "commerce" : "legacy"} name={participantName(ticket)} /></div><span className="mt-0.5 block break-all text-[13px] text-slate-500">{ticket.buyer_email}</span></div>,
     },
     {
       header: "Biglietto",

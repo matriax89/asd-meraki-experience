@@ -12,6 +12,7 @@ import { focusCheckoutField, useCheckoutViewport } from "@/components/meraki/use
 import styles from "@/components/meraki/commerce-purchase.module.css";
 import { DiscountBreakdown, DiscountCodeFields, discountCodeValue, type DiscountQuote } from "@/components/meraki/discount-code-fields";
 import { discountError } from "@/components/meraki/discount-copy";
+import { TicketPolicyNotice } from "@/components/meraki/ticket-policy-notice";
 
 export function CheckoutButton({ eventId, affiliates = [] }: { eventId: string; affiliates?: { id: string; name: string }[] }) {
   const locale = useLocale();
@@ -142,6 +143,7 @@ export function CheckoutButton({ eventId, affiliates = [] }: { eventId: string; 
             </div>}
             <DiscountCodeFields id={`ticket-code-${eventId}`} locale={locale} value={discountInput} requestedCode={discountCode} appliedCode={currentQuote?.discount?.code} loading={loading} pending={quoteLoading} onChange={(value) => { resetCheckoutAttempt(); setDiscountInput(value); if (discountCode) { setDiscountCode(""); setQuote(null); setQuoteLoading(true); } setQuoteError(""); setError(null); }} onApply={() => { resetCheckoutAttempt(); setDiscountCode(discountCodeValue(discountInput)); setQuote(null); setQuoteLoading(true); setQuoteError(""); setError(null); setQuoteRetry((value) => value + 1); }} onRemove={() => { resetCheckoutAttempt(); setDiscountInput(""); setDiscountCode(""); setQuote(null); setQuoteLoading(true); setQuoteError(""); setError(null); }} />
             <div className={styles.summary} aria-live="polite">{quoteLoading ? <p className={styles.muted}>{copy.checkingTotal}</p> : currentQuote ? <><DiscountBreakdown quote={currentQuote} locale={locale} /><div className={styles.total}><span>{copy.total}</span><span>{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(currentQuote.totalCents / 100)}</span></div><p className={`${styles.muted} mt-2`}>{copy.holdHint}</p></> : null}{quoteError && <><p role="alert" className={styles.error}>{quoteError}</p><button type="button" className={styles.smallButton} onClick={() => { setQuote(null); setQuoteLoading(true); setQuoteError(""); setQuoteRetry((value) => value + 1); }}>{copy.recheck}</button></>}</div>
+            <TicketPolicyNotice locale={locale} />
             {error && <p role="alert" className={styles.error}>{error}</p>}
             <button type="submit" disabled={loading || quoteLoading || !currentQuote} className={styles.button}>{loading ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : <LockKeyhole className="h-4 w-4" aria-hidden="true" />}{loading ? copy.openingPayment : copy.continuePay}</button>
             <p className={`${styles.muted} text-center`}><Ticket className="mr-1 inline h-3.5 w-3.5" />{copy.legacySecure}</p>

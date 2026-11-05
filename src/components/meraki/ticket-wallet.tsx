@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { walletCopy } from "./wallet-copy";
+import { TicketPolicyNotice } from "./ticket-policy-notice";
 import { formatEventDate } from "@/lib/events/date-format";
 import { ArrowRight, Check, ChevronRight, Link2, LoaderCircle, Mail, MapPin, QrCode, RefreshCw, Smartphone, Ticket, Trash2, WifiOff } from "lucide-react";
 import { parseTicketLink, readWallet, WALLET_CHANGED_EVENT, WALLET_KEY, walletResponseTickets, walletTicketUrl, writeWallet, type WalletTicket } from "@/lib/tickets/wallet";
@@ -156,6 +157,8 @@ export function TicketWallet({ locale, siteOrigin }: { locale: string; siteOrigi
       </div>
       <span className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#deddd5] bg-white text-[#a88c58]"><Ticket className="h-6 w-6" strokeWidth={1.5} /></span>
     </div>
+
+    <TicketPolicyNotice locale={locale} className="mb-6" />
 
     {emptyWallet ? <section aria-labelledby="meraki-wallet-guide" className="mb-6 rounded-[24px] border border-[#dfdfd2] bg-[#efeee7]/70 p-5 sm:p-6">
       <h2 id="meraki-wallet-guide" className="text-base font-semibold tracking-[-0.025em]">{copy.guideTitle}</h2>

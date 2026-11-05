@@ -166,7 +166,7 @@ test("guest commerce requires matching attendee contacts and accepts an unchecke
   assert.equal(endpoint.calls.length, 1);
 });
 
-test("guest commerce reaches its verified payment with no document in every checkout language", async () => {
+test("guest commerce rejects missing identity in every checkout language before reservation or payment", async () => {
   const withoutDocument = Object.fromEntries(Object.entries(contact).filter(([key]) => !['documentType', 'documentCountry', 'documentNumber'].includes(key)));
   const variants = [
     withoutDocument,
@@ -176,16 +176,20 @@ test("guest commerce reaches its verified payment with no document in every chec
   for (const locale of ['it', 'en', 'de', 'es']) for (const candidate of variants) {
     const endpoint = checkoutEndpoint({ ...order, stripe_session_id: sessionId });
     const response = await endpoint.post(8500, { locale, attendees: [candidate] });
-    assert.equal(response.status, 200, `${locale}: document is optional`);
-    assert.equal((await response.json()).url, 'https://checkout.stripe.com/existing');
-    const args = endpoint.calls[0][1];
-    assert.equal(args.p_locale, locale);
-    assert.equal(args.p_attendees[0].documentNumber, '');
-    assert.equal(args.p_attendees[0].documentCountry, '');
-    assert.equal(args.p_attendees[0].email, contact.email);
-    assert.equal(args.p_attendees[0].phone, contact.phone);
-    assert.equal(args.p_participants[0].documentNumber, undefined);
+    assert.equal(response.status, 400, `${locale}: identity is required`);
+    assert.equal((await response.json()).code, 'invalid_attendees');
+    assert.equal(endpoint.calls.length, 0);
   }
+});
+
+test("each member of a new group needs identity and a foreign document is accepted without an Italian tax code", async () => {
+  const endpoint = checkoutEndpoint({ ...order, stripe_session_id: sessionId });
+  const attendees = [contact, { ...contact, email: 'other@example.test', documentNumber: '' }];
+  const response = await endpoint.post(8500, { participants: [person, person], attendees });
+  assert.equal(response.status, 400); assert.equal(endpoint.calls.length, 0);
+  attendees[1] = { ...contact, email: 'other@example.test', documentType: 'foreign_id', documentCountry: 'ES', documentNumber: '12345678Z' };
+  assert.equal((await endpoint.post(8500, { participants: [person, person], attendees })).status, 200);
+  assert.equal(endpoint.calls[0][1].p_attendees[1].documentNumber, '12345678Z');
 });
 
 test("commerce sends only an affiliate identifier to the authoritative reservation and defaults to direct purchase", async () => {

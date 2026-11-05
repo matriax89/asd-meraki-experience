@@ -16,6 +16,7 @@ export type AffiliateDirectoryRow = {
   active: boolean; archived: boolean; validCount: number; checkedInCount: number; totalCount: number;
 } & AffiliateCommissionSummary;
 export type AffiliateParticipant = {
+  source: "commerce" | "legacy";
   id: string; name: string; email: string; packageName: string;
   status: "paid" | "used" | "pending" | "refunded" | "canceled";
   checkedIn: boolean;
@@ -206,10 +207,10 @@ export async function loadAffiliateParticipants(locale: string, eventId: string,
   }
   for (const contacts of await Promise.all(contactBatches)) for (const contact of contacts) if (!participantEmails.has(contact.pass_id)) participantEmails.set(contact.pass_id, contact.email);
   const participants: AffiliateParticipant[] = [
-    ...legacy.map(record => ({ id: record.id, name: [record.buyer_nome, record.buyer_cognome].filter(Boolean).join(" ") || "Partecipante", email: record.buyer_email || "", packageName: "Ingresso evento", status: participantStatus(record, false), checkedIn: !event.canceled_at && checkedIn(record, false), activities: [] })),
+    ...legacy.map(record => ({ source: "legacy" as const, id: record.id, name: [record.buyer_nome, record.buyer_cognome].filter(Boolean).join(" ") || "Partecipante", email: record.buyer_email || "", packageName: "Ingresso evento", status: participantStatus(record, false), checkedIn: !event.canceled_at && checkedIn(record, false), activities: [] })),
     ...commerce.map(record => {
       const order = Array.isArray(record.commerce_orders) ? record.commerce_orders[0] : record.commerce_orders;
-      return { id: record.id, name: [record.first_name, record.last_name].filter(Boolean).join(" ") || "Partecipante", email: participantEmails.get(record.id) || order?.buyer_email || "", packageName: record.package_name, status: participantStatus(record, true), checkedIn: !event.canceled_at && checkedIn(record, true), activities: (record.commerce_entitlements || []).map((entry, index) => ({ id: entry.id || `${record.id}:${entry.activity_id}:${index}`, name: entry.activity_name, status: entry.status, checkedInAt: entry.checked_in_at, menuChoice: entry.menu_choice })) };
+      return { source: "commerce" as const, id: record.id, name: [record.first_name, record.last_name].filter(Boolean).join(" ") || "Partecipante", email: participantEmails.get(record.id) || order?.buyer_email || "", packageName: record.package_name, status: participantStatus(record, true), checkedIn: !event.canceled_at && checkedIn(record, true), activities: (record.commerce_entitlements || []).map((entry, index) => ({ id: entry.id || `${record.id}:${entry.activity_id}:${index}`, name: entry.activity_name, status: entry.status, checkedInAt: entry.checked_in_at, menuChoice: entry.menu_choice })) };
     }),
   ].sort((a, b) => a.name.localeCompare(b.name, "it") || a.id.localeCompare(b.id));
   const validCount = event.canceled_at ? 0 : legacy.filter(record => valid(record, false)).length + commerce.filter(record => valid(record, true)).length;

@@ -1,3 +1,4 @@
+import { nominalTicketModules } from "./helpers/nominal-ticket-modules.mjs";
 import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
@@ -17,7 +18,7 @@ function load(relativePath, mocks = {}, env = {}) {
   }).outputText;
   const sandboxModule = { exports: {} };
   vm.runInNewContext(source, {
-    module: sandboxModule, exports: sandboxModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : require(name),
+    module: sandboxModule, exports: sandboxModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : (nominalTicketModules[name] || require(name)),
     process: { env }, console: { error() {}, warn() {}, log() {} }, Buffer, URL, Request, Response,
     setTimeout, clearTimeout,
   }, { filename });
@@ -140,7 +141,7 @@ test("guest single ticket checkout requires valid private contacts but never req
   assert.equal(checkout.rpcCalls.length, 1);
 });
 
-test("single ticket checkout reaches its verified payment without a tax code or foreign ID in all languages", async () => {
+test("single ticket checkout rejects missing identity in all languages before reservation or payment", async () => {
   const withoutDocument = Object.fromEntries(Object.entries(checkoutBody.attendee).filter(([key]) => !['documentType', 'documentCountry', 'documentNumber'].includes(key)));
   const variants = [
     withoutDocument,
@@ -153,16 +154,19 @@ test("single ticket checkout reaches its verified payment without a tax code or 
       expires_at: new Date(Date.now() + 1000).toISOString(),
     } }, { checkout: { sessions: { retrieve: async () => ({ status: 'open', url: 'https://checkout.stripe.com/existing' }) } } });
     const response = await checkout.post({ ...checkoutBody, locale, attendee: contact });
-    assert.equal(response.status, 200, `${locale}: document is optional`);
-    assert.equal((await response.json()).url, 'https://checkout.stripe.com/existing');
-    const args = checkout.rpcCalls[0][1];
-    assert.equal(args.p_locale, locale);
-    assert.equal(args.p_attendee.documentNumber, '');
-    assert.equal(args.p_attendee.documentCountry, '');
-    assert.equal(args.p_attendee.email, checkoutBody.buyerEmail);
-    assert.equal(args.p_attendee.phone, checkoutBody.attendee.phone);
-    assert.equal(checkout.creations.length, 0, 'No real or extra payment session is started by this test');
+    assert.equal(response.status, 400, `${locale}: identity is required`);
+    assert.equal((await response.json()).code, 'invalid_attendees');
+    assert.equal(checkout.rpcCalls.length, 0);
+    assert.equal(checkout.creations.length, 0);
   }
+});
+
+test("single ticket checkout accepts a foreign document without requiring an Italian tax code", async () => {
+  const checkout = checkoutFor({ error: 'sold_out' }, {});
+  const response = await checkout.post({ ...checkoutBody, attendee: { ...checkoutBody.attendee, documentType: 'foreign_id', documentCountry: 'DE', documentNumber: 'AB1234567' } });
+  assert.equal(response.status, 409, 'validated contacts reach the authoritative availability check');
+  assert.equal(checkout.rpcCalls[0][1].p_attendee.documentNumber, 'AB1234567');
+  assert.equal(checkout.rpcCalls[0][1].p_attendee.documentCountry, 'DE');
 });
 
 test("single-ticket affiliate attribution is optional and an untrusted label never reaches the reservation", async () => {

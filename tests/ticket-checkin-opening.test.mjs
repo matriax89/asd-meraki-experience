@@ -1,3 +1,4 @@
+import { nominalTicketModules, nominalCopyModule } from "./helpers/nominal-ticket-modules.mjs";
 import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from "node:assert/strict";
@@ -14,7 +15,7 @@ const require = createRequire(import.meta.url);
 function load(file, mocks = {}) {
   const compiled = ts.transpileModule(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : require(name), process: { env: {} }, URL, Buffer, console });
+  vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: (name) => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/affiliates" ? load("src/lib/events/affiliates.ts") : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : (nominalTicketModules[name] || require(name)), process: { env: {} }, URL, Buffer, console });
   return compiledModule.exports;
 }
 const logistics = load("src/lib/events/logistics.ts");
@@ -71,6 +72,9 @@ test("ticket pages translate calendar words while distinguishing opening, event 
     assert.equal(value(document, copy[locale].checkedIn), "18/11/26, 23:20");
     assert.equal(registered.checkInStartsAt, event.check_in_starts_at);
     assert.equal(registered.status, "used");
+    const policy = nominalCopyModule.ticketNominalCopy(locale);
+    const notice = document.querySelector(`aside[aria-label="${policy.title}"]`);
+    assert.ok(notice); assert.ok(notice.textContent.includes(policy.nominal)); assert.ok(notice.textContent.includes(policy.insurance));
     assert.ok(selected[0].includes("check_in_starts_at"));
     assert.deepEqual(filters, [["id", id], ["qr_code", token]]);
     dom.window.close();
@@ -137,6 +141,9 @@ test("explicit cancellation blocks ticket QR, manual code, downloads and upgrade
     assert.ok(document.body.textContent.includes(t.title));
     assert.ok(document.body.textContent.includes(t.ticketBody));
     assert.ok(document.body.textContent.includes("Cambio programma <annullato>"));
+    const policy = nominalCopyModule.ticketNominalCopy(locale);
+    assert.ok(document.body.textContent.includes(policy.nominal));
+    assert.equal(document.body.textContent.includes(policy.insurance), false, "an annulled event must not claim active insurance");
     assert.equal(document.querySelector('img[alt*="QR"]'), null);
     assert.equal(document.querySelector('a[download]'), null);
     assert.equal(document.querySelector('a[href$="#viaggio-soggiorno"]'), null);

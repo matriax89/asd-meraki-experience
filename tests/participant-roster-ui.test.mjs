@@ -8,6 +8,7 @@ import React, { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import { nativeFormControlMocks } from "./helpers/native-form-controls.mjs";
+import { participantDetailsModule } from "./helpers/participant-details.mjs";
 
 const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://meraki.test/it/admin/partecipanti", pretendToBeVisual: true });
@@ -26,7 +27,7 @@ const Link = ({ children, ...props }) => React.createElement("a", props, childre
 function load(file, mocks = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
-  vm.runInNewContext(source, { module: loaded, exports: loaded.exports, URL, URLSearchParams, window, console, require: name => name in mocks ? mocks[name] : name in nativeFormControlMocks ? nativeFormControlMocks[name] : name === "@/i18n/routing" ? { Link } : require(name) });
+  vm.runInNewContext(source, { module: loaded, exports: loaded.exports, URL, URLSearchParams, window, console, require: name => name in mocks ? mocks[name] : name in nativeFormControlMocks ? nativeFormControlMocks[name] : name === "@/components/admin/participant-details-button" ? participantDetailsModule(window) : name === "@/i18n/routing" ? { Link } : require(name) });
   return loaded.exports;
 }
 const eventId = "43491c74-13c3-4747-8eaa-fbf9432c323e";

@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import { CalendarDays, Check, Download, MapPin, ScanLine, ShieldCheck, Ticket } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { RegisterTicket } from "@/components/meraki/register-ticket";
+import { TicketPolicyNotice } from "@/components/meraki/ticket-policy-notice";
 import { CommercePurchase } from "@/components/meraki/commerce-purchase";
 import { getCommercePass } from "@/lib/commerce/server";
 import { ticketViewCopy } from "@/lib/tickets/view-copy";
@@ -95,6 +96,7 @@ export default async function BigliettoPage({ params, searchParams }: {
           {(event.location || event.indirizzo) && <div className="flex items-start gap-3"><MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#a28b60]" aria-hidden="true" /><div><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a9289]">{t.where}</dt><dd className="break-words font-medium text-[#18251f]">{[event.location, event.indirizzo].filter(Boolean).join(" · ")}</dd></div></div>}
           {ticket.used_at && <div className="flex gap-3 text-[#3d6c4b]"><Check className="h-5 w-5 shrink-0" aria-hidden="true" /><div><dt className="text-xs">{t.checkedIn}</dt><dd className="mt-1 text-sm font-medium">{new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date(ticket.used_at))}</dd></div></div>}
         </dl>
+        <TicketPolicyNotice locale={locale} insurance={!canceled && (ticket.status === "paid" || ticket.status === "used")} className="mx-6 mb-6" />
         {commerce && <section className="border-t border-[#eeeee5] px-6 pb-6 pt-5" aria-labelledby="ticket-accesses">
           <h3 id="ticket-accesses" className="mb-4 text-sm font-semibold">{t.accesses}</h3>
           <ul className="space-y-3">{rights.map((right) => {

@@ -16,6 +16,7 @@ const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 const binaries = process.env.MERAKI_PG_BIN || "/opt/homebrew/bin";
 const bin = (name) => path.join(binaries, name);
 const supported = ["initdb", "pg_ctl"].every((name) => existsSync(bin(name)));
+const requiredIdentityMigration = '20261105120000_required_new_attendee_documents.sql';
 
 async function availablePort() {
   const server = createServer();
@@ -83,6 +84,9 @@ test("commerce integration with an isolated PostgreSQL cluster", {
   const migrationsDirectory = path.join(projectRoot, "supabase/migrations");
   const migrations = (await readdir(migrationsDirectory)).filter((name) => /^\d+.*\.sql$/.test(name)).sort();
   for (const migration of migrations) {
+    // Stage this cutover below so real pre-existing blank-document holds can be
+    // replayed and fulfilled after the new-registration rule is installed.
+    if (migration === requiredIdentityMigration) continue;
     try {
       await db.query(await readFile(path.join(migrationsDirectory, migration), "utf8"));
     } catch (error) {
@@ -413,7 +417,7 @@ test("commerce integration with an isolated PostgreSQL cluster", {
       await assert.rejects(client.query('select public.commerce_attendee_valid($1)',[json(contact)]),/permission denied/);
     }
   });
-  await t.test('mixed guests with and without documents reserve and fulfill without exposing private contacts', async () => {
+  await t.test('historical mixed guests with and without documents retain private contacts', async () => {
     const id=await event(5),request=randomUUID();
     const contacts=[
       {...attendee(),documentCountry:'',documentNumber:''},
@@ -437,7 +441,7 @@ test("commerce integration with an isolated PostgreSQL cluster", {
     assert.equal((await service.query('select count(*)::int count from public.marketing_contacts where email=$1',[contacts[0].email])).rows[0].count,0);
     assert.equal((await service.query('select status from public.marketing_contacts where email=$1',[contacts[1].email])).rows[0].status,'pending');
   });
-  await t.test('single guest tickets without either document type persist empty values in private contacts', async () => {
+  await t.test('historical single guest tickets without documents retain empty values in private contacts', async () => {
     const id=await event(5);await db.query('update public.events set commerce_config=null where id=$1',[id]);
     for(const documentType of ['codice_fiscale','foreign_id']) {
       const contact={...attendee(),documentType,documentCountry:'',documentNumber:''},request=randomUUID();
@@ -451,6 +455,48 @@ test("commerce integration with an isolated PostgreSQL cluster", {
       assert.deepEqual(saved,{document_type:documentType,document_country:'',document_number:'',email:contact.email});
       for(const field of ['document_number','documentNumber','document_country','phone']) assert.equal(result.ticket[field],undefined);
     }
+  });
+  await t.test('new registrations require identity while existing blank-document holds, fulfillment and pass upgrades survive the cutover', async () => {
+    const id=await event(10), legacyEvent=await event(10);
+    await db.query('update public.events set commerce_config=null where id=$1',[legacyEvent]);
+    const blank={...attendee('historical-buyer@example.test'),documentCountry:'',documentNumber:''};
+    const request=randomUUID(),oldOrder=(await reserveGuests(id,[blank],request)).order;
+    assert.ok(oldOrder);
+    const legacyRequest=randomUUID(),legacyArgs=[legacyRequest,legacyEvent,blank.email,blank.firstName,blank.lastName,'it',json(blank),'2026-10-18-v1'];
+    const oldLegacy=(await service.query('select public.reserve_event_ticket_attendee($1,$2,$3,$4,$5,$6,$7,$8) result',legacyArgs)).rows[0].result.reservation;
+    assert.ok(oldLegacy);
+    const before=(await db.query('select to_jsonb(o) record from public.commerce_orders o where id=$1 union all select to_jsonb(r) from public.ticket_reservations r where id=$2',[oldOrder.id,legacyRequest])).rows;
+    const migration=await readFile(path.join(migrationsDirectory,requiredIdentityMigration),'utf8');
+    await db.query(migration);await db.query(migration);
+    assert.deepEqual((await db.query('select to_jsonb(o) record from public.commerce_orders o where id=$1 union all select to_jsonb(r) from public.ticket_reservations r where id=$2',[oldOrder.id,legacyRequest])).rows,before,'the migration changes functions only, without rewriting old holds');
+    assert.equal((await reserveGuests(id,[blank],request)).order.id,oldOrder.id);
+    assert.equal((await service.query('select public.reserve_event_ticket_attendee($1,$2,$3,$4,$5,$6,$7,$8) result',legacyArgs)).rows[0].result.reservation.id,legacyRequest);
+    const malformed=[blank,{...blank,documentNumber:' \t\n '},{...blank,documentType:'foreign_id'},{...attendee(),documentNumber:'RSSMRA80A01H501A'}];
+    const orderCount=(await db.query('select count(*)::int n from public.commerce_orders')).rows[0].n;
+    for(const candidate of malformed) {
+      assert.equal((await reserveGuests(id,[candidate])).error,'invalid_attendees');
+      const args=[randomUUID(),legacyEvent,candidate.email,candidate.firstName,candidate.lastName,'it',json(candidate),'2026-10-18-v1'];
+      assert.equal((await service.query('select public.reserve_event_ticket_attendee($1,$2,$3,$4,$5,$6,$7,$8) result',args)).rows[0].result.error,'invalid_attendees');
+    }
+    assert.equal((await reserveGuests(id,[attendee(),blank])).error,'invalid_attendees','a group cannot hide an uninsured new participant behind a valid lead attendee');
+    const missing=Object.fromEntries(Object.entries(blank).filter(([key])=>!['documentType','documentCountry','documentNumber'].includes(key)));
+    assert.equal((await reserveGuests(id,[missing])).error,'invalid_attendees');
+    assert.equal((await db.query('select count(*)::int n from public.commerce_orders')).rows[0].n,orderCount,'failed validation never creates a hold');
+    const affiliateArgs=[id,randomUUID(),blank.email,'it',json([person()]),null,null,json([blank]),'2026-10-18-v1'];
+    assert.equal((await service.query('select public.reserve_event_commerce_affiliate($1,$2,$3,$4,$5,$6,$7,$8,$9) result',affiliateArgs)).rows[0].result.error,'invalid_attendees','public checkout reservation wrappers enforce the same new-attendee rule');
+    const foreign={...attendee(),documentType:'foreign_id',documentCountry:'ES',documentNumber:'12345678Z'};
+    assert.ok((await reserveGuests(id,[attendee(),foreign])).order,'a valid foreign document is the alternative to an Italian tax code');
+    const foreignLegacyArgs=[randomUUID(),legacyEvent,foreign.email,foreign.firstName,foreign.lastName,'es',json(foreign),'2026-10-18-v1'];
+    assert.ok((await service.query('select public.reserve_event_ticket_affiliate($1,$2,$3,$4,$5,$6,$7,$8) result',foreignLegacyArgs)).rows[0].result.reservation);
+    const issued=await fulfill(oldOrder);assert.equal(issued.outcome,'fulfilled');
+    assert.equal((await service.query('select document_number from public.commerce_attendee_contacts where order_id=$1',[oldOrder.id])).rows[0].document_number,'');
+    const upgraded=(await service.query('select public.reserve_event_commerce_affiliate($1,$2,$3,$4,$5,$6,$7,null,null) result',[id,randomUUID(),blank.email,'it',json([person('bundle')]),issued.passes[0].id,issued.passes[0].qr_code])).rows[0].result;
+    assert.ok(upgraded.order,'a verified historical pass can upgrade without recollecting identity data');
+    const session=`cs_old_identity_${randomUUID()}`;
+    const issuedLegacy=(await service.query('select public.fulfill_event_ticket($1,$2,$3,$4,$5,$6) result',[legacyRequest,legacyEvent,session,`pi_${session}`,blank.email,oldLegacy.amount_cents])).rows[0].result;
+    assert.equal(issuedLegacy.outcome,'fulfilled');
+    assert.equal((await service.query('select document_number from public.legacy_ticket_attendee_contacts where ticket_id=$1',[issuedLegacy.ticket.id])).rows[0].document_number,'');
+    assert.equal((await reserveGuests(id,[attendee(blank.email)],request)).error,'invalid_request','historical retries never rewrite an old attendee snapshot');
   });
   await t.test('private guest data is immutable by request, supports Spanish and maps identical names by participant index', async () => {
     const id = await event(5); const contacts = [attendee(),attendee()]; const request = randomUUID();

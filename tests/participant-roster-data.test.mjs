@@ -16,6 +16,7 @@ function compile(file, mocks = {}) {
 const ids = {
   event: '10000000-0000-4000-8000-000000000001', otherEvent: '10000000-0000-4000-8000-000000000002',
   affiliate: '20000000-0000-4000-8000-000000000001', otherAffiliate: '20000000-0000-4000-8000-000000000002', historical: '20000000-0000-4000-8000-000000000003', unknown: '20000000-0000-4000-8000-000000000004',
+  participant: '30000000-0000-4000-8000-000000000001', otherParticipant: '30000000-0000-4000-8000-000000000002',
 };
 const event = (overrides = {}) => ({ id: ids.event, titolo: { it: 'Evento Meraki', en: 'Meraki Event' }, data_inizio: '2026-12-19T11:00:00Z', canceled_at: null, affiliates: [{ id: ids.affiliate, name: 'Affiliato aggiornato', active: true }], commerce_config: { activities: [{ id: 'ws', kind: 'workshop' }, { id: 'mc', kind: 'masterclass' }, { id: 'dinner', kind: 'dinner' }] }, ...overrides });
 const person = (overrides = {}) => ({ firstName: 'Ada', lastName: 'Rossi', email: 'attendee@example.test', phone: '+390123456789', documentType: 'codice_fiscale', documentCountry: 'IT', documentNumber: 'RSSMRA80A01H501U', marketingConsent: false, ...overrides });
@@ -202,4 +203,73 @@ test('private-data read failures fail the complete roster explicitly and cancele
   const refunded = fixture({ tickets: [ticket('refunded', { status: 'refunded', used_at: '2026-10-29T10:00:00Z' })] });
   const history = (await refunded.loadParticipantRoster({ locale: 'it', eventId: ids.event })).participants[0];
   assert.deepEqual([history.status, history.valid, history.checkedIn, history.checkedInAt], ['refunded', false, false, '2026-10-29T10:00:00Z']);
+});
+
+test('commerce details query only the requested event/person/source and reveal documents only in that explicit detail', async () => {
+  const api = fixture({
+    passes: [pass(ids.participant), pass(ids.otherParticipant, { participant_index: 1, first_name: 'Altra', last_name: 'Persona' })],
+    tickets: [ticket(ids.participant)],
+    orders: [order('o1', { attendees: [person(), person({ email: 'PRIVATE-OTHER-PERSON@example.test', documentNumber: 'PRIVATE-OTHER-DOCUMENT' })] })],
+    commerceContacts: [contact({ pass_id: ids.participant }), contact({ id: 'other-contact', pass_id: ids.otherParticipant, participant_index: 1, email: 'PRIVATE-OTHER-CONTACT@example.test', document_number: 'PRIVATE-OTHER-DOCUMENT' })],
+  });
+  const result = await api.loadParticipantDetails({ locale: 'it', eventId: ids.event, participantId: ids.participant, source: 'commerce' });
+  assert.deepEqual(Object.keys(result).sort(), ['event', 'participant']);
+  assert.equal(result.participant.id, ids.participant); assert.equal(result.participant.source, 'commerce');
+  assert.equal(result.participant.documentNumber, 'RSSMRA80A01H501U'); assert.equal(result.participant.email, 'contact@example.test');
+  assert.equal(result.participant.marketingConsent, false); assert.equal(result.participant.packageName, 'Workshop + Masterclass');
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE-OTHER|PRIVATE-QR|PRIVATE-PAYMENT/);
+  const passReads = api.calls.filter(call => call.table === 'commerce_passes');
+  assert.ok(passReads.every(call => call.filters.some(([kind, key, value]) => kind === 'eq' && key === 'id' && value === ids.participant)));
+  assert.ok(passReads.every(call => call.filters.some(([kind, key, value]) => kind === 'eq' && key === 'event_id' && value === ids.event)));
+  assert.equal(api.calls.some(call => call.table === 'tickets' || call.table === 'legacy_ticket_attendee_contacts'), false);
+  assert.ok(api.calls.filter(call => call.table === 'commerce_attendee_contacts').every(call => JSON.stringify(call.filters.find(([kind]) => kind === 'in')[2]) === JSON.stringify([ids.participant])));
+  const ordinary = await api.loadParticipantRoster({ locale: 'it', eventId: ids.event });
+  assert.ok(ordinary.participants.every(row => row.documentNumber === ''));
+});
+
+test('legacy details keep refunded history and foreign registration documents without reading commerce participants', async () => {
+  const api = fixture({
+    tickets: [ticket(ids.participant, { status: 'refunded', used_at: '2026-10-29T10:00:00Z' }), ticket(ids.otherParticipant)],
+    legacyContacts: [{ ...contact({ document_type: 'foreign_id', document_country: 'DE', document_number: 'DE12345678' }), ticket_id: ids.participant, reservation_id: 'r1' }],
+    reservations: [{ id: 'r1', event_id: ids.event, attendee: person({ marketingConsent: true }), attendee_privacy_version: 'privacy-v1', created_at: '2026-09-29T10:00:00Z' }],
+  });
+  const result = await api.loadParticipantDetails({ locale: 'en', eventId: ids.event, participantId: ids.participant, source: 'legacy' });
+  assert.equal(result.event.title, 'Meraki Event');
+  assert.deepEqual([result.participant.id, result.participant.source, result.participant.status, result.participant.valid], [ids.participant, 'legacy', 'refunded', false]);
+  assert.deepEqual([result.participant.documentType, result.participant.documentCountry, result.participant.documentNumber], ['foreign_id', 'DE', 'DE12345678']);
+  assert.equal(result.participant.checkedInAt, '2026-10-29T10:00:00Z'); assert.equal(result.participant.marketingConsent, true);
+  assert.equal(api.calls.some(call => ['commerce_passes', 'commerce_attendee_contacts', 'commerce_orders'].includes(call.table)), false);
+  assert.ok(api.calls.filter(call => call.table === 'tickets').every(call => call.filters.some(([kind, key, value]) => kind === 'eq' && key === 'id' && value === ids.participant)));
+});
+
+test('detail identifiers, source and locale validate after staff auth and absent participants never fall back to an event list', async () => {
+  const input = { locale: 'it', eventId: ids.event, participantId: ids.participant, source: 'commerce' };
+  const denied = fixture({ denied: true });
+  await assert.rejects(denied.loadParticipantDetails({ ...input, eventId: 'invalid', participantId: '' }), error => error.status === 403);
+  assert.equal(denied.calls.length, 0);
+  for (const extra of [{ eventId: 'invalid' }, { participantId: '' }, { participantId: 'invalid' }, { participantId: undefined, source: undefined }, { source: '' }, { source: 'both' }, { locale: 'fr' }]) {
+    const api = fixture();
+    await assert.rejects(api.loadParticipantDetails({ ...input, ...extra }), error => error.status === 400);
+    assert.equal(api.calls.length, 0);
+  }
+  const absent = fixture({ passes: [pass(ids.otherParticipant)], tickets: [ticket(ids.participant)] });
+  await assert.rejects(absent.loadParticipantDetails(input), error => error.status === 404);
+  assert.equal(absent.calls.some(call => /contacts|orders|reservations/.test(call.table)), false);
+  assert.equal(absent.calls.some(call => call.table === 'tickets'), false);
+  const wrongEvent = fixture({ events: [event(), event({ id: ids.otherEvent })], passes: [pass(ids.participant, { event_id: ids.otherEvent })] });
+  await assert.rejects(wrongEvent.loadParticipantDetails(input), error => error.status === 404);
+  for (const locale of ['it', 'en', 'de', 'es']) {
+    const api = fixture({ passes: [pass(ids.participant)] });
+    assert.equal((await api.loadParticipantDetails({ ...input, locale })).participant.id, ids.participant);
+  }
+});
+
+test('historical details expose missing contact data explicitly and fail closed on private read errors', async () => {
+  const input = { locale: 'it', eventId: ids.event, participantId: ids.participant, source: 'legacy' };
+  const api = fixture({ tickets: [ticket(ids.participant)] });
+  const result = await api.loadParticipantDetails(input);
+  assert.deepEqual([result.participant.contactAvailable, result.participant.email, result.participant.documentNumber, result.participant.marketingConsent], [false, '', '', null]);
+  assert.equal(result.participant.buyerEmail, 'legacy-buyer@example.test');
+  const failed = fixture({ tickets: [ticket(ids.participant)], fail: call => call.table === 'legacy_ticket_attendee_contacts' });
+  await assert.rejects(failed.loadParticipantDetails(input), error => error.status === 503);
 });

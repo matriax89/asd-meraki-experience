@@ -7,6 +7,7 @@ import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import ts from "typescript";
 import { nativeFormControlMocks } from "./helpers/native-form-controls.mjs";
+import { participantDetailsModule } from "./helpers/participant-details.mjs";
 
 const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://meraki.test/it/admin/biglietti", pretendToBeVisual: true });
@@ -107,7 +108,7 @@ async function setup(context, { initialEventId = "", initialAffiliateId = "", ti
     render(selected);
   } };
   const editor = compile("../src/components/admin/ticket-affiliate-editor.tsx", { "@/app/api/admin/participants/affiliate-actions": { assignParticipantAffiliate(input) { const pending = deferred(); affiliateCalls.push({ ...pending, input }); return pending.promise; } } });
-  const { TicketsClient } = compile("../src/app/[locale]/admin/biglietti/tickets-client.tsx", { "next/navigation": { useRouter: () => router }, "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) }, "@/app/api/admin/biglietti/actions": actions, "@/components/admin/data-table": dataTable, "@/components/admin/ticket-affiliate-editor": editor, "./qr-scanner": scanner });
+  const { TicketsClient } = compile("../src/app/[locale]/admin/biglietti/tickets-client.tsx", { "next/navigation": { useRouter: () => router }, "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) }, "@/app/api/admin/biglietti/actions": actions, "@/components/admin/data-table": dataTable, "@/components/admin/participant-details-button": participantDetailsModule(window), "@/components/admin/ticket-affiliate-editor": editor, "./qr-scanner": scanner });
   const root = createRoot(window.document.getElementById("tickets-root"));
   const render = (id) => root.render(React.createElement(TicketsClient, { initialTickets: storedTickets.filter((ticket) => ticket.event_id === id), events: eventRows, initialEventId: id, initialAffiliateId: new URL(window.location.href).searchParams.get("affiliate") || initialAffiliateId, affiliateOptions: assignableAffiliates ?? eventRows.find(event => event.id === id)?.affiliates?.filter(affiliate => affiliate.active).map(({ id, name }) => ({ id, name })) ?? [], affiliateOptionsError }));
   context.after(async () => { await act(async () => root.unmount()); });
@@ -256,8 +257,12 @@ test("each participant selects only their actual included activities and each ad
 
 test("pending and refunded tickets cannot be admitted and a connection failure never changes counts", async (context) => {
   const ui = await setup(context, { initialEventId: eventA });
-  assert.equal(ui.row("Rita Viola").querySelector("button"), null);
-  assert.equal(ui.row("Pino Gialli").querySelector("button"), null);
+  for (const name of ["Rita Viola", "Pino Gialli"]) {
+    const row = ui.row(name);
+    assert.equal(ui.button("Registra ingresso", row) === undefined, true);
+    assert.equal(ui.button("Registra attività", row) === undefined, true);
+    assert.equal(row.querySelector('button[aria-haspopup="dialog"]') !== null, true, "private details remain readable without authorizing admission");
+  }
   await act(async () => ui.button("Registra ingresso", ui.row("Nina Blu")).click());
   await act(async () => ui.actionCalls[0].reject(new Error("Offline")));
   assert.match(window.document.body.textContent, /Il check-in non è confermato/);

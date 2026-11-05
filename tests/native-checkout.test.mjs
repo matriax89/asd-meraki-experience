@@ -7,6 +7,7 @@ import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import ts from "typescript";
 import { nativeFormControlMocks } from "./helpers/native-form-controls.mjs";
+import { nominalTicketModules, nominalCopyModule } from "./helpers/nominal-ticket-modules.mjs";
 
 const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -57,7 +58,7 @@ function compileDependency(path, modules = {}) {
   const dependencySource = readFileSync(new URL(path, import.meta.url), "utf8");
   const dependencyCompiled = ts.transpileModule(dependencySource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const exports = {};
-  vm.runInNewContext(dependencyCompiled, { exports, window, document: window.document, HTMLElement: window.HTMLElement, URL, require: (name) => modules[name] || nativeFormControlMocks[name] || require(name) });
+  vm.runInNewContext(dependencyCompiled, { exports, window, document: window.document, HTMLElement: window.HTMLElement, URL, require: (name) => modules[name] || nominalTicketModules[name] || nativeFormControlMocks[name] || require(name) });
   return exports;
 }
 const checkoutCopy = compileDependency("../src/components/meraki/checkout-copy.ts");
@@ -116,7 +117,7 @@ async function setup(context, { overflow = "auto", locale = "it", affiliates } =
       calls.push({ ...pending, url, options, body: JSON.parse(options.body) });
       return pending.promise;
     },
-    require: (name) => name === "next-intl" ? { useLocale: () => locale } : dependencies[name] || nativeFormControlMocks[name] || require(name),
+    require: (name) => name === "next-intl" ? { useLocale: () => locale } : dependencies[name] || nominalTicketModules[name] || nativeFormControlMocks[name] || require(name),
   });
   const root = createRoot(window.document.getElementById("checkout-root"));
   let disposed = false;
@@ -173,8 +174,8 @@ test("purchase opens an accessible native dialog and preserves required/email va
 
   const inputs = [...checkout.form.querySelectorAll("input")];
   assert.deepEqual(inputs.map((input) => input.name), ["nome", "cognome", "email", "buyer-phone", "buyer-document-number", "buyer-marketing-consent", "discountCode"]);
-  assert.deepEqual(inputs.filter((input) => input.required).map((input) => input.name), ["nome", "cognome", "email", "buyer-phone"]);
-  assert.equal(checkout.form.elements.namedItem("buyer-document-number").required, false);
+  assert.deepEqual(inputs.filter((input) => input.required).map((input) => input.name), ["nome", "cognome", "email", "buyer-phone", "buyer-document-number"]);
+  assert.equal(checkout.form.elements.namedItem("buyer-document-number").required, true);
   assert.equal(inputs.find((input) => input.type === "checkbox").checked, false);
   assert.equal(inputs.find((input) => input.type === "checkbox").required, false);
   assert.equal(inputs.at(-1).required, false);
@@ -308,7 +309,7 @@ test("a guest purchase opens Meraki's Stripe custom domain without losing its Ch
 });
 
 
-test("guest contact fields focus an invalid provided tax code, while clearing it allows payment", async (context) => {
+test("guest contact fields reject invalid and missing tax codes until a valid insurance identifier is entered", async (context) => {
   const checkout = await setup(context);
   await checkout.open();
   await checkout.fill();
@@ -322,16 +323,21 @@ test("guest contact fields focus an invalid provided tax code, while clearing it
   assert.equal(error?.textContent, checkoutCopy.checkoutCopy("it").invalidFiscalCode);
   assert.ok(documentInput.getAttribute("aria-describedby").split(" ").includes(error.id));
   await checkout.change(documentInput, "");
+  assert.equal(checkout.form.reportValidity(), false);
+  await checkout.submit();
+  assert.equal(checkout.calls.length, 0);
+  assert.equal(window.document.getElementById("buyer-documentNumber-error")?.textContent, checkoutCopy.checkoutCopy("it").requiredDocument);
+  await checkout.change(documentInput, "RSSMRA85T10A562S");
   assert.equal(checkout.form.reportValidity(), true);
   await checkout.submit();
   assert.equal(checkout.calls.length, 1);
-  assert.equal(checkout.calls[0].body.attendee.documentNumber, "");
-  assert.equal(checkout.calls[0].body.attendee.documentCountry, "");
+  assert.equal(checkout.calls[0].body.attendee.documentNumber, "RSSMRA85T10A562S");
+  assert.equal(checkout.calls[0].body.attendee.documentCountry, "IT");
   await checkout.fail();
 });
 
 for (const locale of ["it", "en", "de", "es"]) {
-  for (const documentType of ["codice_fiscale", "foreign_id"]) test(`${locale} legacy checkout accepts a blank ${documentType} without requiring a document country`, async (context) => {
+  for (const documentType of ["codice_fiscale", "foreign_id"]) test(`${locale} legacy checkout requires the named participant's ${documentType} before payment`, async (context) => {
     const checkout = await setup(context, { locale });
     await checkout.open(); await checkout.fill();
     await checkout.change(checkout.form.elements.namedItem("buyer-document-type"), documentType);
@@ -339,24 +345,35 @@ for (const locale of ["it", "en", "de", "es"]) {
     if (documentType === "foreign_id") {
       const country = checkout.form.elements.namedItem("buyer-document-country");
       await checkout.change(country, "");
-      assert.equal(country.required, false);
+      assert.equal(country.required, true);
     }
-    assert.equal(checkout.form.reportValidity(), true, "An omitted optional document must not block native validation");
+    assert.equal(checkout.form.reportValidity(), false, "An insurance identifier is required for each named ticket");
+    await act(async () => checkout.submitButton.click());
+    assert.equal(checkout.calls.length, 0);
+    await checkout.submit();
+    assert.equal(checkout.calls.length, 0);
+    assert.equal(window.document.getElementById("buyer-documentNumber-error")?.textContent, checkoutCopy.checkoutCopy(locale).requiredDocument);
+    const identity = documentType === "codice_fiscale" ? "RSSMRA85T10A562S" : "ABC123456";
+    if (documentType === "foreign_id") await checkout.change(checkout.form.elements.namedItem("buyer-document-country"), "DE");
+    await checkout.change(checkout.form.elements.namedItem("buyer-document-number"), identity);
+    assert.equal(checkout.form.reportValidity(), true);
+    const policy = nominalCopyModule.ticketNominalCopy(locale);
+    assert.ok(checkout.dialog.textContent.includes(policy.nominal));
+    assert.ok(checkout.dialog.textContent.includes(policy.insurance));
     await act(async () => checkout.submitButton.click());
     assert.equal(checkout.calls.length, 1);
     assert.equal(checkout.calls[0].body.locale, locale);
     assert.deepEqual(checkout.calls[0].body.attendee, {
       firstName: "Matias", lastName: "Lisio", email: "buyer@example.test", phone: "+393331234567",
-      documentType, documentCountry: "", documentNumber: "", marketingConsent: false,
+      documentType, documentCountry: documentType === "codice_fiscale" ? "IT" : "DE", documentNumber: identity, marketingConsent: false,
     });
     await checkout.fail();
   });
 
-  test(`${locale} legacy checkout identifies an incomplete phone and accepts a corrected phone without a document`, async (context) => {
+  test(`${locale} legacy checkout identifies an incomplete phone and accepts its correction with the required document retained`, async (context) => {
     const checkout = await setup(context, { locale });
     await checkout.open(); await checkout.fill();
     const phone = checkout.form.elements.namedItem("buyer-phone");
-    await checkout.change(checkout.form.elements.namedItem("buyer-document-number"), "");
     await checkout.change(phone, "123");
     assert.equal(checkout.form.checkValidity(), true, "The domain check must explain an incomplete phone");
     await act(async () => checkout.submitButton.click());
@@ -371,8 +388,8 @@ for (const locale of ["it", "en", "de", "es"]) {
     await act(async () => checkout.submitButton.click());
     assert.equal(checkout.calls.length, 1);
     assert.equal(checkout.calls[0].body.attendee.phone, "+393331234567");
-    assert.equal(checkout.calls[0].body.attendee.documentNumber, "");
-    assert.equal(checkout.calls[0].body.attendee.documentCountry, "");
+    assert.equal(checkout.calls[0].body.attendee.documentNumber, locale === "it" ? "RSSMRA85T10A562S" : "ABC123456");
+    assert.equal(checkout.calls[0].body.attendee.documentCountry, ({ it: "IT", en: "GB", de: "DE", es: "ES" })[locale]);
     await checkout.fail();
   });
 }
@@ -389,7 +406,6 @@ for (const [locale, country, national, international] of [
   const countryInput = checkout.form.elements.namedItem("buyer-phone-country");
   assert.equal(countryInput.value, country);
   await checkout.fill();
-  await checkout.change(checkout.form.elements.namedItem("buyer-document-number"), "");
   await checkout.change(countryInput, country);
   const phone = checkout.form.elements.namedItem("buyer-phone");
   await checkout.change(phone, national);
@@ -400,7 +416,7 @@ for (const [locale, country, national, international] of [
   assert.equal(checkout.calls.length, 1);
   assert.equal(checkout.calls[0].body.attendee.phone, international);
   assert.deepEqual(Object.keys(checkout.calls[0].body.attendee).sort(), ["documentCountry", "documentNumber", "documentType", "email", "firstName", "lastName", "marketingConsent", "phone"]);
-  assert.equal(checkout.calls[0].body.attendee.documentNumber, "");
+  assert.equal(checkout.calls[0].body.attendee.documentNumber, locale === "it" ? "RSSMRA85T10A562S" : "ABC123456");
   await checkout.fail();
 });
 

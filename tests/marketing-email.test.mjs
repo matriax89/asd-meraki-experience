@@ -1,3 +1,4 @@
+import { nominalTicketModules, nominalCopyModule } from "./helpers/nominal-ticket-modules.mjs";
 import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import { richText, eventDescription } from "./helpers/rich-text-modules.mjs";
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ const require = createRequire(import.meta.url);
 function load(path, mocks = {}, env = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : require(name), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name in mocks ? mocks[name] : name === "@/lib/events/travel-link" ? travel : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/activity-timing" ? load("src/lib/events/activity-timing.ts") : name === "@/lib/events/date-format" ? dateFormatModule : (nominalTicketModules[name] || require(name)), process: { env }, URL, Request, Response, Buffer, console: { error() {} } });
   return compiledModule.exports;
 }
 const logistics = load("src/lib/events/logistics.ts");
@@ -53,6 +54,8 @@ test('Masterclass-only email HTML and text show its own check-in, start and fini
     const visible = dom.window.document.body.textContent;
     const labels = timing.activityTimingCopy(locale);
     for (const output of [visible,sent.text]) {
+      const policy = nominalCopyModule.ticketNominalCopy(locale);
+      for (const expected of [policy.title, policy.nominal, policy.insurance]) assert.ok(output.includes(expected), `${provider}/${locale}: missing ticket policy`);
       for (const expected of [labels.checkIn,labels.start,labels.end,labels.timezone,'19/12/2026, 16:00','19/12/2026, 16:30','19/12/2026, 18:00']) assert.ok(output.includes(expected),`${provider}/${locale}: missing ${expected}`);
       for (const wrong of ['12:00','12:30','Workshop']) assert.equal(output.includes(wrong),false,`${provider}/${locale}: leaked unrelated schedule ${wrong}`);
     }
@@ -293,7 +296,7 @@ test('public preferences never confirm on open and require explicit confirmation
   const path = 'src/components/meraki/email-preferences.tsx';
   const source = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const compiledModule = { exports: {} };
-  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name === '@/i18n/routing' ? { Link: Anchor } : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/date-format" ? dateFormatModule : require(name), AbortController, fetch: async (url, options) => {
+  vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, require: name => name === '@/i18n/routing' ? { Link: Anchor } : name === "@/lib/rich-text" ? richText : name === "@/components/public/event-description" ? eventDescription : name === "@/lib/events/date-format" ? dateFormatModule : (nominalTicketModules[name] || require(name)), AbortController, fetch: async (url, options) => {
     calls.push([url, options]);
     return { ok: true, json: async () => options.method === 'POST' ? { status: 'subscribed' } : { status: 'pending', canConfirm: true, canUnsubscribe: false } };
   } });

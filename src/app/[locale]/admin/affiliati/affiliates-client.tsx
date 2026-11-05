@@ -7,6 +7,7 @@ import { Link } from "@/i18n/routing";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { deleteAffiliate, restoreAffiliate } from "@/app/api/admin/affiliati/actions";
 import { AffiliateWizard } from "@/components/admin/affiliate-wizard";
+import { ParticipantDetailsButton } from "@/components/admin/participant-details-button";
 import type { AffiliateRegistryEntry } from "@/lib/events/affiliate-registry";
 import type { AffiliateDirectoryEvent, AffiliateDirectoryRow, AffiliateParticipant, AffiliateParticipants, AffiliateProfile } from "@/lib/events/affiliate-directory";
 
@@ -165,7 +166,7 @@ export function AffiliateParticipantsClient({ event, affiliate, participants, va
     <section aria-label={`Iscritti di ${affiliate.name}`} className="space-y-3">
       <p role="status" className="text-sm text-slate-500">{visible.length} {visible.length === 1 ? "partecipante" : "partecipanti"} su {totalCount} nell’elenco.</p>
       {visible.length ? <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">{visible.map(participant => <li key={participant.id} className="grid min-w-0 gap-3 p-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,.7fr)] md:gap-5 md:px-5">
-        <div className="min-w-0"><h2 className="break-words text-sm font-semibold text-slate-900">{participant.name}</h2>{participant.email && <p className="mt-1 break-all text-sm leading-5 text-slate-500">{participant.email}</p>}</div>
+        <div className="min-w-0"><div className="flex items-center justify-between gap-3"><h2 className="break-words text-sm font-semibold text-slate-900">{participant.name}</h2><ParticipantDetailsButton eventId={event.id} participantId={participant.id} source={participant.source} name={participant.name} /></div>{participant.email && <p className="mt-1 break-all text-sm leading-5 text-slate-500">{participant.email}</p>}</div>
         <div className="min-w-0"><p className="break-words text-sm font-medium text-slate-700">{participant.packageName || "Ingresso evento"}</p>{participant.activities.length > 0 && <ul className="mt-1.5 space-y-1">{participant.activities.map(activity => <li key={activity.id} className="break-words text-xs leading-5 text-slate-500">{activity.name} · {activityLabels[activity.status] || "Da verificare"}{activity.menuChoice ? ` · ${activity.menuChoice}` : ""}</li>)}</ul>}</div>
         <div className="min-w-0"><span className={`inline-block rounded-md px-2 py-1 text-xs font-semibold ${participant.status === "refunded" || participant.status === "canceled" ? "bg-rose-50 text-rose-700" : participant.status === "pending" ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-700"}`}>{statusLabels[participant.status] || "Da verificare"}</span><p className="mt-1.5 text-xs leading-5 text-slate-500">{participant.checkedIn ? "Check-in registrato" : ["paid", "used"].includes(participant.status) ? "Check-in da effettuare" : "Check-in non disponibile"}</p></div>
       </li>)}</ul> : <p className="rounded-2xl border border-slate-200 bg-white px-5 py-8 text-sm text-slate-500">{query ? "Nessun partecipante corrisponde alla ricerca." : "Non ci sono ancora iscritti per questo affiliato."}</p>}

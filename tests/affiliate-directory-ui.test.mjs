@@ -8,6 +8,7 @@ import React, { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import { nativeFormControlMocks } from "./helpers/native-form-controls.mjs";
+import { participantDetailsModule } from "./helpers/participant-details.mjs";
 
 const require = createRequire(import.meta.url);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://meraki.test/it/admin/affiliati", pretendToBeVisual: true });
@@ -28,7 +29,7 @@ after(() => {
 function load(file, mocks = {}) {
   const source = ts.transpileModule(readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loadedModule = { exports: {} };
-  vm.runInNewContext(source, { module: loadedModule, exports: loadedModule.exports, URL, window, console, require: name => name in mocks ? mocks[name] : name in nativeFormControlMocks ? nativeFormControlMocks[name] : require(name) });
+  vm.runInNewContext(source, { module: loadedModule, exports: loadedModule.exports, URL, window, console, require: name => name in mocks ? mocks[name] : name in nativeFormControlMocks ? nativeFormControlMocks[name] : name === "@/components/admin/participant-details-button" ? participantDetailsModule(window) : require(name) });
   return loadedModule.exports;
 }
 const eventA = { id: "b44b9ba0-11cc-4da7-80d0-a3acf193c379", title: "Meraki Inverno", startsAt: "2026-12-19T23:30:00Z" };
@@ -199,7 +200,9 @@ test("an affiliate detail searches participants without changing totals and pres
   assert.equal(window.document.querySelectorAll("h2").length, 1);
   assert.equal(window.document.querySelector("h2").textContent, "Rita Bianchi");
   assert.deepEqual([...window.document.querySelectorAll("dd")].map(node => node.textContent), countsBefore);
-  assert.equal(window.document.querySelector("button,video,canvas"), null, "this list has no admission action or camera");
+  assert.equal(window.document.querySelector("video,canvas") === null, true, "this list never starts a camera");
+  assert.equal(window.document.querySelectorAll('button[aria-haspopup="dialog"]').length, 1, "the selected participant has a read-only details action");
+  assert.equal(window.document.querySelector('button:not([aria-haspopup="dialog"])') === null, true, "this list has no admission action");
   await ui.search("missing");
   assert.ok(window.document.body.textContent.includes("Nessun partecipante corrisponde alla ricerca."));
 });

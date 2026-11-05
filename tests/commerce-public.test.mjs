@@ -1,3 +1,4 @@
+import { nominalTicketModules, nominalCopyModule } from "./helpers/nominal-ticket-modules.mjs";
 import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -14,7 +15,7 @@ function compile(path, overrides = {}) {
   const exports = {};
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  vm.runInNewContext(compiled, { exports, URL, Date, Set, JSON, console, AbortController, ...overrides, require: (name) => overrides.modules?.[name] || nativeFormControlMocks[name] || (name === "@/lib/events/date-format" ? dateFormatModule : require(name)) });
+  vm.runInNewContext(compiled, { exports, URL, Date, Set, JSON, console, AbortController, ...overrides, require: (name) => overrides.modules?.[name] || nativeFormControlMocks[name] || (name === "@/lib/events/date-format" ? dateFormatModule : (nominalTicketModules[name] || require(name))) });
   return exports;
 }
 const attendeeModel = compile("../src/lib/commerce/attendee.ts");
@@ -447,89 +448,86 @@ test("a group checkout submits the authoritative selection once despite two rapi
 });
 
 for (const locale of ["it", "en", "de", "es"]) {
-  for (const documentType of ["codice_fiscale", "foreign_id"]) test(`${locale} commerce checkout accepts a blank ${documentType} with no issuing country`, async (context) => {
+  for (const documentType of ["codice_fiscale", "foreign_id"]) test(`${locale} commerce checkout blocks missing ${documentType} and accepts complete insurance identity`, async (context) => {
     const ui = await setup(context, catalog, locale);
     await ui.open(); await ui.fillPerson();
+    const policy = nominalCopyModule.ticketNominalCopy(locale);
+    const notice = window.document.querySelector(`aside[aria-label="${policy.title}"]`);
+    assert.ok(notice);
+    assert.ok(notice.textContent.includes(policy.nominal)); assert.ok(notice.textContent.includes(policy.insurance));
     await ui.change(window.document.querySelector('[name="participant-0-document-type"]'), documentType);
-    await ui.change(window.document.querySelector('[name="participant-0-document-number"]'), "");
+    const number = window.document.querySelector('[name="participant-0-document-number"]');
+    await ui.change(number, "");
     if (documentType === "foreign_id") {
       const country = window.document.querySelector('[name="participant-0-document-country"]');
-      await ui.change(country, "");
-      assert.equal(country.required, false);
+      await ui.change(country, ""); assert.equal(country.required, true);
     }
     await ui.settleQuote();
     const form = window.document.querySelector("form");
-    assert.equal(form.reportValidity(), true, "An omitted optional document must not block native validation");
+    assert.equal(number.required, true); assert.equal(form.reportValidity(), false);
     await act(async () => form.querySelector('button[type="submit"]').click());
-    const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
-    assert.equal(requests.length, 1);
-    assert.equal(requests[0].body.locale, locale);
-    assert.deepEqual(requests[0].body.attendees, [{
-      firstName: "Matias", lastName: "Lisio", email: "matias@example.test", phone: "+393331234567",
-      documentType, documentCountry: "", documentNumber: "", marketingConsent: false,
-    }]);
+    assert.equal(ui.calls.some(call => call.url === "/api/commerce/checkout"), false);
+    const documentNumber = documentType === "codice_fiscale" ? "RSSMRA85T10A562S" : "ABC123456";
+    const documentCountry = documentType === "codice_fiscale" ? "IT" : "DE";
+    if (documentType === "foreign_id") await ui.change(window.document.querySelector('[name="participant-0-document-country"]'), documentCountry);
+    await ui.change(number, documentNumber); await ui.settleQuote();
+    assert.equal(form.reportValidity(), true);
+    await act(async () => form.querySelector('button[type="submit"]').click());
+    const requests = ui.calls.filter(call => call.url === "/api/commerce/checkout");
+    assert.equal(requests.length, 1); assert.equal(requests[0].body.locale, locale);
+    assert.deepEqual(requests[0].body.attendees, [{ firstName: "Matias", lastName: "Lisio", email: "matias@example.test", phone: "+393331234567", documentType, documentCountry, documentNumber, marketingConsent: false }]);
   });
 
-  test(`${locale} commerce checkout focuses an incomplete phone and accepts the correction without a document`, async (context) => {
+  test(`${locale} commerce checkout focuses an incomplete phone and accepts the correction with complete identity`, async (context) => {
     const ui = await setup(context, catalog, locale);
     await ui.open(); await ui.fillPerson();
     const phone = window.document.querySelector('[name="participant-0-phone"]');
-    await ui.change(window.document.querySelector('[name="participant-0-document-number"]'), "");
-    await ui.change(phone, "123");
-    await ui.settleQuote();
+    await ui.change(phone, "123"); await ui.settleQuote();
     const form = window.document.querySelector("form");
     assert.equal(form.checkValidity(), true, "The domain check must explain an incomplete phone");
     await act(async () => form.querySelector('button[type="submit"]').click());
-    assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
-    assert.equal(window.document.activeElement, phone);
-    assert.equal(phone.getAttribute("aria-invalid"), "true");
+    assert.equal(ui.calls.some(call => call.url === "/api/commerce/checkout"), false);
+    assert.equal(window.document.activeElement === phone, true); assert.equal(phone.getAttribute("aria-invalid"), "true");
     const error = window.document.getElementById("participant-0-phone-error");
     assert.equal(error?.textContent, checkoutCopy.checkoutCopy(locale).invalidPhone);
     assert.ok(phone.getAttribute("aria-describedby").split(" ").includes(error.id));
-    assert.equal(phone.value, "+39123", "The selected country supplies the prefix while the number remains incomplete");
-    await ui.change(phone, "+39 333 1234567");
-    await ui.settleQuote();
+    assert.equal(phone.value, "+39123");
+    await ui.change(phone, "+39 333 1234567"); await ui.settleQuote();
     await act(async () => form.querySelector('button[type="submit"]').click());
-    const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
-    assert.equal(requests.length, 1);
-    assert.equal(requests[0].body.attendees[0].phone, "+393331234567");
-    assert.equal(requests[0].body.attendees[0].documentNumber, "");
-    assert.equal(requests[0].body.attendees[0].documentCountry, "");
+    const requests = ui.calls.filter(call => call.url === "/api/commerce/checkout");
+    assert.equal(requests.length, 1); assert.equal(requests[0].body.attendees[0].phone, "+393331234567");
+    assert.equal(requests[0].body.attendees[0].documentNumber, locale === "it" ? "RSSMRA85T10A562S" : "ABC123456");
   });
 
-  test(`${locale} group checkout identifies the second person's invalid tax code while the first person's omitted document remains valid`, async (context) => {
-    const ui = await setup(context, catalog, locale);
-    const copy = checkoutCopy.checkoutCopy(locale);
-    await ui.open();
-    await ui.change(window.document.querySelector(`select[aria-label="${copy.quantityLabel}"]`), "2");
+  test(`${locale} group checkout requires each person's identity and focuses only the invalid second tax code`, async (context) => {
+    const ui = await setup(context, catalog, locale); const copy = checkoutCopy.checkoutCopy(locale);
+    await ui.open(); await ui.change(window.document.querySelector(`select[aria-label="${copy.quantityLabel}"]`), "2");
     await ui.fillPerson(0); await ui.fillPerson(1);
     const firstDocument = window.document.querySelector('[name="participant-0-document-number"]');
-    await ui.change(firstDocument, "");
-    if (locale !== "it") await ui.change(window.document.querySelector('[name="participant-0-document-country"]'), "");
     await ui.change(window.document.querySelector('[name="participant-1-document-type"]'), "codice_fiscale");
     const secondDocument = window.document.querySelector('[name="participant-1-document-number"]');
-    await ui.change(secondDocument, "RSSMRA85T10A562A");
-    await ui.settleQuote();
     const form = window.document.querySelector("form");
-    assert.equal(form.reportValidity(), true, "A full-length but invalid checksum is checked by the domain");
+    await ui.change(secondDocument, "");
+    assert.equal(firstDocument.required, true); assert.equal(secondDocument.required, true); assert.equal(form.checkValidity(), false);
     await act(async () => form.querySelector('button[type="submit"]').click());
-    assert.equal(ui.calls.some((call) => call.url === "/api/commerce/checkout"), false);
-    assert.equal(window.document.activeElement, secondDocument);
-    assert.equal(secondDocument.getAttribute("aria-invalid"), "true");
+    assert.equal(ui.calls.some(call => call.url === "/api/commerce/checkout"), false);
+    await ui.change(secondDocument, "RSSMRA85T10A562A"); await ui.settleQuote();
+    assert.equal(form.reportValidity(), true, "A full-length invalid checksum is checked by the domain");
+    await act(async () => form.querySelector('button[type="submit"]').click());
+    assert.equal(ui.calls.some(call => call.url === "/api/commerce/checkout"), false);
+    assert.equal(window.document.activeElement === secondDocument, true); assert.equal(secondDocument.getAttribute("aria-invalid"), "true");
     assert.equal(firstDocument.hasAttribute("aria-invalid"), false);
     const error = window.document.getElementById("participant-1-documentNumber-error");
-    assert.equal(error?.textContent, copy.invalidFiscalCode);
-    assert.ok(secondDocument.getAttribute("aria-describedby").split(" ").includes(error.id));
-    assert.equal(window.document.querySelectorAll('[role="alert"]').length, 1, "Only the offending participant receives a field error");
-    await ui.change(secondDocument, "");
-    await ui.settleQuote();
+    assert.equal(error?.textContent, copy.invalidFiscalCode); assert.ok(secondDocument.getAttribute("aria-describedby").split(" ").includes(error.id));
+    assert.equal(window.document.querySelectorAll('[role="alert"]').length, 1);
+    await ui.change(secondDocument, "RSSMRA85T10A562S"); await ui.settleQuote();
     assert.equal(form.reportValidity(), true);
     await act(async () => form.querySelector('button[type="submit"]').click());
-    const requests = ui.calls.filter((call) => call.url === "/api/commerce/checkout");
+    const requests = ui.calls.filter(call => call.url === "/api/commerce/checkout");
     assert.equal(requests.length, 1);
     assert.deepEqual(requests[0].body.attendees.map(({ firstName, documentNumber, documentCountry }) => ({ firstName, documentNumber, documentCountry })), [
-      { firstName: "Matias", documentNumber: "", documentCountry: "" },
-      { firstName: "Anna", documentNumber: "", documentCountry: "" },
+      { firstName: "Matias", documentNumber: locale === "it" ? "RSSMRA85T10A562S" : "ABC123456", documentCountry: { it: "IT", en: "GB", de: "DE", es: "ES" }[locale] },
+      { firstName: "Anna", documentNumber: "RSSMRA85T10A562S", documentCountry: "IT" },
     ]);
   });
 }
@@ -545,7 +543,6 @@ for (const [locale, country, national, international] of [
   const countryInput = window.document.querySelector('[name="participant-0-phone-country"]');
   assert.equal(countryInput.value, country, "The initial country is visible and can be changed");
   await ui.fillPerson();
-  await ui.change(window.document.querySelector('[name="participant-0-document-number"]'), "");
   await ui.change(countryInput, country);
   const phone = window.document.querySelector('[name="participant-0-phone"]');
   await ui.change(phone, national);
@@ -559,7 +556,7 @@ for (const [locale, country, national, international] of [
   assert.equal(requests.length, 1);
   assert.equal(requests[0].body.attendees[0].phone, international);
   assert.deepEqual(Object.keys(requests[0].body.attendees[0]).sort(), ["documentCountry", "documentNumber", "documentType", "email", "firstName", "lastName", "marketingConsent", "phone"], "Country selection is UI state, not an extra strict attendee-schema field");
-  assert.equal(requests[0].body.attendees[0].documentNumber, "");
+  assert.equal(requests[0].body.attendees[0].documentNumber, locale === "it" ? "RSSMRA85T10A562S" : "ABC123456");
 });
 
 test("group phone countries remain independent across quantity, formula changes and reopening", async (context) => {
@@ -571,7 +568,6 @@ test("group phone countries remain independent across quantity, formula changes 
   await ui.change(window.document.querySelector('[name="participant-0-phone"]'), "3331234567");
   await ui.change(window.document.querySelector('[name="participant-1-phone-country"]'), "FR");
   await ui.change(window.document.querySelector('[name="participant-1-phone"]'), "06 12 34 56 78");
-  for (const index of [0, 1]) await ui.change(window.document.querySelector(`[name="participant-${index}-document-number"]`), "");
   await ui.change(quantity, "3");
   await ui.change(quantity, "2");
   await act(async () => window.document.querySelector('input[name="package-0"][value="only-ws"]').click());

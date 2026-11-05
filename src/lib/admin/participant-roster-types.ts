@@ -17,7 +17,7 @@ export type ParticipantRosterRow = {
   buyerEmail: string;
   documentType: string;
   documentCountry: string;
-  /** Present only in an explicitly requested staff download. */
+  /** Present only in an explicitly requested staff download or participant detail. */
   documentNumber: string;
   maskedDocument: string;
   packageName: string;
@@ -47,4 +47,19 @@ export type ParticipantRosterInput = {
   eventId: string;
   affiliateId?: string;
   includeDocuments?: boolean;
+  /** Internal single-person scope used by the protected details endpoint. */
+  participantId?: string;
+  source?: string;
+};
+
+export type ParticipantDetails = {
+  event: ParticipantRoster["event"];
+  participant: ParticipantRosterRow;
+};
+
+export type ParticipantDetailsInput = {
+  locale: string;
+  eventId: string;
+  participantId: string;
+  source: string;
 };

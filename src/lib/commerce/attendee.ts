@@ -46,7 +46,10 @@ export const attendeeSchema = z.object({
   documentNumber: z.string().trim().max(40).transform(value => value.toUpperCase().replace(/\s+/g, ' ')).default(''),
   marketingConsent: z.boolean(),
 }).strict().superRefine((attendee, ctx) => {
-  if (!attendee.documentNumber) return;
+  if (!attendee.documentNumber) {
+    ctx.addIssue({ code: 'custom', message: 'document_required', path: ['documentNumber'] });
+    return;
+  }
   if (attendee.documentType === 'codice_fiscale') {
     if (attendee.documentCountry !== 'IT') ctx.addIssue({ code: 'custom', message: 'invalid_country', path: ['documentCountry'] });
     if (!isValidItalianTaxCode(attendee.documentNumber)) ctx.addIssue({ code: 'custom', message: 'invalid_tax_code', path: ['documentNumber'] });

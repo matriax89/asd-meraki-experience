@@ -1,3 +1,4 @@
+import { nominalTicketModules, nominalCopyModule } from "./helpers/nominal-ticket-modules.mjs";
 import { dateFormatModule } from "./helpers/date-format-modules.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -22,7 +23,7 @@ function compile(path, mocks = {}) {
   const exports = {};
   const source = readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  vm.runInNewContext(compiled, { exports, window, document: window.document, Event: window.Event, AbortController, URL, fetch: mocks.fetch, require: (name) => mocks[name] || (name === "@/lib/events/date-format" ? dateFormatModule : require(name)) });
+  vm.runInNewContext(compiled, { exports, window, document: window.document, Event: window.Event, AbortController, URL, fetch: mocks.fetch, require: (name) => mocks[name] || (name === "@/lib/events/date-format" ? dateFormatModule : (nominalTicketModules[name] || require(name))) });
   return exports;
 }
 const wallet = compile("lib/tickets/wallet.ts");
@@ -52,6 +53,10 @@ for (const [locale, noAccount, openEmail, deviceOnly, emptyTitle] of [
       fetch: async () => { requests++; throw new Error("An empty wallet must not fetch tickets by identity"); },
     });
     await mount(context, TicketWallet, { locale, siteOrigin: "https://meraki.test" });
+    const policy = nominalCopyModule.ticketNominalCopy(locale);
+    const notice = window.document.querySelector(`aside[aria-label="${policy.title}"]`);
+    assert.ok(notice);
+    assert.ok(notice.textContent.includes(policy.nominal)); assert.ok(notice.textContent.includes(policy.insurance));
     assert.ok(window.document.body.textContent.includes(noAccount));
     const guide = window.document.querySelector('section[aria-labelledby="meraki-wallet-guide"]');
     assert.equal(guide.querySelectorAll("ol > li").length, 2);
