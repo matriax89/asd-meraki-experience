@@ -61,8 +61,9 @@ async function checkIn(value: string, eventId: string, column: "id" | "qr_code",
     if (commerce && commerce.outcome !== "not_found") {
       const pass = commerce.pass as { id: string; event_id: string; first_name: string; last_name: string; status: string } | undefined;
       const entitlements = ((commerce.entitlements || []) as CheckInEntitlement[]).map(({ activity_id, activity_name, status, checked_in_at, menu_choice }) => ({ activity_id, activity_name, status, checked_in_at, menu_choice }));
+      const active = entitlements.filter(entry => entry.status === "valid" || entry.status === "used");
       const selected = entitlements.find((entry) => entry.activity_id === selectedActivity);
-      const ticket = pass ? { id: pass.id, event_id: pass.event_id, buyer_nome: pass.first_name, buyer_cognome: pass.last_name, status: pass.status === "refunded" || pass.status === "canceled" ? "refunded" as const : entitlements.length > 0 && entitlements.every((entry) => entry.status === "used") ? "used" as const : "paid" as const, used_at: selected?.checked_in_at || null, commerce: true, entitlements } : undefined;
+      const ticket = pass ? { id: pass.id, event_id: pass.event_id, buyer_nome: pass.first_name, buyer_cognome: pass.last_name, status: pass.status === "canceled" ? "canceled" as const : pass.status === "refunded" ? "refunded" as const : active.length > 0 && active.every(entry => entry.status === "used") ? "used" as const : "paid" as const, used_at: selected?.checked_in_at || null, commerce: true, entitlements } : undefined;
       const outcomes: Record<string, CheckInResult["outcome"]> = { success: "admitted", admitted: "admitted", already_used: "already_used", invalid_event: "wrong_event", invalid_activity: "invalid_activity", no_entitlement: "invalid_activity", refunded: "refunded", unpaid: "unpaid" };
       const outcome = outcomes[commerce.outcome] || "error";
       if (outcome === "admitted") revalidatePath("/[locale]/admin/biglietti", "page");

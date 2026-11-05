@@ -18,6 +18,7 @@ type CommerceCheckInPass = {
   affiliate_name: string | null;
 };
 type AttendeeEmail = { pass_id: string; email: string; created_at: string };
+type UpgradePaymentMethod = { upgrade_pass_id: string; payment_method: "online" | "cash" | "pos" };
 
 // Supabase caps a single response. Walk stable pages so the event's counts and
 // searchable participant list include every issued ticket, not only the first 1,000.
@@ -64,22 +65,35 @@ export default async function AdminBigliettiPage({ searchParams }: {
   // Group purchases can have a different recipient for every participant.
   // Read only the email fields, in bounded batches of passes from this event.
   const contactBatches = [];
+  const paymentBatches = [];
   for (let index = 0; index < commerceResult.data.length; index += 100) {
     const ids = commerceResult.data.slice(index, index + 100).map((pass) => pass.id);
     contactBatches.push(loadRows<AttendeeEmail>((from, to) => admin.from("commerce_attendee_contacts").select("pass_id,email,created_at").in("pass_id", ids).order("created_at", { ascending: false }).order("id").range(from, to)));
+    paymentBatches.push(loadRows<UpgradePaymentMethod>((from, to) => admin.from("commerce_orders").select("id,upgrade_pass_id,payment_method").in("upgrade_pass_id", ids).in("state", ["fulfilled", "refunded"]).order("created_at").order("id").range(from, to)));
   }
-  const contactResults = await Promise.all(contactBatches);
+  const [contactResults, paymentResults] = await Promise.all([Promise.all(contactBatches), Promise.all(paymentBatches)]);
   const participantEmails = new Map<string, string>();
   for (const result of contactResults) for (const contact of result.data) {
     if (!participantEmails.has(contact.pass_id)) participantEmails.set(contact.pass_id, contact.email);
   }
+  const upgradeMethods = new Map<string, Set<"online" | "cash" | "pos">>();
+  for (const result of paymentResults) for (const payment of result.data) {
+    if (!["online", "cash", "pos"].includes(payment.payment_method)) continue;
+    const methods = upgradeMethods.get(payment.upgrade_pass_id) || new Set<"online" | "cash" | "pos">();
+    methods.add(payment.payment_method);
+    upgradeMethods.set(payment.upgrade_pass_id, methods);
+  }
   for (const pass of commerceResult.data) {
     const entitlements = pass.commerce_entitlements || [];
-    tickets.push({ id: pass.id, event_id: pass.event_id, buyer_nome: pass.first_name, buyer_cognome: pass.last_name, buyer_email: participantEmails.get(pass.id) || pass.commerce_orders?.buyer_email || "", qr_code: pass.qr_code, package_name: pass.package_name, payment_method: pass.commerce_orders?.payment_method || "online", affiliate_id: pass.affiliate_id, affiliate_name: pass.affiliate_name, status: pass.status !== "paid" ? "refunded" : entitlements.length > 0 && entitlements.every((entry) => entry.status === "used") ? "used" : "paid", used_at: null, commerce: true, entitlements, events: pass.events ? { ...pass.events, titolo: getLocalizedText(pass.events.titolo, locale) } : null });
+    const active = entitlements.filter(right => right.status === "valid" || right.status === "used");
+    const paymentMethod = pass.commerce_orders?.payment_method || "online";
+    const paymentMethods = [...new Set([paymentMethod, ...(upgradeMethods.get(pass.id) || [])])];
+    tickets.push({ id: pass.id, event_id: pass.event_id, buyer_nome: pass.first_name, buyer_cognome: pass.last_name, buyer_email: participantEmails.get(pass.id) || pass.commerce_orders?.buyer_email || "", qr_code: pass.qr_code, package_name: pass.package_name, payment_method: paymentMethod, payment_methods: paymentMethods, affiliate_id: pass.affiliate_id, affiliate_name: pass.affiliate_name, status: pass.status !== "paid" ? pass.status : active.length > 0 && active.every(entry => entry.status === "used") ? "used" : "paid", used_at: null, commerce: true, entitlements, events: pass.events ? { ...pass.events, titolo: getLocalizedText(pass.events.titolo, locale) } : null });
   }
   return <div className="space-y-5">
     {(commerceResult.error || configResult.error) && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">I biglietti avanzati non sono disponibili. Verifica la migrazione commerce prima di controllare workshop, masterclass o cena. I biglietti precedenti restano utilizzabili.</p>}
     {contactResults.some((result) => result.error) && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Le email dei partecipanti non sono disponibili. Per questi biglietti viene mostrata l’email dell’acquirente.</p>}
+    {paymentResults.some(result => result.error) && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">I metodi di pagamento degli upgrade non sono disponibili. Il filtro per metodo comprende per ora il pagamento iniziale.</p>}
     <TicketsClient initialTickets={tickets} events={events} initialEventId={initialEventId} initialAffiliateId={initialAffiliateId} affiliateOptions={affiliateResult.success ? affiliateResult.affiliates : []} affiliateOptionsError={affiliateResult.success ? undefined : affiliateResult.error} />
   </div>;
 }

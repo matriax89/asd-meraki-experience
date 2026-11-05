@@ -42,6 +42,8 @@ function harness(rows: Row[] = [paidTicket()], options: {
   returnUpdatedRow?: boolean;
   commerceOutcome?: string;
   commerceError?: string;
+  commercePassStatus?: string;
+  commerceRights?: Row[];
 } = {}) {
   const tickets = rows.map((row) => ({ ...row }));
   const revalidations: unknown[][] = [];
@@ -113,8 +115,8 @@ function harness(rows: Row[] = [paidTicket()], options: {
       if (options.commerceError) return { data: null, error: { code: options.commerceError } };
       const outcome = options.commerceOutcome || "not_found";
       return { data: { outcome, message: "Commerce check-in", ...(outcome !== "not_found" ? {
-        pass: { id: ticketId, event_id: eventId, first_name: "Ada", last_name: "Rossi", status: "paid" },
-        entitlements: [
+        pass: { id: ticketId, event_id: eventId, first_name: "Ada", last_name: "Rossi", status: options.commercePassStatus || "paid" },
+        entitlements: options.commerceRights || [
           { activity_id: "workshop", activity_name: "Workshop", status: "used", checked_in_at: "2026-10-18T10:00:00Z", menu_choice: null },
           { activity_id: "cena", activity_name: "Cena", status: "valid", checked_in_at: null, menu_choice: "Vegetariano" },
         ],
@@ -270,6 +272,22 @@ test("commerce database errors reject admission without querying legacy tickets"
   const fixture = harness([paidTicket()], { commerceError: "08006" });
   assert.equal((await fixture.actions.checkInQrCode(qrCode, eventId, "workshop")).outcome, "error");
   assert.equal(fixture.ticketOperations(), 0);
+});
+
+test("commerce summary marks the remaining admissions used without letting a refunded activity keep the ticket open", async () => {
+  const fixture = harness([], { commerceOutcome: "already_used", commerceRights: [
+    { activity_id: "workshop", activity_name: "Workshop", status: "used", checked_in_at: "2026-10-18T10:00:00Z", menu_choice: null },
+    { activity_id: "cena", activity_name: "Cena", status: "refunded", checked_in_at: "2026-10-18T11:00:00Z", menu_choice: "Vegetariano" },
+  ] });
+  const result = await fixture.actions.checkInQrCode(qrCode, eventId, "workshop");
+  assert.equal(result.ticket?.status, "used"); assert.equal(result.ticket?.entitlements?.length, 2);
+  assert.equal(fixture.updateCount(), 0);
+});
+
+test("canceled commerce summary remains canceled instead of being presented as a successful refund", async () => {
+  const fixture = harness([], { commerceOutcome: "refunded", commercePassStatus: "canceled" });
+  const result = await fixture.actions.checkInQrCode(qrCode, eventId, "workshop");
+  assert.equal(result.ticket?.status, "canceled"); assert.equal(fixture.updateCount(), 0);
 });
 
 test("unauthenticated operators cannot invoke the service-only commerce check-in", async () => {

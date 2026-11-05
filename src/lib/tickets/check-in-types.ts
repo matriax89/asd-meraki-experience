@@ -1,6 +1,6 @@
 import type { Database } from "@/types/supabase";
 
-export type TicketStatus = Database["public"]["Enums"]["ticket_status_enum"] | null;
+export type TicketStatus = Database["public"]["Enums"]["ticket_status_enum"] | "canceled" | null;
 
 export interface CheckInTicketSummary {
   id: string;
@@ -27,6 +27,7 @@ export interface AdminTicket extends CheckInTicketSummary {
   events: { titolo: string; data_inizio: string } | null;
   package_name?: string;
   payment_method?: "online" | "cash" | "pos";
+  payment_methods?: ("online" | "cash" | "pos")[];
   affiliate_id?: string | null;
   affiliate_name?: string | null;
 }

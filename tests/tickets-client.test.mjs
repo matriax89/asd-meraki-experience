@@ -99,6 +99,7 @@ async function setup(context, { initialEventId = "", initialAffiliateId = "", ti
       return controls;
     }
   }
+  const participantFilters = compile("../src/lib/tickets/participant-filters.ts", {});
   const scanner = compile("../src/app/[locale]/admin/biglietti/qr-scanner.tsx", { "@/app/api/admin/biglietti/actions": actions, "@zxing/browser": { BrowserQRCodeReader } });
   const dataTable = compile("../src/components/admin/data-table.tsx", { "./data-table-view": compile("../src/components/admin/data-table-view.tsx", {}) });
   const router = { refresh() { refreshes.push(true); render(new URL(window.location.href).searchParams.get("event") || initialEventId); }, replace(href, options) {
@@ -108,7 +109,7 @@ async function setup(context, { initialEventId = "", initialAffiliateId = "", ti
     render(selected);
   } };
   const editor = compile("../src/components/admin/ticket-affiliate-editor.tsx", { "@/app/api/admin/participants/affiliate-actions": { assignParticipantAffiliate(input) { const pending = deferred(); affiliateCalls.push({ ...pending, input }); return pending.promise; } } });
-  const { TicketsClient } = compile("../src/app/[locale]/admin/biglietti/tickets-client.tsx", { "next/navigation": { useRouter: () => router }, "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) }, "@/app/api/admin/biglietti/actions": actions, "@/components/admin/data-table": dataTable, "@/components/admin/participant-details-button": participantDetailsModule(window), "@/components/admin/ticket-affiliate-editor": editor, "./qr-scanner": scanner });
+  const { TicketsClient } = compile("../src/app/[locale]/admin/biglietti/tickets-client.tsx", { "next/navigation": { useRouter: () => router }, "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) }, "@/app/api/admin/biglietti/actions": actions, "@/lib/tickets/participant-filters": participantFilters, "@/components/admin/data-table": dataTable, "@/components/admin/participant-details-button": participantDetailsModule(window), "@/components/admin/ticket-affiliate-editor": editor, "./qr-scanner": scanner });
   const root = createRoot(window.document.getElementById("tickets-root"));
   const render = (id) => root.render(React.createElement(TicketsClient, { initialTickets: storedTickets.filter((ticket) => ticket.event_id === id), events: eventRows, initialEventId: id, initialAffiliateId: new URL(window.location.href).searchParams.get("affiliate") || initialAffiliateId, affiliateOptions: assignableAffiliates ?? eventRows.find(event => event.id === id)?.affiliates?.filter(affiliate => affiliate.active).map(({ id, name }) => ({ id, name })) ?? [], affiliateOptionsError }));
   context.after(async () => { await act(async () => root.unmount()); });
@@ -136,7 +137,8 @@ async function setup(context, { initialEventId = "", initialAffiliateId = "", ti
     await act(async () => affiliateCalls.at(-1).resolve(result));
   };
   const storeAttribution = (id, affiliateId, affiliateName) => Object.assign(storedTickets.find(ticket => ticket.id === id), { affiliate_id: affiliateId, affiliate_name: affiliateName });
-  return { actionCalls, qrCalls, mediaRequests, authorizationCalls, decoders, navigationCalls, affiliateCalls, refreshes, rows, row, button, select, selectEvent, search, counts, respond, respondAffiliate, storeAttribution };
+  const refreshFromServer = async (id, changes) => { Object.assign(storedTickets.find(ticket => ticket.id === id), changes); await act(async () => render(new URL(window.location.href).searchParams.get("event") || initialEventId)); };
+  return { actionCalls, qrCalls, mediaRequests, authorizationCalls, decoders, navigationCalls, affiliateCalls, refreshes, rows, row, button, select, selectEvent, search, counts, respond, respondAffiliate, storeAttribution, refreshFromServer };
 }
 
 test("the participant list requires an explicit event and keeps the URL event filter", async (context) => {
@@ -445,6 +447,110 @@ test("manual enrollment links retain the event and cash or POS labels never expo
   assert.equal(ui.row("Rita Viola").querySelector('a[href*="upgradePass="]') === null, true);
   assert.equal(ui.row("Luca Verdi").querySelector('a[href*="upgradePass="]') === null, true);
   assert.equal(document.querySelector(`a[href="/admin/biglietti/nuovo?event=${eventA}"]`)?.textContent.includes("Iscrivi partecipante"), true);
+});
+
+test("activity, formula, menu and payment filters combine before search and keep one row per participant", async context => {
+  const rows = tickets.map(ticket => ({ ...ticket, package_name: ticket.commerce ? "Workshop + Masterclass" : undefined, payment_methods: ticket.id === "ada" ? ["online", "pos"] : ["online"] }));
+  const ui = await setup(context, { initialEventId: eventA, ticketRows: rows });
+  const filter = id => document.getElementById(`tickets-${id}-filter`);
+  await ui.select(filter("activity"), "dinner");
+  assert.equal(ui.rows().length, 1); assert.ok(ui.row("Ada Rossi"));
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 1, "Con check-in": 0, "Senza check-in": 1 });
+  await ui.select(filter("formula"), "Workshop + Masterclass");
+  await ui.select(filter("payment"), "pos");
+  await ui.select(filter("menu"), "dinner::Vegetariano");
+  assert.equal(ui.rows().length, 1);
+  await ui.search("assente"); assert.equal(ui.row("Ada Rossi"), undefined);
+  assert.equal(ui.counts()["Iscritti validi"], 1);
+  await act(async () => ui.button("Reimposta filtri").click());
+  assert.equal(ui.rows().length, 6); assert.equal(filter("activity").value, "");
+});
+
+test("activity check-in and revoked dinner ignore historical timestamps and count only current valid admissions", async context => {
+  const rows = [
+    { ...tickets[0], entitlements: [entitlement("workshop", "Workshop", { status: "used", checked_in_at: "2026-11-19T00:00:00Z" }), entitlement("masterclass", "Masterclass"), entitlement("dinner", "Cena", { status: "refunded", checked_in_at: "2026-11-19T01:00:00Z", menu_choice: "Vegetariano" })] },
+    { ...tickets[1], entitlements: [entitlement("masterclass", "Masterclass", { status: "used" }), entitlement("dinner", "Cena", { menu_choice: "Pizza" })] },
+  ];
+  const ui = await setup(context, { initialEventId: eventA, ticketRows: rows });
+  const filter = id => document.getElementById(`tickets-${id}-filter`);
+  await ui.select(filter("activity"), "masterclass"); await ui.select(filter("checkin"), "without");
+  assert.equal(ui.rows().length, 1); assert.ok(ui.row("Ada Rossi"));
+  assert.deepEqual(ui.counts(), { "Iscritti validi": 1, "Con check-in": 0, "Senza check-in": 1 });
+  await ui.select(filter("checkin"), "with"); assert.equal(ui.rows().length, 1); assert.ok(ui.row("Edo Bianchi"));
+  await ui.select(filter("activity"), "dinner"); assert.equal(ui.row("Ada Rossi"), undefined); assert.equal(ui.row("Edo Bianchi"), undefined);
+  await ui.select(filter("checkin"), "without"); assert.ok(ui.row("Edo Bianchi"));
+  assert.equal(filter("menu").textContent.includes("Vegetariano"), false);
+});
+
+test("status filter distinguishes canceled and refunded; neither appears among participants awaiting check-in", async context => {
+  const ui = await setup(context, { initialEventId: eventA, ticketRows: [...tickets, { ...tickets[0], id: "canceled", buyer_nome: "Annullata", status: "canceled", entitlements: [entitlement("workshop", "Workshop", { status: "canceled" })] }] });
+  const filter = id => document.getElementById(`tickets-${id}-filter`);
+  await ui.select(filter("state"), "canceled"); assert.equal(ui.rows().length, 1); assert.match(ui.row("Annullata").textContent, /Annullato/);
+  await ui.select(filter("state"), "refunded"); assert.equal(ui.rows().length, 1); assert.ok(ui.row("Rita Viola"));
+  await ui.select(filter("checkin"), "without"); assert.equal(ui.row("Rita Viola"), undefined); assert.equal(ui.counts()["Iscritti validi"], 0);
+});
+
+test("filters survive an affiliate selection and reset on event change", async context => {
+  const affiliate = "affiliate-test";
+  const ui = await setup(context, { initialEventId: eventA, ticketRows: tickets.map(ticket => ({ ...ticket, affiliate_id: ticket.id === "ada" ? affiliate : null, affiliate_name: "Scuola test" })) });
+  await ui.select(document.getElementById("tickets-activity-filter"), "dinner");
+  await ui.select(document.getElementById("tickets-affiliate"), affiliate);
+  assert.equal(ui.rows().length, 1); assert.ok(ui.row("Ada Rossi"));
+  assert.equal(document.getElementById("tickets-activity-filter").value, "dinner");
+  await ui.selectEvent(eventB); assert.equal(document.getElementById("tickets-activity-filter").value, ""); assert.ok(ui.row("Bruno Neri"));
+});
+
+test("a new filtered dataset starts on the first table page and check-in immediately moves the participant out of waiting", async context => {
+  const rows = Array.from({ length: 60 }, (_, index) => ({ ...tickets[1], id: `row-${index}`, buyer_nome: `Persona ${index}`, payment_method: index % 2 ? "pos" : "online" }));
+  const ui = await setup(context, { initialEventId: eventA, ticketRows: rows });
+  await act(async () => document.querySelector('[aria-label="Pagina successiva"]').click());
+  assert.ok(ui.row("Persona 25"));
+  await ui.select(document.getElementById("tickets-payment-filter"), "pos");
+  assert.ok(ui.row("Persona 1")); assert.equal(document.querySelector('[aria-label="Pagina precedente"]').disabled, true);
+  await ui.select(document.getElementById("tickets-activity-filter"), "workshop");
+  await ui.select(document.getElementById("tickets-checkin-filter"), "without");
+  const row = ui.row("Persona 1"); await ui.select(row.querySelector('select[aria-label="Attività per Persona 1 Bianchi"]'), "workshop");
+  await act(async () => ui.button("Registra attività", row).click());
+  assert.equal(document.getElementById("tickets-activity-filter").disabled, true);
+  await ui.respond({ outcome: "admitted", message: "Ingresso confermato", ticket: { ...rows[1], status: "used", entitlements: [entitlement("workshop", "Workshop", { status: "used" })] } });
+  assert.equal(ui.row("Persona 1 Bianchi"), undefined); assert.equal(document.getElementById("tickets-activity-filter").disabled, false);
+});
+
+test("server roster includes every settled upgrade payment method without creating extra participants or exposing payment details", async () => {
+  const pass = { id: "pass", event_id: eventA, first_name: "Ada", last_name: "QA", package_name: "Workshop", status: "paid", commerce_orders: { buyer_email: "buyer@example.test", payment_method: "online" }, commerce_entitlements: [entitlement("workshop", "Workshop", { status: "used" }), entitlement("dinner", "Cena", { status: "refunded" })] };
+  const orders = Array.from({ length: 501 }, (_, index) => ({ id: String(index).padStart(4, "0"), upgrade_pass_id: pass.id, payment_method: index === 500 ? "pos" : "cash", state: index === 500 ? "refunded" : "fulfilled" }));
+  orders.push({ id: "pending", upgrade_pass_id: pass.id, payment_method: "pos", state: "awaiting_payment" });
+  const { Page, queries, clientProps } = pageHarness({ rows: { commerce_passes: [pass], commerce_orders: orders } });
+  const tree = await Page({ searchParams: Promise.resolve({ event: eventA }) });
+  const rows = clientProps(tree).initialTickets; assert.equal(rows.length, 1); assert.equal(rows[0].status, "used");
+  assert.deepEqual([...rows[0].payment_methods].sort(), ["cash", "online", "pos"]);
+  const paymentReads = queries.filter(query => query.table === "commerce_orders");
+  assert.equal(paymentReads.length, 2); assert.ok(paymentReads.every(query => query.fields === "id,upgrade_pass_id,payment_method"));
+  assert.equal("amount_cents" in rows[0], false);
+});
+
+test("a refreshed refund snapshot supersedes a previous local check-in result in both filters and counts", async context => {
+  const ui = await setup(context, { initialEventId: eventA, ticketRows: [tickets[0]] });
+  const row = ui.row("Ada Rossi"); await ui.select(row.querySelector("select"), "workshop");
+  await act(async () => ui.button("Registra attività", row).click());
+  await ui.respond({ outcome: "admitted", message: "Ingresso confermato", ticket: { ...tickets[0], entitlements: [entitlement("workshop", "Workshop", { status: "used" }), entitlement("dinner", "Cena")] } });
+  assert.equal(ui.counts()["Con check-in"], 1);
+  await ui.refreshFromServer("ada", { entitlements: [entitlement("workshop", "Workshop", { status: "refunded", checked_in_at: "2026-11-19T00:00:00Z" }), entitlement("dinner", "Cena")] });
+  assert.equal(ui.counts()["Con check-in"], 0);
+  await ui.select(document.getElementById("tickets-activity-filter"), "workshop"); assert.equal(ui.row("Ada Rossi"), undefined);
+});
+
+test("moving the last participant from a historical affiliate preserves that selected empty list after server refresh", async context => {
+  const retiredId = "6db166cc-65ee-4fc4-80cf-09e2d0b7308e";
+  const nextId = "7e9d5c99-0b20-4099-b042-1503cdb37d1b";
+  const ui = await setup(context, { initialEventId: eventA, initialAffiliateId: retiredId, ticketRows: [{ ...tickets[0], affiliate_id: retiredId, affiliate_name: "Scuola storica" }, tickets[1]], assignableAffiliates: [{ id: nextId, name: "Nuova scuola" }] });
+  const row = ui.row("Ada Rossi"); await act(async () => ui.button("Modifica affiliato", row).click());
+  const editor = row.querySelector("form"); await ui.select(editor.querySelector("select"), nextId);
+  await act(async () => ui.button("Salva affiliato", editor).click());
+  await ui.respondAffiliate({ success: true, participant: { id: "ada", eventId: eventA, source: "commerce", affiliateId: nextId, affiliateName: "Nuova scuola" } });
+  assert.equal(document.getElementById("tickets-affiliate").value, retiredId);
+  assert.equal(ui.row("Ada Rossi"), undefined); assert.equal(ui.row("Edo Bianchi"), undefined);
+  assert.equal(ui.counts()["Iscritti validi"], 0);
 });
 
 const affiliateA = "aaaaaaaa-1111-4111-8111-111111111111";
