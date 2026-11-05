@@ -40,7 +40,7 @@ const reportingOrder = (id = 'corrected', overrides = {}) => {
 
 function fixture(data = {}, { denied = false, fail, fees = {} } = {}) {
   const calls = []; const feeCalls = []; let authorized = false;
-  const tables = { events: [event()], commerce_orders: [], ticket_reservations: [], commerce_passes: [], commerce_entitlements: [], tickets: [], meraki_refunds: [], commerce_payment_refunds: [], ticket_payment_refunds: [], commerce_waitlist: [], event_affiliate_commissions: [], leads: [], orders: [], marketing_contacts: [], ...data };
+  const tables = { events: [event()], commerce_orders: [], ticket_reservations: [], commerce_passes: [], commerce_entitlements: [], tickets: [], meraki_refunds: [], manual_commerce_refunds: [], commerce_payment_refunds: [], ticket_payment_refunds: [], commerce_waitlist: [], event_affiliate_commissions: [], leads: [], orders: [], marketing_contacts: [], ...data };
   const db = { from(table) {
     assert.ok(authorized, 'all private table reads follow staff authorization');
     const call = { table, fields: '', filters: [], orders: [] }; calls.push(call);
@@ -904,4 +904,42 @@ test('refunding one selected group member leaves the other active formula at its
     assert.equal(result.metrics.netCents, 3500); assert.equal(result.metrics.refundedCents, 3500);
     assert.equal(result.metrics.validParticipants, 1); assert.equal(result.attendanceGroups[0].workshopOnly, 1);
   }
+});
+
+test('cash and POS use recorded payment dates, stable order identities and their own fees while keeping dinner separate', async () => {
+  const manual = (id, amount, method, quote, fee = null) => order(id, amount, { payment_method: method, paid_at: '2026-10-21T10:00:00Z', created_at: '2026-10-20T10:00:00Z', stripe_payment_intent: null, stripe_session_id: null, quote_lines: quote, manual_fee_cents: fee });
+  const api = fixture({ commerce_orders: [order('online', 1000), manual('cash', 8000, 'cash', [line(6000), line(2000, { kind: 'addon', addonId: 'dinner', activityIds: ['dinner'] })], 0), manual('pos', 5000, 'pos', [line(5000)], 100), manual('unknown-pos', 2000, 'pos', [line(2000, { kind: 'addon', addonId: 'dinner', activityIds: ['dinner'] })])], manual_commerce_refunds: [{ id: 'returned', event_id: A, order_id: 'cash', amount_cents: 2000, status: 'succeeded', revoke_entitlement_ids: [] }] }, { fees: { 'pi:pi_online': { feeCents: 30, complete: true } } });
+  const data = await api.load({ period: 'custom', from: '2026-10-21', to: '2026-10-21' });
+  assert.equal(data.metrics.grossCents, 16000); assert.equal(data.metrics.refundedCents, 2000);
+  assert.equal(data.metrics.feesCents, 130); assert.equal(data.metrics.netAfterFeesCents, null);
+  assert.equal(data.metrics.missingFeePayments, 1);
+  assert.deepEqual(api.feeCalls.flat().map(row => row.id), ['pi:pi_online'], 'no cash or POS receipt reaches Stripe verification');
+  const cash = data.paymentChannels.find(row => row.id === 'cash');
+  assert.equal(cash.paidOrders, 1); assert.equal(cash.registrationSummary.grossCents, 6000);
+  assert.equal(cash.registrationSummary.refundedCents, 1500); assert.equal(cash.registrationSummary.netAfterFeesCents, 4500);
+  assert.equal(cash.dinnerSummary.grossCents, 2000); assert.equal(cash.dinnerSummary.refundedCents, 500);
+  assert.equal(cash.dinnerSummary.netAfterFeesCents, 1500); assert.equal(cash.feesCents, 0);
+  const pos = data.paymentChannels.find(row => row.id === 'pos');
+  assert.equal(pos.paidOrders, 2); assert.equal(pos.registrationSummary.netAfterFeesCents, 4900);
+  assert.equal(pos.dinnerSummary.netAfterFeesCents, null); assert.equal(pos.dinnerSummary.missingFeePayments, 1);
+  assert.equal(data.trend.find(row => row.date === '2026-10-21').grossCents, 16000);
+});
+
+test('manual package upgrades change one current affiliate participant while adding a separate POS receipt', async () => {
+  const api = fixture({ commerce_orders: [order('cash', 3000, { payment_method: 'cash', paid_at: '2026-10-21T10:00:00Z', stripe_payment_intent: null, stripe_session_id: null, affiliate_id: AFF }), order('upgrade', 3500, { payment_method: 'pos', paid_at: '2026-10-22T10:00:00Z', stripe_payment_intent: null, stripe_session_id: null, manual_fee_cents: 70, upgrade_pass_id: 'person', quote_lines: [line(3500, { kind: 'upgrade', packageId: 'combo', activityIds: ['mc'] })], affiliate_id: AFF })], commerce_passes: [pass('person', 'cash', { package_id: 'combo', package_name: 'Workshop + Masterclass', package_activity_ids: ['ws', 'mc'], affiliate_id: AFF })], commerce_entitlements: [right('ws', 'person', 'cash'), right('mc', 'person', 'upgrade', 'mc')], event_affiliate_commissions: [{ event_id: A, affiliate_id: AFF, commission_cents: 500 }] });
+  const data = await api.load({ affiliateId: AFF });
+  assert.equal(data.registrationSummary.count, 1); assert.equal(data.metrics.paidOrders, 2);
+  assert.equal(data.packages[0].count, 1); assert.equal(data.packages[0].netCents, 6500);
+  assert.equal(data.affiliates.find(row => row.id === AFF).commissionCents, 500);
+  assert.equal(data.registrationSummary.netAfterFeesCents, 6430); assert.deepEqual(api.feeCalls.flat(), []);
+});
+
+test('full manual refunds retain gross accounting but remove the refunded person and paid receipt count', async () => {
+  const api = fixture({ commerce_orders: [order('cash', 3000, { state: 'refunded', payment_method: 'cash', paid_at: '2026-10-21T10:00:00Z', stripe_payment_intent: null, stripe_session_id: null })], commerce_passes: [pass('person', 'cash', { status: 'refunded' })], commerce_entitlements: [right('ws', 'person', 'cash', 'ws', { status: 'refunded' })], manual_commerce_refunds: [{ id: 'returned', event_id: A, order_id: 'cash', amount_cents: 3000, status: 'succeeded' }] });
+  const data = await api.load();
+  assert.equal(data.metrics.grossCents, 3000); assert.equal(data.metrics.refundedCents, 3000);
+  assert.equal(data.registrationSummary.count, 0); assert.equal(data.metrics.paidOrders, 0);
+  assert.equal(data.paymentChannels.find(row => row.id === 'cash').netAfterFeesCents, 0);
+  const fail = fixture({}, { fail: call => call.table === 'manual_commerce_refunds' });
+  await assert.rejects(fail.load(), /rimborsi in contanti e POS/);
 });

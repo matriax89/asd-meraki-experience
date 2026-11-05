@@ -91,7 +91,7 @@ test("main registrations exclude dinner and upgrades while dinner finances and a
   assert.equal(metric("Iscritti validi", activities), "26");
   assert.equal(metric("Vendite lorde", activities), "1535,00 €");
   assert.equal(metric("Rimborsi", activities), "30,00 €");
-  assert.equal(metric("Commissioni Stripe / PayPal", activities), "37,40 €");
+  assert.equal(metric("Commissioni di pagamento", activities), "37,40 €");
   assert.equal(metric("Incassi netti", activities), "1467,60 €");
   assert.equal(metric("Ordini pagati", activities), undefined);
   assert.equal(metric("Pagamenti ricevuti", activities), undefined);
@@ -116,7 +116,7 @@ test("main registrations exclude dinner and upgrades while dinner finances and a
   const historicalStart = rows.findIndex(entry => entry[0] === "Storico contabile complessivo · attività e cena");
   assert.ok(historicalStart > 0);
   const activeRows = rows.slice(0, historicalStart);
-  for (const [label, value] of [["Iscritti validi", "26"], ["Cene prenotate", "9"], ["Lordo (€)", "1535"], ["Rimborsi riusciti (€)", "30"], ["Commissioni Stripe / PayPal note (€)", "37,4"], ["Netto dopo commissioni (€)", "1467,6"], ["Lordo cena (€)", "180"], ["Commissioni cena note (€)", "4,41"], ["Netto cena dopo commissioni (€)", "175,59"]]) {
+  for (const [label, value] of [["Iscritti validi", "26"], ["Cene prenotate", "9"], ["Lordo (€)", "1535"], ["Rimborsi riusciti (€)", "30"], ["Commissioni di pagamento note (€)", "37,4"], ["Netto dopo commissioni (€)", "1467,6"], ["Lordo cena (€)", "180"], ["Commissioni cena note (€)", "4,41"], ["Netto cena dopo commissioni (€)", "175,59"]]) {
     assert.equal(activeRows.find(entry => entry[0] === label)?.[1], value, label);
   }
   assert.equal(activeRows.some(entry => entry[0] === "Ordini pagati" || entry[0] === "Pagamenti ricevuti"), false);
@@ -129,11 +129,11 @@ test("dashboard uses real cohort metrics and exposes chart values in an accessib
   const dinner = window.document.querySelector('[aria-labelledby="analytics-dinner-summary"]');
   assert.ok(registrations); assert.ok(dinner);
   assert.equal(metric("Vendite lorde", registrations), "80,00 €"); assert.equal(metric("Rimborsi", registrations), "20,00 €"); assert.equal(metric("Incassi netti", registrations), "58,00 €");
-  assert.equal(metric("Commissioni Stripe / PayPal", registrations), "2,00 €");
+  assert.equal(metric("Commissioni di pagamento", registrations), "2,00 €");
   assert.equal(metric("Ordini pagati", registrations), undefined);
   assert.equal(metric("Iscritti validi", registrations), "2"); assert.equal(metric("Con check-in", registrations), "1");
   assert.equal(metric("Cene prenotate", dinner), "1");
-  assert.ok(window.document.body.textContent.includes("Acquisti creati nel periodo selezionato"));
+  assert.ok(window.document.body.textContent.includes("Acquisti online e pagamenti contanti/POS nel periodo selezionato"));
   assert.ok(window.document.body.textContent.includes("anche se eseguiti successivamente"));
   assert.ok(window.document.querySelector('svg[role="img"]'));
   const table = window.document.querySelector('[aria-labelledby="sales-trend-title"] table');
@@ -197,7 +197,7 @@ test("masterclass, workshop and dinner show separate gross, refund, fee and true
   assert.ok(affiliates.textContent.replaceAll("\u00a0", " ").includes("58,00 €"));
   assert.ok(affiliates.textContent.replaceAll("\u00a0", " ").includes("9,50 €"));
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(fixture());
-  assert.ok(csv.includes('"Commissioni Stripe / PayPal note (€)";"2"'));
+  assert.ok(csv.includes('"Commissioni di pagamento note (€)";"2"'));
   assert.ok(csv.includes('"Netto dopo commissioni (€)";"58"'));
   assert.ok(csv.includes('"Netto cena dopo commissioni (€)";"9,5"'));
   assert.ok(csv.includes('"Masterclass";"40";"10";"30";"1";"29";"Complete"'));
@@ -215,7 +215,7 @@ test("incomplete fees remain explicit in KPIs, categories, chart, affiliates, ev
   data.eventStats = data.eventStats.map(row => ({ ...incomplete(row), registrationSummary: incomplete(row.registrationSummary) }));
   await mount(context, { data });
   assert.equal(metric("Incassi netti"), "Da verificare");
-  assert.equal(metric("Commissioni Stripe / PayPal"), "1,00 € (parziali)");
+  assert.equal(metric("Commissioni di pagamento"), "1,00 € (parziali)");
   assert.ok(window.document.querySelector('[role="status"]').textContent.includes("Commissioni delle attività incomplete per 1 pagamento"));
   assert.equal(window.document.querySelector('[data-revenue-kind="masterclass"] > p').textContent, "Da verificare");
   assert.equal(window.document.querySelector('[data-revenue-kind="workshop"] > p').textContent.replaceAll("\u00a0", " "), "29,00 €");
@@ -242,7 +242,7 @@ test("unavailable dinner fees do not hide verified activity receipts or the acti
   const registrations = window.document.querySelector('[aria-labelledby="analytics-registration-summary"]');
   const dinner = window.document.querySelector('[aria-labelledby="analytics-dinner-summary"]');
   assert.equal(metric("Incassi netti", registrations), "58,00 €");
-  assert.equal(metric("Commissioni Stripe / PayPal", registrations), "2,00 €");
+  assert.equal(metric("Commissioni di pagamento", registrations), "2,00 €");
   assert.equal(metric("Incassi netti cena", dinner), "Da verificare");
   assert.equal(metric("Commissioni cena", dinner), "0,20 € (parziali)");
   assert.ok(window.document.querySelector('[aria-labelledby="sales-trend-title"] svg'));
@@ -499,4 +499,23 @@ test("activity capacity without a global event cap never invents a global sold-o
   assert.equal(group.textContent.includes("Limite complessivo dell’evento:"), false);
   const section = window.document.querySelector('[aria-labelledby="analytics-availability-title"]');
   assert.equal(section.textContent.includes("Disponibilità per capienza:"), false, "session and purchasable seats agree without holds/global limit");
+});
+
+test('channel cards and CSV keep online, cash and POS income split between activities and dinner with unknown fees explicit', async context => {
+  const data = fixture();
+  const cash = { id: 'cash', name: 'Contanti', paidOrders: 1, ...summary(8000, 2000, 0, 0), registrationSummary: summary(6000, 1500, 0, 0), dinnerSummary: summary(2000, 500, 0, 0) };
+  const pos = { id: 'pos', name: 'POS', paidOrders: 1, ...summary(2000, 0, 0, 0), missingFeePayments: 1, netAfterFeesCents: null, registrationSummary: summary(0, 0, 0, 0), dinnerSummary: { ...summary(2000, 0, 0, 0), missingFeePayments: 1, netAfterFeesCents: null } };
+  data.paymentChannels = [{ ...cash, id: 'online', name: 'Online', paidOrders: 0 }, cash, pos];
+  await mount(context, { data });
+  const cashCard = window.document.querySelector('[data-payment-channel="cash"]');
+  const posCard = window.document.querySelector('[data-payment-channel="pos"]');
+  assert.equal(metric('Attività · netto', cashCard), '45,00 €'); assert.equal(metric('Cena · netto', cashCard), '15,00 €');
+  assert.equal(metric('Cena · netto', posCard), 'Da verificare');
+  const csv = load('lib/admin/analytics-csv.ts').adminAnalyticsCsv(data);
+  const rows = csvRows(csv); const heading = rows.findIndex(row => row[0] === 'Incassi per metodo di pagamento');
+  assert.ok(heading > 0); assert.ok(rows[heading + 1].includes('Attività · Commissioni di pagamento note (€)'));
+  const cashRow = rows.slice(heading + 2).find(row => row[0] === 'Contanti');
+  assert.deepEqual(cashRow.slice(0, 8), ['Contanti', '1', '60', '15', '45', '0', '45', 'Complete']);
+  const posRow = rows.slice(heading + 2).find(row => row[0] === 'POS');
+  assert.ok(posRow.includes('Da verificare'));
 });

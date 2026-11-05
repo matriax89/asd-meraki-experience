@@ -12,7 +12,7 @@ type LegacyCheckInTicket = Omit<AdminTicket, "events"> & { events: EventRow | Ev
 type CommerceCheckInPass = {
   id: string; event_id: string; first_name: string; last_name: string; package_name: string; qr_code: string; status: "paid" | "refunded" | "canceled";
   events: EventRow | null;
-  commerce_orders: { buyer_email: string } | null;
+  commerce_orders: { buyer_email: string; payment_method?: "online" | "cash" | "pos" } | null;
   commerce_entitlements: CheckInEntitlement[];
   affiliate_id: string | null;
   affiliate_name: string | null;
@@ -50,7 +50,7 @@ export default async function AdminBigliettiPage({ searchParams }: {
   const [ticketResult, configResult, commerceResult, affiliateResult] = await Promise.all([
     loadRows<LegacyCheckInTicket>((from, to) => admin.from("tickets").select("id,event_id,buyer_nome,buyer_cognome,buyer_email,qr_code,status,used_at,affiliate_id,affiliate_name,events(titolo,data_inizio)").eq("event_id", initialEventId).order("created_at", { ascending: false }).order("id").range(from, to)),
     admin.from("events").select("commerce_config").eq("id", initialEventId).single(),
-    loadRows<CommerceCheckInPass>((from, to) => admin.from("commerce_passes").select("id,event_id,first_name,last_name,package_name,qr_code,status,affiliate_id,affiliate_name,events(titolo,data_inizio),commerce_orders:commerce_orders!commerce_passes_order_id_fkey(buyer_email),commerce_entitlements(activity_id,activity_name,status,checked_in_at,menu_choice)").eq("event_id", initialEventId).order("created_at", { ascending: false }).order("id").range(from, to)),
+    loadRows<CommerceCheckInPass>((from, to) => admin.from("commerce_passes").select("id,event_id,first_name,last_name,package_name,qr_code,status,affiliate_id,affiliate_name,events(titolo,data_inizio),commerce_orders:commerce_orders!commerce_passes_order_id_fkey(buyer_email,payment_method),commerce_entitlements(activity_id,activity_name,status,checked_in_at,menu_choice)").eq("event_id", initialEventId).order("created_at", { ascending: false }).order("id").range(from, to)),
     loadAssignableParticipantAffiliates(initialEventId),
   ]);
   if (ticketResult.error) return <div role="alert">Errore durante il caricamento dei biglietti. Ricarica la pagina.</div>;
@@ -75,7 +75,7 @@ export default async function AdminBigliettiPage({ searchParams }: {
   }
   for (const pass of commerceResult.data) {
     const entitlements = pass.commerce_entitlements || [];
-    tickets.push({ id: pass.id, event_id: pass.event_id, buyer_nome: pass.first_name, buyer_cognome: pass.last_name, buyer_email: participantEmails.get(pass.id) || pass.commerce_orders?.buyer_email || "", qr_code: pass.qr_code, package_name: pass.package_name, affiliate_id: pass.affiliate_id, affiliate_name: pass.affiliate_name, status: pass.status !== "paid" ? "refunded" : entitlements.length > 0 && entitlements.every((entry) => entry.status === "used") ? "used" : "paid", used_at: null, commerce: true, entitlements, events: pass.events ? { ...pass.events, titolo: getLocalizedText(pass.events.titolo, locale) } : null });
+    tickets.push({ id: pass.id, event_id: pass.event_id, buyer_nome: pass.first_name, buyer_cognome: pass.last_name, buyer_email: participantEmails.get(pass.id) || pass.commerce_orders?.buyer_email || "", qr_code: pass.qr_code, package_name: pass.package_name, payment_method: pass.commerce_orders?.payment_method || "online", affiliate_id: pass.affiliate_id, affiliate_name: pass.affiliate_name, status: pass.status !== "paid" ? "refunded" : entitlements.length > 0 && entitlements.every((entry) => entry.status === "used") ? "used" : "paid", used_at: null, commerce: true, entitlements, events: pass.events ? { ...pass.events, titolo: getLocalizedText(pass.events.titolo, locale) } : null });
   }
   return <div className="space-y-5">
     {(commerceResult.error || configResult.error) && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">I biglietti avanzati non sono disponibili. Verifica la migrazione commerce prima di controllare workshop, masterclass o cena. I biglietti precedenti restano utilizzabili.</p>}

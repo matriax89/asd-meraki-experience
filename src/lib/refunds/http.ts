@@ -8,7 +8,7 @@ import type { RefundRow } from "./types";
 const uuid = z.string().uuid();
 const reason = z.string().trim().min(3).max(1000);
 const inputSchema = z.object({ requestId: uuid, orderId: uuid.optional(), ticketReservationId: uuid.optional(), amountCents: z.number().int().positive().max(100000000), reason,
-  entitlementIds: z.array(uuid).max(300), expectedAvailableCents: z.number().int().positive().max(100000000), confirm: z.literal(true), confirmUsed: z.boolean().optional() }).strict().refine(input => Boolean(input.orderId) !== Boolean(input.ticketReservationId));
+  entitlementIds: z.array(uuid).max(300), expectedAvailableCents: z.number().int().positive().max(100000000), confirm: z.literal(true), confirmUsed: z.boolean().optional(), confirmManual: z.literal(true).optional(), refundedAt: z.string().datetime({ offset: true }).optional(), paymentReference: z.string().trim().max(200).optional() }).strict().refine(input => Boolean(input.orderId) !== Boolean(input.ticketReservationId));
 const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 const errorReply = (error: unknown) => reply({ error: error instanceof z.ZodError ? "Controlla i dati e la conferma dell’operazione." : error instanceof Error ? error.message : "Operazione non completata. Ricarica e verifica lo stato prima di riprovare." }, error instanceof RefundAccessError ? 403 : 400);
 async function json(request: Request) {
@@ -31,6 +31,9 @@ export async function postRefund(request: Request) {
     const { db, userId } = await requireRefundAccess(true);
     const input = inputSchema.parse(await json(request));
     if (input.orderId) {
+      const method = await db.from("commerce_orders").select("payment_method").eq("id", input.orderId).single();
+      if (method.error) throw new Error("Pagamento non disponibile.");
+      if (method.data?.payment_method === "cash" || method.data?.payment_method === "pos") return reply({ refund: await createMerakiRefund(input, userId, db) });
       const [rights, payment, ledger] = await Promise.all([
         db.from("commerce_entitlements").select("id,status").eq("order_id", input.orderId),
         db.from("commerce_orders").select("amount_cents").eq("id", input.orderId).single(),

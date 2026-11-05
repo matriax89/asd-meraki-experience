@@ -16,6 +16,9 @@ export type CommerceOrder = {
   id: string; request_id: string; event_id: string; buyer_email: string; locale: 'it' | 'en' | 'de' | 'es'; state: CommerceOrderState;
   attendees?: CommerceAttendee[] | null; attendee_privacy_version?: string | null;
   affiliate_id?: string | null; affiliate_name?: string | null;
+  payment_method?: 'online' | 'cash' | 'pos'; paid_at?: string | null;
+  manual_recorded_by?: string | null; manual_payment_reference?: string | null;
+  manual_fee_cents?: number | null; manual_note?: string | null;
   amount_cents: number; quote: CommerceQuote; participants: CommerceParticipant[]; demand: Record<string, number>;
   event_snapshot: { slug: string; titolo: string | Record<string, string>; data_inizio: string; location: string | null; commerce_config?: CommerceConfig };
   upgrade_pass_id: string | null; expires_at: string; stripe_session_id: string | null; stripe_payment_intent: string | null;

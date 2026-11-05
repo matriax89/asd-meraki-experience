@@ -21,7 +21,7 @@ function fixture(changes = {}, failTable) {
     events: [baseEvent], commerce_orders: [order()], ticket_reservations: [],
     commerce_passes: [{ id: "pass-one", event_id: eventId, order_id: "order-one", first_name: "Ada", last_name: "Rossi" }],
     commerce_entitlements: [{ id: "right-one", event_id: eventId, order_id: "order-one", pass_id: "pass-one", activity_name: "Workshop", status: "valid" }],
-    tickets: [], meraki_refunds: [], meraki_event_cancellations: [], meraki_cancellation_emails: [], ...changes,
+    tickets: [], meraki_refunds: [], manual_commerce_refunds: [], meraki_event_cancellations: [], meraki_cancellation_emails: [], ...changes,
   };
   const calls = [];
   const db = { from(table) {
@@ -58,7 +58,7 @@ test("refund balances subtract succeeded and all active holds, while failed/canc
 test("an event cancellation is complete only when money and both kinds of customer email are complete", async () => {
   const ctx = fixture({ events: [{ ...baseEvent, canceled_at: "2026-10-21T14:00:00Z", cancellation_reason: "Sede non disponibile" }], commerce_orders: [order("order-one", { state: "refunded" })], meraki_refunds: [refund("full", "succeeded", { amount_cents: 8500 })], meraki_event_cancellations: [{ id: "cancel-one", event_id: eventId, status: "processing" }], meraki_cancellation_emails: [{ id: "notice", cancellation_id: "cancel-one", email_sent_at: "2026-10-21T14:00:00Z" }] });
   let panel = await ctx.read();
-  assert.deepEqual(plain(panel.cancellation), { id: "cancel-one", status: "completed", totalPayments: 1, completed: 1, pending: 0, failed: 0, remaining: 0, emailsRemaining: 0 });
+  assert.deepEqual(plain(panel.cancellation), { id: "cancel-one", status: "completed", totalPayments: 1, completed: 1, pending: 0, failed: 0, remaining: 0, emailsRemaining: 0, manualRemaining: 0 });
   ctx.tables.meraki_refunds[0].email_sent_at = null;
   panel = await ctx.read();
   assert.equal(panel.cancellation.status, "processing"); assert.equal(panel.cancellation.completed, 1);
@@ -111,4 +111,24 @@ test("unknown event filters never broaden the private payment query", async () =
 test("loader rejects an unavailable email queue instead of falsely completing cancellation", async () => {
   const ctx = fixture({ meraki_event_cancellations: [{ id: "cancel-one", event_id: eventId, status: "completed" }] }, "meraki_cancellation_emails");
   await assert.rejects(ctx.read(), /comunicazioni da inviare/);
+});
+
+test('cash and POS payments without Stripe identities retain their real balances and manual return history', async () => {
+  const ctx = fixture({ commerce_orders: [order('order-one', { payment_method: 'pos', stripe_payment_intent: null, stripe_session_id: null, paid_at: '2026-10-20T09:00:00Z', manual_payment_reference: 'POS-123' })], manual_commerce_refunds: [{ id: 'manual-one', event_id: eventId, order_id: 'order-one', status: 'succeeded', amount_cents: 2000, reason: 'Quota già restituita', refunded_at: '2026-10-22T11:00:00Z', created_at: '2026-10-22T12:00:00Z', payment_reference: 'RES-123' }] });
+  const { payments } = await ctx.read();
+  assert.equal(payments.length, 1); assert.equal(payments[0].paymentMethod, 'pos');
+  assert.equal(payments[0].paymentReference, 'POS-123'); assert.equal(payments[0].createdAt, '2026-10-20T09:00:00Z');
+  assert.equal(payments[0].refundedCents, 2000); assert.equal(payments[0].availableCents, 6500);
+  assert.equal(payments[0].refunds[0].manual, true); assert.equal(payments[0].refunds[0].paymentReference, 'RES-123');
+});
+
+test('cancellation remains open until cash returns are recorded and never expects a Stripe refund email for manual entries', async () => {
+  const ctx = fixture({ commerce_orders: [order('order-one', { payment_method: 'cash', stripe_payment_intent: null, stripe_session_id: null })], meraki_event_cancellations: [{ id: 'cancel', event_id: eventId, status: 'completed' }] });
+  let panel = await ctx.read();
+  assert.equal(panel.cancellation.status, 'processing'); assert.equal(panel.cancellation.manualRemaining, 1);
+  assert.equal(panel.cancellation.emailsRemaining, 0);
+  ctx.tables.manual_commerce_refunds.push({ id: 'manual', event_id: eventId, order_id: 'order-one', amount_cents: 8500, status: 'succeeded', reason: 'Evento annullato', refunded_at: '2026-10-22T11:00:00Z' });
+  panel = await ctx.read();
+  assert.equal(panel.cancellation.status, 'completed'); assert.equal(panel.cancellation.manualRemaining, 0);
+  assert.equal(panel.cancellation.emailsRemaining, 0);
 });

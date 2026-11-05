@@ -68,8 +68,11 @@ export async function getCommercePass(id: string, token: string, locale = "it") 
   // refunded admissions must not be offered an upgrade using the old credit.
   let upgradesAllowed = !event.canceled_at && pass.status === "paid" && !rights.some(right => ["refunded", "canceled"].includes(right.status));
   if (upgradesAllowed && orderIds.length) {
-    const { data: refunds, error: refundsError } = await db.from("meraki_refunds").select("id").in("order_id", orderIds).in("status", ["preparing", "pending", "requires_action", "unknown", "succeeded"]).limit(1);
-    upgradesAllowed = !refundsError && !(refunds || []).length;
+    const [{ data: refunds, error: refundsError }, { data: manualRefunds, error: manualRefundsError }] = await Promise.all([
+      db.from("meraki_refunds").select("id").in("order_id", orderIds).in("status", ["preparing", "pending", "requires_action", "unknown", "succeeded"]).limit(1),
+      db.from("manual_commerce_refunds").select("id").in("order_id", orderIds).limit(1),
+    ]);
+    upgradesAllowed = !refundsError && !manualRefundsError && !(refunds || []).length && !(manualRefunds || []).length;
   }
   return {
     upgradesAllowed,

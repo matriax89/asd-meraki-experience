@@ -160,3 +160,47 @@ test("reconciled partial refunds bypass the legacy full-refund handlers even wit
   assert.equal(response.status, 200);
   assert.deepEqual(calls, ["ledger"]);
 });
+
+function manualService(method = 'cash', rpcError = null) {
+  const calls = [];
+  const row = { id: 'manual-refund', status: 'succeeded' };
+  const db = { from(table) {
+    calls.push(['read', table]);
+    return { select() { return this; }, eq() { return this; }, is() { return this; }, in() { return this; }, order() { return this; }, limit() { return this; },
+      async single() { return { data: table === 'commerce_orders' ? { payment_method: method, stripe_payment_intent: null, amount_cents: 5000 } : { titolo: 'Evento' } }; },
+      then(resolve) { resolve({ data: [] }); } };
+  }, async rpc(name, args) { calls.push([name, plain(args)]); return { data: { refund: row, availableCents: 3000, replayed: false }, error: rpcError }; } };
+  const panel = { event: { id: 'event', cancellationReason: 'Annullato' }, cancellation: { id: 'cancellation' }, payments: [{ id: 'manual', kind: 'commerce', paymentMethod: method, availableCents: 5000, pendingCents: 0 }] };
+  const service = load('src/lib/refunds/service.ts', {
+    '@/lib/commerce/server': { commerceClient: () => db }, '@/lib/i18n-utils': { getLocalizedText: title => title },
+    '@/lib/stripe/client': { getVerifiedStripe() { calls.push(['STRIPE']); throw Error('Offline must never use Stripe'); } },
+    '@/lib/email/refund-emails': { sendMerakiRefundConfirmation() { throw Error('No synthetic Stripe confirmation'); }, sendMerakiCancellationNotice() { throw Error('No recipients in fixture'); } },
+    './data': { loadRefundPanel: async () => panel },
+  });
+  return { service, db, calls };
+}
+const manualInput = { requestId: 'request', orderId: 'manual', amountCents: 2000, expectedAvailableCents: 5000, reason: 'Quota restituita', entitlementIds: ['right'], confirmManual: true, refundedAt: '2026-10-22T11:00:00Z', paymentReference: ' POS-RES-123 ', confirmUsed: true };
+for (const method of ['cash', 'pos']) test(`${method} refunds only record already-returned funds through the atomic manual ledger`, async () => {
+  const ctx = manualService(method);
+  assert.equal((await ctx.service.createMerakiRefund(manualInput, 'staff', ctx.db)).status, 'succeeded');
+  assert.equal(ctx.calls.some(call => call[0] === 'STRIPE'), false);
+  assert.deepEqual(ctx.calls.find(call => call[0] === 'record_manual_commerce_refund')[1], { p_actor_id: 'staff', p_request_id: 'request', p_order_id: 'manual', p_amount_cents: 2000, p_reason: 'Quota restituita', p_refunded_at: '2026-10-22T11:00:00Z', p_payment_reference: 'POS-RES-123', p_revoke_entitlement_ids: ['right'], p_expected_available_cents: 5000, p_confirm_used: true });
+});
+test('manual recording rejects missing confirmations and propagates atomic balance failures without contacting Stripe', async () => {
+  for (const override of [{ confirmManual: false }, { refundedAt: undefined }, { expectedAvailableCents: undefined }]) {
+    const ctx = manualService();
+    await assert.rejects(ctx.service.createMerakiRefund({ ...manualInput, ...override }, 'staff', ctx.db), /Conferma/);
+    assert.equal(ctx.calls.some(call => call[0] === 'STRIPE' || call[0] === 'record_manual_commerce_refund'), false);
+  }
+  const ctx = manualService('pos', { code: 'changed-balance' });
+  await assert.rejects(ctx.service.createMerakiRefund(manualInput, 'staff', ctx.db), /residuo/);
+  assert.equal(ctx.calls.some(call => call[0] === 'STRIPE'), false);
+});
+test('event cancellation batches leave cash and POS funds for explicit manual return recording', async () => {
+  for (const method of ['cash', 'pos']) {
+    const ctx = manualService(method);
+    const result = await ctx.service.processRefundBatch('event', 'staff', ctx.db);
+    assert.deepEqual(plain(result.errors), []);
+    assert.equal(ctx.calls.some(call => call[0] === 'STRIPE' || call[0] === 'record_manual_commerce_refund' || call[0] === 'read' && call[1] === 'commerce_orders'), false);
+  }
+});

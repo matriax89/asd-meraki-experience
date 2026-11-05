@@ -26,6 +26,7 @@ export interface AdminTicket extends CheckInTicketSummary {
   qr_code: string | null;
   events: { titolo: string; data_inizio: string } | null;
   package_name?: string;
+  payment_method?: "online" | "cash" | "pos";
   affiliate_id?: string | null;
   affiliate_name?: string | null;
 }

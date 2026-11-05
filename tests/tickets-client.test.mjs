@@ -428,13 +428,23 @@ test("the roster explicitly joins the original order when both purchase and upgr
   const passQueries = queries.filter((query) => query.table === "commerce_passes");
   assert.ok(passQueries.length > 0);
   for (const query of passQueries) {
-    assert.match(query.fields, /commerce_orders:commerce_orders!commerce_passes_order_id_fkey\(buyer_email\)/);
+    assert.match(query.fields, /commerce_orders:commerce_orders!commerce_passes_order_id_fkey\(buyer_email,payment_method\)/);
     assert.doesNotMatch(query.fields, /(?:^|,)commerce_orders\(buyer_email\)/);
     assert.doesNotMatch(query.fields, /commerce_upgrade_pass_fk/);
   }
   const [ticket] = clientProps(tree).initialTickets;
   assert.equal(ticket.id, pass.id);
   assert.equal(ticket.buyer_email, "original-buyer@example.test");
+});
+
+test("manual enrollment links retain the event and cash or POS labels never expose an extra upgrade pass", async context => {
+  const ui = await setup(context, { initialEventId: eventA, ticketRows: tickets.map(ticket => ({ ...ticket, payment_method: ticket.id === "ada" ? "cash" : ticket.id === "edo" ? "pos" : "online" })) });
+  assert.match(ui.row("Ada Rossi").textContent, /Contanti/);
+  assert.match(ui.row("Edo Bianchi").textContent, /POS/);
+  assert.equal(ui.row("Ada Rossi").querySelector('a[href*="upgradePass="]').getAttribute("href"), `/admin/biglietti/nuovo?event=${eventA}&upgradePass=ada`);
+  assert.equal(ui.row("Rita Viola").querySelector('a[href*="upgradePass="]') === null, true);
+  assert.equal(ui.row("Luca Verdi").querySelector('a[href*="upgradePass="]') === null, true);
+  assert.equal(document.querySelector(`a[href="/admin/biglietti/nuovo?event=${eventA}"]`)?.textContent.includes("Iscrivi partecipante"), true);
 });
 
 const affiliateA = "aaaaaaaa-1111-4111-8111-111111111111";

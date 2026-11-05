@@ -5,7 +5,7 @@ import { commerceClient } from "@/lib/commerce/server";
 import { getLocalizedText } from "@/lib/i18n-utils";
 import { sendMerakiRefundConfirmation, sendMerakiCancellationNotice } from "@/lib/email/refund-emails";
 import { loadRefundPanel, type RefundDb } from "./data";
-import type { RefundRow } from "./types";
+import type { RefundRow, ManualRefundRow } from "./types";
 
 function check(error: unknown, message: string) { if (error) throw new Error(message); }
 const intentId = (refund: Stripe.Refund) => typeof refund.payment_intent === "string" ? refund.payment_intent : refund.payment_intent?.id;
@@ -122,22 +122,38 @@ export async function executeMerakiRefund(row: RefundRow, db = commerceClient())
   return result.data as RefundRow;
 }
 
-export type NewRefund = { requestId: string; orderId?: string; ticketReservationId?: string; amountCents: number; reason: string; entitlementIds: string[]; confirmUsed?: boolean; expectedAvailableCents?: number };
+export type NewRefund = { requestId: string; orderId?: string; ticketReservationId?: string; amountCents: number; reason: string; entitlementIds: string[]; confirmUsed?: boolean; expectedAvailableCents?: number; confirmManual?: boolean; refundedAt?: string; paymentReference?: string };
 export async function createMerakiRefund(input: NewRefund, actor: string, db: RefundDb, cancellationId: string | null = null) {
   // Verify merchant, captured amount and any refunds already made in Dashboard
   // before reserving another amount. All balances are still checked atomically.
-  const payment = await db.from(input.orderId ? "commerce_orders" : "ticket_reservations").select("stripe_payment_intent,stripe_session_id,amount_cents").eq("id", input.orderId || input.ticketReservationId!).single();
-  check(payment.error, "Pagamento non disponibile.");
-  let paymentIntent = payment.data?.stripe_payment_intent as string | null;
-  if (!paymentIntent && input.ticketReservationId && payment.data?.stripe_session_id) {
-    const ticket = await db.from("tickets").select("stripe_payment_intent").eq("stripe_session_id", payment.data.stripe_session_id).maybeSingle();
+  const payment = input.orderId
+    ? await db.from("commerce_orders").select("stripe_payment_intent,stripe_session_id,amount_cents,payment_method").eq("id", input.orderId).single()
+    : await db.from("ticket_reservations").select("stripe_payment_intent,stripe_session_id,amount_cents").eq("id", input.ticketReservationId!).single();
+  check(payment.error || !payment.data, "Pagamento non disponibile.");
+  const paymentData = payment.data!;
+  const method = "payment_method" in paymentData ? paymentData.payment_method : "online";
+  if (input.orderId && (method === "cash" || method === "pos")) {
+    if (cancellationId) throw new Error("Restituisci prima il denaro e registra il rimborso manualmente.");
+    if (!input.confirmManual || !input.refundedAt || !Number.isFinite(Date.parse(input.refundedAt)) || !Number.isSafeInteger(input.expectedAvailableCents)) throw new Error("Conferma il denaro già restituito, la data e il residuo da registrare.");
+    const recorded = await db.rpc("record_manual_commerce_refund", { p_actor_id: actor, p_request_id: input.requestId, p_order_id: input.orderId,
+      p_amount_cents: input.amountCents, p_reason: input.reason, p_refunded_at: input.refundedAt, p_payment_reference: input.paymentReference?.trim() || null,
+      p_revoke_entitlement_ids: input.entitlementIds, p_expected_available_cents: input.expectedAvailableCents, p_confirm_used: Boolean(input.confirmUsed) });
+    check(recorded.error, "Rimborso non registrato: verifica il residuo, gli accessi e le registrazioni già presenti.");
+    const result = recorded.data as { refund: ManualRefundRow } | null;
+    if (!result?.refund?.id) throw new Error("Esito della registrazione non disponibile: ricarica lo storico prima di riprovare.");
+    return result.refund;
+  }
+  if (input.confirmManual) throw new Error("Questo pagamento richiede il rimborso online.");
+  let paymentIntent = paymentData?.stripe_payment_intent as string | null;
+  if (!paymentIntent && input.ticketReservationId && paymentData?.stripe_session_id) {
+    const ticket = await db.from("tickets").select("stripe_payment_intent").eq("stripe_session_id", paymentData.stripe_session_id).maybeSingle();
     check(ticket.error, "Pagamento del biglietto non disponibile.");
     paymentIntent = ticket.data?.stripe_payment_intent || null;
   }
   if (!paymentIntent) throw new Error("Questo acquisto non ha un pagamento Stripe rimborsabile.");
   const stripe = await reconcilePayment(paymentIntent, db);
   const intent = await stripe.paymentIntents.retrieve(paymentIntent);
-  if (intent.currency !== "eur" || intent.status !== "succeeded" || intent.amount_received !== payment.data!.amount_cents || intent.amount_received < input.amountCents) throw new Error("L’importo non corrisponde a un pagamento acquisito in euro.");
+  if (intent.currency !== "eur" || intent.status !== "succeeded" || intent.amount_received !== paymentData.amount_cents || intent.amount_received < input.amountCents) throw new Error("L’importo non corrisponde a un pagamento acquisito in euro.");
   const reserved = await db.rpc("reserve_meraki_refund", { p_request_id: input.requestId, p_order_id: input.orderId || null,
     p_ticket_reservation_id: input.ticketReservationId || null, p_amount_cents: input.amountCents, p_reason: input.reason,
     p_entitlement_ids: input.entitlementIds, p_created_by: actor, p_cancellation_id: cancellationId,
@@ -175,7 +191,7 @@ export async function processRefundBatch(eventId: string, actor: string, db: Ref
   const errors: string[] = [];
   if (panel.cancellation) {
     await deliverCancellationEmails(eventId, db);
-    const candidates = panel.payments.filter(payment => payment.availableCents > 0 && payment.pendingCents === 0).slice(0, 3);
+    const candidates = panel.payments.filter(payment => payment.paymentMethod === "online" && payment.availableCents > 0 && payment.pendingCents === 0).slice(0, 3);
     for (const payment of candidates) {
       try {
         await createMerakiRefund({ requestId: crypto.randomUUID(), ...(payment.kind === "commerce" ? { orderId: payment.id } : { ticketReservationId: payment.id }),

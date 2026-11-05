@@ -25,6 +25,7 @@ function load(file, mocks = {}, globals = {}) {
   vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, URL, Error, window, console, ...globals, require: name => name in mocks ? mocks[name] : name in nativeFormControlMocks ? nativeFormControlMocks[name] : require(name) });
   return compiledModule.exports;
 }
+const romeTime = load("lib/commerce/rome-time.ts");
 const model = load("app/[locale]/admin/rimborsi/refund-view.ts");
 const eventId = "e45a048b-338b-47ae-9de4-920dcad06ccb";
 const paymentId = "849d46bc-05ce-4e28-9139-512995c0e151";
@@ -50,7 +51,7 @@ async function setup(context, initial = fixture(), onFetch = () => response(init
   const requests = [];
   let counter = 0;
   const { RefundsClient } = load("app/[locale]/admin/rimborsi/refunds-client.tsx", {
-    "./refund-view": model,
+    "./refund-view": model, "@/lib/commerce/rome-time": romeTime,
     "@/i18n/routing": { Link: ({ children, ...props }) => React.createElement("a", props, children) },
   }, { crypto: { randomUUID: () => `b368333e-b7ea-4f50-9e38-${String(++counter).padStart(12, "0")}` }, fetch: async (url, options) => { const request = { url, body: options?.body ? JSON.parse(options.body) : null }; requests.push(request); return onFetch(request, requests); } });
   const root = createRoot(window.document.getElementById("root"));
@@ -247,4 +248,38 @@ test("SSR route uses authenticated data and suppresses sensitive exception detai
   const failed = load("app/[locale]/admin/rimborsi/page.tsx", { "./refunds-client": {}, "@/lib/refunds/auth": { requireRefundAccess: async () => { throw new Error("secret-customer@example.test"); } }, "@/lib/refunds/data": {} }).default;
   const html = renderToStaticMarkup(await failed({ searchParams: Promise.resolve({}) }));
   assert.ok(html.includes('role="alert"')); assert.equal(html.includes("secret-customer"), false);
+});
+
+test('cash return recording requires explicit already-returned confirmation, reviews the date and submits no synthetic Stripe request', async context => {
+  const initial = fixture(); initial.payments[0].paymentMethod = 'cash';
+  const requests = await setup(context, initial, request => request.body ? response({ refund: { status: 'succeeded' } }) : response(initial));
+  assert.equal(button('Prepara rimborso'), undefined);
+  await click(button('Registra rimborso già effettuato'));
+  await fill(`refund-reason-${paymentId}`, 'Contanti restituiti al cliente');
+  await fill(`refund-date-${paymentId}`, '2026-10-22T13:30');
+  await fill(`refund-reference-${paymentId}`, 'Ricevuta di restituzione');
+  assert.equal(button('Rivedi il rimborso →').disabled, true);
+  await click(window.document.querySelector('input[type="checkbox"]'));
+  await click(button('Rivedi il rimborso →'));
+  assert.ok(window.document.body.textContent.includes('senza trasferire denaro'));
+  assert.equal(requests.length, 0);
+  await click(button(/^Conferma registrazione di/));
+  const request = requests.find(row => row.body);
+  assert.equal(request.body.confirmManual, true); assert.equal(request.body.refundedAt, '2026-10-22T11:30:00.000Z');
+  assert.equal(request.body.paymentReference, 'Ricevuta di restituzione'); assert.equal(request.body.expectedAvailableCents, 7500);
+  assert.deepEqual(request.body.entitlementIds, [rightWs, rightMc]);
+  assert.ok(window.document.body.textContent.includes('Rimborso già effettuato registrato'));
+  assert.equal(window.document.body.textContent.includes('Stripe ha confermato'), false);
+});
+
+test('POS return history and cancellation show manual pending returns without an invented email queue', async context => {
+  const initial = fixture({ event: { ...fixture().event, canceledAt: '2026-10-22T11:00:00Z' }, cancellation: { id: 'cancel', status: 'processing', totalPayments: 1, completed: 0, pending: 0, failed: 0, remaining: 1, manualRemaining: 1, emailsRemaining: 0 } });
+  initial.payments[0].paymentMethod = 'pos'; initial.payments[0].paymentReference = 'POS-123';
+  initial.payments[0].refunds = [{ id: 'recorded', status: 'succeeded', manual: true, amountCents: 1000, reason: 'Restituito', createdAt: '2026-10-22T10:00:00Z', paymentReference: 'RETURN-123', emailSentAt: null }];
+  await setup(context, initial);
+  assert.ok(window.document.body.textContent.includes('POS-123'));
+  assert.ok(window.document.body.textContent.includes('Restituzione registrata'));
+  assert.ok(window.document.body.textContent.includes('Da restituire manualmente'));
+  assert.ok(window.document.body.textContent.includes('l’elaborazione automatica non trasferisce questi importi'));
+  assert.equal(window.document.body.textContent.includes('Email di conferma da inviare'), false);
 });

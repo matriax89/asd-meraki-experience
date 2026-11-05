@@ -17,6 +17,12 @@ export type AnalyticsSummaryPartitions = {
   registrationSummary: AnalyticsSummary;
   dinnerSummary: AnalyticsSummary;
 };
+
+export type AnalyticsPaymentChannel = AnalyticsFinancials & AnalyticsSummaryPartitions & {
+  id: "online" | "cash" | "pos";
+  name: string;
+  paidOrders: number;
+};
 export type AnalyticsRevenueRow = AnalyticsFinancials & {
   id: "masterclass" | "workshop" | "dinner" | "extra" | "unallocated";
   name: string;
@@ -53,6 +59,7 @@ export type AnalyticsEventRow = AnalyticsMetrics & AnalyticsSummaryPartitions & 
   capacity: number | null; remaining: number | null;
 };
 export type AdminAnalytics = AnalyticsSummaryPartitions & {
+  paymentChannels: AnalyticsPaymentChannel[];
   filters: { eventId: string; period: AdminAnalyticsPeriod; from: string; to: string; affiliateId: string };
   events: { id: string; title: string; startsAt: string }[];
   affiliateOptions: { id: string; name: string }[];
