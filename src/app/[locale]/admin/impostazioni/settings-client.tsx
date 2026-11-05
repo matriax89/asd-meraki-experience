@@ -5,6 +5,7 @@ import { saveHomepageContent } from "@/app/api/admin/impostazioni/actions";
 import { uploadImageAction } from "@/app/api/admin/upload/actions";
 import { upsertTeamMember, deleteTeamMember } from "@/app/api/admin/team/actions";
 import { compressImageToWebp } from "@/lib/image-utils";
+import { MUVEE_APP_BANNER } from "@/lib/muvee-app";
 import { useModal } from "@/components/ui/modal-provider";
 import { Save, Loader2, Plus, Trash2, Upload, Palette, Mail } from "lucide-react";
 import { MultilingualInput, MultilingualTextarea } from "@/components/admin/form-elements";
@@ -56,13 +57,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
     ritardo_secondi: 3
   });
 
-  const [sportclubbyBanner, setSportclubbyBanner] = useState(initialData?.sportclubby_banner || {
-    titolo: "Prenota le tue lezioni in un click.",
-    descrizione: "Scarica l'app Sportclubby per avere sempre il nostro orario aggiornato a portata di mano e gestire le tue prenotazioni facilmente.",
-    logo_url: "",
-    apple_link: "https://apps.apple.com/it/app/sportclubby/id1250917631",
-    google_link: "https://play.google.com/store/apps/details?id=com.sportclubby.app"
-  });
+  const [muveeBanner, setMuveeBanner] = useState({ ...MUVEE_APP_BANNER, ...initialData?.muvee_banner });
 
   const [branding, setBranding] = useState(initialData?.branding || {
     meta_title: "ASD Meraki Experience",
@@ -173,7 +168,7 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
       youtube_videos: youtubeVideos,
       theme_colors: themeColors,
       popup: popup,
-      sportclubby_banner: sportclubbyBanner,
+      muvee_banner: muveeBanner,
       branding: branding,
       contacts: contacts,
       media: media,
@@ -227,8 +222,8 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           updateSponsor(idx, "logo_url", res.url);
         } else if (index === 'popup') {
           setPopup({ ...popup, foto_url: res.url });
-        } else if (index === 'sportclubby_logo') {
-          setSportclubbyBanner({ ...sportclubbyBanner, logo_url: res.url });
+        } else if (index === 'muvee_logo') {
+          setMuveeBanner({ ...muveeBanner, logo_url: res.url });
         } else if (index === 'branding_logo') {
           setBranding({ ...branding, logo_url: res.url });
         } else if (index === 'branding_logo_white') {
@@ -1038,10 +1033,10 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
           </div>
         </div>
 
-        {/* Sportclubby Banner */}
+        {/* Muvee ASD Banner */}
         <div className="space-y-4">
           <div className="flex justify-between items-center border-b pb-2 mt-8">
-            <h3 className="text-lg font-semibold text-slate-800">7. Banner Sportclubby (App)</h3>
+            <h3 className="text-lg font-semibold text-slate-800">7. Banner Muvee ASD (App)</h3>
           </div>
           
           <div className="space-y-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
@@ -1050,19 +1045,9 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
               <input 
                 type="text" 
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
-                value={sportclubbyBanner.titolo || ""}
-                onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, titolo: e.target.value})}
-                placeholder="Prenota le tue lezioni in un click."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Descrizione</label>
-              <textarea 
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm resize-y"
-                value={sportclubbyBanner.descrizione || ""}
-                onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, descrizione: e.target.value})}
-                placeholder="Scarica l'app Sportclubby per..."
-                rows={3}
+                value={muveeBanner.titolo || ""}
+                onChange={(e) => setMuveeBanner({...muveeBanner, titolo: e.target.value})}
+                placeholder="Prenota le tue lezioni in un click"
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1071,8 +1056,8 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                 <input 
                   type="text" 
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
-                  value={sportclubbyBanner.apple_link || ""}
-                  onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, apple_link: e.target.value})}
+                  value={muveeBanner.apple_link || ""}
+                  onChange={(e) => setMuveeBanner({...muveeBanner, apple_link: e.target.value})}
                   placeholder="https://apps.apple.com/..."
                 />
               </div>
@@ -1081,8 +1066,8 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                 <input 
                   type="text" 
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
-                  value={sportclubbyBanner.google_link || ""}
-                  onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, google_link: e.target.value})}
+                  value={muveeBanner.google_link || ""}
+                  onChange={(e) => setMuveeBanner({...muveeBanner, google_link: e.target.value})}
                   placeholder="https://play.google.com/..."
                 />
               </div>
@@ -1093,17 +1078,17 @@ export function SettingsClient({ initialData, initialIstruttori }: { initialData
                 <input 
                   type="text" 
                   className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
-                  value={sportclubbyBanner.logo_url || ""}
-                  onChange={(e) => setSportclubbyBanner({...sportclubbyBanner, logo_url: e.target.value})}
-                  placeholder="URL dell'immagine (se vuoto usa Sc)"
+                  value={muveeBanner.logo_url || ""}
+                  onChange={(e) => setMuveeBanner({...muveeBanner, logo_url: e.target.value})}
+                  placeholder="URL dell’immagine (se vuoto usa il logo Muvee)"
                 />
-                <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2.5 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'sportclubby_logo' ? 'opacity-50 pointer-events-none' : ''}`}>
-                  {uploadingImageIndex === 'sportclubby_logo' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                  <span className="ml-2 font-medium">{uploadingImageIndex === 'sportclubby_logo' ? 'Caricamento...' : 'Sfoglia'}</span>
+                <label className={`shrink-0 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2.5 rounded-xl transition-colors cursor-pointer border border-indigo-200 ${uploadingImageIndex === 'muvee_logo' ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {uploadingImageIndex === 'muvee_logo' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                  <span className="ml-2 font-medium">{uploadingImageIndex === 'muvee_logo' ? 'Caricamento...' : 'Sfoglia'}</span>
                   <input 
                     type="file" 
                     accept="image/*" 
-                    onChange={(e) => handleImageUpload('sportclubby_logo', e)} 
+                    onChange={(e) => handleImageUpload('muvee_logo', e)} 
                     className="hidden" 
                   />
                 </label>

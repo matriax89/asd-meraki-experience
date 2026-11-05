@@ -62,6 +62,7 @@ test("settings translates an existing string, submits its complete language obje
   const submitted = [];
   const formElements = load("src/components/admin/form-elements.tsx", "it", { ...nativeFormControlMocks, "next/dynamic": { __esModule: true, default: () => () => null } });
   const { SettingsClient } = load("src/app/[locale]/admin/impostazioni/settings-client.tsx", "it", {
+    "@/lib/muvee-app": load("src/lib/muvee-app.ts", "it"),
     "@/components/admin/form-elements": formElements,
     "@/app/api/admin/impostazioni/actions": { saveHomepageContent: async data => { submitted.push(JSON.parse(data.get("payload"))); return { success: true }; } },
     "@/app/api/admin/upload/actions": { uploadImageAction: () => { throw new Error("Image upload is outside this test"); } },

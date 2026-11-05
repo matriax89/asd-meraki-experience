@@ -14,6 +14,7 @@ import { getPublishedEventFeed } from "@/lib/events/public-feed";
 import { enrichCommerceFeed } from "@/lib/commerce/feed";
 import { getFeaturedSocialEvent } from "@/lib/events/social-data";
 import { brandSocialMetadata, eventSocialMetadata } from "@/lib/events/social-metadata";
+import { MUVEE_APP_BANNER } from "@/lib/muvee-app";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -104,6 +105,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const locations = content.locations || ["Bolzano", "Appiano", "Altro"];
   const branding = content.branding || {};
   const initiatives = { ...content.shop_text, ...content.initiatives_text };
+  const appBanner = { ...MUVEE_APP_BANNER, ...content.muvee_banner };
 
   return (
     <main className="flex flex-col min-h-[100dvh] overflow-x-clip">
@@ -387,25 +389,23 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         </div>
       </section>
 
-      {/* ═══════ APP BANNER (Sportclubby) ═══════ */}
-      <section className="pb-16 pt-0">
+      {/* ═══════ APP BANNER (Muvee ASD) ═══════ */}
+      <section id="app-muvee" aria-label="Muvee ASD" className="scroll-mt-28 pb-16 pt-0">
         <div className="container">
           <FadeIn>
-            <div className="bg-white border-2 border-[#E50012] rounded-[28px] p-6 md:p-8 lg:p-10 text-slate-900 relative overflow-hidden shadow-[0_0_40px_-15px_rgba(229,0,18,0.3)] flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="bg-white border-2 border-[#0072d5] rounded-[28px] p-6 md:p-8 lg:p-10 text-slate-900 relative overflow-hidden shadow-[0_0_40px_-15px_rgba(0,114,213,0.2)] flex flex-col md:flex-row items-center justify-between gap-6 md:gap-10">
               {/* Sfondo decorativo */}
-              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-red-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
               
-              <div className="relative z-10 max-w-2xl flex-1">
-                <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-3 leading-tight">
-                  {getLocalizedText(content.sportclubby_banner?.titolo, locale) || tExtra("bookingTitle")}
+              <div className="relative z-10 min-w-0 max-w-2xl flex-1 text-center md:text-left">
+                <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-6 leading-tight">
+                  {getLocalizedText(appBanner.titolo, locale) || tExtra("bookingTitle")}
                 </h2>
-                <p className="text-[15px] md:text-lg text-slate-600 mb-6 max-w-xl leading-relaxed whitespace-pre-line">
-                  {getLocalizedText(content.sportclubby_banner?.descrizione, locale) || tExtra("bookingDescription")}
-                </p>
                 
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap justify-center md:justify-start gap-3">
                   <a 
-                    href={content.sportclubby_banner?.apple_link || "https://apps.apple.com/it/app/sportclubby/id1250917631"} 
+                    href={appBanner.apple_link || MUVEE_APP_BANNER.apple_link}
+                    aria-label="Muvee ASD · App Store"
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2.5 bg-black hover:bg-black/80 text-white px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-md"
@@ -418,7 +418,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                   </a>
                   
                   <a 
-                    href={content.sportclubby_banner?.google_link || "https://play.google.com/store/apps/details?id=com.sportclubby.app"} 
+                    href={appBanner.google_link || MUVEE_APP_BANNER.google_link}
+                    aria-label="Muvee ASD · Google Play"
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2.5 bg-black hover:bg-black/80 text-white px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-md"
@@ -433,18 +434,9 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               </div>
               
               {/* Visual Decor: Logo */}
-              <div className="relative z-10 hidden md:flex items-center justify-center shrink-0 lg:mr-8">
-                {content.sportclubby_banner?.logo_url ? (
-                  <div className="relative w-40 h-40 md:w-64 md:h-64 hover:rotate-2 transition-transform duration-500">
-                    <Image src={content.sportclubby_banner.logo_url} alt="Sportclubby" fill unoptimized className="object-contain" />
-                  </div>
-                ) : (
-                  <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-50 border border-slate-100 rounded-3xl flex items-center justify-center shadow-sm hover:rotate-2 transition-transform duration-500 relative">
-                    <span className="text-4xl md:text-5xl font-black text-[#E50012] select-none tracking-tighter">
-                      Sc
-                    </span>
-                  </div>
-                )}
+              <div className="relative z-10 order-first md:order-last flex w-44 md:w-60 flex-col items-center justify-center shrink-0 lg:mr-8">
+                <Image src={appBanner.logo_url || MUVEE_APP_BANNER.logo_url} alt="Muvee" width={640} height={180} sizes="(max-width: 768px) 176px, 240px" unoptimized className="h-auto w-full object-contain" />
+                <span className="mt-1 pl-12 text-sm font-bold tracking-[0.35em] text-[#0072d5]">ASD</span>
               </div>
             </div>
           </FadeIn>

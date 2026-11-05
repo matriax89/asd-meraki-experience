@@ -31,6 +31,7 @@ const Image = (props) => {
 const Container = ({ children, className, id }) => React.createElement("div", { className, id }, children);
 const Empty = () => null;
 const common = { "@/i18n/routing": { Link: Anchor }, "next/image": { __esModule: true, default: Image } };
+const muveeApp = load("lib/muvee-app.ts");
 const i18n = load("lib/i18n-utils.ts");
 const model = load("components/meraki/event-model.ts");
 const eventsData = load("components/meraki/events-data.ts", { "@/lib/i18n-utils": i18n, "@/lib/events/intro": eventIntroModule });
@@ -59,6 +60,7 @@ function catalogue(rows, error = null, packagePrices) {
   const enrichment = [];
   const { default: Home } = load("app/[locale]/(public)/page.tsx", {
     ...common,
+    "@/lib/muvee-app": muveeApp,
     "@/lib/supabase/server": server,
     "@/lib/events/public-feed": feed,
     "@/lib/events/social-data": {},
