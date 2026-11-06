@@ -532,26 +532,27 @@ test("estimated missing fees and nets remain labeled across channels, cohorts an
   const channel = (id, name, registrationSummary) => ({ id, name, ...registrationSummary, paidOrders: 1, registrationSummary, dinnerSummary: summary(0, 0, 0, 0) });
   data.paymentChannels = [channel("stripe_online", "Stripe online", summary(10000, 0, 175, 1)), channel("stripe_tap_to_pay", "Stripe Tap to Pay", { ...estimated(summary(10000, 0, 0, 1)), feesCents: 0, estimatedFeesCents: 160, netAfterEstimatedFeesCents: 9840 }), channel("paypal", "PayPal dentro Stripe", data.registrationSummary)];
   await mount(context, { data });
-  assert.equal(metric("Commissioni di pagamento"), "1,00 € effettive + 3,55 € stimate");
-  assert.equal(metric("Incassi netti"), "55,45 € (stimati)");
+  assert.equal(metric("Commissioni di pagamento"), "1,00 € effettive + 3,55 € calcolate da listino");
+  assert.equal(metric("Incassi netti"), "55,45 € (da confermare)");
+  assert.equal(/\bstim[ae]\b|\bstimat[aeio]\b/i.test(window.document.body.textContent), false, "visible amounts use listino labels while retaining confirmation status");
   assert.equal(metric("Attività · netto", window.document.querySelector('[data-payment-channel="stripe_online"]')), "98,25 €");
-  assert.equal(metric("Attività · netto", window.document.querySelector('[data-payment-channel="stripe_tap_to_pay"]')), "98,40 € (stimati)");
-  assert.equal(metric("Attività · netto", window.document.querySelector('[data-payment-channel="paypal"]')), "55,45 € (stimati)");
-  assert.equal(window.document.querySelector('[data-revenue-kind="masterclass"] > p').textContent.replaceAll("\u00a0", " "), "25,45 € (stimati)");
-  assert.ok(window.document.querySelector('[role="status"]').textContent.includes("calcolate a listino"));
-  assert.equal(window.document.querySelector('[aria-labelledby="analytics-affiliates-title"] tbody tr').cells[4].textContent.replaceAll("\u00a0", " "), "55,45 € (stimati)");
-  assert.ok(window.document.querySelector('[aria-labelledby="sales-trend-title"] tbody tr').textContent.includes("stimati"));
+  assert.equal(metric("Attività · netto", window.document.querySelector('[data-payment-channel="stripe_tap_to_pay"]')), "98,40 € (da confermare)");
+  assert.equal(metric("Attività · netto", window.document.querySelector('[data-payment-channel="paypal"]')), "55,45 € (da confermare)");
+  assert.equal(window.document.querySelector('[data-revenue-kind="masterclass"] > p').textContent.replaceAll("\u00a0", " "), "25,45 € (da confermare)");
+  assert.ok(window.document.querySelector('[role="status"]').textContent.includes("calcolate da listino"));
+  assert.equal(window.document.querySelector('[aria-labelledby="analytics-affiliates-title"] tbody tr').cells[4].textContent.replaceAll("\u00a0", " "), "55,45 € (da confermare)");
+  assert.ok(window.document.querySelector('[aria-labelledby="sales-trend-title"] tbody tr').textContent.includes("da confermare"));
   assert.equal(window.document.querySelector('[aria-labelledby="sales-trend-title"] svg'), null, "actual fee chart must not silently become an estimated chart");
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
   const rows = csvRows(csv);
   assert.equal(rows.find(row => row[0] === "Commissioni di pagamento note (€)")[1], "1");
   assert.equal(rows.find(row => row[0] === "Netto dopo commissioni (€)")[1], "Da verificare");
-  assert.equal(rows.find(row => row[0] === "Quote commissioni mancanti stimate (€)")[1], "3,55");
-  assert.equal(rows.find(row => row[0] === "Netto con commissioni stimate (€)")[1], "55,45");
-  assert.equal(rows.find(row => row[0] === "Stato commissioni")[1], "Parziali: 1 pagamento da verificare; 1 con stima");
+  assert.equal(rows.find(row => row[0] === "Quote commissioni mancanti calcolate da listino (€)")[1], "3,55");
+  assert.equal(rows.find(row => row[0] === "Netto da confermare dopo commissioni da listino (€)")[1], "55,45");
+  assert.equal(rows.find(row => row[0] === "Stato commissioni")[1], "Parziali: 1 pagamento da verificare; 1 con calcolo da listino");
   const channelHeading = rows.findIndex(row => row[0] === "Incassi per metodo di pagamento");
   const paypal = rows.slice(channelHeading + 2).find(row => row[0] === "PayPal dentro Stripe");
-  assert.deepEqual(paypal.slice(2, 11), ["80", "20", "60", "1", "Da verificare", "Parziali: 1 pagamento da verificare; 1 con stima", "3,55", "1", "55,45"]);
+  assert.deepEqual(paypal.slice(2, 11), ["80", "20", "60", "1", "Da verificare", "Parziali: 1 pagamento da verificare; 1 con calcolo da listino", "3,55", "1", "55,45"]);
 });
 
 test("a partially covered estimate never produces a complete estimated net", async context => {
@@ -559,20 +560,21 @@ test("a partially covered estimate never produces a complete estimated net", asy
   data.registrationSummary = { ...data.registrationSummary, feesCents: 100, missingFeePayments: 2, estimatedFeePayments: 1, estimatedFeesCents: 355, netAfterFeesCents: null, netAfterEstimatedFeesCents: null };
   await mount(context, { data });
   assert.equal(metric("Incassi netti"), "Da verificare");
-  assert.equal(metric("Commissioni di pagamento"), "1,00 € effettive + 3,55 € stimate (parziali)");
+  assert.equal(metric("Commissioni di pagamento"), "1,00 € effettive + 3,55 € calcolate da listino (parziali)");
   assert.ok(window.document.querySelector('[role="status"]').textContent.includes("Il netto resta da verificare"));
   const rows = csvRows(load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data));
-  assert.equal(rows.find(row => row[0] === "Netto con commissioni stimate (€)")[1], "Da verificare");
-  assert.equal(rows.find(row => row[0] === "Stato commissioni")[1], "Parziali: 2 pagamenti da verificare; 1 con stima");
+  assert.equal(rows.find(row => row[0] === "Netto da confermare dopo commissioni da listino (€)")[1], "Da verificare");
+  assert.equal(rows.find(row => row[0] === "Stato commissioni")[1], "Parziali: 2 pagamenti da verificare; 1 con calcolo da listino");
 });
 
 test("the fee guide and CSV provide official Italian sources and estimation assumptions", async context => {
   await mount(context);
-  const guide = [...window.document.querySelectorAll("details")].find(node => node.querySelector("summary")?.textContent === "Commissioni: tariffe, stime e fonti");
+  const guide = [...window.document.querySelectorAll("details")].find(node => node.querySelector("summary")?.textContent === "Commissioni: tariffe, calcoli e fonti");
   assert.ok(guide); assert.equal(guide.open, false);
-  const sources = ["https://stripe.com/it/pricing", "https://stripe.com/it/terminal", "https://stripe.com/it/pricing/local-payment-methods", "https://www.paypal.com/it/business/paypal-business-fees", "https://docs.stripe.com/radar/how-radar-works", "https://docs.stripe.com/payments/currencies/localize-prices/adaptive-pricing?payment-ui=stripe-hosted"];
+  const sources = ["https://stripe.com/it/pricing", "https://stripe.com/it/pricing#terminal", "https://stripe.com/it/pricing/local-payment-methods", "https://www.paypal.com/it/business/paypal-business-fees", "https://docs.stripe.com/radar/how-radar-works", "https://docs.stripe.com/payments/currencies/localize-prices/adaptive-pricing?payment-ui=stripe-hosted"];
   assert.deepEqual([...guide.querySelectorAll("a")].map(node => node.href), sources);
   assert.ok(guide.textContent.includes("1,4% + 0,20 €"));
+  assert.ok(guide.textContent.includes("carte SEE e Regno Unito"));
   assert.ok(guide.textContent.includes("3,6% + 0,45 €"));
   assert.ok(guide.textContent.includes("una sola autorizzazione"));
   assert.ok(guide.textContent.includes("6 novembre 2026"));
