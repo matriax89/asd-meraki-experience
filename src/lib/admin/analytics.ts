@@ -438,7 +438,7 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     }
     const fee: PaymentFees = payment.amount === 0 || payment.paymentMethod === "cash" ? { feeCents: 0, complete: true } : payment.paymentMethod === "pos" && amount(payment.manualFeeCents) ? { feeCents: payment.manualFeeCents, complete: true, channel: "stripe_tap_to_pay" } : paymentFees.get(payment.identity) || { feeCents: 0, complete: false };
     const estimated = !fee.complete && amount(fee.estimatedFeeCents);
-    if (!fee.complete) notes.add("Alcune commissioni effettive non sono ancora disponibili o verificabili. Le eventuali commissioni calcolate da listino sono indicate separatamente; il relativo netto resta da confermare.");
+    if (!fee.complete) notes.add("Alcune commissioni effettive non sono ancora disponibili o verificabili. Le eventuali commissioni calcolate da listino sono indicate separatamente dalle commissioni effettive.");
     if (estimated && fee.estimateReason) notes.add(fee.estimateReason);
     const feeShares = split(fee.feeCents, attributions.map(share => share.amount));
     const estimatedShares = split(estimated ? fee.estimatedFeeCents! : 0, attributions.map(share => share.amount));
