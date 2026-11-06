@@ -62,7 +62,7 @@ function fixture(data = {}, { denied = false, fail, fees = {} } = {}) {
     };
     return query;
   } };
-  const api = compile('lib/admin/analytics.ts', { 'server-only': {}, '@/lib/commerce/admin-auth': { requireCommerceStaff: async () => { if (denied) throw new Error('Accesso negato'); authorized = true; return db; } }, '@/lib/i18n-utils': i18n, '@/lib/commerce/rome-time': romeTime, '@/lib/events/affiliates': affiliates, '@/lib/events/affiliate-commissions': commissions, '@/lib/stripe/payment-fees': { loadPaymentFees: async refs => { assert.ok(authorized); feeCalls.push(plain(refs)); return new Map(refs.map(ref => [ref.id, fees[ref.id] || { feeCents: 0, complete: true }])); } } });
+  const api = compile('lib/admin/analytics.ts', { 'server-only': {}, '@/lib/commerce/admin-auth': { requireCommerceStaff: async () => { if (denied) throw new Error('Accesso negato'); authorized = true; return db; } }, '@/lib/i18n-utils': i18n, '@/lib/commerce/rome-time': romeTime, '@/lib/events/affiliates': affiliates, '@/lib/events/affiliate-commissions': commissions, '@/lib/stripe/payment-fees': { loadPaymentFees: async refs => { assert.ok(authorized); feeCalls.push(plain(refs)); return new Map(refs.map(ref => [ref.id, fees[ref.id] || (ref.paymentMethod === "pos" ? { feeCents: 0, complete: false, channel: "stripe_tap_to_pay" } : { feeCents: 0, complete: true, channel: "stripe_online" })])); } } });
   return { load: input => api.loadAdminAnalytics({ locale: 'it', ...input }), calls, feeCalls };
 }
 
@@ -108,7 +108,7 @@ test('gross/refunds/net use captured payments once, real successful refund cents
     commerce_waitlist: [{ id: 'w1', event_id: A, status: 'waiting', created_at: base.created_at }, { id: 'w2', event_id: B, status: 'waiting', created_at: base.created_at }, { id: 'w3', event_id: A, status: 'notified', created_at: base.created_at }],
   };
   const api = fixture(data); const result = await api.load({ period: 'all' });
-  assert.deepEqual(plain(result.metrics), { grossCents: 29500, refundedCents: 6000, netCents: 23500, feesCents: 0, netAfterFeesCents: 23500, missingFeePayments: 0, paidOrders: 6, validParticipants: 5, checkedInParticipants: 2, waiting: 2, pendingOrders: 1, expiredOrders: 1, failedOrders: 1 });
+  assert.deepEqual(plain(result.metrics), { grossCents: 29500, refundedCents: 6000, netCents: 23500, feesCents: 0, netAfterFeesCents: 23500, missingFeePayments: 0, estimatedFeesCents: 0, estimatedFeePayments: 0, netAfterEstimatedFeesCents: 23500, paidOrders: 6, validParticipants: 5, checkedInParticipants: 2, waiting: 2, pendingOrders: 1, expiredOrders: 1, failedOrders: 1 });
   assert.equal(result.registrationSummary.count, 5); assert.equal(result.dinnerSummary.count, 1);
   assert.equal(result.addons[0].count, 1); assert.equal(result.addons[0].netCents, 2000);
   assert.equal(result.packages.reduce((sum, item) => sum + item.netCents, 0), 18500);
@@ -913,13 +913,13 @@ test('cash and POS use recorded payment dates, stable order identities and their
   assert.equal(data.metrics.grossCents, 16000); assert.equal(data.metrics.refundedCents, 2000);
   assert.equal(data.metrics.feesCents, 130); assert.equal(data.metrics.netAfterFeesCents, null);
   assert.equal(data.metrics.missingFeePayments, 1);
-  assert.deepEqual(api.feeCalls.flat().map(row => row.id), ['pi:pi_online'], 'no cash or POS receipt reaches Stripe verification');
+  assert.deepEqual(api.feeCalls.flat().map(row => row.id), ['pi:pi_online', 'commerce:unknown-pos'], 'only online payments and POS receipts without an entered fee reach the fee loader');
   const cash = data.paymentChannels.find(row => row.id === 'cash');
   assert.equal(cash.paidOrders, 1); assert.equal(cash.registrationSummary.grossCents, 6000);
   assert.equal(cash.registrationSummary.refundedCents, 1500); assert.equal(cash.registrationSummary.netAfterFeesCents, 4500);
   assert.equal(cash.dinnerSummary.grossCents, 2000); assert.equal(cash.dinnerSummary.refundedCents, 500);
   assert.equal(cash.dinnerSummary.netAfterFeesCents, 1500); assert.equal(cash.feesCents, 0);
-  const pos = data.paymentChannels.find(row => row.id === 'pos');
+  const pos = data.paymentChannels.find(row => row.id === 'stripe_tap_to_pay');
   assert.equal(pos.paidOrders, 2); assert.equal(pos.registrationSummary.netAfterFeesCents, 4900);
   assert.equal(pos.dinnerSummary.netAfterFeesCents, null); assert.equal(pos.dinnerSummary.missingFeePayments, 1);
   assert.equal(data.trend.find(row => row.date === '2026-10-21').grossCents, 16000);
@@ -942,4 +942,106 @@ test('full manual refunds retain gross accounting but remove the refunded person
   assert.equal(data.paymentChannels.find(row => row.id === 'cash').netAfterFeesCents, 0);
   const fail = fixture({}, { fail: call => call.table === 'manual_commerce_refunds' });
   await assert.rejects(fail.load(), /rimborsi in contanti e POS/);
+});
+
+test('Stripe online, PayPal and Tap to Pay have separate actual and estimated fees without treating estimates as settled', async () => {
+  const manual = (id, manual_fee_cents) => order(id, 10000, { payment_method: 'pos', paid_at: '2026-10-21T10:00:00Z', stripe_payment_intent: null, stripe_session_id: null, manual_fee_cents });
+  const api = fixture({ commerce_orders: [order('card', 10000), order('paypal', 10000), manual('tap', null), manual('known-zero', 0)] }, { fees: {
+    'pi:pi_card': { feeCents: 175, complete: true, channel: 'stripe_online' },
+    'pi:pi_paypal': { feeCents: 30, complete: false, channel: 'paypal', estimatedFeeCents: 375, estimateReason: 'PayPal: stima standard SEE.' },
+    'commerce:tap': { feeCents: 0, complete: false, channel: 'stripe_tap_to_pay', estimatedFeeCents: 160, estimateReason: 'Tap to Pay: una autorizzazione SEE.' },
+  } });
+  const data = await api.load({});
+  assert.equal(data.metrics.feesCents, 205, 'only actual Stripe amounts are certified');
+  assert.equal(data.metrics.estimatedFeesCents, 535, 'only missing PayPal/Tap portions are estimated');
+  assert.equal(data.metrics.missingFeePayments, 2); assert.equal(data.metrics.estimatedFeePayments, 2);
+  assert.equal(data.metrics.netAfterFeesCents, null); assert.equal(data.metrics.netAfterEstimatedFeesCents, 39260);
+  const channel = id => data.paymentChannels.find(row => row.id === id);
+  assert.equal(channel('stripe_online').feesCents, 175); assert.equal(channel('stripe_online').netAfterFeesCents, 9825);
+  assert.equal(channel('paypal').feesCents, 30); assert.equal(channel('paypal').netAfterEstimatedFeesCents, 9595);
+  assert.equal(channel('stripe_tap_to_pay').paidOrders, 2); assert.equal(channel('stripe_tap_to_pay').estimatedFeesCents, 160);
+  assert.equal(channel('stripe_tap_to_pay').netAfterEstimatedFeesCents, 19840);
+  assert.ok(data.notes.includes('PayPal: stima standard SEE.'));
+  assert.equal(api.feeCalls.flat().some(row => row.id === 'commerce:known-zero'), false, 'an explicitly entered zero fee overrides the tariff estimate');
+  for (const field of ['grossCents', 'feesCents', 'estimatedFeesCents', 'netAfterEstimatedFeesCents']) {
+    assert.equal(data.paymentChannels.reduce((sum, row) => sum + row[field], 0), data.metrics[field], field);
+  }
+});
+
+test('the verified 65 EUR PayPal payment reports 2.84 EUR fees and 62.16 EUR net across all analytics summaries', async () => {
+  const data = await fixture({ commerce_orders: [order('paypal-example', 6500)] }, { fees: {
+    'pi:pi_paypal-example': { feeCents: 284, complete: true, channel: 'paypal' },
+  } }).load({});
+  for (const row of [data.metrics, data.registrationSummary, data.eventStats[0], data.trend[0], data.paymentChannels.find(row => row.id === 'paypal')]) {
+    assert.equal(row.grossCents, 6500); assert.equal(row.feesCents, 284); assert.equal(row.netAfterFeesCents, 6216);
+    assert.equal(row.missingFeePayments, 0); assert.equal(row.estimatedFeesCents, 0);
+  }
+  assert.equal(data.dinnerSummary.feesCents, 0);
+});
+
+test('the Link, online card and manually verified Tap examples reconcile without adding an assumed authorization surcharge', async () => {
+  const data = await fixture({ commerce_orders: [
+    order('link-example', 6500), order('card-example', 6500),
+    order('tap-example', 6500, { payment_method: 'pos', paid_at: '2026-10-21T10:00:00Z', stripe_payment_intent: null, stripe_session_id: null, manual_fee_cents: 101 }),
+  ] }, { fees: {
+    'pi:pi_link-example': { feeCents: 128, complete: true, channel: 'stripe_online' },
+    'pi:pi_card-example': { feeCents: 128, complete: true, channel: 'stripe_online' },
+  } }).load({});
+  assert.equal(data.metrics.grossCents, 19500); assert.equal(data.metrics.feesCents, 357); assert.equal(data.metrics.netAfterFeesCents, 19143);
+  assert.equal(data.metrics.estimatedFeesCents, 0); assert.equal(data.metrics.missingFeePayments, 0);
+  const online = data.paymentChannels.find(row => row.id === 'stripe_online');
+  assert.equal(online.paidOrders, 2); assert.equal(online.feesCents, 256); assert.equal(online.netAfterFeesCents, 12744);
+  const tap = data.paymentChannels.find(row => row.id === 'stripe_tap_to_pay');
+  assert.equal(tap.feesCents, 101); assert.equal(tap.netAfterFeesCents, 6399);
+  assert.equal(tap.estimatedFeesCents, 0);
+});
+
+test('the Polish PayPal example uses EUR fees and allocates the single payment between activities and dinner', async () => {
+  const data = await fixture({ commerce_orders: [order('paypal-pln', 8500, { quote_lines: [
+    line(6500, { activityIds: ['ws', 'mc'], activityAmounts: { ws: 3500, mc: 3000 } }),
+    line(2000, { kind: 'addon', addonId: 'dinner', activityIds: ['dinner'] }),
+  ] })] }, { fees: { 'pi:pi_paypal-pln': { feeCents: 363, complete: true, channel: 'paypal' } } }).load({});
+  assert.equal(data.metrics.grossCents, 8500); assert.equal(data.metrics.feesCents, 363); assert.equal(data.metrics.netAfterFeesCents, 8137);
+  assert.equal(data.registrationSummary.grossCents, 6500); assert.equal(data.registrationSummary.feesCents, 277); assert.equal(data.registrationSummary.netAfterFeesCents, 6223);
+  assert.equal(data.dinnerSummary.grossCents, 2000); assert.equal(data.dinnerSummary.feesCents, 86); assert.equal(data.dinnerSummary.netAfterFeesCents, 1914);
+  assert.equal(data.registrationSummary.netAfterFeesCents + data.dinnerSummary.netAfterFeesCents, data.metrics.netAfterFeesCents);
+  assert.equal(data.paymentChannels.find(row => row.id === 'paypal').netAfterFeesCents, 8137);
+  assert.equal(data.metrics.missingFeePayments, 0); assert.equal(data.metrics.estimatedFeesCents, 0);
+});
+
+test('a group estimate is allocated once across affiliates and dinner, survives refunds, and reconciles to every cent', async () => {
+  const purchase = order('tap-group', 12001, { payment_method: 'pos', paid_at: '2026-10-21T10:00:00Z', stripe_payment_intent: null, stripe_session_id: null, quote_lines: [
+    line(6000, { participantIndex: 0 }),
+    line(2000, { participantIndex: 0, kind: 'addon', addonId: 'dinner', activityIds: ['dinner'] }),
+    line(4001, { participantIndex: 1 }),
+  ] });
+  const input = { commerce_orders: [purchase], commerce_passes: [pass('a', purchase.id, { participant_index: 0, affiliate_id: AFF }), pass('b', purchase.id, { participant_index: 1, affiliate_id: OLD })], commerce_entitlements: [right('a-ws', 'a', purchase.id), right('a-dinner', 'a', purchase.id, 'dinner'), right('b-ws', 'b', purchase.id)], manual_commerce_refunds: [{ id: 'partial', event_id: A, order_id: purchase.id, amount_cents: 1001, status: 'succeeded', revoke_entitlement_ids: [] }] };
+  const options = { fees: { 'commerce:tap-group': { feeCents: 0, complete: false, channel: 'stripe_tap_to_pay', estimatedFeeCents: 188 } } };
+  const all = await fixture(input, options).load({});
+  assert.equal(all.metrics.netAfterFeesCents, null); assert.equal(all.metrics.netAfterEstimatedFeesCents, 10812);
+  assert.equal(all.metrics.estimatedFeesCents, 188); assert.equal(all.metrics.estimatedFeePayments, 1);
+  for (const field of ['grossCents', 'refundedCents', 'estimatedFeesCents', 'netAfterEstimatedFeesCents']) {
+    assert.equal(all.registrationSummary[field] + all.dinnerSummary[field], all.metrics[field], field);
+    assert.equal(all.revenue.reduce((sum, row) => sum + row[field], 0), all.metrics[field], field);
+    assert.equal(all.affiliates.reduce((sum, row) => sum + row[field], 0), all.metrics[field], field);
+  }
+  assert.deepEqual(plain(all.eventStats[0].registrationSummary), plain(all.registrationSummary));
+  assert.deepEqual(plain(all.trend[0].dinnerSummary), plain(all.dinnerSummary));
+  for (const affiliateId of [AFF, OLD]) {
+    const scoped = await fixture(input, options).load({ affiliateId });
+    const attributed = all.affiliates.find(row => row.id === affiliateId);
+    assert.deepEqual(plain(scoped.registrationSummary), plain(attributed.registrationSummary));
+    assert.deepEqual(plain(scoped.dinnerSummary), plain(attributed.dinnerSummary));
+  }
+});
+
+test('an unresolved payment prevents an estimated net while retaining other available estimates and channel evidence', async () => {
+  const data = await fixture({ commerce_orders: [order('paypal', 10000), order('unknown', 10000)] }, { fees: {
+    'pi:pi_paypal': { feeCents: 30, complete: false, channel: 'paypal', estimatedFeeCents: 375 },
+    'pi:pi_unknown': { feeCents: 0, complete: false },
+  } }).load({});
+  assert.equal(data.metrics.estimatedFeesCents, 375); assert.equal(data.metrics.missingFeePayments, 2); assert.equal(data.metrics.estimatedFeePayments, 1);
+  assert.equal(data.metrics.netAfterFeesCents, null); assert.equal(data.metrics.netAfterEstimatedFeesCents, null);
+  assert.equal(data.paymentChannels.find(row => row.id === 'online').grossCents, 10000);
+  assert.equal(data.paymentChannels.find(row => row.id === 'paypal').netAfterEstimatedFeesCents, 9595);
 });

@@ -266,7 +266,7 @@ test("retained processing fees after full refund remain a negative net", async c
   const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
   assert.ok(csv.includes('"Netto dopo commissioni (€)";"-2"'));
   assert.ok(csv.includes('"Netto cena dopo commissioni (€)";"-0,5"'));
-  assert.ok(csvRows(csv).some(row => JSON.stringify(row) === JSON.stringify(["Totale attività e cena", "100", "100", "0", "2,5", "-2,5", "Complete"])));
+  assert.ok(csvRows(csv).some(row => JSON.stringify(row) === JSON.stringify(["Totale attività e cena", "100", "100", "0", "2,5", "-2,5", "Complete", "0", "0", "Non necessaria"])));
 });
 
 test("affiliate waitlist remains unavailable rather than a fabricated zero and empty sales have no fake chart", async context => {
@@ -298,7 +298,7 @@ test("aggregate CSV export keeps Italian values and neutralizes spreadsheet form
   assert.ok(csv.includes('"Rimborsi cena (€)";"10"'));
   assert.ok(csv.includes('"Criterio iscrizioni";"Ogni persona conta una sola volta nella formula attuale; gli upgrade aggiornano la stessa iscrizione'));
   assert.ok(csv.includes('"Criterio pagamenti";"Ogni pagamento di iscrizione, upgrade o cena conta una volta; esclusi ordini gratuiti e interamente rimborsati.'));
-  assert.ok(csvRows(csv).some(row => JSON.stringify(row) === JSON.stringify(["Totale attività e cena", "100", "30", "70", "2,5", "67,5", "Complete"])));
+  assert.ok(csvRows(csv).some(row => JSON.stringify(row) === JSON.stringify(["Totale attività e cena", "100", "30", "70", "2,5", "67,5", "Complete", "0", "0", "Non necessaria"])));
   assert.ok(csv.includes('"Periodo";"23/09/2026";"22/10/2026"'));
   assert.ok(csv.includes("'=HYPERLINK")); assert.ok(csv.includes("'\t+SUM"));
   assert.equal(csv.includes("private@example.test"), false);
@@ -518,4 +518,139 @@ test('channel cards and CSV keep online, cash and POS income split between activ
   assert.deepEqual(cashRow.slice(0, 8), ['Contanti', '1', '60', '15', '45', '0', '45', 'Complete']);
   const posRow = rows.slice(heading + 2).find(row => row[0] === 'POS');
   assert.ok(posRow.includes('Da verificare'));
+});
+
+
+test("estimated missing fees and nets remain labeled across channels, cohorts and CSV", async context => {
+  const data = fixture();
+  const estimated = row => ({ ...row, feesCents: 100, missingFeePayments: 1, netAfterFeesCents: null, estimatedFeesCents: 355, estimatedFeePayments: 1, netAfterEstimatedFeesCents: row.netCents - 455 });
+  data.registrationSummary = estimated(data.registrationSummary);
+  data.revenue[0] = estimated(data.revenue[0]);
+  data.trend[0].registrationSummary = estimated(data.trend[0].registrationSummary);
+  data.affiliates[0].registrationSummary = estimated(data.affiliates[0].registrationSummary);
+  data.eventStats[0].registrationSummary = estimated(data.eventStats[0].registrationSummary);
+  const channel = (id, name, registrationSummary) => ({ id, name, ...registrationSummary, paidOrders: 1, registrationSummary, dinnerSummary: summary(0, 0, 0, 0) });
+  data.paymentChannels = [channel("stripe_online", "Stripe online", summary(10000, 0, 175, 1)), channel("stripe_tap_to_pay", "Stripe Tap to Pay", { ...estimated(summary(10000, 0, 0, 1)), feesCents: 0, estimatedFeesCents: 160, netAfterEstimatedFeesCents: 9840 }), channel("paypal", "PayPal dentro Stripe", data.registrationSummary)];
+  await mount(context, { data });
+  assert.equal(metric("Commissioni di pagamento"), "1,00 € effettive + 3,55 € stimate");
+  assert.equal(metric("Incassi netti"), "55,45 € (stimati)");
+  assert.equal(metric("Attività · netto", window.document.querySelector('[data-payment-channel="stripe_online"]')), "98,25 €");
+  assert.equal(metric("Attività · netto", window.document.querySelector('[data-payment-channel="stripe_tap_to_pay"]')), "98,40 € (stimati)");
+  assert.equal(metric("Attività · netto", window.document.querySelector('[data-payment-channel="paypal"]')), "55,45 € (stimati)");
+  assert.equal(window.document.querySelector('[data-revenue-kind="masterclass"] > p').textContent.replaceAll("\u00a0", " "), "25,45 € (stimati)");
+  assert.ok(window.document.querySelector('[role="status"]').textContent.includes("calcolate a listino"));
+  assert.equal(window.document.querySelector('[aria-labelledby="analytics-affiliates-title"] tbody tr').cells[4].textContent.replaceAll("\u00a0", " "), "55,45 € (stimati)");
+  assert.ok(window.document.querySelector('[aria-labelledby="sales-trend-title"] tbody tr').textContent.includes("stimati"));
+  assert.equal(window.document.querySelector('[aria-labelledby="sales-trend-title"] svg'), null, "actual fee chart must not silently become an estimated chart");
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
+  const rows = csvRows(csv);
+  assert.equal(rows.find(row => row[0] === "Commissioni di pagamento note (€)")[1], "1");
+  assert.equal(rows.find(row => row[0] === "Netto dopo commissioni (€)")[1], "Da verificare");
+  assert.equal(rows.find(row => row[0] === "Quote commissioni mancanti stimate (€)")[1], "3,55");
+  assert.equal(rows.find(row => row[0] === "Netto con commissioni stimate (€)")[1], "55,45");
+  assert.equal(rows.find(row => row[0] === "Stato commissioni")[1], "Parziali: 1 pagamento da verificare; 1 con stima");
+  const channelHeading = rows.findIndex(row => row[0] === "Incassi per metodo di pagamento");
+  const paypal = rows.slice(channelHeading + 2).find(row => row[0] === "PayPal dentro Stripe");
+  assert.deepEqual(paypal.slice(2, 11), ["80", "20", "60", "1", "Da verificare", "Parziali: 1 pagamento da verificare; 1 con stima", "3,55", "1", "55,45"]);
+});
+
+test("a partially covered estimate never produces a complete estimated net", async context => {
+  const data = fixture();
+  data.registrationSummary = { ...data.registrationSummary, feesCents: 100, missingFeePayments: 2, estimatedFeePayments: 1, estimatedFeesCents: 355, netAfterFeesCents: null, netAfterEstimatedFeesCents: null };
+  await mount(context, { data });
+  assert.equal(metric("Incassi netti"), "Da verificare");
+  assert.equal(metric("Commissioni di pagamento"), "1,00 € effettive + 3,55 € stimate (parziali)");
+  assert.ok(window.document.querySelector('[role="status"]').textContent.includes("Il netto resta da verificare"));
+  const rows = csvRows(load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data));
+  assert.equal(rows.find(row => row[0] === "Netto con commissioni stimate (€)")[1], "Da verificare");
+  assert.equal(rows.find(row => row[0] === "Stato commissioni")[1], "Parziali: 2 pagamenti da verificare; 1 con stima");
+});
+
+test("the fee guide and CSV provide official Italian sources and estimation assumptions", async context => {
+  await mount(context);
+  const guide = [...window.document.querySelectorAll("details")].find(node => node.querySelector("summary")?.textContent === "Commissioni: tariffe, stime e fonti");
+  assert.ok(guide); assert.equal(guide.open, false);
+  const sources = ["https://stripe.com/it/pricing", "https://stripe.com/it/terminal", "https://stripe.com/it/pricing/local-payment-methods", "https://www.paypal.com/it/business/paypal-business-fees", "https://docs.stripe.com/radar/how-radar-works", "https://docs.stripe.com/payments/currencies/localize-prices/adaptive-pricing?payment-ui=stripe-hosted"];
+  assert.deepEqual([...guide.querySelectorAll("a")].map(node => node.href), sources);
+  assert.ok(guide.textContent.includes("1,4% + 0,20 €"));
+  assert.ok(guide.textContent.includes("3,6% + 0,45 €"));
+  assert.ok(guide.textContent.includes("una sola autorizzazione"));
+  assert.ok(guide.textContent.includes("6 novembre 2026"));
+  assert.ok(guide.textContent.includes("commissioni effettive"));
+  assert.ok(guide.textContent.includes("prima di eventuali costi Radar"));
+  assert.ok(guide.textContent.includes("2,84 € di commissioni e 62,16 € netti"));
+  assert.ok(guide.textContent.includes("1,28 € di commissioni e 63,72 € netti"));
+  assert.ok(guide.textContent.includes("1,01 € di commissioni di elaborazione e 63,99 € netti"));
+  assert.ok(guide.textContent.includes("3,63 € di commissioni complessive"));
+  assert.ok(guide.textContent.includes("importi in valute diverse non si sommano direttamente"));
+  assert.ok(guide.textContent.includes("un cambio corrente o un 2% automatico"));
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(fixture());
+  for (const source of sources) assert.ok(csv.includes(source));
+  assert.ok(csv.includes("06/11/2026"));
+  assert.ok(csv.includes("Link è incluso nel canale Stripe online"));
+  assert.equal(/NaN|undefined/.test(csv), false);
+});
+
+test("the verified PayPal example keeps the complete fee and net identical in statistics and CSV", async context => {
+  const data = fixture();
+  data.registrationSummary = summary(6500, 0, 284, 1);
+  data.dinnerSummary = summary(0, 0, 0, 0);
+  data.paymentChannels = [{ id: "paypal", name: "PayPal dentro Stripe", paidOrders: 1, ...data.registrationSummary, registrationSummary: data.registrationSummary, dinnerSummary: data.dinnerSummary }];
+  await mount(context, { data, fixedEventId: eventId });
+  const section = window.document.querySelector('[aria-labelledby="analytics-registration-summary"]');
+  assert.equal(metric("Commissioni di pagamento", section), "2,84 €");
+  assert.equal(metric("Incassi netti", section), "62,16 €");
+  const channel = window.document.querySelector('[data-payment-channel="paypal"]');
+  assert.equal(metric("Attività · netto", channel), "62,16 €");
+  const rows = csvRows(load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data));
+  assert.equal(rows.find(row => row[0] === "Commissioni di pagamento note (€)")[1], "2,84");
+  assert.equal(rows.find(row => row[0] === "Netto dopo commissioni (€)")[1], "62,16");
+  assert.equal(rows.find(row => row[0] === "Stato commissioni")[1], "Complete");
+});
+
+test("verified online and Tap examples display the exact screenshot totals in statistics and CSV", async context => {
+  for (const sample of [
+    { id: "stripe_online", name: "Stripe online", feeCents: 128, feeText: "1,28 €", netText: "63,72 €", csvFee: "1,28", csvNet: "63,72" },
+    { id: "stripe_tap_to_pay", name: "Stripe Tap to Pay", feeCents: 101, feeText: "1,01 €", netText: "63,99 €", csvFee: "1,01", csvNet: "63,99" },
+  ]) {
+    const data = fixture();
+    data.registrationSummary = summary(6500, 0, sample.feeCents, 1);
+    data.dinnerSummary = summary(0, 0, 0, 0);
+    data.paymentChannels = [{ id: sample.id, name: sample.name, paidOrders: 1, ...data.registrationSummary, registrationSummary: data.registrationSummary, dinnerSummary: data.dinnerSummary }];
+    await mount(context, { data, fixedEventId: eventId });
+    const section = window.document.querySelector('[aria-labelledby="analytics-registration-summary"]');
+    assert.equal(metric("Commissioni di pagamento", section), sample.feeText);
+    assert.equal(metric("Incassi netti", section), sample.netText);
+    assert.equal(metric("Attività · netto", window.document.querySelector(`[data-payment-channel="${sample.id}"]`)), sample.netText);
+    const rows = csvRows(load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data));
+    assert.equal(rows.find(row => row[0] === "Commissioni di pagamento note (€)")[1], sample.csvFee);
+    assert.equal(rows.find(row => row[0] === "Netto dopo commissioni (€)")[1], sample.csvNet);
+    assert.equal(rows.find(row => row[0] === "Stato commissioni")[1], "Complete");
+  }
+});
+
+test("the Polish PayPal example reports EUR fees once and keeps activity and dinner nets reconciled", async context => {
+  const data = fixture();
+  const total = summary(8500, 0, 363, 1);
+  data.metrics = { ...data.metrics, ...total, paidOrders: 1 };
+  data.registrationSummary = summary(6500, 0, 277, 1);
+  data.dinnerSummary = summary(2000, 0, 86, 1);
+  data.paymentChannels = [{ id: "paypal", name: "PayPal dentro Stripe", paidOrders: 1, ...total, registrationSummary: data.registrationSummary, dinnerSummary: data.dinnerSummary }];
+  data.trend = [{ date: "2026-10-21", ...total, paidOrders: 1, registrationSummary: data.registrationSummary, dinnerSummary: data.dinnerSummary }];
+  await mount(context, { data, fixedEventId: eventId });
+  const activity = window.document.querySelector('[aria-labelledby="analytics-registration-summary"]');
+  const dinner = window.document.querySelector('[aria-labelledby="analytics-dinner-summary"]');
+  assert.equal(metric("Commissioni di pagamento", activity), "2,77 €");
+  assert.equal(metric("Incassi netti", activity), "62,23 €");
+  assert.equal(metric("Commissioni cena", dinner), "0,86 €");
+  assert.equal(metric("Incassi netti cena", dinner), "19,14 €");
+  const channel = window.document.querySelector('[data-payment-channel="paypal"]');
+  assert.equal(metric("Attività · netto", channel), "62,23 €");
+  assert.equal(metric("Cena · netto", channel), "19,14 €");
+  const csv = load("lib/admin/analytics-csv.ts").adminAnalyticsCsv(data);
+  const rows = csvRows(csv);
+  assert.deepEqual(rows.find(row => row[0] === "Totale attività e cena").slice(0, 7), ["Totale attività e cena", "85", "0", "85", "3,63", "81,37", "Complete"]);
+  assert.equal(rows.find(row => row[0] === "Commissioni di pagamento note (€)")[1], "2,77");
+  assert.equal(rows.find(row => row[0] === "Commissioni cena note (€)")[1], "0,86");
+  assert.ok(csv.includes("I dettagli 14,62 PLN e 0,32 EUR non si sommano direttamente"));
 });

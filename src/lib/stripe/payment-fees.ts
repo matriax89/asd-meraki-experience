@@ -1,6 +1,7 @@
 import "server-only";
 import type Stripe from "stripe";
 import { getVerifiedStripe } from "./client";
+import { estimateTapToPayFee, estimateExternalPayPalFee, tapToPayEstimateReason, externalPayPalEstimateReason } from "./payment-fee-rates";
 
 export type PaymentFeeReference = {
   id: string;
@@ -8,13 +9,23 @@ export type PaymentFeeReference = {
   sessionId: string | null;
   amountCents: number;
   refundedCents: number;
+  paymentMethod?: "online" | "pos";
 };
-export type PaymentFees = { feeCents: number; complete: boolean };
+export type PaymentFeeChannel = "stripe_online" | "stripe_tap_to_pay" | "stripe_terminal" | "paypal" | "unknown";
+export type PaymentFees = {
+  /** Verified fees only, including actual refund fee credits. */
+  feeCents: number;
+  complete: boolean;
+  channel?: PaymentFeeChannel;
+  /** Incremental missing fees; excludes all amounts already in feeCents. */
+  estimatedFeeCents?: number;
+  estimateReason?: string;
+};
 
 const concurrency = 4;
 const requestTimeout = 4_000;
 const reportTimeout = 12_000;
-const unavailable = (): PaymentFees => ({ feeCents: 0, complete: false });
+const unavailable = (channel?: PaymentFeeChannel): PaymentFees => ({ feeCents: 0, complete: false, ...(channel ? { channel } : {}) });
 const cents = (value: number) => Number.isSafeInteger(value) && value >= 0;
 
 function options(deadline: number): Stripe.RequestOptions {
@@ -40,16 +51,34 @@ async function balance(stripe: Stripe, value: string | Stripe.BalanceTransaction
 }
 
 function validBalance(value: Stripe.BalanceTransaction | null): value is Stripe.BalanceTransaction {
-  return Boolean(value && value.currency === "eur" && Number.isSafeInteger(value.amount) && Number.isSafeInteger(value.fee));
+  return Boolean(value && value.currency === "eur" && Number.isSafeInteger(value.amount) && Number.isSafeInteger(value.fee) && Number.isSafeInteger(value.net) && value.net === value.amount - value.fee);
+}
+
+async function paymentChannel(stripe: Stripe, charge: Stripe.Charge, deadline: number): Promise<PaymentFeeChannel> {
+  const details = charge.payment_method_details;
+  if (details?.type === "paypal") return "paypal";
+  if (details?.type === "card" || details?.type === "link") return "stripe_online";
+  if (details?.type !== "card_present") return "unknown";
+  // Contactless cards and Apple Pay also work on physical readers. Only a
+  // confirmed phone reader identifies Tap to Pay among Terminal payments.
+  if (details.card_present?.reader) {
+    try {
+      const reader = await stripe.terminal.readers.retrieve(details.card_present.reader, {}, options(deadline));
+      if (reader.device_type === "mobile_phone_reader") return "stripe_tap_to_pay";
+    } catch { /* The reader classification must not discard verified fees. */ }
+  }
+  return "stripe_terminal";
 }
 
 async function paymentFees(stripe: Stripe, reference: PaymentFeeReference, deadline: number): Promise<PaymentFees> {
   let intent: Stripe.PaymentIntent | null;
+  let sessionPresentmentCurrency: string | undefined;
   if (reference.paymentIntent) {
     intent = await stripe.paymentIntents.retrieve(reference.paymentIntent, { expand: ["latest_charge.balance_transaction"] }, options(deadline));
   } else if (reference.sessionId) {
     const session = await stripe.checkout.sessions.retrieve(reference.sessionId, { expand: ["payment_intent.latest_charge.balance_transaction"] }, options(deadline));
     if (session.currency !== "eur" || session.amount_total !== reference.amountCents || session.payment_status !== "paid") return unavailable();
+    sessionPresentmentCurrency = session.presentment_details?.presentment_currency;
     intent = typeof session.payment_intent === "string"
       ? await stripe.paymentIntents.retrieve(session.payment_intent, { expand: ["latest_charge.balance_transaction"] }, options(deadline))
       : session.payment_intent;
@@ -60,13 +89,37 @@ async function paymentFees(stripe: Stripe, reference: PaymentFeeReference, deadl
     ? await stripe.charges.retrieve(intent.latest_charge, { expand: ["balance_transaction"] }, options(deadline))
     : intent.latest_charge;
   if (!charge || !charge.paid || !charge.captured || charge.currency !== "eur" || charge.amount_captured !== reference.amountCents) return unavailable();
-  const transaction = await balance(stripe, charge.balance_transaction, deadline);
-  if (!validBalance(transaction)) return unavailable();
+  const channel = await paymentChannel(stripe, charge, deadline);
+  let transaction: Stripe.BalanceTransaction | null;
+  try { transaction = await balance(stripe, charge.balance_transaction, deadline); } catch { return unavailable(channel); }
+  if (!validBalance(transaction)) return unavailable(channel);
   // PayPal settlement outside Stripe exposes only Stripe's fee, not PayPal's.
   const externalPayPal = charge.payment_method_details?.type === "paypal" && transaction.amount === 0;
-  if (!externalPayPal && transaction.amount !== reference.amountCents) return unavailable();
-  const result = { feeCents: transaction.fee, complete: !externalPayPal };
-  if (!cents(charge.amount_refunded) || charge.amount_refunded !== reference.refundedCents) result.complete = false;
+  if (!externalPayPal && transaction.amount !== reference.amountCents) return unavailable(channel);
+  // Adaptive Pricing preserves integration EUR amounts. Customer presentment
+  // can differ; a missing PayPal fee in that currency cannot be reconstructed
+  // with the EUR fixed-fee tariff or an assumed conversion rate.
+  const foreignPresentment = [sessionPresentmentCurrency, intent.presentment_details?.presentment_currency, charge.presentment_details?.presentment_currency].some(currency => currency !== undefined && currency !== "eur");
+  // Standalone fees can appear later while a balance transaction temporarily
+  // exposes zero fee and no details. This is not proof of free processing.
+  // https://docs.stripe.com/standalone-fees
+  const standalonePending = transaction.fee === 0 && !transaction.fee_details?.length;
+  // The aggregate already includes any Radar and PayPal passthrough fees
+  // charged on this transaction. Never add their fee_details a second time.
+  const result: PaymentFees = { feeCents: transaction.fee, complete: !externalPayPal && !standalonePending, channel };
+  if (externalPayPal && !standalonePending && !foreignPresentment) {
+    result.estimatedFeeCents = estimateExternalPayPalFee(reference.amountCents);
+    result.estimateReason = externalPayPalEstimateReason;
+  }
+  const refundsVerified = cents(charge.amount_refunded) && charge.amount_refunded === reference.refundedCents;
+  const unverifiableRefunds = () => {
+    result.complete = false;
+    // An estimate of processing fees cannot resolve an inconsistent refund
+    // ledger; keep any known actual fee but do not imply an estimated net.
+    delete result.estimatedFeeCents;
+    delete result.estimateReason;
+  };
+  if (!refundsVerified) unverifiableRefunds();
   if (!(charge.amount_refunded > 0 || reference.refundedCents > 0)) return result;
 
   // A charge's embedded refunds list contains only ten entries. Page the full
@@ -82,10 +135,10 @@ async function paymentFees(stripe: Stripe, reference: PaymentFeeReference, deadl
         if (seenRefunds.has(refund.id)) continue;
         seenRefunds.add(refund.id);
         if (refund.status !== "succeeded") continue;
-        if (refund.currency !== "eur" || !cents(refund.amount)) { result.complete = false; continue; }
+        if (refund.currency !== "eur" || !cents(refund.amount)) { unverifiableRefunds(); continue; }
         refunded += refund.amount;
         const refundTransaction = await balance(stripe, refund.balance_transaction, deadline);
-        if (!validBalance(refundTransaction) || (!externalPayPal && refundTransaction.amount !== -refund.amount)) { result.complete = false; continue; }
+        if (!validBalance(refundTransaction) || (externalPayPal ? refundTransaction.amount !== 0 : refundTransaction.amount !== -refund.amount)) { unverifiableRefunds(); continue; }
         if (!seenTransactions.has(refundTransaction.id)) {
           seenTransactions.add(refundTransaction.id);
           result.feeCents += refundTransaction.fee;
@@ -93,17 +146,17 @@ async function paymentFees(stripe: Stripe, reference: PaymentFeeReference, deadl
       }
       if (!page.has_more) break;
       const next = page.data.at(-1)?.id;
-      if (!next || next === cursor) { result.complete = false; break; }
+      if (!next || next === cursor) { unverifiableRefunds(); break; }
       cursor = next;
     }
-    if (refunded !== reference.refundedCents || refunded !== charge.amount_refunded) result.complete = false;
+    if (refunded !== reference.refundedCents || refunded !== charge.amount_refunded) unverifiableRefunds();
   } catch {
-    result.complete = false;
+    unverifiableRefunds();
   }
   return result;
 }
 
-/** Actual merchant fees only. Missing, delayed or external fees stay explicit. */
+/** Actual fees stay separate from explicitly labeled standard-tariff estimates. */
 export async function loadPaymentFees(references: PaymentFeeReference[]): Promise<Map<string, PaymentFees>> {
   const results = new Map<string, PaymentFees>();
   const intentsBySession = new Map(references.filter(reference => reference.sessionId && reference.paymentIntent).map(reference => [reference.sessionId!, reference.paymentIntent!]));
@@ -112,6 +165,12 @@ export async function loadPaymentFees(references: PaymentFeeReference[]): Promis
     results.set(reference.id, unavailable());
     if (!cents(reference.amountCents) || !cents(reference.refundedCents) || reference.refundedCents > reference.amountCents) continue;
     if (reference.amountCents === 0) { results.set(reference.id, { feeCents: 0, complete: true }); continue; }
+    if (reference.paymentMethod === "pos" && !reference.paymentIntent && !reference.sessionId) {
+      // Meraki uses Stripe Tap to Pay for manually recorded POS receipts.
+      // The card's origin is unknown: the SEE tariff is an explicit assumption.
+      results.set(reference.id, { feeCents: 0, complete: false, channel: "stripe_tap_to_pay", estimatedFeeCents: estimateTapToPayFee(reference.amountCents), estimateReason: tapToPayEstimateReason });
+      continue;
+    }
     const intent = reference.paymentIntent || (reference.sessionId ? intentsBySession.get(reference.sessionId) : null);
     const key = intent ? `intent:${intent}` : reference.sessionId ? `session:${reference.sessionId}` : "";
     if (!key) continue;

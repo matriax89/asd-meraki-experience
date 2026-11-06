@@ -5,7 +5,7 @@ import { getLocalizedText } from "@/lib/i18n-utils";
 import { fromRomeInput } from "@/lib/commerce/rome-time";
 import { parseEventAffiliates } from "@/lib/events/affiliates";
 import { affiliateCommissionValueSchema, type AffiliateCommissionValue } from "@/lib/events/affiliate-commissions";
-import { loadPaymentFees } from "@/lib/stripe/payment-fees";
+import { loadPaymentFees, type PaymentFees } from "@/lib/stripe/payment-fees";
 import type { AdminAnalytics, AdminAnalyticsInput, AnalyticsAffiliateRow, AnalyticsBreakdown, AnalyticsEventRow, AnalyticsFinancials, AnalyticsMetrics, AnalyticsSummaryPartitions } from "./analytics-types";
 
 type Event = { id: string; titolo: unknown; data_inizio: string; data_fine: string | null; attivo: boolean | null; canceled_at: string | null; capacity: number | null; affiliates: unknown; activities: unknown };
@@ -30,7 +30,7 @@ const midnight = (value: string) => {
   return value;
 };
 const advance = (value: string, days: number) => new Date(Date.parse(`${value}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
-const emptyFinancials = (): AnalyticsFinancials => ({ grossCents: 0, refundedCents: 0, netCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0 });
+const emptyFinancials = (): AnalyticsFinancials => ({ grossCents: 0, refundedCents: 0, netCents: 0, feesCents: 0, netAfterFeesCents: 0, missingFeePayments: 0, estimatedFeesCents: 0, estimatedFeePayments: 0, netAfterEstimatedFeesCents: 0 });
 const emptySummaries = (): AnalyticsSummaryPartitions => ({ registrationSummary: { ...emptyFinancials(), count: 0 }, dinnerSummary: { ...emptyFinancials(), count: 0 } });
 const empty = (waiting: number | null = 0): AnalyticsMetrics => ({ ...emptyFinancials(), paidOrders: 0, validParticipants: 0, checkedInParticipants: 0, waiting, pendingOrders: 0, expiredOrders: 0, failedOrders: 0 });
 const amount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
@@ -156,10 +156,12 @@ function activityKinds(value: unknown): Map<string, RevenueKind> {
   return result;
 }
 
-function addFinancials(target: AnalyticsFinancials, gross: number, refunded: number, fees: number, missing: number) {
+function addFinancials(target: AnalyticsFinancials, gross: number, refunded: number, fees: number, missing: number, estimatedFees = 0, estimatedPayments = 0) {
   target.grossCents += gross; target.refundedCents += refunded; target.netCents += gross - refunded;
   target.feesCents += fees; target.missingFeePayments += missing;
   target.netAfterFeesCents = target.missingFeePayments ? null : target.netCents - target.feesCents;
+  target.estimatedFeesCents += estimatedFees; target.estimatedFeePayments += estimatedPayments;
+  target.netAfterEstimatedFeesCents = target.missingFeePayments === target.estimatedFeePayments ? target.netCents - target.feesCents - target.estimatedFeesCents : null;
 }
 
 /** Allocate only the captured cents, including historical order-level discounts. */
@@ -403,8 +405,14 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
     attributionByPayment.set(payment.identity, shares);
     return shares.some(share => inAffiliate(share.affiliateId === "direct" ? null : share.affiliateId));
   });
-  const paymentFees = await loadPaymentFees(scopedPayments.filter(payment => payment.paymentMethod === "online" && payment.captured && payment.amount > 0).map(payment => ({ id: payment.identity, paymentIntent: payment.paymentIntent, sessionId: payment.sessionId, amountCents: payment.amount, refundedCents: payment.refunded })));
-  const paymentChannels: AdminAnalytics["paymentChannels"] = (["online", "cash", "pos"] as const).map(id => ({ id, name: { online: "Online", cash: "Contanti", pos: "POS" }[id], ...emptyFinancials(), ...emptySummaries(), paidOrders: 0 }));
+  const paymentFees = await loadPaymentFees(scopedPayments.filter(payment => payment.captured && payment.amount > 0 && (payment.paymentMethod === "online" || payment.paymentMethod === "pos" && !amount(payment.manualFeeCents))).map(payment => ({ id: payment.identity, paymentIntent: payment.paymentIntent, sessionId: payment.sessionId, amountCents: payment.amount, refundedCents: payment.refunded, ...(payment.paymentMethod === "pos" ? { paymentMethod: "pos" as const } : {}) })));
+  const channelNames = { stripe_online: "Stripe online", stripe_tap_to_pay: "Stripe Tap to Pay · POS", paypal: "PayPal dentro Stripe", cash: "Contanti", stripe_terminal: "Stripe Terminal", online: "Online · metodo da verificare", pos: "POS · metodo da verificare", unknown: "Metodo da verificare" };
+  const paymentChannels: AdminAnalytics["paymentChannels"] = (["stripe_online", "stripe_tap_to_pay", "paypal", "cash"] as const).map(id => ({ id, name: channelNames[id], ...emptyFinancials(), ...emptySummaries(), paidOrders: 0 }));
+  const paymentChannel = (id: AdminAnalytics["paymentChannels"][number]["id"]) => {
+    let row = paymentChannels.find(channel => channel.id === id);
+    if (!row) { row = { id, name: channelNames[id], ...emptyFinancials(), ...emptySummaries(), paidOrders: 0 }; paymentChannels.push(row); }
+    return row;
+  };
   const trend = new Map<string, AdminAnalytics["trend"][number]>();
   const revenue = new Map<RevenueKind, AdminAnalytics["revenue"][number]>();
   const revenueNames: Record<RevenueKind, string> = { masterclass: "Masterclass", workshop: "Workshop", dinner: "Cena", extra: "Altre attività", unallocated: "Non attribuito" };
@@ -428,23 +436,28 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
       if (key) { metrics[key] += 1; event[key] += 1; }
       continue;
     }
-    const fee = payment.amount === 0 || payment.paymentMethod === "cash" ? { feeCents: 0, complete: true } : payment.paymentMethod === "pos" ? { feeCents: amount(payment.manualFeeCents) ? payment.manualFeeCents : 0, complete: amount(payment.manualFeeCents) } : paymentFees.get(payment.identity) || { feeCents: 0, complete: false };
-    if (!fee.complete) notes.add("Alcune commissioni non sono ancora disponibili o verificabili: sono mostrate solo le commissioni note e il netto dopo le commissioni resta non disponibile per gli importi interessati.");
+    const fee: PaymentFees = payment.amount === 0 || payment.paymentMethod === "cash" ? { feeCents: 0, complete: true } : payment.paymentMethod === "pos" && amount(payment.manualFeeCents) ? { feeCents: payment.manualFeeCents, complete: true, channel: "stripe_tap_to_pay" } : paymentFees.get(payment.identity) || { feeCents: 0, complete: false };
+    const estimated = !fee.complete && amount(fee.estimatedFeeCents);
+    if (!fee.complete) notes.add("Alcune commissioni effettive non sono ancora disponibili o verificabili. Le eventuali stime di listino sono indicate separatamente e non certificano il netto effettivo.");
+    if (estimated && fee.estimateReason) notes.add(fee.estimateReason);
     const feeShares = split(fee.feeCents, attributions.map(share => share.amount));
-    const included = attributions.map((share, index) => ({ ...share, feeCents: feeShares[index] })).filter(share => inAffiliate(share.affiliateId === "direct" ? null : share.affiliateId));
+    const estimatedShares = split(estimated ? fee.estimatedFeeCents! : 0, attributions.map(share => share.amount));
+    const included = attributions.map((share, index) => ({ ...share, feeCents: feeShares[index], estimatedFeesCents: estimatedShares[index] })).filter(share => inAffiliate(share.affiliateId === "direct" ? null : share.affiliateId));
     const gross = included.reduce((sum, share) => sum + share.amount, 0);
     const refunded = included.reduce((sum, share) => sum + share.refunded, 0);
     const scopedFees = included.reduce((sum, share) => sum + share.feeCents, 0);
+    const scopedEstimates = included.reduce((sum, share) => sum + share.estimatedFeesCents, 0);
     const missing = !fee.complete && gross > 0 ? 1 : 0;
-    const channel = paymentChannels.find(row => row.id === payment.paymentMethod)!;
+    const estimatedPayment = estimated && gross > 0 ? 1 : 0;
+    const channel = paymentChannel(payment.paymentMethod === "cash" ? "cash" : payment.paymentMethod === "pos" ? "stripe_tap_to_pay" : fee.channel || "online");
     for (const item of [metrics, event, channel]) {
-      addFinancials(item, gross, refunded, scopedFees, missing);
+      addFinancials(item, gross, refunded, scopedFees, missing, scopedEstimates, estimatedPayment);
       if (gross > refunded) item.paidOrders += 1;
     }
     const categoryTotals = new Map<RevenueKind, AnalyticsFinancials>();
     for (const share of included) {
       const affiliateRow = affiliate(payment.eventId, share.affiliateId === "direct" ? null : share.affiliateId, share.affiliateName);
-      addFinancials(affiliateRow, share.amount, share.refunded, share.feeCents, !fee.complete && share.amount > 0 ? 1 : 0);
+      addFinancials(affiliateRow, share.amount, share.refunded, share.feeCents, !fee.complete && share.amount > 0 ? 1 : 0, share.estimatedFeesCents, estimated && share.amount > 0 ? 1 : 0);
       if (share.amount > share.refunded) affiliateRow.paidOrders += 1;
       const allocatedLines = allocated(payment).filter((_, index) => share.lineIndices.has(index));
       const sharePayment = { ...payment, amount: share.amount, refunded: share.refunded, lines: allocatedLines.map(entry => entry.line), allocatedLines };
@@ -452,33 +465,34 @@ export async function loadAdminAnalytics(input: AdminAnalyticsInput): Promise<Ad
       const weights = categories.map(([, cents]) => cents);
       const categoryRefunds = split(share.refunded, weights);
       const categoryFees = split(share.feeCents, weights);
+      const categoryEstimates = split(share.estimatedFeesCents, weights);
       const shareSummaries = emptySummaries();
       categories.forEach(([id, gross], index) => {
         const category = categoryTotals.get(id) || emptyFinancials();
-        addFinancials(category, gross, categoryRefunds[index], categoryFees[index], 0);
+        addFinancials(category, gross, categoryRefunds[index], categoryFees[index], 0, categoryEstimates[index]);
         categoryTotals.set(id, category);
-        addFinancials(id === "dinner" ? shareSummaries.dinnerSummary : shareSummaries.registrationSummary, gross, categoryRefunds[index], categoryFees[index], 0);
+        addFinancials(id === "dinner" ? shareSummaries.dinnerSummary : shareSummaries.registrationSummary, gross, categoryRefunds[index], categoryFees[index], 0, categoryEstimates[index]);
       });
       for (const key of ["registrationSummary", "dinnerSummary"] as const) {
         const row = shareSummaries[key];
-        addFinancials(affiliateRow[key], row.grossCents, row.refundedCents, row.feesCents, !fee.complete && row.grossCents > 0 ? 1 : 0);
+        addFinancials(affiliateRow[key], row.grossCents, row.refundedCents, row.feesCents, !fee.complete && row.grossCents > 0 ? 1 : 0, row.estimatedFeesCents, estimated && row.grossCents > 0 ? 1 : 0);
       }
     }
     const date = day(payment.createdAt);
     if (date) {
       const current = trend.get(date) || { date, ...emptyFinancials(), ...emptySummaries(), paidOrders: 0 };
-      addFinancials(current, gross, refunded, scopedFees, missing);
+      addFinancials(current, gross, refunded, scopedFees, missing, scopedEstimates, estimatedPayment);
       current.paidOrders += gross > refunded ? 1 : 0; trend.set(date, current);
     }
     const paymentSummaries = emptySummaries();
     for (const [id, category] of categoryTotals) {
-      addFinancials(revenueRow(id), category.grossCents, category.refundedCents, category.feesCents, !fee.complete && category.grossCents > 0 ? 1 : 0);
-      addFinancials(id === "dinner" ? paymentSummaries.dinnerSummary : paymentSummaries.registrationSummary, category.grossCents, category.refundedCents, category.feesCents, 0);
+      addFinancials(revenueRow(id), category.grossCents, category.refundedCents, category.feesCents, !fee.complete && category.grossCents > 0 ? 1 : 0, category.estimatedFeesCents, estimated && category.grossCents > 0 ? 1 : 0);
+      addFinancials(id === "dinner" ? paymentSummaries.dinnerSummary : paymentSummaries.registrationSummary, category.grossCents, category.refundedCents, category.feesCents, 0, category.estimatedFeesCents);
     }
     for (const key of ["registrationSummary", "dinnerSummary"] as const) {
       const row = paymentSummaries[key];
       const targets = [summaries[key], event[key], channel[key], ...(date ? [trend.get(date)![key]] : [])];
-      for (const target of targets) addFinancials(target, row.grossCents, row.refundedCents, row.feesCents, !fee.complete && row.grossCents > 0 ? 1 : 0);
+      for (const target of targets) addFinancials(target, row.grossCents, row.refundedCents, row.feesCents, !fee.complete && row.grossCents > 0 ? 1 : 0, row.estimatedFeesCents, estimated && row.grossCents > 0 ? 1 : 0);
     }
   }
   const rightsByPass = new Map<string, Right[]>();

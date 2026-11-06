@@ -8,6 +8,11 @@ export type AnalyticsFinancials = {
   feesCents: number;
   netAfterFeesCents: number | null;
   missingFeePayments: number;
+  /** Estimated missing fees only, in addition to the verified feesCents. */
+  estimatedFeesCents: number;
+  estimatedFeePayments: number;
+  /** Available only when every missing fee has an explicit tariff estimate. */
+  netAfterEstimatedFeesCents: number | null;
 };
 export type AnalyticsSummary = AnalyticsFinancials & {
   /** Active people, counted once per event in the current formula or dinner. */
@@ -19,7 +24,7 @@ export type AnalyticsSummaryPartitions = {
 };
 
 export type AnalyticsPaymentChannel = AnalyticsFinancials & AnalyticsSummaryPartitions & {
-  id: "online" | "cash" | "pos";
+  id: "online" | "cash" | "pos" | "stripe_online" | "stripe_tap_to_pay" | "stripe_terminal" | "paypal" | "unknown";
   name: string;
   paidOrders: number;
 };
